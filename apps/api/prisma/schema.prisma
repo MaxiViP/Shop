@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/db/gen"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Unit {
+  GRAM
+  PIECE
+  BUNCH
+  PACK
+}
+
+model Category {
+  id     Int     @id @default(autoincrement())
+  name   String
+  slug   String  @unique
+  active Boolean @default(true)
+  sort   Int     @default(0)
+
+  parentId Int?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+}
+
+model Product {
+  id          Int     @id @default(autoincrement())
+  name        String
+  slug        String  @unique
+  description String?
+
+  price    Int
+  priceQty Int  @default(1)
+  unit     Unit
+  step     Int  @default(1)
+  min      Int  @default(1)
+
+  active Boolean @default(true)
+  sort   Int     @default(0)
+
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  images ProductImage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+}
+
+model ProductImage {
+  id   Int     @id @default(autoincrement())
+  url  String
+  alt  String?
+  sort Int     @default(0)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
