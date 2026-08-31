@@ -1,0 +1,43 @@
+<template>
+  <UContainer class="orders">
+    <header class="orders__head">
+      <p class="orders__label">
+        Покупки
+      </p>
+
+      <h1 class="orders__title">
+        Мои заказы
+      </h1>
+    </header>
+
+    <OrderList />
+  </UContainer>
+</template>
+
+<script setup lang="ts">
+useSeoMeta({
+  title: 'Мои заказы',
+})
+</script>
+
+<style scoped>
+.orders {
+  max-width: 900px;
+  padding-block: 3rem 5rem;
+}
+
+.orders__head {
+  margin-bottom: 2rem;
+}
+
+.orders__label {
+  color: var(--ui-primary);
+  font-weight: 600;
+}
+
+.orders__title {
+  margin-top: 0.25rem;
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+</style>

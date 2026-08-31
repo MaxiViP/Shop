@@ -14,6 +14,17 @@ enum Unit {
   PACK
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum OrderItemStatus {
+  PENDING
+  PICKED
+  MISSING
+}
+
 model Category {
   id     Int     @id @default(autoincrement())
   name   String
@@ -48,6 +59,8 @@ model Product {
   active Boolean @default(true)
   sort   Int     @default(0)
 
+  orderItems OrderItem[]
+
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id])
 
@@ -69,4 +82,171 @@ model ProductImage {
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
+}
+
+model User {
+  id         Int       @id @default(autoincrement())
+  phone      String    @unique
+  name       String?
+  verifiedAt DateTime?
+  role       UserRole  @default(USER)
+
+  orders    Order[]
+  addresses Address[]
+  sessions  Session[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Address {
+  id       Int     @id @default(autoincrement())
+  label    String
+  city     String
+  street   String
+  house    String
+  flat     String?
+  entrance String?
+  floor    String?
+  intercom String?
+  comment  String?
+
+  lat    Float?
+  lng    Float?
+  fiasId String?
+
+  isDefault Boolean @default(false)
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  lastUsedAt DateTime @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Otp {
+  phone     String   @id
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+enum OrderType {
+  DELIVERY
+  PICKUP
+}
+
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  ASSEMBLING
+  READY
+  DELIVERING
+  COMPLETED
+  CANCELED
+}
+
+model Order {
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  type   OrderType
+  status OrderStatus @default(NEW)
+
+  customerName  String
+  customerPhone String
+
+  city     String?
+  street   String?
+  house    String?
+  flat     String?
+  entrance String?
+  floor    String?
+  intercom String?
+  comment  String?
+
+  deliveryAt DateTime?
+
+  subtotal      Int
+  deliveryPrice Int @default(0)
+  total         Int
+
+  finalSubtotal Int?
+  finalTotal    Int?
+
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  guestSessionId String?
+  guestSession   GuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
+
+  items OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([guestSessionId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id Int @id @default(autoincrement())
+
+  productName String
+  productSlug String
+  image       String?
+
+  price    Int
+  priceQty Int
+  unit     Unit
+
+  status OrderItemStatus @default(PENDING)
+
+  qty       Int
+  actualQty Int?
+  total     Int
+
+  actualTotal Int?
+
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model GuestSession {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  lastUsedAt DateTime @default(now())
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }
