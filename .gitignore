@@ -11,3 +11,8 @@ coverage
 *.log
 .DS_Store
 Thumbs.db
+
+cookie.txt
+*.cookie.txt
+
+*.tsbuildinfo
