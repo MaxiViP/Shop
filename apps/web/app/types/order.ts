@@ -9,7 +9,7 @@ export type OrderStatus =
 
 export type OrderType = "DELIVERY" | "PICKUP";
 
-export interface AdminOrder {
+export interface StaffOrder {
   id: number;
   publicId: string;
   type: OrderType;
@@ -122,7 +122,7 @@ export interface OrderDetail {
 
 export type OrderItemStatus = "PENDING" | "PICKED" | "MISSING";
 
-export interface AdminOrderDetail {
+export interface StaffOrderDetail {
   id: number;
   publicId: string;
   type: OrderType;

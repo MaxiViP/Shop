@@ -12,7 +12,7 @@ export type AuthRequest = Request & {
     id: number;
     phone: string;
     name: string | null;
-    role: 'USER' | 'ADMIN';
+    role: 'USER' | 'SELLER' | 'ADMIN';
     verifiedAt: Date | null;
   };
 };

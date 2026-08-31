@@ -1,22 +1,16 @@
 <template>
-  <UContainer class="admin">
-    <header class="admin__head">
+  <UContainer class="staff">
+    <header class="staff__head">
       <div>
-        <p class="admin__label">
-          Управление
-        </p>
+        <p class="staff__label">Управление</p>
 
-        <h1 class="admin__title">
-          Заказы
-        </h1>
+        <h1 class="staff__title">Заказы</h1>
       </div>
 
-      <UBadge>
-        {{ active.length }} активных
-      </UBadge>
+      <UBadge> {{ active.length }} активных </UBadge>
     </header>
 
-    <div class="admin__list">
+    <div class="staff__list">
       <article
         v-for="order in orders"
         :key="order.id"
@@ -25,7 +19,7 @@
         <div class="order__head">
           <div>
             <NuxtLink
-              :to="`/admin/orders/${order.id}`"
+              :to="`/staff/orders/${order.id}`"
               class="order__number"
             >
               Заказ №{{ order.id }}
@@ -36,9 +30,7 @@
             </p>
           </div>
 
-          <OrderStatus
-            :status="order.status"
-          />
+          <OrderStatus :status="order.status" />
         </div>
 
         <div class="order__customer">
@@ -51,18 +43,12 @@
           </span>
         </div>
 
-        <p
-          v-if="address(order)"
-          class="order__address"
-        >
+        <p v-if="address(order)" class="order__address">
           {{ address(order) }}
         </p>
 
         <div class="order__items">
-          <span
-            v-for="item in order.items"
-            :key="item.id"
-          >
+          <span v-for="item in order.items" :key="item.id">
             {{ item.productName }}
           </span>
         </div>
@@ -72,11 +58,11 @@
         </strong>
 
         <div
-          v-if="actions(order.status).length"
+          v-if="actions(order).length"
           class="order__actions"
         >
           <UButton
-            v-for="action in actions(order.status)"
+            v-for="action in actions(order)"
             :key="action.status"
             :color="
               action.status === 'CANCELED'
@@ -88,15 +74,9 @@
                 ? 'soft'
                 : 'solid'
             "
-            :loading="
-              loadingId === order.id
-            "
-            @click="
-              change(
-                order.id,
-                action.status,
-              )
-            "
+            :loading="loadingId === order.id"
+            :disabled="action.disabled"
+            @click="change(order.id, action.status)"
           >
             {{ action.label }}
           </UButton>
@@ -107,79 +87,75 @@
 </template>
 
 <script setup lang="ts">
-import type {
-  AdminOrder,
-  OrderStatus,
-} from '~/types/order'
+import type { StaffOrder, OrderStatus } from '~/types/order'
 import { useAuthStore } from '~/stores/auth'
-import {
-  isActiveOrder,
-  orderStatus,
-} from '~/utils/order'
+import { isActiveOrder, orderStatus } from '~/utils/order'
 import { money } from '~/utils/money'
 
 const auth = useAuthStore()
 const api = useApiClient()
 const toast = useToast()
 
-if (auth.user?.role !== 'ADMIN') {
+if (
+  auth.user?.role !== 'SELLER' &&
+  auth.user?.role !== 'ADMIN'
+) {
   await navigateTo('/')
 }
 
-const {
-  data,
-  refresh,
-} = await useApi<AdminOrder[]>(
-  '/admin/orders',
+const { data, refresh } = await useApi<StaffOrder[]>(
+  '/staff/orders',
   {
     default: () => [],
   },
 )
 
-const orders = computed(
-  () => data.value ?? [],
-)
+const orders = computed(() => data.value ?? [])
 
 const active = computed(() =>
-  orders.value.filter(order =>
+  orders.value.filter((order) =>
     isActiveOrder(order.status),
   ),
 )
 
-const loadingId = ref<number | null>(
-  null,
-)
+const loadingId = ref<number | null>(null)
 
-const next: Partial<
-  Record<OrderStatus, OrderStatus>
-> = {
+const next: Partial<Record<OrderStatus, OrderStatus>> = {
   NEW: 'CONFIRMED',
   CONFIRMED: 'ASSEMBLING',
   ASSEMBLING: 'READY',
-  READY: 'DELIVERING',
   DELIVERING: 'COMPLETED',
 }
 
-function actions(status: OrderStatus) {
-  if (
-    status === 'COMPLETED'
-    || status === 'CANCELED'
-  ) {
+function actions(order: StaffOrder) {
+  const { status } = order
+
+  if (status === 'COMPLETED' || status === 'CANCELED') {
     return []
   }
 
   const result: {
     status: OrderStatus
     label: string
+    disabled: boolean
   }[] = []
 
-  const nextStatus = next[status]
+  const nextStatus =
+    status === 'READY'
+      ? order.type === 'DELIVERY'
+        ? 'DELIVERING'
+        : 'COMPLETED'
+      : next[status]
 
   if (nextStatus) {
     result.push({
       status: nextStatus,
-      label:
-        orderStatus[nextStatus].label,
+      label: orderStatus[nextStatus].label,
+      disabled:
+        nextStatus === 'READY' &&
+        order.items.some(
+          (item) => item.status === 'PENDING',
+        ),
     })
   }
 
@@ -187,34 +163,28 @@ function actions(status: OrderStatus) {
     result.push({
       status: 'CANCELED',
       label: 'Отменить',
+      disabled: false,
     })
   }
 
   return result
 }
 
-async function change(
-  id: number,
-  status: OrderStatus,
-) {
+async function change(id: number, status: OrderStatus) {
   loadingId.value = id
 
   try {
-    await api(
-      `/admin/orders/${id}/status`,
-      {
-        method: 'PATCH',
-        body: {
-          status,
-        },
+    await api(`/staff/orders/${id}/status`, {
+      method: 'PATCH',
+      body: {
+        status,
       },
-    )
+    })
 
     await refresh()
 
     toast.add({
-      title:
-        orderStatus[status].label,
+      title: orderStatus[status].label,
     })
   } finally {
     loadingId.value = null
@@ -222,21 +192,17 @@ async function change(
 }
 
 function date(value: string) {
-  return new Date(value)
-    .toLocaleString('ru-RU', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    })
+  return new Date(value).toLocaleString('ru-RU', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
 }
 
-function address(order: AdminOrder) {
+function address(order: StaffOrder) {
   return [
     order.city,
     order.street,
-
-    order.house
-      ? `д. ${order.house}`
-      : null,
+    order.house ? `д. ${order.house}` : null,
   ]
     .filter(Boolean)
     .join(', ')
@@ -248,12 +214,12 @@ useSeoMeta({
 </script>
 
 <style scoped>
-.admin {
+.staff {
   max-width: 1000px;
   padding-block: 3rem 5rem;
 }
 
-.admin__head {
+.staff__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -261,18 +227,18 @@ useSeoMeta({
   margin-bottom: 2rem;
 }
 
-.admin__label {
+.staff__label {
   color: var(--ui-primary);
   font-weight: 600;
 }
 
-.admin__title {
+.staff__title {
   margin-top: 0.25rem;
   font-size: 2.5rem;
   font-weight: 700;
 }
 
-.admin__list {
+.staff__list {
   display: grid;
   gap: 1rem;
 }

@@ -11,8 +11,8 @@
 
       <div class="header__actions">
         <UButton
-          v-if="auth.user?.role === 'ADMIN'"
-          to="/admin/orders"
+          v-if="auth.user?.role === 'SELLER' || auth.user?.role === 'ADMIN'"
+          to="/staff/orders"
           icon="i-lucide-clipboard-list"
           variant="ghost"
           color="neutral"

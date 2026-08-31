@@ -5,18 +5,18 @@ import { CategoryModule } from './category/category.module.js';
 import { HealthCtrl } from './health/health.ctrl.js';
 import { OrderModule } from './order/order.module.js';
 import { ProductModule } from './product/product.module.js';
-import { AdminModule } from './admin/admin.module.js';
+import { StaffModule } from './staff/staff.module.js';
 
 @Module({
   imports: [
-    AdminModule,
+    StaffModule,
     AddressModule,
     AuthModule,
     CategoryModule,
     OrderModule,
     ProductModule,
   ],
-  
+
   controllers: [HealthCtrl],
 })
 export class AppModule {}

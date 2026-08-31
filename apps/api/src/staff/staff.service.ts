@@ -24,7 +24,7 @@ const transitions: Record<Status, Status[]> = {
 };
 
 @Injectable()
-export class AdminService {
+export class StaffService {
   constructor(private readonly db: DbService) {}
 
   list() {
@@ -200,6 +200,7 @@ export class AdminService {
         select: {
           id: true,
           status: true,
+          type: true,
           deliveryPrice: true,
         },
       });
@@ -209,6 +210,14 @@ export class AdminService {
       }
 
       if (!transitions[order.status].includes(next)) {
+        throw new BadRequestException('Недопустимый переход статуса');
+      }
+
+      if (
+        order.status === 'READY' &&
+        ((next === 'DELIVERING' && order.type !== 'DELIVERY') ||
+          (next === 'COMPLETED' && order.type !== 'PICKUP'))
+      ) {
         throw new BadRequestException('Недопустимый переход статуса');
       }
 

@@ -16,6 +16,7 @@ enum Unit {
 
 enum UserRole {
   USER
+  SELLER
   ADMIN
 }
 

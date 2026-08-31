@@ -4,14 +4,15 @@ import { AdminGuard } from './admin.guard.js';
 import { AuthCtrl } from './auth.ctrl.js';
 import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
+import { StaffGuard } from './staff.guard.js';
 
 @Module({
   imports: [DbModule],
 
   controllers: [AuthCtrl],
 
-  providers: [AuthService, AuthGuard, AdminGuard],
+  providers: [AuthService, AuthGuard, AdminGuard, StaffGuard],
 
-  exports: [AuthService, AuthGuard, AdminGuard],
+  exports: [AuthService, AuthGuard, AdminGuard, StaffGuard],
 })
 export class AuthModule {}

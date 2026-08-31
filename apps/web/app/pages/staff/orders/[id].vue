@@ -1,36 +1,22 @@
 <template>
-  <UContainer
-    v-if="order"
-    class="picking"
-  >
-    <NuxtLink
-      to="/admin/orders"
-      class="picking__back"
-    >
+  <UContainer v-if="order" class="picking">
+    <NuxtLink to="/staff/orders" class="picking__back">
       ← Все заказы
     </NuxtLink>
 
     <header class="picking__head">
       <div>
-        <p class="picking__label">
-          Заказ №{{ order.id }}
-        </p>
+        <p class="picking__label">Заказ №{{ order.id }}</p>
 
-        <h1 class="picking__title">
-          Сборка заказа
-        </h1>
+        <h1 class="picking__title">Сборка заказа</h1>
       </div>
 
-      <OrderStatus
-        :status="order.status"
-      />
+      <OrderStatus :status="order.status" />
     </header>
 
     <section class="customer">
       <div>
-        <span class="customer__label">
-          Покупатель
-        </span>
+        <span class="customer__label"> Покупатель </span>
 
         <strong>
           {{ order.customerName }}
@@ -38,9 +24,7 @@
       </div>
 
       <div>
-        <span class="customer__label">
-          Телефон
-        </span>
+        <span class="customer__label"> Телефон </span>
 
         <strong>
           {{ order.customerPhone }}
@@ -48,9 +32,7 @@
       </div>
 
       <div v-if="address">
-        <span class="customer__label">
-          Адрес
-        </span>
+        <span class="customer__label"> Адрес </span>
 
         <strong>
           {{ address }}
@@ -58,12 +40,20 @@
       </div>
 
       <div v-if="order.comment">
-        <span class="customer__label">
-          Комментарий
-        </span>
+        <span class="customer__label"> Комментарий </span>
 
         <strong>
           {{ order.comment }}
+        </strong>
+      </div>
+
+      <div v-if="order.deliveryAt">
+        <span class="customer__label">
+          Время доставки
+        </span>
+
+        <strong>
+          {{ deliveryTime(order.deliveryAt) }}
         </strong>
       </div>
     </section>
@@ -71,6 +61,7 @@
     <section class="picking__controls">
       <UButton
         v-if="order.status === 'NEW'"
+        :loading="statusLoading"
         @click="changeStatus('CONFIRMED')"
       >
         Подтвердить заказ
@@ -78,6 +69,7 @@
 
       <UButton
         v-if="order.status === 'CONFIRMED'"
+        :loading="statusLoading"
         @click="changeStatus('ASSEMBLING')"
       >
         Начать сборку
@@ -86,6 +78,7 @@
       <UButton
         v-if="order.status === 'ASSEMBLING'"
         :disabled="pending > 0"
+        :loading="statusLoading"
         @click="changeStatus('READY')"
       >
         Завершить сборку
@@ -93,9 +86,10 @@
 
       <UButton
         v-if="
-          order.status === 'READY'
-          && order.type === 'DELIVERY'
+          order.status === 'READY' &&
+          order.type === 'DELIVERY'
         "
+        :loading="statusLoading"
         @click="changeStatus('DELIVERING')"
       >
         Передать курьеру
@@ -103,9 +97,10 @@
 
       <UButton
         v-if="
-          order.status === 'READY'
-          && order.type === 'PICKUP'
+          order.status === 'READY' &&
+          order.type === 'PICKUP'
         "
+        :loading="statusLoading"
         @click="changeStatus('COMPLETED')"
       >
         Выдать покупателю
@@ -113,6 +108,7 @@
 
       <UButton
         v-if="order.status === 'DELIVERING'"
+        :loading="statusLoading"
         @click="changeStatus('COMPLETED')"
       >
         Доставлен
@@ -120,15 +116,10 @@
     </section>
 
     <UAlert
-      v-if="
-        order.status === 'ASSEMBLING'
-        && pending
-      "
+      v-if="order.status === 'ASSEMBLING' && pending"
       color="warning"
       variant="soft"
-      :title="
-        `Осталось обработать: ${pending}`
-      "
+      :title="`Осталось обработать: ${pending}`"
     />
 
     <section class="items">
@@ -165,65 +156,51 @@
         <div class="item__stats">
           <div>
             <span>
-              Заказано
+              {{
+                item.unit === 'GRAM'
+                  ? 'Заказанный вес'
+                  : 'Заказанное количество'
+              }}
             </span>
 
             <strong>
-              {{ quantity(
-                item.qty,
-                item.unit,
-              ) }}
+              {{ quantity(item.qty, item.unit) }}
             </strong>
           </div>
 
           <div>
-            <span>
-              Предварительно
-            </span>
+            <span> Предварительная стоимость </span>
 
             <strong>
               {{ money(item.total) }}
             </strong>
           </div>
 
-          <div
-            v-if="
-              item.actualQty !== null
-            "
-          >
+          <div v-if="item.actualQty !== null">
             <span>
-              Собрано
+              {{
+                item.unit === 'GRAM'
+                  ? 'Фактический вес'
+                  : 'Фактическое количество'
+              }}
             </span>
 
             <strong>
-              {{ quantity(
-                item.actualQty,
-                item.unit,
-              ) }}
+              {{ quantity(item.actualQty, item.unit) }}
             </strong>
           </div>
 
-          <div
-            v-if="
-              item.actualTotal !== null
-            "
-          >
-            <span>
-              Фактически
-            </span>
+          <div v-if="item.actualTotal !== null">
+            <span> Фактическая стоимость </span>
 
             <strong>
-              {{ money(
-                item.actualTotal,
-              ) }}
+              {{ money(item.actualTotal) }}
             </strong>
           </div>
         </div>
 
         <div
-          v-if="
-            order.status === 'ASSEMBLING'
-          "
+          v-if="order.status === 'ASSEMBLING'"
           class="item__actions"
         >
           <UFormField
@@ -234,18 +211,14 @@
             "
           >
             <UInput
-              v-model.number="
-                actual[item.id]
-              "
+              v-model.number="actual[item.id]"
               type="number"
               min="1"
             />
           </UFormField>
 
           <UButton
-            :loading="
-              loadingItem === item.id
-            "
+            :loading="loadingItem === item.id"
             @click="pick(item.id)"
           >
             Собрано
@@ -254,9 +227,7 @@
           <UButton
             color="error"
             variant="soft"
-            :loading="
-              loadingItem === item.id
-            "
+            :loading="loadingItem === item.id"
             @click="missing(item.id)"
           >
             Нет в наличии
@@ -267,9 +238,7 @@
 
     <section class="summary">
       <div class="summary__row">
-        <span>
-          Предварительная стоимость
-        </span>
+        <span> Предварительная стоимость </span>
 
         <strong>
           {{ money(order.total) }}
@@ -277,14 +246,10 @@
       </div>
 
       <div
-        v-if="
-          order.finalTotal !== null
-        "
+        v-if="order.finalTotal !== null"
         class="summary__row summary__row--total"
       >
-        <span>
-          Фактическая стоимость
-        </span>
+        <span> Фактическая стоимость </span>
 
         <strong>
           {{ money(order.finalTotal) }}
@@ -296,25 +261,29 @@
 
 <script setup lang="ts">
 import type {
-  AdminOrderDetail,
+  StaffOrderDetail,
   OrderItemStatus,
   OrderStatus,
 } from '~/types/order'
+import { useAuthStore } from '~/stores/auth'
 import { money } from '~/utils/money'
 
 const route = useRoute()
+const auth = useAuthStore()
 const api = useApiClient()
 const toast = useToast()
 
+if (
+  auth.user?.role !== 'SELLER' &&
+  auth.user?.role !== 'ADMIN'
+) {
+  await navigateTo('/')
+}
+
 const id = Number(route.params.id)
 
-const {
-  data,
-  error,
-  refresh,
-} = await useApi<AdminOrderDetail>(
-  `/admin/orders/${id}`,
-)
+const { data, error, refresh } =
+  await useApi<StaffOrderDetail>(`/staff/orders/${id}`)
 
 if (error.value || !data.value) {
   throw createError({
@@ -323,20 +292,15 @@ if (error.value || !data.value) {
   })
 }
 
-const order = computed(
-  () => data.value!,
-)
+const order = computed(() => data.value!)
 
-const actual = reactive<
-  Record<number, number>
->({})
+const actual = reactive<Record<number, number>>({})
 
 watch(
   () => order.value.items,
-  items => {
+  (items) => {
     for (const item of items) {
-      actual[item.id] =
-        item.actualQty ?? item.qty
+      actual[item.id] = item.actualQty ?? item.qty
     }
   },
   {
@@ -344,16 +308,15 @@ watch(
   },
 )
 
-const loadingItem =
-  ref<number | null>(null)
+const loadingItem = ref<number | null>(null)
 
 const statusLoading = ref(false)
 
-const pending = computed(() =>
-  order.value.items.filter(
-    item =>
-      item.status === 'PENDING',
-  ).length,
+const pending = computed(
+  () =>
+    order.value.items.filter(
+      (item) => item.status === 'PENDING',
+    ).length,
 )
 
 const address = computed(() =>
@@ -361,12 +324,18 @@ const address = computed(() =>
     order.value.city,
     order.value.street,
 
-    order.value.house
-      ? `д. ${order.value.house}`
+    order.value.house ? `д. ${order.value.house}` : null,
+
+    order.value.flat ? `кв. ${order.value.flat}` : null,
+
+    order.value.entrance
+      ? `подъезд ${order.value.entrance}`
       : null,
 
-    order.value.flat
-      ? `кв. ${order.value.flat}`
+    order.value.floor ? `этаж ${order.value.floor}` : null,
+
+    order.value.intercom
+      ? `домофон ${order.value.intercom}`
       : null,
   ]
     .filter(Boolean)
@@ -378,8 +347,7 @@ async function pick(itemId: number) {
 
   if (!actualQty || actualQty < 1) {
     toast.add({
-      title:
-        'Введите фактическое количество',
+      title: 'Введите фактическое количество',
       color: 'error',
     })
 
@@ -389,17 +357,14 @@ async function pick(itemId: number) {
   loadingItem.value = itemId
 
   try {
-    await api(
-      `/admin/orders/${id}/items/${itemId}`,
-      {
-        method: 'PATCH',
+    await api(`/staff/orders/${id}/items/${itemId}`, {
+      method: 'PATCH',
 
-        body: {
-          status: 'PICKED',
-          actualQty,
-        },
+      body: {
+        status: 'PICKED',
+        actualQty,
       },
-    )
+    })
 
     await refresh()
   } finally {
@@ -411,16 +376,13 @@ async function missing(itemId: number) {
   loadingItem.value = itemId
 
   try {
-    await api(
-      `/admin/orders/${id}/items/${itemId}`,
-      {
-        method: 'PATCH',
+    await api(`/staff/orders/${id}/items/${itemId}`, {
+      method: 'PATCH',
 
-        body: {
-          status: 'MISSING',
-        },
+      body: {
+        status: 'MISSING',
       },
-    )
+    })
 
     await refresh()
   } finally {
@@ -428,19 +390,14 @@ async function missing(itemId: number) {
   }
 }
 
-async function changeStatus(
-  status: OrderStatus,
-) {
+async function changeStatus(status: OrderStatus) {
   statusLoading.value = true
 
   try {
-    await api(
-      `/admin/orders/${id}/status`,
-      {
-        method: 'PATCH',
-        body: { status },
-      },
-    )
+    await api(`/staff/orders/${id}/status`, {
+      method: 'PATCH',
+      body: { status },
+    })
 
     await refresh()
   } finally {
@@ -448,15 +405,10 @@ async function changeStatus(
   }
 }
 
-function quantity(
-  value: number,
-  unit: string,
-) {
+function quantity(value: number, unit: string) {
   if (unit === 'GRAM') {
     if (value >= 1000) {
-      return `${(
-        value / 1000
-      ).toLocaleString('ru-RU')} кг`
+      return `${(value / 1000).toLocaleString('ru-RU')} кг`
     }
 
     return `${value} г`
@@ -473,25 +425,22 @@ function quantity(
   return `${value} шт.`
 }
 
-function price(
-  item: AdminOrderDetail['items'][number],
-) {
+function price(item: StaffOrderDetail['items'][number]) {
   return `${money(item.price)} / ${
     item.unit === 'GRAM'
-      ? quantity(
-          item.priceQty,
-          'GRAM',
-        )
-      : quantity(
-          item.priceQty,
-          item.unit,
-        )
+      ? quantity(item.priceQty, 'GRAM')
+      : quantity(item.priceQty, item.unit)
   }`
 }
 
-function itemStatus(
-  status: OrderItemStatus,
-) {
+function deliveryTime(value: string) {
+  return new Date(value).toLocaleString('ru-RU', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
+function itemStatus(status: OrderItemStatus) {
   return {
     PENDING: 'Не собрано',
     PICKED: 'Собрано',
@@ -500,8 +449,7 @@ function itemStatus(
 }
 
 useSeoMeta({
-  title: () =>
-    `Сборка заказа №${order.value.id}`,
+  title: () => `Сборка заказа №${order.value.id}`,
 })
 </script>
 
@@ -543,11 +491,10 @@ useSeoMeta({
 
 .customer {
   display: grid;
-  grid-template-columns:
-    repeat(
-      auto-fit,
-      minmax(180px, 1fr)
-    );
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(180px, 1fr)
+  );
   gap: 1rem;
   padding: 1.5rem;
   border: 1px solid var(--ui-border);
@@ -597,11 +544,10 @@ useSeoMeta({
 
 .item__stats {
   display: grid;
-  grid-template-columns:
-    repeat(
-      auto-fit,
-      minmax(140px, 1fr)
-    );
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(140px, 1fr)
+  );
   gap: 1rem;
 }
 

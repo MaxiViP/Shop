@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
-import { AdminGuard } from '../auth/admin.guard.js';
 import { AuthGuard } from '../auth/auth.guard.js';
-import { AdminService } from './admin.service.js';
+import { StaffGuard } from '../auth/staff.guard.js';
+import { StaffService } from './staff.service.js';
 import {
   itemSchema,
   statusSchema,
@@ -12,14 +12,14 @@ import {
 
 const idSchema = z.coerce.number().int().positive();
 
-@Controller('admin/orders')
-@UseGuards(AuthGuard, AdminGuard)
-export class AdminCtrl {
-  constructor(private readonly admin: AdminService) {}
+@Controller('staff/orders')
+@UseGuards(AuthGuard, StaffGuard)
+export class StaffCtrl {
+  constructor(private readonly staff: StaffService) {}
 
   @Get()
   list() {
-    return this.admin.list();
+    return this.staff.list();
   }
 
   @Get(':id')
@@ -29,7 +29,7 @@ export class AdminCtrl {
     })
     id: number,
   ) {
-    return this.admin.get(id);
+    return this.staff.get(id);
   }
 
   @Patch(':id/status')
@@ -44,7 +44,7 @@ export class AdminCtrl {
     })
     body: StatusInput,
   ) {
-    return this.admin.status(id, body.status);
+    return this.staff.status(id, body.status);
   }
 
   @Patch(':id/items/:itemId')
@@ -64,6 +64,6 @@ export class AdminCtrl {
     })
     body: ItemInput,
   ) {
-    return this.admin.item(id, itemId, body);
+    return this.staff.item(id, itemId, body);
   }
 }
