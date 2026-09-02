@@ -31,6 +31,42 @@
 $ pnpm install
 ```
 
+## Yandex Delivery
+
+Automatic Express delivery is enabled only when the API token and pickup point
+details are configured:
+
+```dotenv
+YANDEX_DELIVERY_ENABLED=true
+YANDEX_DELIVERY_TOKEN=
+YANDEX_DELIVERY_SOURCE_ADDRESS=
+YANDEX_DELIVERY_SOURCE_NAME=
+YANDEX_DELIVERY_SOURCE_PHONE=
+YANDEX_DELIVERY_SOURCE_EMAIL=
+YANDEX_DELIVERY_SOURCE_LONGITUDE=
+YANDEX_DELIVERY_SOURCE_LATITUDE=
+YANDEX_DELIVERY_SYNC_INTERVAL_MS=30000
+YANDEX_DELIVERY_CALLBACK_URL=https://api.example.com/api/delivery/yandex/callback
+```
+
+The backend automatically polls active Yandex deliveries through
+`POST /claims/bulk_info`. The interval is configured by
+`YANDEX_DELIVERY_SYNC_INTERVAL_MS` and defaults to 30 seconds. Calls are batched
+up to 1000 claim IDs and never overlap within one API process. Without
+`YANDEX_DELIVERY_TOKEN`, the API still starts and the polling job does nothing.
+
+Pickup coordinates are optional. `YANDEX_DELIVERY_CALLBACK_URL` is also
+optional and is not required for automatic status updates. Yandex marks this
+callback mechanism as deprecated/unreliable; when configured, it is kept only
+as a compatibility signal that triggers an authoritative `claims/info` sync.
+The callback URL must be publicly available over HTTPS.
+
+Before a delivery finishes, its price comes from Yandex's accepted offer (the
+quote shown to staff uses `offers/calculate.price.total_price_with_vat`). After
+completion, `claims/info.pricing.final_price`, when present, replaces it as the
+actual Yandex price. Both values are converted from decimal rubles to integer
+kopecks on the backend, which then recalculates the order total.
+
 ## Compile and run the project
 
 ```bash

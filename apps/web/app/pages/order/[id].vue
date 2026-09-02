@@ -72,18 +72,31 @@
           </div>
 
           <strong>
-            {{ money(item.total) }}
+            {{ money(item.actualTotal ?? item.total) }}
           </strong>
         </div>
 
-        <div class="card__total">
-          <span>
-            Итого
-          </span>
+        <div class="card__summary">
+          <div>
+            <span>Товары</span>
+            <strong>{{ money(order.finalSubtotal ?? order.subtotal) }}</strong>
+          </div>
 
-          <strong>
-            {{ money(order.total) }}
-          </strong>
+          <div v-if="order.type === 'DELIVERY'">
+            <span>
+              {{
+                order.delivery?.provider === 'YANDEX'
+                  ? 'Доставка Яндекс'
+                  : 'Доставка'
+              }}
+            </span>
+            <strong>{{ money(order.deliveryPrice) }}</strong>
+          </div>
+
+          <div class="card__total">
+            <span>Итого</span>
+            <strong>{{ money(order.finalTotal ?? order.total) }}</strong>
+          </div>
         </div>
       </section>
 
@@ -111,6 +124,60 @@
           {{ order.customerPhone }}
         </p>
       </section>
+
+      <section
+        v-if="order.delivery"
+        class="card card--delivery"
+      >
+        <h2 class="card__title">
+          Доставка
+        </h2>
+
+        <dl class="delivery">
+          <div>
+            <dt>Сервис</dt>
+            <dd>
+              {{ deliveryProvider[order.delivery.provider] }}
+            </dd>
+          </div>
+
+          <div>
+            <dt>Статус</dt>
+            <dd>
+              {{ deliveryStatus[order.delivery.status] }}
+            </dd>
+          </div>
+
+          <div v-if="order.delivery.externalOrderId">
+            <dt>Номер доставки</dt>
+            <dd>{{ order.delivery.externalOrderId }}</dd>
+          </div>
+
+          <div v-if="order.delivery.courierName">
+            <dt>Курьер</dt>
+            <dd>{{ order.delivery.courierName }}</dd>
+          </div>
+
+          <div v-if="order.delivery.courierPhone">
+            <dt>Телефон курьера</dt>
+            <dd>
+              <a :href="`tel:${order.delivery.courierPhone}`">
+                {{ order.delivery.courierPhone }}
+              </a>
+            </dd>
+          </div>
+        </dl>
+
+        <UButton
+          v-if="order.delivery.trackingUrl"
+          class="delivery__action"
+          :to="order.delivery.trackingUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Отслеживать курьера
+        </UButton>
+      </section>
     </div>
 
     <p
@@ -131,6 +198,10 @@ import {
   isActiveOrder,
   orderStatus,
 } from '~/utils/order'
+import {
+  deliveryProvider,
+  deliveryStatus,
+} from '~/utils/delivery'
 import { money } from '~/utils/money'
 
 const route = useRoute()
@@ -163,20 +234,30 @@ const active = computed(
   () => isActiveOrder(order.value.status),
 )
 
-const flow: OrderStatus[] = [
-  'NEW',
-  'CONFIRMED',
-  'ASSEMBLING',
-  'READY',
-  'DELIVERING',
-  'COMPLETED',
-]
+const flow = computed<OrderStatus[]>(() =>
+  order.value.type === 'DELIVERY'
+    ? [
+        'NEW',
+        'CONFIRMED',
+        'ASSEMBLING',
+        'READY',
+        'DELIVERING',
+        'COMPLETED',
+      ]
+    : [
+        'NEW',
+        'CONFIRMED',
+        'ASSEMBLING',
+        'READY',
+        'COMPLETED',
+      ],
+)
 
 const steps = computed(() => {
   const current =
-    flow.indexOf(order.value.status)
+    flow.value.indexOf(order.value.status)
 
-  return flow.map((item, index) => ({
+  return flow.value.map((item, index) => ({
     status: item,
     label: orderStatus[item].label,
     done: index <= current,
@@ -340,6 +421,10 @@ useSeoMeta({
   border-radius: 1rem;
 }
 
+.card--delivery {
+  grid-column: 1 / -1;
+}
+
 .card__title {
   margin-bottom: 1.25rem;
   font-size: 1.25rem;
@@ -355,6 +440,33 @@ useSeoMeta({
   margin-top: 0.5rem;
 }
 
+.delivery {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(160px, 1fr)
+  );
+  gap: 1rem;
+}
+
+.delivery > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.delivery dt {
+  color: var(--ui-text-muted);
+  font-size: 0.8rem;
+}
+
+.delivery dd {
+  font-weight: 600;
+}
+
+.delivery__action {
+  margin-top: 1.25rem;
+}
+
 .item {
   display: flex;
   justify-content: space-between;
@@ -367,11 +479,22 @@ useSeoMeta({
   font-size: 0.8rem;
 }
 
-.card__total {
-  display: flex;
-  justify-content: space-between;
+.card__summary {
+  display: grid;
+  gap: 0.75rem;
   margin-top: 1rem;
   padding-top: 1rem;
+  border-top: 1px solid var(--ui-border);
+}
+
+.card__summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.card__total {
+  padding-top: 0.75rem;
   border-top: 1px solid var(--ui-border);
   font-size: 1.25rem;
 }

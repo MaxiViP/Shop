@@ -290,6 +290,20 @@ export class OrderService {
         createdAt: true,
         updatedAt: true,
 
+        delivery: {
+          select: {
+            provider: true,
+            status: true,
+            externalOrderId: true,
+            trackingUrl: true,
+            courierName: true,
+            courierPhone: true,
+            price: true,
+            providerStatus: true,
+            syncedAt: true,
+          },
+        },
+
         items: {
           select: {
             id: true,

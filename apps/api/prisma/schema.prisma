@@ -165,6 +165,19 @@ enum OrderStatus {
   CANCELED
 }
 
+enum DeliveryProvider {
+  YANDEX
+  OTHER
+}
+
+enum DeliveryStatus {
+  PENDING
+  ASSIGNED
+  PICKED_UP
+  DELIVERED
+  CANCELED
+}
+
 model Order {
   id       Int    @id @default(autoincrement())
   publicId String @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -201,6 +214,8 @@ model Order {
 
   items OrderItem[]
 
+  delivery Delivery?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -208,6 +223,32 @@ model Order {
   @@index([guestSessionId])
   @@index([status])
   @@index([createdAt])
+}
+
+model Delivery {
+  id Int @id @default(autoincrement())
+
+  provider DeliveryProvider
+  status   DeliveryStatus   @default(PENDING)
+
+  externalOrderId   String?
+  trackingUrl       String?
+  courierName       String?
+  courierPhone      String?
+  price             Int?
+  providerStatus    String?
+  providerUpdatedAt DateTime?
+  syncedAt          DateTime?
+
+  publicToken String @unique
+
+  orderId Int   @unique
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
 }
 
 model OrderItem {
