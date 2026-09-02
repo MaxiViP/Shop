@@ -1,9 +1,9 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
-import type { Product } from "~/types/product";
+import type { ProductListItem } from "~/types/product";
 
 export interface CartItem {
-  product: Product;
+  product: ProductListItem;
   qty: number;
 }
 
@@ -20,7 +20,7 @@ export const useCartStore = defineStore("cart", () => {
     return Math.round((item.product.price * item.qty) / item.product.priceQty);
   }
 
-  function add(product: Product, qty = product.min) {
+  function add(product: ProductListItem, qty = product.min) {
     const item = items.value.find((item) => item.product.id === product.id);
 
     if (item) {

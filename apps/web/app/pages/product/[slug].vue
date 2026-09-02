@@ -18,9 +18,13 @@
         {{ product.category.name }}
       </NuxtLink>
 
-      <h1 class="product__title">
-        {{ product.name }}
-      </h1>
+      <div class="product__head">
+        <h1 class="product__title">
+          {{ product.name }}
+        </h1>
+
+        <ProductFavorite :product="product" />
+      </div>
 
       <ProductPrice :product="product" />
 
@@ -41,23 +45,23 @@
 
 <script setup lang="ts">
 import type { Product } from "~/types/product";
-import { useCartStore } from '~/stores/cart'
-import { money } from '~/utils/money'
+import { useCartStore } from "~/stores/cart";
+import { money } from "~/utils/money";
 
 const route = useRoute();
 const slug = String(route.params.slug);
 
-const cart = useCartStore()
-const toast = useToast()
+const cart = useCartStore();
+const toast = useToast();
 
 function add() {
-  if (!product.value) return
+  if (!product.value) return;
 
-  cart.add(product.value, qty.value)
+  cart.add(product.value, qty.value);
 
   toast.add({
     title: `${product.value.name} добавлен`,
-  })
+  });
 }
 
 const { data: product, error } = await useApi<Product>(`/products/${slug}`);
@@ -77,7 +81,6 @@ const total = computed(() => {
   return Math.round((product.value.price * qty.value) / product.value.priceQty);
 });
 
- 
 useSeoMeta({
   title: () => product.value?.name ?? "Товар",
   description: () =>
@@ -119,10 +122,17 @@ useSeoMeta({
 }
 
 .product__title {
-  margin-block: 0.75rem 1rem;
   font-size: clamp(2rem, 5vw, 3.5rem);
   font-weight: 700;
   line-height: 1.05;
+}
+
+.product__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block: 0.75rem 1rem;
 }
 
 .product__text {

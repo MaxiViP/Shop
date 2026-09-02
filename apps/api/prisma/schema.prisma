@@ -61,6 +61,7 @@ model Product {
   sort   Int     @default(0)
 
   orderItems OrderItem[]
+  favorites  Favorite[]
 
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id])
@@ -95,6 +96,7 @@ model User {
   orders    Order[]
   addresses Address[]
   sessions  Session[]
+  favorites Favorite[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -291,4 +293,19 @@ model GuestSession {
   createdAt DateTime @default(now())
 
   @@index([expiresAt])
+}
+
+model Favorite {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([productId])
 }

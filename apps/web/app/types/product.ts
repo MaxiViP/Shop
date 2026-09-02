@@ -1,10 +1,12 @@
 export type Unit = "GRAM" | "PIECE" | "BUNCH" | "PACK";
 
-export interface Product {
+export type ProductSort =
+  "recommended" | "price_asc" | "price_desc" | "newest" | "name";
+
+export interface ProductListItem {
   id: number;
   name: string;
   slug: string;
-  description?: string | null;
 
   price: number;
   priceQty: number;
@@ -22,4 +24,20 @@ export interface Product {
     url: string;
     alt: string | null;
   }[];
+}
+
+export interface Product extends ProductListItem {
+  description: string | null;
+}
+
+export interface ProductListResponse {
+  items: ProductListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
+export interface FavoriteListResponse {
+  items: ProductListItem[];
 }

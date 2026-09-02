@@ -1,66 +1,30 @@
-<script setup lang="ts">
-import type { Category } from '~/types/category'
-import type { Product } from '~/types/product'
-
-const { data: categories } = await useApi<Category[]>('/categories', {
-  default: () => [],
-})
-
-const {
-  data: products,
-  status,
-  error,
-} = await useApi<Product[]>('/products', {
-  default: () => [],
-})
-</script>
-
 <template>
   <div class="home">
     <UContainer>
       <section class="hero">
-        <p class="hero__label">
-          Москва
-        </p>
+        <p class="hero__label">Москва</p>
 
-        <h1 class="hero__title">
-          Свежие продукты с рынка
-        </h1>
+        <h1 class="hero__title">Свежие продукты с рынка</h1>
 
-        <p class="hero__text">
-          Овощи, фрукты и зелень с доставкой на дом.
-        </p>
+        <p class="hero__text">Овощи, фрукты и зелень с доставкой на дом.</p>
 
-        <UButton
-          to="/catalog"
-          size="lg"
-        >
-          В каталог
-        </UButton>
+        <UButton to="/catalog" size="lg">В каталог</UButton>
       </section>
 
       <section class="home__section">
-        <h2 class="home__title">
-          Категории
-        </h2>
+        <h2 class="home__title">Категории</h2>
 
         <CategoryList :items="categories" />
       </section>
 
       <section class="home__section">
         <div class="home__head">
-          <h2 class="home__title">
-            Популярное
-          </h2>
+          <h2 class="home__title">Продукты с рынка</h2>
 
-          <NuxtLink to="/catalog">
-            Смотреть всё →
-          </NuxtLink>
+          <NuxtLink to="/catalog">Смотреть всё →</NuxtLink>
         </div>
 
-        <p v-if="status === 'pending'">
-          Загружаем...
-        </p>
+        <p v-if="status === 'pending'">Загружаем...</p>
 
         <UAlert
           v-else-if="error"
@@ -68,14 +32,29 @@ const {
           color="error"
         />
 
-        <ProductGrid
-          v-else
-          :items="products"
-        />
+        <ProductGrid v-else :items="products.items" />
       </section>
     </UContainer>
   </div>
 </template>
+
+<script setup lang="ts">
+import type { Category } from "~/types/category";
+import type { ProductListResponse } from "~/types/product";
+
+const { data: categories } = await useApi<Category[]>("/categories", {
+  default: () => [],
+});
+
+const {
+  data: products,
+  status,
+  error,
+} = await useApi<ProductListResponse>("/products", {
+  query: { limit: 8 },
+  default: () => ({ items: [], total: 0, page: 1, limit: 8, pages: 0 }),
+});
+</script>
 
 <style scoped>
 .home {

@@ -1,42 +1,3 @@
-<script setup lang="ts">
-import type { Product } from '~/types/product'
-
-const { product } = defineProps<{
-  product: Product
-}>()
-
-const value = defineModel<number>({ required: true })
-
-function dec() {
-  value.value = Math.max(product.min, value.value - product.step)
-}
-
-function inc() {
-  value.value += product.step
-}
-
-const label = computed(() => {
-  if (product.unit !== 'GRAM') {
-    return `${value.value} ${
-      {
-        PIECE: 'шт.',
-        BUNCH: 'пуч.',
-        PACK: 'уп.',
-      }[product.unit]
-    }`
-  }
-
-  if (value.value >= 1000) {
-    return `${(value.value / 1000)
-      .toLocaleString('ru-RU', {
-        maximumFractionDigits: 2,
-      })} кг`
-  }
-
-  return `${value.value} г`
-})
-</script>
-
 <template>
   <div class="qty">
     <UButton
@@ -61,6 +22,44 @@ const label = computed(() => {
     />
   </div>
 </template>
+
+<script setup lang="ts">
+import type { ProductListItem } from "~/types/product";
+
+const { product } = defineProps<{
+  product: ProductListItem;
+}>();
+
+const value = defineModel<number>({ required: true });
+
+function dec() {
+  value.value = Math.max(product.min, value.value - product.step);
+}
+
+function inc() {
+  value.value += product.step;
+}
+
+const label = computed(() => {
+  if (product.unit !== "GRAM") {
+    return `${value.value} ${
+      {
+        PIECE: "шт.",
+        BUNCH: "пуч.",
+        PACK: "уп.",
+      }[product.unit]
+    }`;
+  }
+
+  if (value.value >= 1000) {
+    return `${(value.value / 1000).toLocaleString("ru-RU", {
+      maximumFractionDigits: 2,
+    })} кг`;
+  }
+
+  return `${value.value} г`;
+});
+</script>
 
 <style scoped>
 .qty {

@@ -23,6 +23,18 @@ describe('HealthCtrl (e2e)', () => {
       .expect({ ok: true });
   });
 
+  it('protects every favorites route from unauthenticated access', async () => {
+    const server = app.getHttpServer();
+
+    await request(server).get('/favorites').expect(401);
+    await request(server).post('/favorites/1').expect(401);
+    await request(server).delete('/favorites/1').expect(401);
+    await request(server)
+      .post('/favorites/sync')
+      .send({ productIds: [1] })
+      .expect(401);
+  });
+
   afterEach(async () => {
     await app.close();
   });

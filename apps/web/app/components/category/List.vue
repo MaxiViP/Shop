@@ -1,11 +1,11 @@
 <template>
   <nav class="categories">
-    <NuxtLink to="/catalog" class="categories__item"> Все </NuxtLink>
+    <NuxtLink :to="link('/catalog')" class="categories__item"> Все </NuxtLink>
 
     <NuxtLink
       v-for="item in items"
       :key="item.id"
-      :to="`/catalog/${item.slug}`"
+      :to="link(`/catalog/${item.slug}`)"
       class="categories__item"
     >
       {{ item.name }}
@@ -16,9 +16,14 @@
 <script setup lang="ts">
 import type { Category } from "~/types/category";
 
-defineProps<{
+const props = defineProps<{
   items: Category[];
+  query?: Record<string, string>;
 }>();
+
+function link(path: string) {
+  return props.query ? { path, query: props.query } : path;
+}
 </script>
 
 <style scoped>

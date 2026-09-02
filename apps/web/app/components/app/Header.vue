@@ -37,7 +37,21 @@
           @click="loginOpen = true"
         />
 
-        <div class="header__cart">
+        <div class="header__action">
+          <UButton
+            to="/favorites"
+            icon="i-lucide-heart"
+            variant="ghost"
+            color="neutral"
+            aria-label="Избранное"
+          />
+
+          <span v-if="favorites.count" class="header__count">
+            {{ favorites.count }}
+          </span>
+        </div>
+
+        <div class="header__action">
           <UButton
             to="/cart"
             icon="i-lucide-shopping-bag"
@@ -67,9 +81,11 @@
 <script setup lang="ts">
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
+import { useFavoritesStore } from "~/stores/favorites";
 
 const auth = useAuthStore();
 const cart = useCartStore();
+const favorites = useFavoritesStore();
 
 const loginOpen = ref(false);
 </script>
@@ -102,7 +118,7 @@ const loginOpen = ref(false);
   gap: 0.25rem;
 }
 
-.header__cart {
+.header__action {
   position: relative;
 }
 
@@ -121,5 +137,20 @@ const loginOpen = ref(false);
   font-size: 0.7rem;
   font-weight: 700;
   pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .header__inner {
+    gap: 0.5rem;
+  }
+
+  .header__nav {
+    display: none;
+  }
+
+  .header__actions {
+    margin-left: auto;
+    gap: 0;
+  }
 }
 </style>

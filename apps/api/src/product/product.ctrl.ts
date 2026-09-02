@@ -1,13 +1,14 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ProductService } from './product.service.js';
+import { productQuerySchema, type ProductQuery } from './schema.js';
 
 @Controller('products')
 export class ProductCtrl {
   constructor(private readonly product: ProductService) {}
 
   @Get()
-  list(@Query('category') category?: string) {
-    return this.product.list(category);
+  list(@Query({ schema: productQuerySchema }) query: ProductQuery) {
+    return this.product.list(query);
   }
 
   @Get(':slug')

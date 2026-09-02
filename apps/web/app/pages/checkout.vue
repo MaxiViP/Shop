@@ -241,7 +241,7 @@
 <script setup lang="ts">
 import type { Address } from "~/types/address";
 import type { OrderCreated } from "~/types/order";
-import type { Product } from "~/types/product";
+import type { ProductListItem } from "~/types/product";
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
@@ -422,7 +422,7 @@ async function submit() {
   }
 }
 
-function qtyText(product: Product, qty: number) {
+function qtyText(product: ProductListItem, qty: number) {
   if (product.unit === "GRAM") {
     if (qty >= 1000) {
       return `${(qty / 1000).toLocaleString("ru-RU")} кг`;

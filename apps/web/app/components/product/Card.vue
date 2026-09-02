@@ -1,19 +1,18 @@
 <template>
   <article class="card">
-    <NuxtLink
-      :to="`/product/${product.slug}`"
-      class="card__img"
-    >
-      <img
-        v-if="product.images[0]"
-        :src="product.images[0].url"
-        :alt="product.images[0].alt || product.name"
-      >
+    <div class="card__media">
+      <NuxtLink :to="`/product/${product.slug}`" class="card__img">
+        <img
+          v-if="product.images[0]"
+          :src="product.images[0].url"
+          :alt="product.images[0].alt || product.name"
+        />
 
-      <span v-else>
-        Фото скоро
-      </span>
-    </NuxtLink>
+        <span v-else> Фото скоро </span>
+      </NuxtLink>
+
+      <ProductFavorite class="card__favorite" :product="product" />
+    </div>
 
     <div class="card__body">
       <NuxtLink
@@ -23,10 +22,7 @@
         {{ product.category.name }}
       </NuxtLink>
 
-      <NuxtLink
-        :to="`/product/${product.slug}`"
-        class="card__link"
-      >
+      <NuxtLink :to="`/product/${product.slug}`" class="card__link">
         <h3 class="card__title">
           {{ product.name }}
         </h3>
@@ -46,22 +42,22 @@
 </template>
 
 <script setup lang="ts">
-import type { Product } from '~/types/product'
-import { useCartStore } from '~/stores/cart'
+import type { ProductListItem } from "~/types/product";
+import { useCartStore } from "~/stores/cart";
 
 const { product } = defineProps<{
-  product: Product
-}>()
+  product: ProductListItem;
+}>();
 
-const cart = useCartStore()
-const toast = useToast()
+const cart = useCartStore();
+const toast = useToast();
 
 function add() {
-  cart.add(product)
+  cart.add(product);
 
   toast.add({
     title: `${product.name} добавлен`,
-  })
+  });
 }
 </script>
 
@@ -70,6 +66,18 @@ function add() {
   overflow: hidden;
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
+}
+
+.card__media {
+  position: relative;
+}
+
+.card__favorite {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg);
 }
 
 .card__img {

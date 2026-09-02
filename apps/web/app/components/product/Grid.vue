@@ -9,10 +9,10 @@
 </template>
 
 <script setup lang="ts">
-import type { Product } from "~/types/product";
+import type { ProductListItem } from "~/types/product";
 
 defineProps<{
-  items: Product[];
+  items: ProductListItem[];
 }>();
 </script>
 
