@@ -1,5 +1,5 @@
-@import 'tailwindcss';
-@import '@nuxt/ui';
+@import "tailwindcss";
+@import "@nuxt/ui";
 
 :root {
   --page-x: clamp(1rem, 0.65rem + 1.5vw, 2rem);
@@ -9,7 +9,7 @@
   --card-padding: clamp(1rem, 0.85rem + 0.75vw, 1.5rem);
   --page-title: clamp(2rem, 1.65rem + 1.5vw, 2.75rem);
   --section-title: clamp(1.25rem, 1.1rem + 0.65vw, 1.5rem);
-  --touch-target: 2.75rem;
+  --touch-target: 1.75rem;
   --header-height: 4rem;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
