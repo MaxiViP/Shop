@@ -110,27 +110,43 @@ const details = computed(() =>
 
 <style scoped>
 .address {
-  padding: 1.25rem;
+  min-width: 0;
+  padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
 }
 
 .address__head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.5rem;
 }
 
 .address__title {
   display: flex;
+  min-width: 0;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.75rem;
   font-size: 1.125rem;
 }
 
 .address__actions {
   display: flex;
+}
+
+.address__actions > * {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
+.address__text,
+.address__details,
+.address__comment,
+.address__title strong {
+  overflow-wrap: anywhere;
 }
 
 .address__text {
@@ -145,7 +161,7 @@ const details = computed(() =>
 }
 
 .address__default {
+  min-height: var(--touch-target);
   margin-top: 1rem;
-  padding: 0;
 }
 </style>

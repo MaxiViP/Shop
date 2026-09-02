@@ -18,12 +18,13 @@ useSeoMeta({
 
 <style scoped>
 .delivery {
-  padding-block: 3rem 5rem;
+  padding-block: var(--page-start) var(--page-end);
 }
 
 .delivery__title {
-  font-size: 2.5rem;
+  font-size: var(--page-title);
   font-weight: 700;
+  line-height: 1.1;
 }
 
 .delivery__text {

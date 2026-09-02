@@ -226,7 +226,7 @@
               <dt>
                 {{ item.unit === 'GRAM' ? 'Заказанный вес' : 'Заказано' }}
               </dt>
-              <dd>{{ quantity(item.qty, item.unit) }}</dd>
+              <dd>{{ qtyText(item.unit, item.qty) }}</dd>
             </div>
 
             <div>
@@ -238,7 +238,7 @@
               <dt>
                 {{ item.unit === 'GRAM' ? 'Фактический вес' : 'Фактически' }}
               </dt>
-              <dd>{{ quantity(item.actualQty, item.unit) }}</dd>
+              <dd>{{ qtyText(item.unit, item.actualQty) }}</dd>
             </div>
 
             <div v-if="item.actualTotal !== null">
@@ -623,7 +623,6 @@ import type {
   DeliveryProvider,
   OrderItemStatus,
   StaffOrderDetail,
-  Unit,
   YandexQuote,
 } from '~/types/order'
 import { useAuthStore } from '~/stores/auth'
@@ -631,6 +630,7 @@ import { apiError } from '~/utils/api-error'
 import { deliveryProvider, deliveryStatus } from '~/utils/delivery'
 import { money } from '~/utils/money'
 import { orderStatus } from '~/utils/order'
+import { qtyText } from '~/utils/qty'
 
 interface DeliveryForm {
   provider: DeliveryProvider
@@ -1138,21 +1138,8 @@ function optional(value: string) {
   return result || undefined
 }
 
-function quantity(value: number, unit: Unit) {
-  if (unit === 'GRAM') {
-    return value >= 1000
-      ? `${(value / 1000).toLocaleString('ru-RU')} кг`
-      : `${value} г`
-  }
-
-  if (unit === 'BUNCH') return `${value} пуч.`
-  if (unit === 'PACK') return `${value} уп.`
-
-  return `${value} шт.`
-}
-
 function itemPrice(item: StaffOrderDetail['items'][number]) {
-  return `${money(item.price)} / ${quantity(item.priceQty, item.unit)}`
+  return `${money(item.price)} / ${qtyText(item.unit, item.priceQty)}`
 }
 
 function itemStatus(status: OrderItemStatus) {
@@ -1187,8 +1174,9 @@ useSeoMeta({
 
 <style scoped>
 .workspace {
-  max-width: 1100px;
-  padding-block: 1.5rem 5rem;
+  max-width: 68.75rem;
+  min-width: 0;
+  padding-block: var(--page-start) var(--page-end);
 }
 
 .workspace__back {
@@ -1196,14 +1184,12 @@ useSeoMeta({
 }
 
 .workspace__bar {
-  position: sticky;
-  z-index: 20;
-  top: 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
-  margin: 1rem -1rem 1.5rem;
+  min-width: 0;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
   padding: 1rem;
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
@@ -1214,6 +1200,7 @@ useSeoMeta({
 
 .workspace__identity {
   display: grid;
+  min-width: 0;
   gap: 0.75rem;
 }
 
@@ -1224,8 +1211,10 @@ useSeoMeta({
 }
 
 .workspace__title {
-  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-size: clamp(1.5rem, 1.3rem + 1vw, 2rem);
   font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .workspace__badges,
@@ -1238,8 +1227,22 @@ useSeoMeta({
   gap: 0.75rem;
 }
 
+.workspace__badges {
+  min-width: 0;
+}
+
 .workspace__actions {
   justify-content: flex-end;
+}
+
+.workspace__actions > *,
+.item__actions > *,
+.copy-card__actions > *,
+.delivery-card__actions > *,
+.delivery-form__actions > * {
+  width: 100%;
+  min-height: var(--touch-target);
+  justify-content: center;
 }
 
 .workspace__alert {
@@ -1247,9 +1250,14 @@ useSeoMeta({
 }
 
 .stages {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  display: flex;
+  max-width: 100%;
   gap: 0.75rem;
+  padding-bottom: 0.5rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+  scrollbar-width: thin;
 }
 
 .stages__link {
@@ -1261,6 +1269,8 @@ useSeoMeta({
   border-radius: 0.875rem;
   color: var(--ui-text-muted);
   font-weight: 600;
+  flex: 0 0 9.5rem;
+  scroll-snap-align: start;
 }
 
 .stages__link--active {
@@ -1283,8 +1293,9 @@ useSeoMeta({
   display: grid;
   gap: 1rem;
   margin-top: 2rem;
-  padding: 1rem;
-  scroll-margin-top: 10rem;
+  min-width: 0;
+  padding: 0.75rem;
+  scroll-margin-top: 1rem;
   border: 2px solid transparent;
   border-radius: 1.25rem;
 }
@@ -1304,7 +1315,7 @@ useSeoMeta({
 
 .stage__title {
   margin-top: 0.25rem;
-  font-size: 1.5rem;
+  font-size: var(--section-title);
   font-weight: 700;
 }
 
@@ -1316,13 +1327,14 @@ useSeoMeta({
 .delivery-form {
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
+  min-width: 0;
 }
 
 .customer {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.25rem), 1fr));
   gap: 1rem;
-  padding: 1.5rem;
+  padding: var(--card-padding);
 }
 
 .customer > div,
@@ -1331,6 +1343,7 @@ useSeoMeta({
   display: grid;
   align-content: start;
   gap: 0.25rem;
+  min-width: 0;
 }
 
 .customer__label,
@@ -1342,19 +1355,21 @@ useSeoMeta({
 
 .items {
   display: grid;
+  min-width: 0;
   gap: 1rem;
 }
 
 .item {
   display: grid;
+  min-width: 0;
   gap: 1.5rem;
-  padding: 1.5rem;
+  padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
 }
 
 .item__head {
-  display: flex;
+  display: grid;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
@@ -1363,6 +1378,8 @@ useSeoMeta({
 .item__name {
   font-size: 1.25rem;
   font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .item__price {
@@ -1374,38 +1391,41 @@ useSeoMeta({
 .delivery-card__details,
 .delivery-form__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
   gap: 1rem;
 }
 
 .item__stats dd,
 .delivery-card__details dd {
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .item__actions {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
+  display: grid;
   gap: 0.75rem;
   padding-top: 1rem;
   border-top: 1px solid var(--ui-border);
 }
 
 .item__input {
-  min-width: 190px;
+  min-width: 0;
+  width: 100%;
 }
 
 .summary {
   display: grid;
   gap: 1rem;
-  padding: 1.5rem;
+  padding: var(--card-padding);
 }
 
 .summary__row {
-  display: flex;
-  justify-content: space-between;
-  gap: 2rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.summary__row strong {
+  overflow-wrap: anywhere;
 }
 
 .summary__row--total {
@@ -1417,11 +1437,11 @@ useSeoMeta({
 .delivery {
   display: grid;
   gap: 1rem;
-  padding: 1.5rem;
+  padding: var(--card-padding);
 }
 
 .delivery__head {
-  display: flex;
+  display: grid;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
@@ -1429,7 +1449,7 @@ useSeoMeta({
 
 .delivery__title {
   margin-top: 0.25rem;
-  font-size: 1.75rem;
+  font-size: var(--section-title);
   font-weight: 700;
 }
 
@@ -1437,6 +1457,7 @@ useSeoMeta({
 .delivery-form__description {
   margin-top: 0.5rem;
   color: var(--ui-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .copy-card,
@@ -1446,6 +1467,7 @@ useSeoMeta({
   display: grid;
   gap: 1.25rem;
   padding: 1.25rem;
+  min-width: 0;
 }
 
 .copy-card__title,
@@ -1455,7 +1477,8 @@ useSeoMeta({
 }
 
 .delivery-form__grid--provider {
-  max-width: 360px;
+  width: 100%;
+  max-width: 22.5rem;
 }
 
 .yandex-delivery {
@@ -1464,7 +1487,7 @@ useSeoMeta({
 
 .yandex-delivery__quote {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.25rem), 1fr));
   gap: 1rem;
   padding: 1.25rem;
   border: 2px solid var(--ui-primary);
@@ -1491,27 +1514,77 @@ useSeoMeta({
   font-size: 0.875rem;
 }
 
-@media (max-width: 760px) {
-  .workspace__bar {
-    align-items: stretch;
-    flex-direction: column;
-    margin-inline: 0;
+.customer strong,
+.customer a,
+.delivery-card__details a {
+  overflow-wrap: anywhere;
+}
+
+.workspace :deep(input),
+.workspace :deep(textarea),
+.workspace :deep(select) {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 1rem;
+}
+
+@media (min-width: 40rem) {
+  .item__head,
+  .delivery__head {
+    display: flex;
   }
 
   .workspace__actions > *,
   .item__actions > *,
   .copy-card__actions > *,
+  .delivery-card__actions > *,
   .delivery-form__actions > * {
-    width: 100%;
-    justify-content: center;
+    width: auto;
   }
 
-  .item__input {
-    width: 100%;
+  .item__actions {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
   }
 
   .stage {
-    padding-inline: 0.5rem;
+    padding: 1rem;
+  }
+
+  .summary__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 2rem;
+  }
+}
+
+@media (min-width: 48rem) {
+  .stages {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.375rem, 1fr));
+    overflow: visible;
+  }
+
+  .stages__link {
+    flex: initial;
+  }
+}
+
+@media (min-width: 64rem) {
+  .workspace__bar {
+    position: sticky;
+    z-index: 20;
+    top: 0;
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: row;
+    gap: 1.5rem;
+    margin-inline: -1rem;
+  }
+
+  .stage {
+    scroll-margin-top: 10rem;
   }
 }
 </style>

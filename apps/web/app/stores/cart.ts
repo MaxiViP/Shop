@@ -12,6 +12,10 @@ export const useCartStore = defineStore("cart", () => {
 
   const count = computed(() => items.value.length);
 
+  function qty(id: number) {
+    return items.value.find((item) => item.product.id === id)?.qty ?? 0;
+  }
+
   const total = computed(() =>
     items.value.reduce((sum, item) => sum + lineTotal(item), 0),
   );
@@ -57,6 +61,7 @@ export const useCartStore = defineStore("cart", () => {
   return {
     items,
     count,
+    qty,
     total,
     lineTotal,
     add,

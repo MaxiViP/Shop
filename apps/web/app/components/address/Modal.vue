@@ -3,6 +3,10 @@
     v-model:open="open"
     :title="title"
     description="Адрес будет доступен при оформлении заказа."
+    :ui="{
+      content: 'w-[calc(100%-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)]',
+      body: 'overflow-y-auto',
+    }"
   >
     <template #body>
       <form
@@ -14,6 +18,7 @@
             v-model="form.label"
             placeholder="Дом"
             maxlength="30"
+            size="lg"
             autofocus
           />
         </UFormField>
@@ -23,6 +28,7 @@
             <UInput
               v-model="form.city"
               placeholder="Москва"
+              size="lg"
             />
           </UFormField>
 
@@ -30,6 +36,7 @@
             <UInput
               v-model="form.street"
               placeholder="Ленинский проспект"
+              size="lg"
             />
           </UFormField>
         </div>
@@ -39,6 +46,7 @@
             <UInput
               v-model="form.house"
               placeholder="53"
+              size="lg"
             />
           </UFormField>
 
@@ -46,6 +54,7 @@
             <UInput
               v-model="form.flat"
               placeholder="25"
+              size="lg"
             />
           </UFormField>
 
@@ -53,6 +62,7 @@
             <UInput
               v-model="form.entrance"
               placeholder="2"
+              size="lg"
             />
           </UFormField>
 
@@ -60,6 +70,7 @@
             <UInput
               v-model="form.floor"
               placeholder="7"
+              size="lg"
             />
           </UFormField>
         </div>
@@ -68,6 +79,7 @@
           <UInput
             v-model="form.intercom"
             placeholder="25К"
+            size="lg"
           />
         </UFormField>
 
@@ -77,6 +89,7 @@
             placeholder="Позвонить за 10 минут"
             :rows="3"
             maxlength="300"
+            size="lg"
           />
         </UFormField>
 
@@ -240,25 +253,41 @@ async function save() {
 
 .form__row {
   display: grid;
-  grid-template-columns: 180px 1fr;
   gap: 1rem;
-}
-
-.form__row--small {
-  grid-template-columns: repeat(4, 1fr);
 }
 
 .form__actions {
   display: flex;
-  justify-content: flex-end;
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
 
-@media (max-width: 600px) {
-  .form__row,
+.form__actions > * {
+  min-height: var(--touch-target);
+  flex: 1;
+  justify-content: center;
+}
+
+.form :deep(input),
+.form :deep(textarea) {
+  font-size: 1rem;
+}
+
+@media (min-width: 40rem) {
+  .form__row {
+    grid-template-columns: 11.25rem minmax(0, 1fr);
+  }
+
   .form__row--small {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .form__actions {
+    justify-content: flex-end;
+  }
+
+  .form__actions > * {
+    flex: 0 0 auto;
   }
 }
 </style>

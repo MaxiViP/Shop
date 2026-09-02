@@ -38,6 +38,11 @@ async function toggle() {
 </script>
 
 <style scoped>
+.favorite {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+
 .favorite--active :deep(svg) {
   fill: currentColor;
 }

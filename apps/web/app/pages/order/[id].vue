@@ -203,6 +203,7 @@ import {
   deliveryStatus,
 } from '~/utils/delivery'
 import { money } from '~/utils/money'
+import { qtyText } from '~/utils/qty'
 
 const route = useRoute()
 const id = String(route.params.id)
@@ -287,15 +288,7 @@ function qty(
   const value =
     item.actualQty ?? item.qty
 
-  if (item.unit === 'GRAM') {
-    return value >= 1000
-      ? `${(value / 1000).toLocaleString(
-          'ru-RU',
-        )} кг`
-      : `${value} г`
-  }
-
-  return `${value} шт.`
+  return qtyText(item.unit, value)
 }
 
 let timer: ReturnType<
@@ -324,8 +317,9 @@ useSeoMeta({
 
 <style scoped>
 .order {
-  max-width: 960px;
-  padding-block: 3rem 5rem;
+  max-width: 60rem;
+  min-width: 0;
+  padding-block: var(--page-start) var(--page-end);
 }
 
 .order__back {
@@ -337,10 +331,10 @@ useSeoMeta({
 }
 
 .order__head {
-  display: flex;
-  align-items: center;
+  display: grid;
+  align-items: start;
   justify-content: space-between;
-  gap: 2rem;
+  gap: 1rem;
   margin-top: 2rem;
 }
 
@@ -351,13 +345,21 @@ useSeoMeta({
 
 .order__title {
   margin-top: 0.25rem;
-  font-size: 2.5rem;
+  font-size: var(--page-title);
   font-weight: 700;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
 .progress {
   display: flex;
+  max-width: 100%;
   margin-block: 3rem;
+  padding-bottom: 0.5rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+  scrollbar-width: thin;
 }
 
 .progress__item {
@@ -367,6 +369,8 @@ useSeoMeta({
   gap: 0.75rem;
   color: var(--ui-text-muted);
   font-size: 0.8rem;
+  min-width: 7.75rem;
+  scroll-snap-align: start;
 }
 
 .progress__item::before {
@@ -411,23 +415,24 @@ useSeoMeta({
 
 .order__layout {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
+  min-width: 0;
   gap: 1rem;
 }
 
 .card {
-  padding: 1.5rem;
+  min-width: 0;
+  padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
 }
 
 .card--delivery {
-  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .card__title {
   margin-bottom: 1.25rem;
-  font-size: 1.25rem;
+  font-size: var(--section-title);
   font-weight: 700;
 }
 
@@ -438,13 +443,14 @@ useSeoMeta({
 
 .card__muted {
   margin-top: 0.5rem;
+  overflow-wrap: anywhere;
 }
 
 .delivery {
   display: grid;
   grid-template-columns: repeat(
     auto-fit,
-    minmax(160px, 1fr)
+    minmax(min(100%, 10rem), 1fr)
   );
   gap: 1rem;
 }
@@ -461,10 +467,14 @@ useSeoMeta({
 
 .delivery dd {
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .delivery__action {
+  width: 100%;
+  min-height: var(--touch-target);
   margin-top: 1.25rem;
+  justify-content: center;
 }
 
 .item {
@@ -472,6 +482,11 @@ useSeoMeta({
   justify-content: space-between;
   gap: 1rem;
   padding-block: 0.75rem;
+}
+
+.item > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .item__qty {
@@ -488,9 +503,12 @@ useSeoMeta({
 }
 
 .card__summary > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.card__summary strong {
+  overflow-wrap: anywhere;
 }
 
 .card__total {
@@ -505,17 +523,34 @@ useSeoMeta({
   font-size: 0.8rem;
 }
 
-@media (max-width: 700px) {
-  .order__layout {
-    grid-template-columns: 1fr;
-  }
-
-  .progress {
-    overflow-x: auto;
+@media (min-width: 40rem) {
+  .order__head {
+    display: flex;
+    align-items: center;
   }
 
   .progress__item {
-    min-width: 125px;
+    min-width: 8rem;
+  }
+
+  .card__summary > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .delivery__action {
+    width: auto;
+  }
+}
+
+@media (min-width: 48rem) {
+  .order__layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  }
+
+  .card--delivery {
+    grid-column: 1 / -1;
   }
 }
 </style>

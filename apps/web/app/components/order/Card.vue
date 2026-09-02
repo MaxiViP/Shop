@@ -53,6 +53,7 @@ const products = computed(() =>
 <style scoped>
 .order {
   display: grid;
+  min-width: 0;
   gap: 1rem;
   padding: 1.25rem;
   border: 1px solid var(--ui-border);
@@ -65,7 +66,7 @@ const products = computed(() =>
 }
 
 .order__head {
-  display: flex;
+  display: grid;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
@@ -83,9 +84,16 @@ const products = computed(() =>
 
 .order__items {
   color: var(--ui-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .order__total {
   font-size: 1.125rem;
+}
+
+@media (min-width: 40rem) {
+  .order__head {
+    display: flex;
+  }
 }
 </style>

@@ -22,8 +22,8 @@ useSeoMeta({
 
 <style scoped>
 .orders {
-  max-width: 900px;
-  padding-block: 3rem 5rem;
+  max-width: 56.25rem;
+  padding-block: var(--page-start) var(--page-end);
 }
 
 .orders__head {
@@ -37,7 +37,8 @@ useSeoMeta({
 
 .orders__title {
   margin-top: 0.25rem;
-  font-size: 2.5rem;
+  font-size: var(--page-title);
   font-weight: 700;
+  line-height: 1.1;
 }
 </style>

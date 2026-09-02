@@ -194,7 +194,7 @@
               </strong>
 
               <small>
-                {{ qtyText(item.product, item.qty) }}
+                {{ qtyText(item.product.unit, item.qty) }}
               </small>
             </div>
 
@@ -241,10 +241,10 @@
 <script setup lang="ts">
 import type { Address } from "~/types/address";
 import type { OrderCreated } from "~/types/order";
-import type { ProductListItem } from "~/types/product";
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
+import { qtyText } from "~/utils/qty";
 
 const auth = useAuthStore();
 const cart = useCartStore();
@@ -422,24 +422,6 @@ async function submit() {
   }
 }
 
-function qtyText(product: ProductListItem, qty: number) {
-  if (product.unit === "GRAM") {
-    if (qty >= 1000) {
-      return `${(qty / 1000).toLocaleString("ru-RU")} кг`;
-    }
-
-    return `${qty} г`;
-  }
-
-  const unit = {
-    PIECE: "шт.",
-    BUNCH: "пуч.",
-    PACK: "уп.",
-  }[product.unit];
-
-  return `${qty} ${unit}`;
-}
-
 function addressText(address: Address) {
   return [
     address.city,
@@ -479,7 +461,8 @@ useSeoMeta({
 
 <style scoped>
 .checkout {
-  padding-block: 3rem 5rem;
+  min-width: 0;
+  padding-block: var(--page-start) var(--page-end);
 }
 
 .checkout__head {
@@ -498,23 +481,26 @@ useSeoMeta({
 
 .checkout__title {
   margin-top: 0.75rem;
-  font-size: clamp(2rem, 5vw, 3rem);
+  font-size: var(--page-title);
   font-weight: 700;
+  line-height: 1.1;
 }
 
 .checkout__layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
-  gap: 2rem;
+  min-width: 0;
+  gap: 1.5rem;
 }
 
 .checkout__main {
   display: grid;
+  min-width: 0;
   gap: 1.5rem;
 }
 
 .section {
-  padding: 1.5rem;
+  min-width: 0;
+  padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
 }
@@ -523,12 +509,13 @@ useSeoMeta({
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
 }
 
 .section__title {
   margin-bottom: 1.25rem;
-  font-size: 1.25rem;
+  font-size: var(--section-title);
   font-weight: 700;
 }
 
@@ -544,7 +531,6 @@ useSeoMeta({
 
 .type {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
 }
 
@@ -557,6 +543,7 @@ useSeoMeta({
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
   text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .type__item--active {
@@ -584,13 +571,11 @@ useSeoMeta({
 
 .form__row {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
 }
 
 .form__grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
 }
 
@@ -602,13 +587,14 @@ useSeoMeta({
 
 .addresses {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
   margin-top: 1.25rem;
 }
 
 .addresses__item {
   display: grid;
+  min-width: 0;
+  min-height: var(--touch-target);
   gap: 0.5rem;
   padding: 1rem;
   border: 1px solid var(--ui-border);
@@ -625,18 +611,19 @@ useSeoMeta({
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .addresses__text {
   color: var(--ui-text-muted);
   font-size: 0.875rem;
+  overflow-wrap: anywhere;
 }
 
 .summary {
+  min-width: 0;
   align-self: start;
-  position: sticky;
-  top: 1.5rem;
-  padding: 1.5rem;
+  padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
 }
@@ -660,6 +647,12 @@ useSeoMeta({
 
 .summary__item > div {
   display: grid;
+  min-width: 0;
+}
+
+.summary__item strong,
+.summary__item span {
+  overflow-wrap: anywhere;
 }
 
 .summary__item small {
@@ -693,25 +686,39 @@ useSeoMeta({
   line-height: 1.5;
 }
 
-@media (max-width: 900px) {
-  .checkout__layout {
-    grid-template-columns: 1fr;
-  }
+.checkout :deep(input),
+.checkout :deep(textarea),
+.checkout :deep(select) {
+  font-size: 1rem;
+}
 
-  .summary {
-    position: static;
+@media (min-width: 40rem) {
+  .type,
+  .form__row,
+  .form__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 650px) {
-  .type,
-  .form__row,
+@media (min-width: 48rem) {
   .addresses {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .form__grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .checkout__layout {
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 23.75rem);
+    gap: 2rem;
+  }
+
+  .summary {
+    position: sticky;
+    top: 1.5rem;
   }
 }
 </style>

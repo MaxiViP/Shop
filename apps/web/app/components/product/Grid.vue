@@ -19,25 +19,38 @@ defineProps<{
 <style scoped>
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.5rem, 0.25rem + 0.8vw, 1rem);
 }
 
-@media (max-width: 1024px) {
+@media (min-width: 40rem) {
   .grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 768px) {
+@media (min-width: 48rem) {
   .grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 480px) {
+@media (min-width: 64rem) {
   .grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 80rem) {
+  .grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 96rem) {
+  .grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 }
 </style>

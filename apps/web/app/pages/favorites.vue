@@ -117,13 +117,15 @@ useSeoMeta({
 
 <style scoped>
 .favorites-page {
-  padding-block: 3rem 5rem;
+  min-width: 0;
+  padding-block: var(--page-start) var(--page-end);
 }
 
 .favorites-page__title {
   margin-bottom: 2rem;
-  font-size: 2.5rem;
+  font-size: var(--page-title);
   font-weight: 700;
+  line-height: 1.1;
 }
 
 .favorites-page__state {
@@ -142,7 +144,11 @@ useSeoMeta({
 }
 
 .favorites-page__empty-title {
-  font-size: 1.5rem;
+  font-size: var(--section-title);
   font-weight: 600;
+}
+
+.favorites-page__empty :deep(a) {
+  min-height: var(--touch-target);
 }
 </style>

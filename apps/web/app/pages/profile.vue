@@ -49,7 +49,9 @@
           </p>
         </div>
 
-        <UButton icon="i-lucide-plus" @click="create"> Добавить адрес </UButton>
+        <UButton class="profile__add" icon="i-lucide-plus" @click="create">
+          Добавить адрес
+        </UButton>
       </header>
 
       <div v-if="addresses?.length" class="profile__addresses">
@@ -92,6 +94,7 @@
       v-model:open="deleteOpen"
       title="Удалить адрес?"
       description="Это действие нельзя отменить."
+      :ui="{ content: 'w-[calc(100%-2rem)] max-w-md' }"
     >
       <template #body>
         <div class="delete">
@@ -228,16 +231,28 @@ useSeoMeta({
 
 <style scoped>
 .profile {
-  max-width: 900px;
-  padding-block: 3rem 5rem;
+  max-width: 56.25rem;
+  padding-block: var(--page-start) var(--page-end);
+}
+
+.profile :deep(button) {
+  min-height: var(--touch-target);
 }
 
 .profile__head,
 .profile__section-head {
   display: flex;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
-  gap: 2rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.profile__add {
+  width: 100%;
+  min-height: var(--touch-target);
+  justify-content: center;
 }
 
 .profile__head {
@@ -251,8 +266,9 @@ useSeoMeta({
 
 .profile__title {
   margin-top: 0.25rem;
-  font-size: 2.5rem;
+  font-size: var(--page-title);
   font-weight: 700;
+  line-height: 1.1;
 }
 
 .profile__orders {
@@ -266,12 +282,13 @@ useSeoMeta({
 }
 
 .profile__row {
-  display: flex;
+  display: grid;
   min-height: 64px;
+  grid-template-columns: minmax(5rem, auto) minmax(0, 1fr);
   align-items: center;
   justify-content: space-between;
-  gap: 2rem;
-  padding-inline: 1.25rem;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
 }
 
 .profile__row + .profile__row {
@@ -282,12 +299,19 @@ useSeoMeta({
   color: var(--ui-text-muted);
 }
 
+.profile__row > :last-child {
+  min-width: 0;
+  justify-self: end;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
 .profile__section {
   margin-top: 3rem;
 }
 
 .profile__section-title {
-  font-size: 1.5rem;
+  font-size: var(--section-title);
   font-weight: 700;
 }
 
@@ -298,7 +322,6 @@ useSeoMeta({
 
 .profile__addresses {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
   margin-top: 1.5rem;
 }
@@ -306,7 +329,7 @@ useSeoMeta({
 .profile__empty {
   display: grid;
   margin-top: 1.5rem;
-  padding: 3rem;
+  padding: clamp(2rem, 8vw, 3rem) 1rem;
   justify-items: center;
   gap: 0.75rem;
   border: 1px dashed var(--ui-border);
@@ -331,18 +354,38 @@ useSeoMeta({
 
 .delete__actions {
   display: flex;
-  justify-content: flex-end;
   gap: 0.75rem;
 }
 
-@media (max-width: 700px) {
+.delete__actions > * {
+  min-height: var(--touch-target);
+  flex: 1;
+  justify-content: center;
+}
+
+@media (min-width: 40rem) {
+  .profile__add {
+    width: auto;
+  }
+
+  .profile__row {
+    padding-inline: 1.25rem;
+  }
+
   .profile__section-head {
-    align-items: flex-start;
-    flex-direction: column;
+    flex-wrap: nowrap;
   }
 
   .profile__addresses {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .delete__actions {
+    justify-content: flex-end;
+  }
+
+  .delete__actions > * {
+    flex: 0 0 auto;
   }
 }
 </style>

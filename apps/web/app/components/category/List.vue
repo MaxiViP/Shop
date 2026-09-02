@@ -31,14 +31,19 @@ function link(path: string) {
   display: flex;
   gap: 0.75rem;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
 }
 
 .categories__item {
+  display: inline-flex;
+  min-height: var(--touch-target);
+  align-items: center;
   flex: none;
   padding: 0.65rem 1rem;
   border: 1px solid var(--ui-border);
   border-radius: 999px;
-  transition: 0.2s;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .categories__item:hover {

@@ -25,6 +25,22 @@ const unit = computed(() => {
 
 <style scoped>
 .price {
-  font-size: 1.125rem;
+  display: block;
+  min-width: 0;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 40rem) {
+  .price {
+    font-size: 1rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  .price {
+    font-size: 1.125rem;
+  }
 }
 </style>

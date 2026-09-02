@@ -14,6 +14,6 @@
 }
 
 .layout__main {
-  min-height: calc(100vh - 72px);
+  min-height: calc(100dvh - var(--header-height));
 }
 </style>

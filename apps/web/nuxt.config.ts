@@ -6,7 +6,7 @@ export default defineNuxtConfig({
     port: 3000,
   },
 
-  modules: ["@nuxt/ui", "@pinia/nuxt"],
+  modules: ["@nuxt/ui", "@pinia/nuxt", "@nuxt/eslint"],
 
   css: ["~/assets/css/main.css"],
 

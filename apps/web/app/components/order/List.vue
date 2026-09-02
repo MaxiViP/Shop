@@ -111,7 +111,7 @@ onBeforeUnmount(() => {
 
 .orders__title {
   margin-bottom: 1rem;
-  font-size: 1.5rem;
+  font-size: var(--section-title);
   font-weight: 700;
 }
 
@@ -122,7 +122,7 @@ onBeforeUnmount(() => {
 
 .orders__empty {
   display: grid;
-  padding: 3rem;
+  padding: clamp(2rem, 8vw, 3rem) 1rem;
   justify-items: center;
   gap: 0.75rem;
   border: 1px dashed var(--ui-border);

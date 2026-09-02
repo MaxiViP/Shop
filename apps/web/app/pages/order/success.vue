@@ -62,11 +62,11 @@ useSeoMeta({
 <style scoped>
 .success {
   display: grid;
-  max-width: 620px;
-  min-height: calc(100vh - 72px);
+  max-width: 38.75rem;
+  min-height: calc(100dvh - var(--header-height));
   align-content: center;
   justify-items: center;
-  padding-block: 4rem;
+  padding-block: var(--page-start) var(--page-end);
   text-align: center;
 }
 
@@ -93,7 +93,7 @@ useSeoMeta({
 
 .success__title {
   margin-top: 0.25rem;
-  font-size: 3rem;
+  font-size: var(--page-title);
   font-weight: 700;
 }
 
@@ -109,8 +109,21 @@ useSeoMeta({
 }
 
 .success__actions {
-  display: flex;
+  display: grid;
+  width: min(100%, 22rem);
   gap: 0.75rem;
   margin-top: 2rem;
+}
+
+.success__actions > * {
+  min-height: var(--touch-target);
+  justify-content: center;
+}
+
+@media (min-width: 40rem) {
+  .success__actions {
+    display: flex;
+    width: auto;
+  }
 }
 </style>

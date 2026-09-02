@@ -5,6 +5,7 @@
 
       <UButton
         v-if="cart.items.length"
+        class="cart__clear"
         variant="ghost"
         color="neutral"
         @click="cart.clear"
@@ -21,7 +22,7 @@
               v-if="item.product.images[0]"
               :src="item.product.images[0].url"
               :alt="item.product.images[0].alt || item.product.name"
-            />
+            >
 
             <span v-else> Фото </span>
           </NuxtLink>
@@ -46,6 +47,7 @@
             </strong>
 
             <UButton
+              class="item__remove"
               icon="i-lucide-trash-2"
               variant="ghost"
               color="neutral"
@@ -98,25 +100,28 @@ useSeoMeta({
 
 <style scoped>
 .cart {
-  padding-block: 3rem 5rem;
+  min-width: 0;
+  padding-block: var(--page-start) var(--page-end);
 }
 
 .cart__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
   margin-bottom: 2rem;
 }
 
 .cart__title {
-  font-size: 2.5rem;
+  font-size: var(--page-title);
   font-weight: 700;
+  line-height: 1.1;
 }
 
 .cart__layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 2rem;
+  min-width: 0;
+  gap: 1.5rem;
 }
 
 .cart__items {
@@ -126,16 +131,18 @@ useSeoMeta({
 
 .item {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) auto;
-  gap: 1.5rem;
-  padding: 1rem;
+  min-width: 0;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.75rem;
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
 }
 
 .item__img {
   display: grid;
-  height: 120px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
   place-items: center;
   overflow: hidden;
   border-radius: 0.75rem;
@@ -151,6 +158,7 @@ useSeoMeta({
 
 .item__body {
   display: grid;
+  min-width: 0;
   align-content: center;
   justify-items: start;
   gap: 0.75rem;
@@ -159,6 +167,8 @@ useSeoMeta({
 .item__title {
   font-size: 1.125rem;
   font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .item__title:hover {
@@ -167,9 +177,16 @@ useSeoMeta({
 
 .item__side {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
   justify-content: space-between;
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+}
+
+.cart__clear,
+.item__remove {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
 }
 
 .item__total {
@@ -177,10 +194,16 @@ useSeoMeta({
 }
 
 .summary {
+  min-width: 0;
   align-self: start;
   padding: 1.5rem;
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
+}
+
+.summary :deep(a),
+.cart__empty :deep(a) {
+  min-height: var(--touch-target);
 }
 
 .summary__title {
@@ -208,8 +231,8 @@ useSeoMeta({
 
 .cart__empty {
   display: grid;
-  max-width: 420px;
-  margin: 7rem auto;
+  max-width: 26.25rem;
+  margin: clamp(4rem, 12vw, 7rem) auto;
   justify-items: center;
   gap: 1rem;
   text-align: center;
@@ -225,29 +248,28 @@ useSeoMeta({
   color: var(--ui-text-muted);
 }
 
-@media (max-width: 900px) {
-  .cart__layout {
-    grid-template-columns: 1fr;
-  }
-
-  .summary {
-    width: 100%;
-  }
-}
-
-@media (max-width: 600px) {
+@media (min-width: 40rem) {
   .item {
-    grid-template-columns: 80px 1fr;
-  }
-
-  .item__img {
-    height: 80px;
+    grid-template-columns: 7rem minmax(0, 1fr) auto;
+    gap: 1.25rem;
+    padding: 1rem;
   }
 
   .item__side {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    align-items: center;
+    grid-column: auto;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+}
+
+@media (min-width: 64rem) {
+  .cart__layout {
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 22.5rem);
+    gap: 2rem;
+  }
+
+  .summary {
+    align-self: start;
   }
 }
 </style>

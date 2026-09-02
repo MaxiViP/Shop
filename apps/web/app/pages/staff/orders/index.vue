@@ -399,14 +399,14 @@ useSeoMeta({
 
 <style scoped>
 .queue {
-  max-width: 1100px;
-  padding-block: 2rem 5rem;
+  max-width: 68.75rem;
+  min-width: 0;
+  padding-block: var(--page-start) var(--page-end);
 }
 
 .queue__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  align-items: start;
   gap: 1rem;
 }
 
@@ -417,13 +417,16 @@ useSeoMeta({
 
 .queue__title {
   margin-top: 0.25rem;
-  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-size: var(--page-title);
   font-weight: 700;
+  line-height: 1.1;
 }
 
 .queue__tabs {
   display: flex;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
   gap: 0.5rem;
   margin-block: 2rem;
   padding-bottom: 0.5rem;
@@ -431,6 +434,7 @@ useSeoMeta({
 
 .queue__tabs > * {
   flex: 0 0 auto;
+  min-height: var(--touch-target);
 }
 
 .queue__list {
@@ -455,8 +459,9 @@ useSeoMeta({
 
 .order-card {
   display: grid;
+  min-width: 0;
   gap: 1.25rem;
-  padding: 1.5rem;
+  padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
 }
@@ -471,8 +476,8 @@ useSeoMeta({
 }
 
 .order-card__head {
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  align-items: start;
 }
 
 .order-card__number {
@@ -496,7 +501,7 @@ useSeoMeta({
 
 .order-card__details {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.6875rem), 1fr));
   gap: 1rem;
 }
 
@@ -508,6 +513,7 @@ useSeoMeta({
 
 .order-card__details dd {
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .order-card__actions {
@@ -515,18 +521,25 @@ useSeoMeta({
   border-top: 1px solid var(--ui-border);
 }
 
-@media (max-width: 640px) {
+.order-card__actions > * {
+  width: 100%;
+  min-height: var(--touch-target);
+  justify-content: center;
+}
+
+@media (min-width: 40rem) {
   .queue__head {
-    align-items: flex-start;
+    display: flex;
+    justify-content: space-between;
   }
 
-  .order-card {
-    padding: 1.25rem;
+  .order-card__head {
+    display: flex;
+    justify-content: space-between;
   }
 
   .order-card__actions > * {
-    width: 100%;
-    justify-content: center;
+    width: auto;
   }
 }
 </style>

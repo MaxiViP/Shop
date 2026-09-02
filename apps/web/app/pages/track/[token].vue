@@ -116,12 +116,13 @@ useSeoMeta({
 
 <style scoped>
 .tracking {
-  max-width: 760px;
-  padding-block: 3rem 5rem;
+  max-width: 47.5rem;
+  min-width: 0;
+  padding-block: var(--page-start) var(--page-end);
 }
 
 .tracking__head {
-  display: flex;
+  display: grid;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
@@ -135,19 +136,21 @@ useSeoMeta({
 
 .tracking__title {
   margin-top: 0.25rem;
-  font-size: clamp(2rem, 7vw, 2.75rem);
+  font-size: var(--page-title);
   font-weight: 700;
+  line-height: 1.1;
 }
 
 .tracking__card {
-  padding: 1.5rem;
+  min-width: 0;
+  padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
 }
 
 .tracking__details {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
   gap: 1.25rem;
 }
 
@@ -163,10 +166,12 @@ useSeoMeta({
 
 .tracking__details dd {
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .tracking__action {
   width: 100%;
+  min-height: var(--touch-target);
   margin-top: 1.5rem;
   justify-content: center;
 }
@@ -175,5 +180,12 @@ useSeoMeta({
   margin-top: 1rem;
   color: var(--ui-text-muted);
   font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 40rem) {
+  .tracking__head {
+    display: flex;
+  }
 }
 </style>

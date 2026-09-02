@@ -3,6 +3,10 @@
     v-model:open="open"
     title="Вход"
     :description="description"
+    :ui="{
+      content: 'w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)]',
+      body: 'overflow-y-auto',
+    }"
   >
     <template #body>
       <form
@@ -221,5 +225,13 @@ function getMessage(cause: unknown) {
 .auth {
   display: grid;
   gap: 1rem;
+}
+
+.auth :deep(input) {
+  font-size: 1rem;
+}
+
+.auth :deep(button) {
+  min-height: var(--touch-target);
 }
 </style>

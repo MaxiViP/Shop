@@ -1,5 +1,6 @@
 <template>
   <UBadge
+    class="status"
     :color="meta.color"
     variant="soft"
   >
@@ -19,3 +20,12 @@ const meta = computed(
   () => orderStatus[status],
 )
 </script>
+
+<style scoped>
+.status {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+</style>
