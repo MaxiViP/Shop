@@ -12,8 +12,10 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiBase: "http://127.0.0.1:3001/api",
+      apiBase: "http://127.0.0.1:4001/api",
       siteUrl: "",
+      pickupName: "ТЦ «Багратионовский»",
+      pickupAddress: "ул. Барклая, 10, Москва",
     },
   },
 

@@ -18,10 +18,6 @@ const sorts = new Set<ProductSort>(
   productSortOptions.map(({ value }) => value),
 );
 
-function queryText(value: unknown) {
-  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
-}
-
 function querySort(value: unknown): ProductSort {
   return typeof value === "string" && sorts.has(value as ProductSort)
     ? (value as ProductSort)
@@ -32,15 +28,12 @@ export async function useCatalog(category?: string) {
   const route = useRoute();
   const router = useRouter();
   const api = useApiClient();
-  const search = ref(queryText(route.query.q));
+  const { search, q, submitSearch, clearSearch } = useProductSearch(true);
   const page = ref(1);
   const items = ref<ProductListItem[]>([]);
   const total = ref(0);
   const pages = ref(0);
   const loadingMore = ref(false);
-  let timer: ReturnType<typeof setTimeout> | null = null;
-
-  const q = computed(() => queryText(route.query.q));
   const sort = computed<ProductSort>({
     get: () => querySort(route.query.sort),
     set: (value) => {
@@ -73,13 +66,6 @@ export async function useCatalog(category?: string) {
 
   const hasMore = computed(() => page.value < pages.value);
 
-  watch(search, () => {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      void setSearch(search.value);
-    }, 300);
-  });
-
   watch(
     () => `${q.value}\u0000${sort.value}`,
     async () => {
@@ -91,10 +77,6 @@ export async function useCatalog(category?: string) {
     },
   );
 
-  onBeforeUnmount(() => {
-    if (timer) clearTimeout(timer);
-  });
-
   function apply(response: ProductListResponse) {
     items.value = response.items;
     total.value = response.total;
@@ -102,15 +84,9 @@ export async function useCatalog(category?: string) {
     pages.value = response.pages;
   }
 
-  async function updateQuery(values: { q?: string; sort?: ProductSort }) {
+  async function updateQuery(values: { sort?: ProductSort }) {
     const query = { ...route.query };
     delete query.page;
-
-    if ("q" in values) {
-      const value = queryText(values.q);
-      if (value) query.q = value;
-      else delete query.q;
-    }
 
     if (values.sort) {
       if (values.sort === "recommended") delete query.sort;
@@ -118,23 +94,6 @@ export async function useCatalog(category?: string) {
     }
 
     await router.replace({ query });
-  }
-
-  async function setSearch(value: string) {
-    const normalized = queryText(value);
-    if (normalized === q.value) return;
-    await updateQuery({ q: normalized });
-  }
-
-  function submitSearch() {
-    if (timer) clearTimeout(timer);
-    void setSearch(search.value);
-  }
-
-  function clearSearch() {
-    search.value = "";
-    if (timer) clearTimeout(timer);
-    void setSearch("");
   }
 
   async function setSort(value: ProductSort) {

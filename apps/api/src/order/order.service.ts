@@ -11,6 +11,7 @@ import {
   guestTokenHash,
 } from '../common/guest.js';
 import type { OrderInput } from './schema.js';
+import { totalWithDelivery } from './pricing.js';
 
 @Injectable()
 export class OrderService {
@@ -48,12 +49,11 @@ export class OrderService {
         step: true,
 
         images: {
+          where: { visible: true },
           select: {
             url: true,
           },
-          orderBy: {
-            sort: 'asc',
-          },
+          orderBy: [{ sort: 'asc' }, { id: 'asc' }],
           take: 1,
         },
       },
@@ -92,8 +92,8 @@ export class OrderService {
 
     const subtotal = items.reduce((sum, item) => sum + item.total, 0);
 
-    const deliveryPrice = 0;
-    const total = subtotal + deliveryPrice;
+    const deliveryPrice = data.type === 'PICKUP' ? 0 : null;
+    const total = totalWithDelivery(subtotal, deliveryPrice);
 
     const address = data.type === 'DELIVERY' ? data.address : undefined;
 
@@ -178,6 +178,8 @@ export class OrderService {
           type: true,
           status: true,
           total: true,
+          finalTotal: true,
+          deliveryAt: true,
           createdAt: true,
 
           items: {
@@ -212,6 +214,8 @@ export class OrderService {
         type: true,
         status: true,
         total: true,
+        finalTotal: true,
+        deliveryAt: true,
         createdAt: true,
 
         items: {

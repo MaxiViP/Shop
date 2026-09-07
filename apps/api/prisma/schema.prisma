@@ -75,10 +75,11 @@ model Product {
 }
 
 model ProductImage {
-  id   Int     @id @default(autoincrement())
-  url  String
-  alt  String?
-  sort Int     @default(0)
+  id      Int     @id @default(autoincrement())
+  url     String
+  alt     String?
+  sort    Int     @default(0)
+  visible Boolean @default(true)
 
   productId Int
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -202,8 +203,8 @@ model Order {
   deliveryAt DateTime?
 
   subtotal      Int
-  deliveryPrice Int @default(0)
-  total         Int
+  deliveryPrice Int?
+  total         Int?
 
   finalSubtotal Int?
   finalTotal    Int?

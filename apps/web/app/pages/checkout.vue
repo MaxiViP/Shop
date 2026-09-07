@@ -1,7 +1,7 @@
 <template>
   <UContainer class="checkout">
     <header class="checkout__head">
-      <NuxtLink to="/cart" class="checkout__back"> ← Корзина </NuxtLink>
+      <AppBackButton fallback="/cart" label="Назад в корзину" />
 
       <h1 class="checkout__title">Оформление заказа</h1>
     </header>
@@ -12,7 +12,7 @@
           <h2 class="section__title">Получение</h2>
 
           <div class="type">
-            <button type="button" class="type__item type__item--active">
+            <button type="button" class="type__item" :class="{ 'type__item--active': form.type === 'DELIVERY' }" :aria-pressed="form.type === 'DELIVERY'" @click="form.type = 'DELIVERY'">
               <UIcon name="i-lucide-truck" />
 
               <span>
@@ -21,12 +21,12 @@
               </span>
             </button>
 
-            <button type="button" class="type__item" disabled>
+            <button type="button" class="type__item" :class="{ 'type__item--active': form.type === 'PICKUP' }" :aria-pressed="form.type === 'PICKUP'" @click="form.type = 'PICKUP'">
               <UIcon name="i-lucide-store" />
 
               <span>
                 <strong>Самовывоз</strong>
-                <small>Скоро</small>
+                <small>С рынка</small>
               </span>
             </button>
           </div>
@@ -63,7 +63,7 @@
           </p>
         </section>
 
-        <section class="section">
+        <section v-if="form.type === 'DELIVERY'" class="section">
           <div class="section__head">
             <h2 class="section__title">Адрес доставки</h2>
 
@@ -160,7 +160,7 @@
           </div>
         </section>
 
-        <section class="section">
+        <section v-if="form.type === 'DELIVERY'" class="section">
           <h2 class="section__title">Время доставки</h2>
 
           <UAlert
@@ -169,6 +169,28 @@
             title="Доставим как можно скорее"
             description="Точные интервалы доставки добавим следующим этапом."
           />
+        </section>
+
+        <section v-else class="section">
+          <h2 class="section__title">Самовывоз</h2>
+          <OrderPickupPoint />
+          <fieldset class="pickup-time">
+            <legend class="section__title">Когда подготовить?</legend>
+            <label class="pickup-time__option">
+              <input v-model="form.pickupTiming" type="radio" value="asap" name="pickup-timing">
+              <span>Начать собирать сразу</span>
+            </label>
+            <p v-if="form.pickupTiming === 'asap'" class="section__hint">
+              Начнём подготовку заказа сразу после его принятия.
+            </p>
+            <label class="pickup-time__option">
+              <input v-model="form.pickupTiming" type="radio" value="scheduled" name="pickup-timing">
+              <span>Ко времени</span>
+            </label>
+            <UFormField v-if="form.pickupTiming === 'scheduled'" label="Дата и время (Москва)" :error="errors.deliveryAt" required>
+              <UInput v-model="form.pickupAt" type="datetime-local" required size="lg" />
+            </UFormField>
+          </fieldset>
         </section>
 
         <UAlert
@@ -213,16 +235,16 @@
         </div>
 
         <div class="summary__row">
-          <span>Доставка</span>
+          <span>{{ form.type === 'PICKUP' ? 'Самовывоз' : 'Доставка' }}</span>
 
-          <span> Бесплатно </span>
+          <span>{{ form.type === 'PICKUP' ? 'Бесплатно' : 'Рассчитывается' }}</span>
         </div>
 
         <div class="summary__total">
           <span> Итого </span>
 
           <strong>
-            {{ money(cart.total) }}
+            {{ form.type === 'PICKUP' ? money(cart.total) : 'После расчёта доставки' }}
           </strong>
         </div>
 
@@ -231,6 +253,7 @@
         </UButton>
 
         <p class="summary__note">
+          <span v-if="form.type === 'DELIVERY'">Стоимость доставки зависит от способа доставки и адреса. </span>
           Итоговая сумма весовых товаров может немного измениться после сборки.
         </p>
       </aside>
@@ -240,15 +263,17 @@
 
 <script setup lang="ts">
 import type { Address } from "~/types/address";
-import type { OrderCreated } from "~/types/order";
+import type { OrderCreated, OrderType } from "~/types/order";
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
 import { qtyText } from "~/utils/qty";
+import { pickupDate } from "~/utils/pickup";
 
 const auth = useAuthStore();
 const cart = useCartStore();
 const api = useApiClient();
+const { name, rememberOnSuccess } = useCheckoutName();
 
 if (!cart.items.length) {
   await navigateTo("/cart");
@@ -272,10 +297,14 @@ const errors = reactive({
   city: "",
   street: "",
   house: "",
+  deliveryAt: "",
 });
 
 const form = reactive({
-  name: auth.user?.name ?? "",
+  type: 'DELIVERY' as OrderType,
+  pickupTiming: 'asap',
+  pickupAt: '',
+  name,
   phone: auth.user?.phone ?? "",
 
   city: "Москва",
@@ -286,6 +315,11 @@ const form = reactive({
   floor: "",
   intercom: "",
   comment: "",
+});
+
+watch(() => [form.type, form.pickupTiming], () => {
+  clearErrors();
+  error.value = '';
 });
 
 const showAddressForm = computed(
@@ -348,18 +382,22 @@ function validate() {
     errors.phone = "Введите телефон";
   }
 
-  if (!form.city.trim()) {
+  if (form.type === 'DELIVERY' && !form.city.trim()) {
     errors.city = "Введите город";
   }
 
-  if (!form.street.trim()) {
+  if (form.type === 'DELIVERY' && !form.street.trim()) {
     errors.street = "Введите улицу";
   }
 
-  if (!form.house.trim()) {
+  if (form.type === 'DELIVERY' && !form.house.trim()) {
     errors.house = "Введите дом";
   }
 
+  if (form.type === 'PICKUP' && form.pickupTiming === 'scheduled') {
+    const date = pickupDate(form.pickupAt);
+    if (!date || date.getTime() <= Date.now()) errors.deliveryAt = 'Укажите дату и время в будущем';
+  }
   return !Object.values(errors).some(Boolean);
 }
 
@@ -369,6 +407,7 @@ function clearErrors() {
   errors.city = "";
   errors.street = "";
   errors.house = "";
+  errors.deliveryAt = "";
 }
 
 async function submit() {
@@ -378,18 +417,21 @@ async function submit() {
   loading.value = true;
   error.value = "";
 
+  const rememberName = rememberOnSuccess();
   try {
     const order = await api<OrderCreated>("/orders", {
       method: "POST",
 
       body: {
-        type: "DELIVERY",
+        type: form.type,
+        deliveryAt: form.type === 'PICKUP' && form.pickupTiming === 'scheduled'
+          ? pickupDate(form.pickupAt)?.toISOString() : undefined,
 
         customerName: form.name.trim(),
 
         customerPhone: form.phone.trim(),
 
-        address: {
+        address: form.type === 'DELIVERY' ? {
           city: form.city.trim(),
           street: form.street.trim(),
           house: form.house.trim(),
@@ -403,7 +445,7 @@ async function submit() {
           intercom: form.intercom.trim() || undefined,
 
           comment: form.comment.trim() || undefined,
-        },
+        } : undefined,
 
         items: cart.items.map((item) => ({
           productId: item.product.id,
@@ -412,6 +454,7 @@ async function submit() {
       },
     });
 
+    rememberName();
     cart.clear();
 
     await navigateTo(`/order/${order.publicId}`);
@@ -465,16 +508,29 @@ useSeoMeta({
   padding-block: var(--page-start) var(--page-end);
 }
 
+.pickup-time {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  min-width: 0;
+}
+
+.pickup-time__option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--touch-target);
+  cursor: pointer;
+}
+
 .checkout__head {
   margin-bottom: 2rem;
 }
 
-.checkout__back,
 .section__link {
   color: var(--ui-text-muted);
 }
 
-.checkout__back:hover,
 .section__link:hover {
   color: var(--ui-primary);
 }

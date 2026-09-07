@@ -1,14 +1,7 @@
 <template>
   <UContainer v-if="product" class="product">
-    <div class="product__media">
-      <img
-        v-if="product.images[0]"
-        :src="product.images[0].url"
-        :alt="product.images[0].alt || product.name"
-      >
-
-      <span v-else> Фото скоро </span>
-    </div>
+    <AppBackButton class="product__back" :fallback="product.category.slug ? `/catalog/${product.category.slug}` : '/catalog'" />
+    <ProductGallery :images="product.images" :name="product.name" />
 
     <section class="product__info">
       <NuxtLink
@@ -28,10 +21,6 @@
 
       <ProductPrice :product="product" />
 
-      <p v-if="product.description" class="product__text">
-        {{ product.description }}
-      </p>
-
       <div class="product__buy">
         <ProductQty v-model="qty" :product="product" />
 
@@ -46,6 +35,14 @@
         </div>
       </div>
     </section>
+    <section
+      v-if="product.description"
+      class="product__description"
+      aria-labelledby="product-description"
+    >
+      <h2 id="product-description" class="product__subtitle">Описание</h2>
+      <p class="product__text">{{ product.description }}</p>
+    </section>
   </UContainer>
 </template>
 
@@ -59,16 +56,14 @@ const route = useRoute();
 const slug = String(route.params.slug);
 
 const cart = useCartStore();
-const toast = useToast();
+const notice = useHeaderNotice();
 
 function add() {
   if (!product.value) return;
 
   cart.add(product.value, qty.value);
 
-  toast.add({
-    title: `${product.value.name} добавлен`,
-  });
+  notice.show({ target: 'cart', text: 'Добавлено в корзину' });
 }
 
 const { data: product, error } = await useApi<Product>(`/products/${slug}`);
@@ -108,26 +103,13 @@ useSeoMeta({
   padding-block: var(--page-start) var(--page-end);
 }
 
-.product__media {
-  display: grid;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 1.5rem;
-  background: var(--ui-bg-muted);
-  color: var(--ui-text-muted);
-}
-
-.product__media img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .product__info {
   min-width: 0;
-  align-self: center;
+  align-self: start;
+}
+
+.product__back {
+  grid-column: 1 / -1;
 }
 
 .product__category {
@@ -151,10 +133,19 @@ useSeoMeta({
 }
 
 .product__text {
-  margin-top: 1.5rem;
+  margin-top: 1rem;
   color: var(--ui-text-muted);
   line-height: 1.65;
   overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.product__description {
+  min-width: 0;
+  max-width: 65ch;
+}
+.product__subtitle {
+  font-size: var(--section-title);
+  font-weight: 600;
 }
 
 .product__buy {
@@ -187,8 +178,8 @@ useSeoMeta({
     gap: clamp(2rem, 5vw, 4rem);
   }
 
-  .product__media {
-    aspect-ratio: 1 / 1;
+  .product__description {
+    grid-column: 1 / -1;
   }
 
   .product__btn {
@@ -198,6 +189,20 @@ useSeoMeta({
 
   .product__purchase {
     gap: 0.75rem;
+  }
+}
+@media (min-width: 80rem) {
+  .product:has(.product__description) {
+    grid-template-columns: minmax(0, 1.4fr) minmax(16rem, 0.85fr) minmax(
+        0,
+        0.9fr
+      );
+    gap: 2rem;
+  }
+  .product__description {
+    grid-column: auto;
+    padding-left: 1.5rem;
+    border-left: 1px solid var(--ui-border);
   }
 }
 </style>

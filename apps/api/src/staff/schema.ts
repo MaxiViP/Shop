@@ -54,7 +54,7 @@ export const deliverySchema = z
     externalOrderId: optional(100),
     courierName: optional(100),
     courierPhone,
-    price: z.number().int().nonnegative().max(100_000_000).optional(),
+    price: z.number().int().positive().max(100_000_000).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.provider === 'YANDEX') {
@@ -74,6 +74,13 @@ export const deliverySchema = z
     }
 
     if (data.provider === 'OTHER') {
+      if (data.price === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['price'],
+          message: 'Укажите стоимость доставки',
+        });
+      }
       if (!data.courierName) {
         ctx.addIssue({
           code: 'custom',

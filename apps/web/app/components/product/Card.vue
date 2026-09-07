@@ -4,7 +4,7 @@
       <NuxtLink :to="`/product/${product.slug}`" class="card__img">
         <img
           v-if="product.images[0]"
-          :src="product.images[0].url"
+          :src="asset(product.images[0].url)"
           :alt="product.images[0].alt || product.name"
         >
 
@@ -57,15 +57,14 @@ const { product } = defineProps<{
 }>();
 
 const cart = useCartStore();
-const toast = useToast();
+const asset = useAsset();
+const notice = useHeaderNotice();
 const cartQty = computed(() => cart.qty(product.id));
 
 function add() {
   cart.add(product);
 
-  toast.add({
-    title: `${product.name} добавлен`,
-  });
+  notice.show({ target: 'cart', text: 'Добавлено в корзину' });
 }
 </script>
 

@@ -60,7 +60,7 @@ export interface StaffOrder {
 
   deliveryAt: string | null
 
-  total: number
+  total: number | null
   finalTotal: number | null
   createdAt: string
 
@@ -82,8 +82,8 @@ export interface OrderCreated {
   status: OrderStatus
 
   subtotal: number
-  deliveryPrice: number
-  total: number
+  deliveryPrice: number | null
+  total: number | null
 
   createdAt: string
 
@@ -101,7 +101,9 @@ export interface OrderSummary {
   type: OrderType
   status: OrderStatus
 
-  total: number
+  total: number | null
+  finalTotal: number | null
+  deliveryAt: string | null
   createdAt: string
 
   items: {
@@ -132,8 +134,8 @@ export interface OrderDetail {
   deliveryAt: string | null
 
   subtotal: number
-  deliveryPrice: number
-  total: number
+  deliveryPrice: number | null
+  total: number | null
   finalSubtotal: number | null
   finalTotal: number | null
 
@@ -178,8 +180,8 @@ export interface PublicTracking {
     status: OrderStatus
     deliveryAt: string | null
     subtotal: number
-    deliveryPrice: number
-    total: number
+    deliveryPrice: number | null
+    total: number | null
     finalSubtotal: number | null
     finalTotal: number | null
   }

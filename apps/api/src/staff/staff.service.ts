@@ -7,6 +7,11 @@ import { randomBytes } from 'node:crypto';
 import type { OrderStatus, OrderType, Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import type { DeliveryInput, ItemInput } from './schema.js';
+import {
+  deliveryTotals,
+  positiveDeliveryPrice,
+  totalWithDelivery,
+} from '../order/pricing.js';
 
 const cancelable: OrderStatus[] = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY'];
 
@@ -268,7 +273,7 @@ export class StaffService {
         data: {
           status: 'READY',
           finalSubtotal,
-          finalTotal: finalSubtotal + order.deliveryPrice,
+          finalTotal: totalWithDelivery(finalSubtotal, order.deliveryPrice),
         },
       });
     });
@@ -295,7 +300,10 @@ export class StaffService {
         throw new BadRequestException('Заказ уже передан курьеру');
       }
 
-      if (order.delivery?.provider === 'YANDEX' && order.delivery.externalOrderId) {
+      if (
+        order.delivery?.provider === 'YANDEX' &&
+        order.delivery.externalOrderId
+      ) {
         throw new BadRequestException(
           'Созданную Яндекс Доставку нужно отменять через Яндекс',
         );
@@ -340,6 +348,15 @@ export class StaffService {
       }
 
       if (
+        order.delivery?.provider === 'YANDEX' &&
+        order.delivery.externalOrderId
+      ) {
+        throw new BadRequestException('Для заказа уже создана Яндекс Доставка');
+      }
+      positiveDeliveryPrice(data.price);
+      const totals = deliveryTotals(order, data.price);
+
+      if (
         order.delivery &&
         order.delivery.status !== 'PENDING' &&
         order.delivery.status !== 'ASSIGNED'
@@ -359,7 +376,7 @@ export class StaffService {
           trackingUrl: data.trackingUrl ?? null,
           courierName: data.courierName ?? null,
           courierPhone: data.courierPhone ?? null,
-          price: data.price ?? null,
+          price: data.price,
           providerStatus: null,
           providerUpdatedAt: null,
           syncedAt: null,
@@ -378,15 +395,9 @@ export class StaffService {
         },
       });
 
-      const price = data.price ?? 0;
-      const finalSubtotal = order.finalSubtotal ?? order.subtotal;
-
       await db.order.update({
         where: { id },
-        data: {
-          deliveryPrice: price,
-          finalTotal: finalSubtotal + price,
-        },
+        data: totals,
       });
 
       return delivery;
@@ -410,6 +421,9 @@ export class StaffService {
         throw new BadRequestException('Сначала сохраните данные доставки');
       }
 
+      positiveDeliveryPrice(order.delivery.price);
+      const totals = deliveryTotals(order, order.delivery.price);
+
       const delivery = await db.delivery.update({
         where: {
           id: order.delivery.id,
@@ -425,6 +439,7 @@ export class StaffService {
 
         data: {
           status: 'DELIVERING',
+          ...totals,
         },
       });
 
@@ -528,6 +543,7 @@ export class StaffService {
             courierName: true,
             courierPhone: true,
             externalOrderId: true,
+            price: true,
           },
         },
       },

@@ -1,6 +1,19 @@
 import { deliverySchema, itemSchema } from './schema.js';
 
 describe('staff schemas', () => {
+  it.each([null, undefined, 0, -1, 1.5, NaN])(
+    'rejects OTHER price %s',
+    (price) => {
+      expect(
+        deliverySchema.safeParse({
+          provider: 'OTHER',
+          courierName: 'Иван',
+          courierPhone: '+79991234567',
+          price,
+        }).success,
+      ).toBe(false);
+    },
+  );
   it('accepts an arbitrary positive integer weight', () => {
     expect(
       itemSchema.parse({
@@ -50,6 +63,7 @@ describe('staff schemas', () => {
       provider: 'OTHER',
       courierName: 'Александр',
       courierPhone: '8 (999) 123-45-67',
+      price: 45_000,
     });
 
     expect(result.success).toBe(true);
@@ -59,6 +73,7 @@ describe('staff schemas', () => {
         provider: 'OTHER',
         courierName: 'Александр',
         courierPhone: '+79991234567',
+        price: 45_000,
       });
     }
   });
@@ -85,6 +100,7 @@ describe('staff schemas', () => {
     expect(
       deliverySchema.safeParse({
         provider: 'OTHER',
+        price: 45_000,
         courierName: 'Александр',
         courierPhone: '+79991234567',
         trackingUrl: 'http://example.com/track',

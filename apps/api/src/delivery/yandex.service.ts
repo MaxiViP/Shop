@@ -128,6 +128,7 @@ export interface YandexClaimInfo {
   providerStatus: string;
   providerUpdatedAt: string | null;
   price: number | null;
+  priceIsFinal: boolean;
   currency: string;
   etaMinutes: number | null;
   trackingUrl: string | null;
@@ -198,7 +199,7 @@ export class YandexService {
     }
 
     return {
-      price: rublesToKopecks(offer.price.total_price_with_vat),
+      price: this.deliveryPrice(offer.price.total_price_with_vat),
       currency: offer.price.currency,
       pickupFrom: offer.pickup_interval.from,
       pickupTo: offer.pickup_interval.to,
@@ -224,7 +225,8 @@ export class YandexService {
       throw new BadGatewayException(this.claimError(assessed));
     }
 
-    const assessedPrice = this.normalizeClaim(assessed, null).price;
+    const assessedClaim = this.normalizeClaim(assessed, null);
+    const assessedPrice = assessedClaim.price;
 
     if (assessedPrice === null) {
       throw new BadGatewayException(
@@ -255,6 +257,10 @@ export class YandexService {
       claim: {
         ...claim,
         price: claim.price ?? assessedPrice,
+        priceIsFinal:
+          claim.price === null
+            ? assessedClaim.priceIsFinal
+            : claim.priceIsFinal,
       },
     };
   }
@@ -333,12 +339,23 @@ export class YandexService {
       claimId: claim.id,
       providerStatus: claim.status,
       providerUpdatedAt: claim.updated_ts ?? null,
-      price: money === null ? null : rublesToKopecks(money),
+      price: money === null ? null : this.deliveryPrice(money),
+      priceIsFinal: claim.pricing?.final_price != null,
       currency: claim.pricing?.currency ?? 'RUB',
       etaMinutes: claim.eta ?? null,
       trackingUrl,
       courierName: claim.performer_info?.courier_name ?? null,
     };
+  }
+
+  private deliveryPrice(value: string) {
+    const price = rublesToKopecks(value);
+    if (price <= 0 || price > 2_147_483_647) {
+      throw new BadGatewayException(
+        'Яндекс вернул недопустимую стоимость доставки',
+      );
+    }
+    return price;
   }
 
   private offerBody(input: YandexOrderInput) {

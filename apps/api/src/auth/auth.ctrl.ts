@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { z } from 'zod';
+import { AdminLoginGuard } from './admin-login.guard.js';
+import { MethodGuard } from './method.guard.js';
 import type { Request, Response } from 'express';
 import { GID } from '../common/guest.js';
 
@@ -10,6 +22,43 @@ const maxAge = 30 * 24 * 60 * 60 * 1000;
 @Controller('auth')
 export class AuthCtrl {
   constructor(private readonly auth: AuthService) {}
+
+  @Post('method')
+  @Header('Cache-Control', 'no-store')
+  @UseGuards(MethodGuard)
+  method(
+    @Body({
+      schema: z.strictObject({ phone: z.string().trim().min(1).max(40) }),
+    })
+    body: {
+      phone: string;
+    },
+  ) {
+    return this.auth.method(body.phone);
+  }
+
+  @Post('admin/login')
+  @UseGuards(AdminLoginGuard)
+  async adminLogin(
+    @Body({
+      schema: z.strictObject({
+        phone: z.string().max(40),
+        password: z.string().max(1024),
+      }),
+    })
+    body: { phone: string; password: string },
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.auth.adminLogin(body.phone, body.password);
+    response.cookie(SID, result.token, {
+      httpOnly: true,
+      secure: prod,
+      sameSite: 'lax',
+      path: '/',
+      maxAge,
+    });
+    return result.user;
+  }
 
   @Post('code')
   code(@Body() body: { phone?: string }) {

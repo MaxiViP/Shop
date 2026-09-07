@@ -14,22 +14,27 @@
         </p>
       </div>
 
-      <OrderStatus :status="order.status" />
+      <OrderStatus :status="order.status" :type="order.type" />
     </div>
 
     <p class="order__items">
       {{ products }}
     </p>
 
+    <p v-if="order.type === 'PICKUP'" class="order__items">
+      Самовывоз · {{ order.deliveryAt ? `К ${pickupTime(order.deliveryAt)} (МСК)` : 'Подготовим как можно скорее' }}
+    </p>
+
     <strong class="order__total">
-      {{ money(order.total) }}
+      {{ knownMoney(order.finalTotal ?? order.total) }}
     </strong>
   </NuxtLink>
 </template>
 
 <script setup lang="ts">
 import type { OrderSummary } from '~/types/order'
-import { money } from '~/utils/money'
+import { knownMoney } from '~/utils/money'
+import { pickupTime } from '~/utils/pickup'
 
 const { order } = defineProps<{
   order: OrderSummary

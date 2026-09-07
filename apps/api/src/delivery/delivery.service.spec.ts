@@ -25,6 +25,7 @@ function claim(
     providerStatus,
     providerUpdatedAt: '2026-09-01T10:00:00Z',
     price: 43_700,
+    priceIsFinal: true,
     currency: 'RUB',
     etaMinutes: 25,
     trackingUrl: 'https://yandex.example/track',
@@ -41,16 +42,19 @@ function syncSetup(
 ) {
   const current = {
     id: 20,
+    orderId: 1,
+    provider: 'YANDEX',
+    externalOrderId: yandexClaim.claimId,
     status: currentStatus,
     providerUpdatedAt,
     trackingUrl: null,
     courierName: null,
-    price: 40_000,
+    price: 40_000 as number | null,
     order: {
       id: 1,
       status: orderStatus,
       subtotal: 300_000,
-      finalSubtotal: 284_000,
+      finalSubtotal: 284_000 as number | null,
     },
   };
   const client = {
@@ -84,6 +88,7 @@ function syncSetup(
   const yandex = yandexMock(yandexClaim);
 
   return {
+    current,
     client,
     findMany,
     yandex,
@@ -92,6 +97,146 @@ function syncSetup(
 }
 
 describe('DeliveryService Yandex sync', () => {
+  it.each([0, -1, NaN, 1.5])(
+    'rejects invalid incoming provider price %s',
+    async (price) => {
+      const { client, service } = syncSetup(
+        'ASSIGNED',
+        'READY',
+        claim('accepted', { price }),
+      );
+      await expect(service.syncYandexDelivery(20)).rejects.toThrow();
+      expect(client.delivery.update).not.toHaveBeenCalled();
+      expect(client.order.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it('replaces a historical zero only with an actual positive provider price', async () => {
+    const { current, client, service } = syncSetup(
+      'ASSIGNED',
+      'READY',
+      claim('accepted', { priceIsFinal: false }),
+    );
+    current.price = 0;
+    await service.syncYandexDelivery(20);
+    expect(client.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          deliveryPrice: 43_700,
+          total: 343_700,
+          finalTotal: 327_700,
+        }),
+      }),
+    );
+  });
+
+  it('does not replace a known price with an undated final response', async () => {
+    const { client, service } = syncSetup(
+      'ASSIGNED',
+      'READY',
+      claim('accepted', { providerUpdatedAt: null }),
+    );
+    await service.syncYandexDelivery(20);
+    expect(client.delivery.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ price: 40_000 }),
+      }),
+    );
+  });
+
+  it('fills all totals when the first provider price arrives after assembly', async () => {
+    const { current, client, service } = syncSetup(
+      'ASSIGNED',
+      'READY',
+      claim('accepted', { priceIsFinal: false }),
+    );
+    current.price = null;
+    await service.syncYandexDelivery(20);
+    expect(client.delivery.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ price: 43_700 }),
+      }),
+    );
+    expect(client.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          deliveryPrice: 43_700,
+          total: 343_700,
+          finalTotal: 327_700,
+        }),
+      }),
+    );
+  });
+
+  it('keeps finalTotal null when price arrives before assembly', async () => {
+    const { current, client, service } = syncSetup(
+      'ASSIGNED',
+      'ASSEMBLING',
+      claim('accepted'),
+    );
+    current.order.finalSubtotal = null;
+    await service.syncYandexDelivery(20);
+    expect(client.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          deliveryPrice: 43_700,
+          total: 343_700,
+          finalTotal: null,
+        }),
+      }),
+    );
+  });
+
+  it('applies a newer final price even after the order is completed', async () => {
+    const { client, service } = syncSetup(
+      'DELIVERED',
+      'COMPLETED',
+      claim('delivered_finish'),
+      new Date('2026-09-01T09:00:00Z'),
+    );
+    await service.syncYandexDelivery(20);
+    expect(client.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          status: 'COMPLETED',
+          deliveryPrice: 43_700,
+          total: 343_700,
+          finalTotal: 327_700,
+        },
+      }),
+    );
+  });
+
+  it.each([
+    { priceIsFinal: false, providerUpdatedAt: '2026-09-01T11:00:00Z' },
+    { priceIsFinal: true, providerUpdatedAt: '2026-09-01T10:00:00Z' },
+  ])(
+    'does not replace final price with offer-only or equal-timestamp responses: %j',
+    async (overrides) => {
+      const { client, service } = syncSetup(
+        'DELIVERED',
+        'COMPLETED',
+        claim('delivered_finish', overrides),
+        new Date('2026-09-01T10:00:00Z'),
+      );
+      await service.syncYandexDelivery(20);
+      expect(client.delivery.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ price: 40_000 }),
+        }),
+      );
+      expect(client.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            deliveryPrice: 40_000,
+            total: 340_000,
+            finalTotal: 324_000,
+          }),
+        }),
+      );
+    },
+  );
+
   it('keeps READY when a courier is assigned', async () => {
     const { client, service } = syncSetup(
       'PENDING',
@@ -132,6 +277,7 @@ describe('DeliveryService Yandex sync', () => {
         data: expect.objectContaining({
           status: 'DELIVERING',
           deliveryPrice: 43_700,
+          total: 343_700,
           finalTotal: 327_700,
         }),
       }),
@@ -264,7 +410,7 @@ describe('DeliveryService Yandex sync', () => {
 });
 
 describe('DeliveryService Yandex polling', () => {
-  it('requests bulk info only for active YANDEX and excludes OTHER/terminal deliveries', async () => {
+  it('polls active Yandex and recent terminal claims for delayed final pricing', async () => {
     const yandexClaim = claim('pickuped');
     const { client, findMany, service, yandex } = syncSetup(
       'ASSIGNED',
@@ -281,7 +427,13 @@ describe('DeliveryService Yandex polling', () => {
       where: {
         provider: 'YANDEX',
         externalOrderId: { not: null },
-        status: { in: ['PENDING', 'ASSIGNED', 'PICKED_UP'] },
+        OR: [
+          { status: { in: ['PENDING', 'ASSIGNED', 'PICKED_UP'] } },
+          {
+            status: { in: ['DELIVERED', 'CANCELED'] },
+            providerUpdatedAt: { gte: expect.any(Date) },
+          },
+        ],
       },
       select: { id: true, externalOrderId: true },
     });
@@ -317,6 +469,7 @@ describe('DeliveryService Yandex polling', () => {
         data: expect.objectContaining({
           status: 'COMPLETED',
           deliveryPrice: 44_000,
+          total: 344_000,
           finalTotal: 328_000,
         }),
       }),
@@ -428,89 +581,140 @@ describe('DeliveryService Yandex polling', () => {
 });
 
 describe('DeliveryService Yandex booking', () => {
-  it('stores the accepted Yandex price and recalculates finalTotal on backend', async () => {
-    const bookingClaim = claim('accepted', { price: 44_125 });
-    const yandex = yandexMock(bookingClaim);
-    vi.mocked(yandex.book).mockResolvedValue({
-      quote: {
+  it.each([
+    { action: 'quote', price: 43_700, concurrent: false },
+    { action: 'order', price: 44_125, concurrent: false },
+    { action: 'order', price: 44_125, concurrent: true },
+  ] as const)(
+    'stores $action price and recalculates both totals on backend',
+    async ({ action, price, concurrent }) => {
+      const bookingClaim = claim('accepted', { price: 44_125 });
+      const yandex = yandexMock(bookingClaim);
+      vi.mocked(yandex.calculate).mockResolvedValue({
         price: 43_700,
         currency: 'RUB',
-        pickupFrom: '2026-09-01T10:00:00Z',
-        pickupTo: '2026-09-01T10:15:00Z',
-        deliveryFrom: '2026-09-01T10:15:00Z',
-        deliveryTo: '2026-09-01T10:40:00Z',
+        pickupFrom: '',
+        pickupTo: '',
+        deliveryFrom: '',
+        deliveryTo: '',
         expiresAt: null,
-      },
-      claim: bookingClaim,
-    });
-    const client = {
-      $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
-      order: {
-        findUnique: vi.fn().mockResolvedValue({
+        offerPayload: 'quote',
+      });
+      vi.mocked(yandex.book).mockResolvedValue({
+        quote: {
+          price: 43_700,
+          currency: 'RUB',
+          pickupFrom: '2026-09-01T10:00:00Z',
+          pickupTo: '2026-09-01T10:15:00Z',
+          deliveryFrom: '2026-09-01T10:15:00Z',
+          deliveryTo: '2026-09-01T10:40:00Z',
+          expiresAt: null,
+        },
+        claim: bookingClaim,
+      });
+      const client = {
+        $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
+        order: {
+          findUniqueOrThrow: vi
+            .fn()
+            .mockResolvedValue({
+              id: 1,
+              status: 'COMPLETED',
+              deliveryPrice: 50_000,
+            }),
+          findUnique: vi.fn().mockResolvedValue({
+            type: 'DELIVERY',
+            status: 'READY',
+            subtotal: 300_000,
+            finalSubtotal: 284_000,
+            delivery: null,
+          }),
+          update: vi
+            .fn()
+            .mockImplementation(({ data }) => ({ id: 1, ...data })),
+        },
+        delivery: {
+          findUniqueOrThrow: vi
+            .fn()
+            .mockResolvedValue({ id: 20, price: 50_000 }),
+          upsert: vi
+            .fn()
+            .mockImplementation(({ create }) => ({ id: 20, ...create })),
+        },
+      };
+      const db = {
+        order: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 1,
+            publicId: '123e4567-e89b-12d3-a456-426614174000',
+            type: 'DELIVERY',
+            status: 'READY',
+            customerName: 'Максим',
+            customerPhone: '+79050000000',
+            city: 'Москва',
+            street: 'Пинский проезд',
+            house: '7',
+            flat: null,
+            entrance: null,
+            floor: null,
+            intercom: null,
+            comment: null,
+            delivery: null,
+            items: [
+              {
+                id: 10,
+                productName: 'Яблоки',
+                unit: 'GRAM',
+                status: 'PICKED',
+                actualQty: 1_063,
+                actualTotal: 47_835,
+              },
+            ],
+          }),
+        },
+        $transaction: vi.fn(
+          (callback: (value: typeof client) => Promise<unknown>) =>
+            callback(client),
+        ),
+      } as unknown as DbService;
+
+      if (concurrent) {
+        client.order.findUnique.mockResolvedValue({
           type: 'DELIVERY',
-          status: 'READY',
+          status: 'COMPLETED',
           subtotal: 300_000,
           finalSubtotal: 284_000,
-          delivery: null,
-        }),
-        update: vi.fn().mockImplementation(({ data }) => ({ id: 1, ...data })),
-      },
-      delivery: {
-        upsert: vi
-          .fn()
-          .mockImplementation(({ create }) => ({ id: 20, ...create })),
-      },
-    };
-    const db = {
-      order: {
-        findUnique: vi.fn().mockResolvedValue({
-          id: 1,
-          publicId: '123e4567-e89b-12d3-a456-426614174000',
-          type: 'DELIVERY',
-          status: 'READY',
-          customerName: 'Максим',
-          customerPhone: '+79050000000',
-          city: 'Москва',
-          street: 'Пинский проезд',
-          house: '7',
-          flat: null,
-          entrance: null,
-          floor: null,
-          intercom: null,
-          comment: null,
-          delivery: null,
-          items: [
-            {
-              id: 10,
-              productName: 'Яблоки',
-              unit: 'GRAM',
-              status: 'PICKED',
-              actualQty: 1_063,
-              actualTotal: 47_835,
-            },
-          ],
-        }),
-      },
-      $transaction: vi.fn(
-        (callback: (value: typeof client) => Promise<unknown>) =>
-          callback(client),
-      ),
-    } as unknown as DbService;
+          delivery: {
+            provider: 'YANDEX',
+            externalOrderId: bookingClaim.claimId,
+          },
+        });
+      }
+      const result = await new DeliveryService(db, yandex)[action](1);
+      if (concurrent) {
+        expect(result).toMatchObject({
+          order: { status: 'COMPLETED', deliveryPrice: 50_000 },
+          delivery: { price: 50_000 },
+        });
+        expect(client.delivery.upsert).not.toHaveBeenCalled();
+        expect(client.order.update).not.toHaveBeenCalled();
+        return;
+      }
 
-    await new DeliveryService(db, yandex).order(1);
-
-    expect(client.delivery.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        create: expect.objectContaining({ price: 44_125 }),
-      }),
-    );
-    expect(client.order.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          deliveryPrice: 44_125,
-          finalTotal: 328_125,
+      expect(client.delivery.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ price }),
         }),
-      }),
-    );
-  });
+      );
+      expect(client.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            deliveryPrice: price,
+            total: 300_000 + price,
+            finalTotal: 284_000 + price,
+          }),
+        }),
+      );
+    },
+  );
 });

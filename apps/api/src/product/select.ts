@@ -16,12 +16,11 @@ export const productListSelect = {
     },
   },
   images: {
+    where: { visible: true },
     select: {
       url: true,
       alt: true,
     },
-    orderBy: {
-      sort: 'asc',
-    },
+    orderBy: [{ sort: 'asc' }, { id: 'asc' }],
   },
 } satisfies Prisma.ProductSelect;

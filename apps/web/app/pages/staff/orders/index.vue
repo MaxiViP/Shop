@@ -47,10 +47,11 @@
             </p>
           </div>
 
-          <OrderStatus :status="order.status" />
+          <OrderStatus :status="order.status" :type="order.type" />
         </header>
 
         <div class="order-card__meta">
+          <UBadge v-if="order.type === 'PICKUP' && order.deliveryAt === null && ['NEW', 'CONFIRMED', 'ASSEMBLING'].includes(order.status)" color="info" variant="soft">Собирать сразу</UBadge>
           <UBadge color="neutral" variant="soft">
             {{ order.type === 'DELIVERY' ? 'Доставка' : 'Самовывоз' }}
           </UBadge>
@@ -70,9 +71,9 @@
 
         <dl class="order-card__details">
           <div>
-            <dt>Желаемое время</dt>
+            <dt>{{ order.type === 'PICKUP' ? 'Самовывоз' : 'Желаемое время' }}</dt>
             <dd>
-              {{ order.deliveryAt ? date(order.deliveryAt) : 'Не указано' }}
+              {{ order.type === 'PICKUP' ? (order.deliveryAt ? `К ${pickupTime(order.deliveryAt)} (МСК)` : 'Собирать сразу') : (order.deliveryAt ? date(order.deliveryAt) : 'Не указано') }}
             </dd>
           </div>
 
@@ -90,7 +91,7 @@
             </dd>
           </div>
 
-          <div v-if="address(order)">
+          <div v-if="order.type === 'DELIVERY' && address(order)">
             <dt>Адрес</dt>
             <dd>{{ address(order) }}</dd>
           </div>
@@ -104,7 +105,7 @@
             <dt>
               {{ order.finalTotal === null ? 'Предварительный итог' : 'Итог' }}
             </dt>
-            <dd>{{ money(order.finalTotal ?? order.total) }}</dd>
+            <dd>{{ knownMoney(order.finalTotal ?? order.total) }}</dd>
           </div>
         </dl>
 
@@ -210,7 +211,9 @@ import { useAuthStore } from '~/stores/auth'
 import { apiError } from '~/utils/api-error'
 import { deliveryStatus } from '~/utils/delivery'
 import { isActiveOrder } from '~/utils/order'
-import { money } from '~/utils/money'
+import { knownMoney } from '~/utils/money'
+import { compareQueue } from '~/utils/queue'
+import { pickupTime } from '~/utils/pickup'
 
 type FilterValue =
   'new' | 'confirmed' | 'assembling' | 'ready' | 'delivering' | 'finished'
@@ -275,23 +278,11 @@ const visibleOrders = computed(() => {
     )
   }
 
-  return result.sort((a, b) => {
-    const deliveryDifference = queueTime(a) - queueTime(b)
-
-    return (
-      deliveryDifference || Date.parse(a.createdAt) - Date.parse(b.createdAt)
-    )
-  })
+  return result.sort(compareQueue)
 })
 
 function count(statuses: OrderStatus[]) {
   return orders.value.filter((order) => statuses.includes(order.status)).length
-}
-
-function queueTime(order: StaffOrder) {
-  return order.deliveryAt
-    ? Date.parse(order.deliveryAt)
-    : Number.MAX_SAFE_INTEGER
 }
 
 function key(id: number, action: string) {

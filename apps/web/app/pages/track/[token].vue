@@ -35,12 +35,12 @@
           <dt>
             {{ tracking.provider === 'YANDEX' ? 'Доставка Яндекс' : 'Доставка' }}
           </dt>
-          <dd>{{ money(tracking.order.deliveryPrice) }}</dd>
+          <dd>{{ knownMoney(tracking.order.deliveryPrice) }}</dd>
         </div>
 
         <div>
           <dt>Итого</dt>
-          <dd>{{ money(tracking.order.finalTotal ?? tracking.order.total) }}</dd>
+          <dd>{{ knownMoney(tracking.order.finalTotal ?? tracking.order.total) }}</dd>
         </div>
 
         <div v-if="tracking.externalOrderId">
@@ -85,7 +85,7 @@
 <script setup lang="ts">
 import type { PublicTracking } from '~/types/order'
 import { deliveryProvider, deliveryStatus } from '~/utils/delivery'
-import { money } from '~/utils/money'
+import { knownMoney, money } from '~/utils/money'
 
 const route = useRoute()
 const token = String(route.params.token)

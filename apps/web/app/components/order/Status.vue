@@ -9,15 +9,16 @@
 </template>
 
 <script setup lang="ts">
-import type { OrderStatus } from '~/types/order'
-import { orderStatus } from '~/utils/order'
+import type { OrderStatus, OrderType } from '~/types/order'
+import { orderMeta } from '~/utils/order'
 
-const { status } = defineProps<{
+const { status, type = 'DELIVERY' } = defineProps<{
   status: OrderStatus
+  type?: OrderType
 }>()
 
 const meta = computed(
-  () => orderStatus[status],
+  () => orderMeta(status, type),
 )
 </script>
 

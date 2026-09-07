@@ -39,6 +39,17 @@ export const orderSchema = z
       .max(50),
   })
   .superRefine((data, ctx) => {
+    if (
+      data.deliveryAt !== undefined &&
+      (!Number.isFinite(Date.parse(data.deliveryAt)) ||
+        Date.parse(data.deliveryAt) <= Date.now())
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['deliveryAt'],
+        message: 'Укажите дату и время в будущем',
+      });
+    }
     if (data.type === 'DELIVERY' && !data.address) {
       ctx.addIssue({
         code: 'custom',

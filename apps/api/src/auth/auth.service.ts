@@ -15,6 +15,7 @@ import {
 import { phone as normalizePhone } from '../common/phone.js';
 import { DbService } from '../db/db.service.js';
 import { guestTokenHash } from '../common/guest.js';
+import { adminPhone } from './admin.config.js';
 
 const OTP_TTL = 5 * 60 * 1000;
 const OTP_COOLDOWN = 60 * 1000;
@@ -36,8 +37,14 @@ export class AuthService {
     this.secret = secret;
   }
 
+  method(value: unknown): { method: 'OTP' | 'PASSWORD' } {
+    const phone = normalizePhone(value);
+    return { method: phone === adminPhone() ? 'PASSWORD' : 'OTP' };
+  }
+
   async code(value: unknown) {
     const phone = normalizePhone(value);
+    await this.rejectAdminOtp(phone);
     const now = Date.now();
 
     const current = await this.db.otp.findUnique({
@@ -82,6 +89,7 @@ export class AuthService {
 
   async login(phoneValue: unknown, codeValue: unknown, guestToken?: string) {
     const phone = normalizePhone(phoneValue);
+    await this.rejectAdminOtp(phone);
 
     if (typeof codeValue !== 'string' || !/^\d{6}$/.test(codeValue)) {
       throw new BadRequestException('Некорректный код');
@@ -146,6 +154,8 @@ export class AuthService {
         },
       });
 
+      if (user.role === 'ADMIN' || user.phone === adminPhone())
+        throw new UnauthorizedException('Используйте вход администратора');
       if (guestToken) {
         const guest = await db.guestSession.findUnique({
           where: {
@@ -245,7 +255,74 @@ export class AuthService {
       });
     }
 
+    if (session.user.role === 'ADMIN' && session.user.phone !== adminPhone())
+      return null;
     return session.user;
+  }
+
+  private async rejectAdminOtp(phone: string) {
+    const user = await this.db.user.findUnique({
+      where: { phone },
+      select: { role: true },
+    });
+    if (phone === adminPhone() || user?.role === 'ADMIN')
+      throw new UnauthorizedException('Используйте вход администратора');
+  }
+
+  async adminLogin(phoneValue: string, password: string) {
+    let phone: string | null = null;
+    try {
+      phone = normalizePhone(phoneValue);
+    } catch {
+      /* same credential error */
+    }
+    const configured = adminPhone();
+    const expected = process.env.ADMIN_PASSWORD;
+    const passwordValid = this.equal(
+      this.tokenHash(password),
+      this.tokenHash(expected ?? ''),
+    );
+    if (!configured || !expected || phone !== configured || !passwordValid)
+      throw new UnauthorizedException('Неверные данные для входа');
+    const token = randomBytes(32).toString('hex');
+    const user = await this.db.$transaction(async (db) => {
+      // Serialize admin bootstrap; old admin sessions must not survive a configured phone change.
+      await db.$executeRaw`SELECT pg_advisory_xact_lock(704001)`;
+      await db.session.deleteMany({
+        where: { user: { role: 'ADMIN', phone: { not: configured } } },
+      });
+      await db.user.updateMany({
+        where: { role: 'ADMIN', phone: { not: configured } },
+        data: { role: 'USER' },
+      });
+      const existing = await db.user.findUnique({
+        where: { phone: configured },
+        select: { id: true, role: true },
+      });
+      if (existing && existing.role !== 'ADMIN')
+        await db.session.deleteMany({ where: { userId: existing.id } });
+      const result = await db.user.upsert({
+        where: { phone: configured },
+        update: { role: 'ADMIN' },
+        create: { phone: configured, role: 'ADMIN' },
+        select: {
+          id: true,
+          phone: true,
+          name: true,
+          role: true,
+          verifiedAt: true,
+        },
+      });
+      await db.session.create({
+        data: {
+          userId: result.id,
+          tokenHash: this.tokenHash(token),
+          expiresAt: new Date(Date.now() + SESSION_TTL),
+        },
+      });
+      return result;
+    });
+    return { user, token };
   }
 
   async logout(token?: string) {

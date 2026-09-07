@@ -23,6 +23,12 @@
       уточнить детали заказа.
     </p>
 
+    <div v-if="order?.type === 'PICKUP'" class="success__hint">
+      <p>{{ orderMeta(order.status, order.type).label }}</p>
+      <p>Самовывоз · {{ order.deliveryAt ? `Ко времени ${pickupTime(order.deliveryAt)} (МСК)` : 'Собирать сразу' }}</p>
+      <OrderPickupPoint />
+    </div>
+
     <div class="success__actions">
       <UButton to="/catalog">
         Продолжить покупки
@@ -42,12 +48,19 @@
 
 <script setup lang="ts">
 import { useAuthStore } from '~/stores/auth'
+import type { OrderDetail } from '~/types/order'
+import { orderMeta } from '~/utils/order'
+import { pickupTime } from '~/utils/pickup'
 
 const route = useRoute()
 const auth = useAuthStore()
+const publicId = String(route.query.publicId ?? route.query.id ?? '')
+const { data: order } = await useApi<OrderDetail>(`/orders/${publicId}`, {
+  immediate: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(publicId),
+})
 
 const orderId = computed(
-  () => String(route.query.id ?? ''),
+  () => String(order.value?.id ?? route.query.id ?? route.query.publicId ?? ''),
 )
 
 if (!orderId.value) {

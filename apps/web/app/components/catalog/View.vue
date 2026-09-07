@@ -249,6 +249,12 @@ async function showMore() {
   }
 }
 
+@media (width < 48rem) {
+  .catalog__search {
+    display: none;
+  }
+}
+
 @media (min-width: 64rem) {
   .catalog__head,
   .catalog__categories {

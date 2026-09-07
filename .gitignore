@@ -16,3 +16,5 @@ cookie.txt
 *.cookie.txt
 
 *.tsbuildinfo
+
+uploads/

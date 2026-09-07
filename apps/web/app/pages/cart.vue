@@ -8,7 +8,7 @@
         class="cart__clear"
         variant="ghost"
         color="neutral"
-        @click="cart.clear"
+        @click="clearCart"
       >
         Очистить
       </UButton>
@@ -20,7 +20,7 @@
           <NuxtLink :to="`/product/${item.product.slug}`" class="item__img">
             <img
               v-if="item.product.images[0]"
-              :src="item.product.images[0].url"
+              :src="asset(item.product.images[0].url)"
               :alt="item.product.images[0].alt || item.product.name"
             >
 
@@ -37,7 +37,7 @@
             <ProductQty
               :model-value="item.qty"
               :product="item.product"
-              @update:model-value="cart.setQty(item.product.id, $event)"
+              @update:model-value="setQty(item.product.id, $event)"
             />
           </div>
 
@@ -52,7 +52,7 @@
               variant="ghost"
               color="neutral"
               aria-label="Удалить"
-              @click="cart.remove(item.product.id)"
+              @click="remove(item.product.id)"
             />
           </div>
         </article>
@@ -92,6 +92,26 @@ import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
 
 const cart = useCartStore();
+const asset = useAsset();
+const notice = useHeaderNotice();
+
+function setQty(id: number, qty: number) {
+  const previous = cart.qty(id);
+  cart.setQty(id, qty);
+  if (cart.qty(id) !== previous) {
+    notice.show({ target: 'cart', text: 'Количество обновлено' });
+  }
+}
+
+function remove(id: number) {
+  cart.remove(id);
+  notice.show({ target: 'cart', text: 'Удалено из корзины' });
+}
+
+function clearCart() {
+  cart.clear();
+  notice.show({ target: 'cart', text: 'Корзина очищена' });
+}
 
 useSeoMeta({
   title: "Корзина",

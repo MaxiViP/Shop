@@ -1,11 +1,6 @@
 <template>
   <UContainer class="order">
-    <NuxtLink
-      to="/orders"
-      class="order__back"
-    >
-      ← Все заказы
-    </NuxtLink>
+    <AppBackButton fallback="/orders" label="К заказам" />
 
     <header class="order__head">
       <div>
@@ -18,7 +13,7 @@
         </h1>
       </div>
 
-      <OrderStatus :status="order.status" />
+      <OrderStatus :status="order.status" :type="order.type" />
     </header>
 
     <section
@@ -90,12 +85,12 @@
                   : 'Доставка'
               }}
             </span>
-            <strong>{{ money(order.deliveryPrice) }}</strong>
+            <strong>{{ knownMoney(order.deliveryPrice) }}</strong>
           </div>
 
           <div class="card__total">
             <span>Итого</span>
-            <strong>{{ money(order.finalTotal ?? order.total) }}</strong>
+            <strong>{{ knownMoney(order.finalTotal ?? order.total) }}</strong>
           </div>
         </div>
       </section>
@@ -114,11 +109,16 @@
         </p>
 
         <p
-          v-if="address"
+          v-if="order.type === 'DELIVERY' && address"
           class="card__muted"
         >
           {{ address }}
         </p>
+
+        <template v-if="order.type === 'PICKUP'">
+          <p class="card__muted">{{ order.deliveryAt ? `Ко времени ${pickupTime(order.deliveryAt)} (МСК)` : 'Собирать сразу' }}</p>
+          <OrderPickupPoint />
+        </template>
 
         <p class="card__muted">
           {{ order.customerPhone }}
@@ -196,14 +196,15 @@ import type {
 } from '~/types/order'
 import {
   isActiveOrder,
-  orderStatus,
+  orderMeta,
 } from '~/utils/order'
 import {
   deliveryProvider,
   deliveryStatus,
 } from '~/utils/delivery'
-import { money } from '~/utils/money'
+import { knownMoney, money } from '~/utils/money'
 import { qtyText } from '~/utils/qty'
+import { pickupTime } from '~/utils/pickup'
 
 const route = useRoute()
 const id = String(route.params.id)
@@ -228,7 +229,7 @@ const order = computed(
 )
 
 const status = computed(
-  () => orderStatus[order.value.status],
+  () => orderMeta(order.value.status, order.value.type),
 )
 
 const active = computed(
@@ -260,7 +261,7 @@ const steps = computed(() => {
 
   return flow.value.map((item, index) => ({
     status: item,
-    label: orderStatus[item].label,
+    label: orderMeta(item, order.value.type).label,
     done: index <= current,
   }))
 })
@@ -320,14 +321,6 @@ useSeoMeta({
   max-width: 60rem;
   min-width: 0;
   padding-block: var(--page-start) var(--page-end);
-}
-
-.order__back {
-  color: var(--ui-text-muted);
-}
-
-.order__back:hover {
-  color: var(--ui-primary);
 }
 
 .order__head {

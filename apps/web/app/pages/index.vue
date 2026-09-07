@@ -4,9 +4,9 @@
       <section class="hero">
         <p class="hero__label">Москва</p>
 
-        <h1 class="hero__title">Свежие продукты с рынка</h1>
+        <h1 class="hero__title">Свежие продукты и товары с рынка</h1>
 
-        <p class="hero__text">Овощи, фрукты и зелень с доставкой на дом.</p>
+        <p class="hero__text">Овощи, Фрукты, Ягоды, Зелень и многое другое с доставкой на дом.</p>
 
         <UButton class="hero__action" to="/catalog" size="lg">
           В каталог

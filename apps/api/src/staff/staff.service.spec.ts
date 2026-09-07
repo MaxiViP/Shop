@@ -16,13 +16,14 @@ interface LockedDelivery {
   courierName: string | null;
   courierPhone: string | null;
   externalOrderId: string | null;
+  price: number | null;
 }
 
 interface LockedOrder {
   id: number;
   type: OrderType;
   status: OrderStatus;
-  deliveryPrice: number;
+  deliveryPrice: number | null;
   subtotal: number;
   finalSubtotal: number | null;
   delivery: LockedDelivery | null;
@@ -76,6 +77,127 @@ const assembling: LockedOrder = {
 };
 
 describe('StaffService', () => {
+  it.each([
+    { type: 'PICKUP', deliveryPrice: 0, finalTotal: 12_300 },
+    { type: 'DELIVERY', deliveryPrice: null, finalTotal: null },
+    { type: 'DELIVERY', deliveryPrice: 45_000, finalTotal: 57_300 },
+  ] as const)(
+    'finishes $type assembly with price $deliveryPrice',
+    async ({ type, deliveryPrice, finalTotal }) => {
+      const { client, service } = setup({
+        ...assembling,
+        type,
+        deliveryPrice,
+        finalSubtotal: null,
+      });
+      client.orderItem.aggregate.mockResolvedValue({
+        _sum: { actualTotal: 12_300 },
+      });
+      await service.finishAssembly(1);
+      expect(client.order.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { status: 'READY', finalSubtotal: 12_300, finalTotal },
+      });
+    },
+  );
+
+  it.each([null, 0, -1, 1.5, NaN])(
+    'rejects OTHER handoff with price %s',
+    async (price) => {
+      const { client, service } = setup({
+        ...assembling,
+        status: 'READY',
+        delivery: {
+          id: 20,
+          provider: 'OTHER',
+          status: 'ASSIGNED',
+          price,
+          courierName: 'Иван',
+          courierPhone: '+79991234567',
+          trackingUrl: null,
+          externalOrderId: null,
+        },
+      });
+      await expect(service.handoff(1)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(client.delivery.update).not.toHaveBeenCalled();
+      expect(client.order.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([undefined, 0, -1, 1.5, NaN])(
+    'rejects saving OTHER with price %s',
+    async (price) => {
+      const { client, service } = setup({ ...assembling, status: 'READY' });
+      await expect(
+        service.delivery(1, {
+          provider: 'OTHER',
+          courierName: 'Иван',
+          courierPhone: '+79991234567',
+          price,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(client.delivery.upsert).not.toHaveBeenCalled();
+    },
+  );
+
+  it('fills unknown totals after assembly and revises manual delivery price', async () => {
+    const { client, service } = setup({
+      ...assembling,
+      status: 'READY',
+      deliveryPrice: null,
+    });
+    for (const price of [45_000, 48_700]) {
+      await service.delivery(1, {
+        provider: 'OTHER',
+        courierName: 'Иван',
+        courierPhone: '+79991234567',
+        price,
+      });
+      expect(client.delivery.upsert).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ price }),
+          update: expect.objectContaining({ price }),
+        }),
+      );
+      expect(client.order.update).toHaveBeenLastCalledWith({
+        where: { id: 1 },
+        data: {
+          deliveryPrice: price,
+          total: 10_000 + price,
+          finalTotal: 9_500 + price,
+        },
+      });
+    }
+  });
+
+  it('cannot replace a booked Yandex claim with OTHER', async () => {
+    const { client, service } = setup({
+      ...assembling,
+      status: 'READY',
+      delivery: {
+        id: 20,
+        provider: 'YANDEX',
+        status: 'ASSIGNED',
+        price: 45_000,
+        courierName: null,
+        courierPhone: null,
+        trackingUrl: null,
+        externalOrderId: 'claim-id',
+      },
+    });
+    await expect(
+      service.delivery(1, {
+        provider: 'OTHER',
+        price: 45_000,
+        courierName: 'Иван',
+        courierPhone: '+79991234567',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(client.delivery.upsert).not.toHaveBeenCalled();
+  });
+
   it('calculates actualTotal from saved item values', async () => {
     const { client, service } = setup(assembling);
 
@@ -223,6 +345,7 @@ describe('StaffService', () => {
         id: 20,
         provider: 'OTHER',
         status: 'ASSIGNED',
+        price: 500,
         trackingUrl: null,
         courierName: 'Александр',
         courierPhone: '+79990000000',
@@ -239,7 +362,12 @@ describe('StaffService', () => {
     );
     expect(client.order.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { status: 'DELIVERING' },
+        data: {
+          status: 'DELIVERING',
+          deliveryPrice: 500,
+          total: 10_500,
+          finalTotal: 10_000,
+        },
       }),
     );
   });
@@ -252,6 +380,7 @@ describe('StaffService', () => {
         id: 20,
         provider: 'YANDEX',
         status: 'ASSIGNED',
+        price: 500,
         trackingUrl: 'https://yandex.example/track',
         courierName: null,
         courierPhone: null,
@@ -274,6 +403,7 @@ describe('StaffService', () => {
         id: 20,
         provider: 'OTHER',
         status: 'PICKED_UP',
+        price: 500,
         trackingUrl: null,
         courierName: 'Александр',
         courierPhone: '+79990000000',
@@ -303,6 +433,7 @@ describe('StaffService', () => {
         id: 20,
         provider: 'OTHER',
         status: 'ASSIGNED',
+        price: 500,
         trackingUrl: null,
         courierName: 'Александр',
         courierPhone: '+79990000000',

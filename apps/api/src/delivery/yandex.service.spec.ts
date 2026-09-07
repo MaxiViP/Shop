@@ -130,6 +130,10 @@ describe('YandexService', () => {
     ]);
 
     expect(claims.map(({ price }) => price)).toEqual([44_125, 44_000]);
+    expect(claims.map(({ priceIsFinal }) => priceIsFinal)).toEqual([
+      false,
+      true,
+    ]);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/claims/bulk_info');
     const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
     expect(JSON.parse(String(request.body))).toEqual({
@@ -157,6 +161,36 @@ describe('YandexService', () => {
       requirements: { taxi_classes: ['express'] },
     });
   });
+
+  it.each(['0', '-1', 'NaN', '1e2', '999999999999.00'])(
+    'rejects invalid provider delivery cost %s',
+    async (value) => {
+      configured();
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(offer(value))));
+      await expect(new YandexService().calculate(input)).rejects.toThrow();
+    },
+  );
+
+  it.each([429, 500])(
+    'preserves provider HTTP %s failures for retry',
+    async (status) => {
+      configured();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(new Response('{}', { status })),
+      );
+      await expect(new YandexService().calculate(input)).rejects.toThrow();
+    },
+  );
+
+  it.each(['network', 'timeout'])(
+    'preserves %s failures for retry',
+    async (message) => {
+      configured();
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error(message)));
+      await expect(new YandexService().calculate(input)).rejects.toThrow();
+    },
+  );
 
   it('uses the assessed claim price when booking and never trusts the old quote', async () => {
     configured();

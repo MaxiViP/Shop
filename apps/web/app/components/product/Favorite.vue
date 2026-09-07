@@ -21,11 +21,18 @@ const { product } = defineProps<{
 
 const favorites = useFavoritesStore();
 const toast = useToast();
+const notice = useHeaderNotice();
 const active = computed(() => favorites.has(product.id));
 
 async function toggle() {
+  if (favorites.pending(product.id)) return;
+  const wasFavorite = active.value;
   try {
     await favorites.toggle(product);
+    notice.show({
+      target: 'favorites',
+      text: wasFavorite ? 'Удалено из избранного' : 'Добавлено в избранное',
+    });
   } catch (error) {
     toast.add({
       title: "Не удалось обновить избранное",

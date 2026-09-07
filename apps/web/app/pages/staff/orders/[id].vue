@@ -1,25 +1,23 @@
 <template>
   <UContainer v-if="order" class="workspace">
-    <NuxtLink to="/staff/orders" class="workspace__back">
-      ← К очереди заказов
-    </NuxtLink>
+    <AppBackButton fallback="/staff/orders" label="К заказам" />
 
     <header class="workspace__bar">
       <div class="workspace__identity">
         <div>
           <p class="workspace__number">Заказ №{{ order.id }}</p>
           <h1 class="workspace__title">
-            {{ orderStatus[order.status].label }}
+            {{ orderMeta(order.status, order.type).label }}
           </h1>
         </div>
 
         <div class="workspace__badges">
-          <OrderStatus :status="order.status" />
+          <OrderStatus :status="order.status" :type="order.type" />
           <UBadge color="neutral" variant="soft">
             {{ order.type === 'DELIVERY' ? 'Доставка' : 'Самовывоз' }}
           </UBadge>
           <UBadge v-if="order.deliveryAt" color="info" variant="soft">
-            {{ date(order.deliveryAt) }}
+            {{ order.type === 'PICKUP' ? `${pickupTime(order.deliveryAt)} (МСК)` : date(order.deliveryAt) }}
           </UBadge>
           <UBadge
             v-if="order.status === 'ASSEMBLING'"
@@ -172,7 +170,7 @@
           </a>
         </div>
 
-        <div v-if="address">
+        <div v-if="order.type === 'DELIVERY' && address">
           <span class="customer__label">Адрес</span>
           <strong>{{ address }}</strong>
         </div>
@@ -182,11 +180,16 @@
           <strong>{{ order.comment }}</strong>
         </div>
 
-        <div v-if="order.deliveryAt">
+        <div v-if="order.type === 'DELIVERY' && order.deliveryAt">
           <span class="customer__label">Желаемое время</span>
           <strong>{{ date(order.deliveryAt) }}</strong>
         </div>
       </div>
+    </section>
+
+    <section v-if="order.type === 'PICKUP'" class="stage">
+      <h2 class="stage__title">Самовывоз</h2>
+      <p>{{ order.deliveryAt ? `Подготовить к ${pickupTime(order.deliveryAt)} (МСК)` : 'Собирать сразу' }}</p>
     </section>
 
     <section
@@ -321,8 +324,8 @@
 
       <div class="summary">
         <div class="summary__row">
-          <span>Предварительная стоимость</span>
-          <strong>{{ money(order.total) }}</strong>
+          <span>Предварительная стоимость товаров</span>
+          <strong>{{ money(order.subtotal) }}</strong>
         </div>
 
         <div v-if="order.finalSubtotal !== null" class="summary__row">
@@ -330,23 +333,22 @@
           <strong>{{ money(order.finalSubtotal) }}</strong>
         </div>
 
-        <div v-if="order.deliveryPrice > 0" class="summary__row">
+        <div class="summary__row">
           <span>
             {{
-              order.delivery?.provider === 'YANDEX'
+              order.type === 'PICKUP' ? 'Самовывоз' : order.delivery?.provider === 'YANDEX'
                 ? 'Доставка Яндекс'
                 : 'Доставка'
             }}
           </span>
-          <strong>{{ money(order.deliveryPrice) }}</strong>
+          <strong>{{ knownMoney(order.deliveryPrice, 'Не рассчитана') }}</strong>
         </div>
 
         <div
-          v-if="order.finalTotal !== null"
           class="summary__row summary__row--total"
         >
-          <span>Фактический итог</span>
-          <strong>{{ money(order.finalTotal) }}</strong>
+          <span>{{ order.finalSubtotal === null ? 'Предварительный итог' : 'Фактический итог' }}</span>
+          <strong>{{ knownMoney(order.finalTotal ?? order.total, 'Не рассчитано') }}</strong>
         </div>
       </div>
     </section>
@@ -429,9 +431,9 @@
               </a>
             </dd>
           </div>
-          <div v-if="order.delivery.price !== null">
-            <dt>Стоимость курьера</dt>
-            <dd>{{ money(order.delivery.price) }}</dd>
+          <div>
+            <dt>Стоимость доставки</dt>
+            <dd>{{ knownMoney(order.delivery.price, 'Не указана') }}</dd>
           </div>
         </dl>
 
@@ -580,12 +582,12 @@
               />
             </UFormField>
 
-            <UFormField label="Стоимость курьера, ₽ (необязательно)">
+            <UFormField label="Стоимость доставки, ₽" required>
               <UInput
-                v-model.number="form.priceRubles"
-                type="number"
-                min="0"
-                step="0.01"
+                v-model="form.priceRubles"
+                inputmode="decimal"
+                placeholder="450"
+                required
                 size="lg"
               />
             </UFormField>
@@ -628,9 +630,10 @@ import type {
 import { useAuthStore } from '~/stores/auth'
 import { apiError } from '~/utils/api-error'
 import { deliveryProvider, deliveryStatus } from '~/utils/delivery'
-import { money } from '~/utils/money'
-import { orderStatus } from '~/utils/order'
+import { knownMoney, kopecksToRubles, money, rublesToKopecks } from '~/utils/money'
+import { orderMeta } from '~/utils/order'
 import { qtyText } from '~/utils/qty'
+import { pickupTime } from '~/utils/pickup'
 
 interface DeliveryForm {
   provider: DeliveryProvider
@@ -638,7 +641,7 @@ interface DeliveryForm {
   externalOrderId: string
   courierName: string
   courierPhone: string
-  priceRubles: number | undefined
+  priceRubles: string
 }
 
 type StageId = 'details' | 'assembly' | 'summary' | 'delivery'
@@ -694,7 +697,7 @@ const form = reactive<DeliveryForm>({
   externalOrderId: '',
   courierName: '',
   courierPhone: '',
-  priceRubles: undefined,
+  priceRubles: '',
 })
 
 const providerOptions = [
@@ -729,7 +732,7 @@ watch(
     form.courierName = delivery.courierName ?? ''
     form.courierPhone = delivery.courierPhone ?? ''
     form.priceRubles =
-      delivery.price === null ? undefined : delivery.price / 100
+      delivery.price === null ? '' : kopecksToRubles(delivery.price)
   },
   { immediate: true },
 )
@@ -752,7 +755,8 @@ const canHandoff = computed(
     order.value.status === 'READY' &&
     order.value.type === 'DELIVERY' &&
     order.value.delivery?.provider === 'OTHER' &&
-    order.value.delivery?.status === 'ASSIGNED',
+    order.value.delivery?.status === 'ASSIGNED' &&
+    order.value.delivery.price !== null && order.value.delivery.price > 0,
 )
 
 const canSyncYandex = computed(
@@ -928,6 +932,7 @@ async function calculateYandex() {
       { method: 'POST' },
     )
     toast.add({ title: 'Стоимость Яндекс Доставки рассчитана' })
+    await refresh()
   } catch (error) {
     toast.add({
       title: 'Не удалось рассчитать Яндекс Доставку',
@@ -1080,18 +1085,15 @@ async function saveDelivery() {
     return
   }
 
-  const price = form.priceRubles
+  const priceKopecks = rublesToKopecks(form.priceRubles)
 
-  if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
+  if (priceKopecks === null) {
     toast.add({
-      title: 'Укажите корректную неотрицательную стоимость',
+      title: 'Укажите положительную стоимость до 1 000 000 ₽, не более двух знаков после запятой',
       color: 'error',
     })
     return
   }
-
-  const priceKopecks =
-    price === undefined ? undefined : Math.round((price + Number.EPSILON) * 100)
 
   deliveryLoading.value = true
 
@@ -1177,10 +1179,6 @@ useSeoMeta({
   max-width: 68.75rem;
   min-width: 0;
   padding-block: var(--page-start) var(--page-end);
-}
-
-.workspace__back {
-  color: var(--ui-text-muted);
 }
 
 .workspace__bar {

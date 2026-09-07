@@ -9,6 +9,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import type { DeliveryStatus, Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
+import { deliveryTotals, positiveDeliveryPrice } from '../order/pricing.js';
 import {
   type YandexClaimInfo,
   type YandexOrderInput,
@@ -75,6 +76,34 @@ export class DeliveryService {
       throw new BadGatewayException('Яндекс вернул стоимость не в рублях');
     }
 
+    await this.db.$transaction(async (db) => {
+      await this.lockOrder(db, orderId);
+      const order = await db.order.findUnique({
+        where: { id: orderId },
+        include: { delivery: true },
+      });
+      if (
+        !order ||
+        order.status !== 'READY' ||
+        order.type !== 'DELIVERY' ||
+        order.delivery?.externalOrderId ||
+        order.delivery?.provider === 'OTHER'
+      ) {
+        throw new ConflictException('Заказ или способ доставки уже изменился');
+      }
+      const totals = deliveryTotals(order, quote.price);
+      await db.delivery.upsert({
+        where: { orderId },
+        create: {
+          orderId,
+          provider: 'YANDEX',
+          price: quote.price,
+          publicToken: randomBytes(32).toString('base64url'),
+        },
+        update: { price: quote.price },
+      });
+      await db.order.update({ where: { id: orderId }, data: totals });
+    });
     return quote;
   }
 
@@ -89,6 +118,7 @@ export class DeliveryService {
       );
     }
 
+    positiveDeliveryPrice(price);
     return this.db.$transaction(async (db) => {
       await this.lockOrder(db, orderId);
       const order = await db.order.findUnique({
@@ -98,10 +128,22 @@ export class DeliveryService {
           status: true,
           subtotal: true,
           finalSubtotal: true,
-          delivery: { select: { externalOrderId: true } },
+          delivery: { select: { externalOrderId: true, provider: true } },
         },
       });
 
+      if (
+        order?.delivery?.provider === 'YANDEX' &&
+        order.delivery.externalOrderId === booking.claim.claimId
+      ) {
+        // A concurrent booking already saved this idempotent claim. Keep its
+        // newer status and price; polling will reconcile subsequent changes.
+        return {
+          order: await db.order.findUniqueOrThrow({ where: { id: orderId } }),
+          delivery: await db.delivery.findUniqueOrThrow({ where: { orderId } }),
+          quote: booking.quote,
+        };
+      }
       if (!order || order.type !== 'DELIVERY' || order.status !== 'READY') {
         throw new BadRequestException(
           'Яндекс Доставку можно заказать только для собранного заказа',
@@ -109,13 +151,12 @@ export class DeliveryService {
       }
 
       if (
-        order.delivery?.externalOrderId &&
-        order.delivery.externalOrderId !== booking.claim.claimId
+        order.delivery?.externalOrderId ||
+        order.delivery?.provider === 'OTHER'
       ) {
         throw new ConflictException('Для заказа уже создана внешняя доставка');
       }
 
-      const finalSubtotal = order.finalSubtotal ?? order.subtotal;
       const deliveryStatus = this.nextStatus(
         'ASSIGNED',
         booking.claim.providerStatus,
@@ -160,8 +201,7 @@ export class DeliveryService {
         where: { id: orderId },
         data: {
           status: orderStatus,
-          deliveryPrice: price,
-          finalTotal: finalSubtotal + price,
+          ...deliveryTotals(order, price),
         },
       });
 
@@ -202,7 +242,16 @@ export class DeliveryService {
         where: {
           provider: 'YANDEX',
           externalOrderId: { not: null },
-          status: { in: ['PENDING', 'ASSIGNED', 'PICKED_UP'] },
+          OR: [
+            { status: { in: ['PENDING', 'ASSIGNED', 'PICKED_UP'] } },
+            // final_price can arrive after the terminal status, without a callback.
+            {
+              status: { in: ['DELIVERED', 'CANCELED'] },
+              providerUpdatedAt: {
+                gte: new Date(Date.now() - 24 * 60 * 60 * 1_000),
+              },
+            },
+          ],
         },
         select: { id: true, externalOrderId: true },
       });
@@ -304,15 +353,13 @@ export class DeliveryService {
 
   private async applyYandexState(deliveryId: number, claim: YandexClaimInfo) {
     return this.db.$transaction(async (db) => {
-      const rows = await db.$queryRaw<{ id: number }[]>`
-        SELECT "id"
-        FROM "Delivery"
-        WHERE "id" = ${deliveryId}
-        FOR UPDATE
-      `;
-
-      if (!rows.length)
-        throw new NotFoundException('Яндекс Доставка не найдена');
+      const target = await db.delivery.findUnique({
+        where: { id: deliveryId },
+        select: { orderId: true },
+      });
+      if (!target) throw new NotFoundException('Яндекс Доставка не найдена');
+      // Same lock order as assembly, booking and OTHER: Order before Delivery.
+      await this.lockOrder(db, target.orderId);
 
       const current = await db.delivery.findUnique({
         where: { id: deliveryId },
@@ -320,6 +367,8 @@ export class DeliveryService {
           id: true,
           status: true,
           providerUpdatedAt: true,
+          provider: true,
+          externalOrderId: true,
           trackingUrl: true,
           courierName: true,
           price: true,
@@ -335,6 +384,12 @@ export class DeliveryService {
       });
 
       if (!current) throw new NotFoundException('Яндекс Доставка не найдена');
+      if (
+        current.provider !== 'YANDEX' ||
+        current.externalOrderId !== claim.claimId
+      ) {
+        throw new ConflictException('Способ доставки уже изменился');
+      }
 
       const providerUpdatedAt = this.providerDate(claim);
       if (
@@ -345,9 +400,21 @@ export class DeliveryService {
       }
 
       const status = this.nextStatus(current.status, claim.providerStatus);
-      const price = claim.price ?? current.price;
-      const finalSubtotal =
-        current.order.finalSubtotal ?? current.order.subtotal;
+      if (claim.price !== null) positiveDeliveryPrice(claim.price);
+      // Only a newer final_price may revise an accepted price. Offer-only and
+      // equal-timestamp responses cannot roll the final price back.
+      const newer =
+        providerUpdatedAt !== null &&
+        (!current.providerUpdatedAt ||
+          providerUpdatedAt > current.providerUpdatedAt);
+      const price =
+        claim.price !== null &&
+        (current.price === null ||
+          current.price === 0 ||
+          (claim.priceIsFinal && newer))
+          ? claim.price
+          : current.price;
+      const totals = price === null ? {} : deliveryTotals(current.order, price);
       const delivery = await db.delivery.update({
         where: { id: deliveryId },
         data: {
@@ -377,12 +444,7 @@ export class DeliveryService {
         where: { id: current.order.id },
         data: {
           status: orderStatus,
-          ...(price === null
-            ? {}
-            : {
-                deliveryPrice: price,
-                finalTotal: finalSubtotal + price,
-              }),
+          ...totals,
         },
       });
 
@@ -438,7 +500,7 @@ export class DeliveryService {
         floor: true,
         intercom: true,
         comment: true,
-        delivery: { select: { externalOrderId: true } },
+        delivery: { select: { externalOrderId: true, provider: true } },
         items: {
           select: {
             id: true,
@@ -458,7 +520,10 @@ export class DeliveryService {
         'Яндекс Доставку можно рассчитать только для собранного заказа',
       );
     }
-    if (order.delivery?.externalOrderId) {
+    if (
+      order.delivery?.externalOrderId ||
+      order.delivery?.provider === 'OTHER'
+    ) {
       throw new ConflictException('Яндекс Доставка для заказа уже создана');
     }
     if (!order.city || !order.street || !order.house) {

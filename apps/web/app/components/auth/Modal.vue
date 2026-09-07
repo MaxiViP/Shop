@@ -3,47 +3,48 @@
     v-model:open="open"
     title="Вход"
     :description="description"
+    :dismissible="!loading"
     :ui="{
       content: 'w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)]',
       body: 'overflow-y-auto',
     }"
   >
     <template #body>
-      <form
-        class="auth"
-        @submit.prevent="submit"
-      >
-        <template v-if="step === 'phone'">
-          <UFormField
-            label="Телефон"
-            :error="error"
-          >
-            <UInput
-              v-model="phone"
-              type="tel"
-              inputmode="tel"
-              autocomplete="tel"
-              placeholder="+7 999 123-45-67"
-              size="lg"
-              autofocus
-            />
-          </UFormField>
-
-          <UButton
-            type="submit"
+      <form class="auth" @submit.prevent="submit">
+        <UFormField v-if="!codeSent" label="Телефон">
+          <UInput
+            v-model="phone"
+            type="tel"
+            inputmode="tel"
+            autocomplete="tel"
+            placeholder="+7 999 123-45-67"
             size="lg"
-            block
-            :loading="loading"
-          >
-            Получить код
-          </UButton>
-        </template>
+            autofocus
+            :disabled="loading"
+          />
+        </UFormField>
 
-        <template v-else>
-          <UFormField
-            label="Код подтверждения"
-            :error="error"
-          >
+        <p
+          v-if="mode === 'CHECKING_METHOD'"
+          role="status"
+          class="text-sm text-muted"
+        >
+          Определяем способ входа…
+        </p>
+
+        <UFormField v-if="mode === 'PASSWORD'" label="Пароль">
+          <UInput
+            v-model="password"
+            type="password"
+            autocomplete="current-password"
+            size="lg"
+            required
+            :disabled="loading"
+          />
+        </UFormField>
+
+        <template v-if="mode === 'OTP' && codeSent">
+          <UFormField label="Код подтверждения">
             <UInput
               v-model="code"
               inputmode="numeric"
@@ -52,172 +53,164 @@
               placeholder="000000"
               size="lg"
               autofocus
+              :disabled="loading"
             />
           </UFormField>
-
           <UAlert
             v-if="devCode"
             color="info"
             title="Dev-код"
             :description="devCode"
           />
-
-          <UButton
-            type="submit"
-            size="lg"
-            block
-            :loading="loading"
-          >
-            Войти
-          </UButton>
-
-          <UButton
-            variant="ghost"
-            color="neutral"
-            block
-            @click="back"
-          >
-            Изменить номер
-          </UButton>
         </template>
+
+        <UAlert v-if="message" color="error" :title="message" />
+        <UButton
+          type="submit"
+          size="lg"
+          block
+          :loading="loading"
+          :disabled="
+            mode === 'CHECKING_METHOD' || (mode === 'PHONE' && !methodError)
+          "
+        >
+          {{
+            mode === "PASSWORD" || codeSent
+              ? "Войти"
+              : mode === "OTP"
+                ? "Получить код"
+                : methodError
+                  ? "Повторить"
+                  : "Введите телефон"
+          }}
+        </UButton>
+        <UButton
+          v-if="codeSent"
+          variant="ghost"
+          color="neutral"
+          block
+          :disabled="loading"
+          @click="back"
+        >
+          Изменить номер
+        </UButton>
       </form>
     </template>
   </UModal>
 </template>
 
 <script setup lang="ts">
-import type { User } from '~/types/user'
-import { useAuthStore } from '~/stores/auth'
+import type { User } from "~/types/user";
+import { useAuthStore } from "~/stores/auth";
 
-type Step = 'phone' | 'code'
-
-const open = defineModel<boolean>('open', {
-  required: true,
-})
-
-const auth = useAuthStore()
-const api = useApiClient()
-const toast = useToast()
-
-const step = ref<Step>('phone')
-const phone = ref('')
-const code = ref('')
-const devCode = ref('')
-const error = ref('')
-const loading = ref(false)
-
+const open = defineModel<boolean>("open", { required: true });
+const auth = useAuthStore();
+const api = useApiClient();
+const adminLogin = useAdminLogin();
+const toast = useToast();
+const phone = ref("");
+const password = ref("");
+const code = ref("");
+const codeSent = ref(false);
+const devCode = ref("");
+const error = ref("");
+const loading = ref(false);
+const {
+  mode,
+  error: methodError,
+  change,
+  reset,
+} = useLoginMethod((phone) =>
+  api<{ method: 'OTP' | 'PASSWORD' }>("/auth/method", { method: "POST", body: { phone } }),
+);
+const message = computed(
+  () => error.value || (methodError.value ? apiError(methodError.value) : ""),
+);
 const description = computed(() =>
-  step.value === 'phone'
-    ? 'Введите номер телефона. Пароль не нужен.'
-    : `Код отправлен на ${phone.value}`,
-)
+  codeSent.value
+    ? `Код отправлен на ${phone.value}`
+    : mode.value === "PASSWORD"
+      ? "Введите пароль для входа."
+      : "Введите номер телефона.",
+);
 
-async function submit() {
-  if (loading.value) return
-
-  error.value = ''
-
-  if (step.value === 'phone') {
-    await requestCode()
-    return
-  }
-
-  await login()
+function clearFields() {
+  password.value = "";
+  code.value = "";
+  codeSent.value = false;
+  devCode.value = "";
+  error.value = "";
 }
 
-async function requestCode() {
-  if (!phone.value.trim()) {
-    error.value = 'Введите номер телефона'
-    return
-  }
+watch(
+  phone,
+  () => {
+    clearFields();
+    if (open.value) change(phone.value);
+    else reset();
+  },
+  { flush: "sync" },
+);
 
-  loading.value = true
+watch(
+  open,
+  (value) => {
+    clearFields();
+    if (value) change(phone.value);
+    else reset();
+  },
+  { flush: "sync" },
+);
 
-  try {
-    const result = await api<{
-      ok: boolean
-      devCode?: string
-    }>('/auth/code', {
-      method: 'POST',
-      body: {
-        phone: phone.value,
-      },
-    })
-
-    devCode.value = result.devCode ?? ''
-    step.value = 'code'
-  } catch (cause) {
-    error.value = getMessage(cause)
-  } finally {
-    loading.value = false
-  }
-}
-
-async function login() {
-  if (!/^\d{6}$/.test(code.value)) {
-    error.value = 'Введите 6 цифр'
-    return
-  }
-
-  loading.value = true
-
-  try {
-    const user = await api<User>('/auth/login', {
-      method: 'POST',
-      body: {
-        phone: phone.value,
-        code: code.value,
-      },
-    })
-
-    auth.set(user)
-
-    toast.add({
-      title: 'Вы вошли',
-    })
-
-    close()
-  } catch (cause) {
-    error.value = getMessage(cause)
-  } finally {
-    loading.value = false
-  }
-}
+onBeforeUnmount(reset);
 
 function back() {
-  step.value = 'phone'
-  code.value = ''
-  devCode.value = ''
-  error.value = ''
+  clearFields();
+  change(phone.value);
 }
 
-function close() {
-  open.value = false
-  step.value = 'phone'
-  code.value = ''
-  devCode.value = ''
-  error.value = ''
-}
-
-function getMessage(cause: unknown) {
-  if (
-    typeof cause === 'object'
-    && cause
-    && 'data' in cause
-  ) {
-    const data = cause.data
-
-    if (
-      typeof data === 'object'
-      && data
-      && 'message' in data
-      && typeof data.message === 'string'
-    ) {
-      return data.message
-    }
+async function submit() {
+  if (loading.value || mode.value === "CHECKING_METHOD") return;
+  error.value = "";
+  if (mode.value === "PHONE") {
+    change(phone.value, 0);
+    return;
+  }
+  if (mode.value === "OTP" && codeSent.value && !/^\d{6}$/.test(code.value)) {
+    error.value = "Введите 6 цифр";
+    return;
   }
 
-  return 'Не удалось выполнить запрос'
+  loading.value = true;
+  try {
+    if (mode.value === "PASSWORD") {
+      await adminLogin(phone.value, password.value);
+    } else if (!codeSent.value) {
+      const result = await api<{ ok: boolean; devCode?: string }>(
+        "/auth/code",
+        {
+          method: "POST",
+          body: { phone: phone.value },
+        },
+      );
+      devCode.value = result.devCode ?? "";
+      codeSent.value = true;
+      return;
+    } else {
+      auth.set(
+        await api<User>("/auth/login", {
+          method: "POST",
+          body: { phone: phone.value, code: code.value },
+        }),
+      );
+    }
+    toast.add({ title: "Вы вошли" });
+    open.value = false;
+  } catch (cause) {
+    error.value = apiError(cause);
+  } finally {
+    loading.value = false;
+  }
 }
 </script>
 

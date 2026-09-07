@@ -19,6 +19,7 @@
       </nav>
 
       <div class="header__actions">
+        <UButton v-if="auth.user?.role === 'ADMIN'" to="/admin/products" variant="ghost" color="neutral">Админка</UButton>
         <UButton
           v-if="staff"
           to="/staff/orders"
@@ -57,6 +58,7 @@
           <span v-if="favorites.count" class="header__count">
             {{ favorites.count }}
           </span>
+          <AppHeaderNotice target="favorites" />
         </div>
 
         <div class="header__action">
@@ -70,6 +72,7 @@
           <span v-if="cart.count" class="header__count">
             {{ cart.count }}
           </span>
+          <AppHeaderNotice target="cart" />
         </div>
 
         <UButton
@@ -93,6 +96,7 @@
           <span v-if="favorites.count" class="header__count">
             {{ favorites.count }}
           </span>
+          <AppHeaderNotice target="favorites" />
         </div>
 
         <div class="header__action">
@@ -106,6 +110,7 @@
           <span v-if="cart.count" class="header__count">
             {{ cart.count }}
           </span>
+          <AppHeaderNotice target="cart" />
         </div>
       </div>
     </UContainer>
@@ -125,6 +130,7 @@
     >
       <template #body>
         <nav class="mobile-nav" aria-label="Мобильная навигация">
+          <NuxtLink v-if="auth.user?.role === 'ADMIN'" to="/admin/products" class="mobile-nav__link"><UIcon name="i-lucide-settings" /><span>Админка</span></NuxtLink>
           <NuxtLink to="/catalog" class="mobile-nav__link">
             <UIcon name="i-lucide-store" />
             <span>Каталог</span>
@@ -195,6 +201,9 @@ const route = useRoute();
 const auth = useAuthStore();
 const cart = useCartStore();
 const favorites = useFavoritesStore();
+const notice = useHeaderNotice();
+onBeforeUnmount(notice.clear);
+watch(() => auth.user?.id, notice.clear);
 const loginOpen = ref(false);
 const mobileOpen = ref(false);
 
@@ -206,6 +215,7 @@ watch(
   () => route.fullPath,
   () => {
     mobileOpen.value = false;
+    notice.clear();
   },
 );
 
@@ -217,6 +227,10 @@ function login() {
 
 <style scoped>
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--ui-bg);
   border-bottom: 1px solid var(--ui-border);
 }
 

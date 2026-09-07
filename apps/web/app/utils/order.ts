@@ -1,4 +1,4 @@
-import type { OrderStatus } from "~/types/order";
+import type { OrderStatus, OrderType } from "~/types/order";
 
 export const orderStatus = {
   NEW: {
@@ -45,4 +45,11 @@ export const orderStatus = {
 
 export function isActiveOrder(status: OrderStatus) {
   return !["COMPLETED", "CANCELED"].includes(status);
+}
+
+export function orderMeta(status: OrderStatus, type: OrderType = 'DELIVERY') {
+  const meta = orderStatus[status];
+  if (type === 'PICKUP' && status === 'READY') return { ...meta, label: 'Заказ готов к выдаче' };
+  if (type === 'PICKUP' && status === 'COMPLETED') return { ...meta, label: 'Выдан покупателю' };
+  return meta;
 }

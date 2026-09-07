@@ -2,9 +2,20 @@ import { StandardSchemaValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module.js';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { uploadRoot } from './admin/images.service.js';
+import { allowedOrigin } from './auth/admin.config.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.useStaticAssets(uploadRoot, {
+    prefix: '/uploads/products/',
+    dotfiles: 'deny',
+    index: false,
+    setHeaders: (res) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+    },
+  });
 
   app.use(cookieParser());
 
@@ -17,11 +28,12 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   app.enableCors({
-    origin: ['http://127.0.0.1:3000', 'http://localhost:3000'],
+    origin: (origin, callback) =>
+      callback(null, !origin || allowedOrigin(origin)),
     credentials: true,
   });
 
-  await app.listen(process.env.PORT ?? 3001, '127.0.0.1');
+  await app.listen(process.env.PORT ?? 4001, '127.0.0.1');
 }
 
 void bootstrap();
