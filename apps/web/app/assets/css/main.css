@@ -25,6 +25,17 @@
 
 html {
   min-width: 320px;
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--ui-bg);
+  color: var(--ui-text);
 }
 
 body,

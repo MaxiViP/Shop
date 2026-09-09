@@ -1,4 +1,24 @@
 import { BadRequestException } from '@nestjs/common';
+import { lineAmount, sumAmounts } from './assembly.js';
+
+export function goodsLine(price: number, qty: number, priceQty: number) {
+  try {
+    return lineAmount(price, qty, priceQty);
+  } catch (error) {
+    if (error instanceof RangeError)
+      throw new BadRequestException(error.message);
+    throw error;
+  }
+}
+export function goodsSum(values: number[]) {
+  try {
+    return sumAmounts(values);
+  } catch (error) {
+    if (error instanceof RangeError)
+      throw new BadRequestException(error.message);
+    throw error;
+  }
+}
 
 const maxMoney = 2_147_483_647;
 

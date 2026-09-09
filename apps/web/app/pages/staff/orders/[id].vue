@@ -53,7 +53,7 @@
         <UButton
           v-if="order.status === 'ASSEMBLING'"
           size="lg"
-          :disabled="pending > 0 || Boolean(actionLoading)"
+          :disabled="pending > 0 || toleranceBlocked || Boolean(actionLoading) || itemLoading !== null"
           :loading="actionLoading === 'finish'"
           @click="finishAssembly"
         >
@@ -61,7 +61,7 @@
         </UButton>
 
         <UButton
-          v-if="order.status === 'READY' && order.type === 'PICKUP'"
+          v-if="order.status === 'READY' && order.type === 'PICKUP' && order.payment?.status === 'PAID'"
           size="lg"
           :loading="actionLoading === 'pickup'"
           :disabled="Boolean(actionLoading)"
@@ -132,6 +132,12 @@
         </UButton>
       </div>
     </header>
+
+    <UAlert v-if="toleranceBlocked" class="my-4" color="warning" title="Требуется подтверждение покупателя" description="Нельзя завершить сборку: есть позиции, требующие подтверждения покупателя." />
+    <UAlert v-if="order.status === 'READY' && order.type === 'DELIVERY' && order.payment?.status !== 'PAID'" class="my-4" color="info" title="Проверьте поступление оплаты" description="Кнопка «Оплата получена — оформить доставку» подтвердит получение денег и запустит оформление доставки." />
+    <OrderStaffPayment :order-id="id" :type="order.type" :payment="order.payment" @refresh="refresh" />
+    <OrderExtras :extras="order.extras ?? []" staff :order-id="id" :editable="order.status === 'ASSEMBLING' && !order.assemblyFinalizedAt" @refresh="refresh" />
+    <UButton v-if="canReopen" class="my-4" variant="outline" :disabled="Boolean(actionLoading)" @click="runAction('reopen', 'assembly/reopen', 'Заказ возвращён к сборке')">Вернуть к сборке</UButton>
 
     <nav class="stages" aria-label="Этапы работы с заказом">
       <NuxtLink
@@ -250,6 +256,8 @@
             </div>
           </dl>
 
+          <OrderWeight v-if="item.unit === 'GRAM' && item.status !== 'MISSING'" :requested="item.qty" :actual="actual[item.id] ?? item.qty" :price="item.price" :price-qty="item.priceQty" :bps="order.weightToleranceBps" :approved="approvedWeight(order.issues?.find(issue => issue.orderItemId === item.id), item.actualQty)" />
+          <UButton v-if="order.status === 'ASSEMBLING' && item.status === 'PENDING'" variant="ghost" color="neutral" @click="drafts.reset(item.id)">Сбросить ввод</UButton>
           <div
             v-if="order.status === 'ASSEMBLING' && item.status === 'PENDING'"
             class="item__actions"
@@ -312,6 +320,7 @@
       </div>
     </section>
 
+    <OrderCoordination :key="order.id" :base="`/staff/orders/${id}`" :bps="order.weightToleranceBps" staff :phone="order.customerPhone" :assembling="order.status === 'ASSEMBLING'" @refresh="refresh" />
     <section
       id="order-summary"
       class="stage"
@@ -329,7 +338,7 @@
         </div>
 
         <div v-if="order.finalSubtotal !== null" class="summary__row">
-          <span>Товары</span>
+          <span>Товары и услуги</span>
           <strong>{{ money(order.finalSubtotal) }}</strong>
         </div>
 
@@ -465,7 +474,7 @@
       </div>
 
       <form
-        v-if="order.status === 'READY'"
+        v-if="order.status === 'READY' && order.assemblyFinalizedAt && order.payment && ['AWAITING', 'REPORTED', 'PAID'].includes(order.payment.status)"
         class="delivery-form"
         @submit.prevent="saveDelivery"
       >
@@ -489,6 +498,7 @@
         </div>
 
         <div v-if="form.provider === 'YANDEX'" class="yandex-delivery">
+          <UAlert v-if="order.payment?.status !== 'PAID'" color="info" title="Вызвать Яндекс можно после подтверждения оплаты товаров" />
           <UAlert
             v-if="!yandexConfig?.yandexEnabled"
             color="warning"
@@ -534,7 +544,7 @@
                 :disabled="Boolean(actionLoading)"
                 @click="orderYandex"
               >
-                Заказать доставку — {{ money(yandexQuote.price) }}
+                {{ order.payment?.status === 'PAID' ? 'Повторить оформление доставки' : 'Оплата получена — оформить доставку' }} — {{ money(yandexQuote.price) }}
               </UButton>
             </div>
           </template>
@@ -600,7 +610,7 @@
               :loading="deliveryLoading"
               :disabled="deliveryLoading || Boolean(actionLoading)"
             >
-              Сохранить доставку
+              {{ order.payment?.status === 'PAID' ? 'Сохранить доставку' : 'Оплата получена — оформить доставку' }}
             </UButton>
 
             <UButton
@@ -685,7 +695,8 @@ if (error.value || !data.value) {
 }
 
 const order = computed(() => data.value!)
-const actual = reactive<Record<number, number>>({})
+const drafts = assemblyDrafts()
+const actual = drafts.values
 const itemLoading = ref<number | null>(null)
 const actionLoading = ref<string | null>(null)
 const deliveryLoading = ref(false)
@@ -714,9 +725,7 @@ const baseStages: StageLink[] = [
 watch(
   () => order.value.items,
   (items) => {
-    for (const item of items) {
-      actual[item.id] = item.actualQty ?? item.qty
-    }
+    drafts.sync(items)
   },
   { immediate: true },
 )
@@ -741,9 +750,23 @@ const pending = computed(
   () => order.value.items.filter((item) => item.status === 'PENDING').length,
 )
 
+const toleranceBlocked = computed(() => order.value.status === 'ASSEMBLING' && (order.value.issues?.some(issue => ['WAITING_CUSTOMER', 'WAITING_SELLER'].includes(issue.status)) || order.value.items.some(item => {
+  if (item.unit !== 'GRAM' || item.status === 'MISSING') return false
+  const qty = item.status === 'PENDING' ? actual[item.id] : item.actualQty
+  if (item.status === 'PICKED' && approvedWeight(order.value.issues?.find(issue => issue.orderItemId === item.id), item.actualQty)) return false
+  if (typeof qty !== 'number' || !Number.isSafeInteger(qty) || qty <= 0) return false
+  try {
+    return outsideTolerance(item.unit, item.qty, qty, order.value.weightToleranceBps)
+  } catch {
+    return true
+  }
+})))
+const canReopen = computed(() => order.value.status === 'READY' && (!order.value.payment || order.value.payment.status === 'AWAITING') && !order.value.delivery?.externalOrderId && order.value.delivery?.provider !== 'OTHER')
+
 const cancelable = computed(
   () =>
     ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY'].includes(order.value.status) &&
+    order.value.payment?.status !== 'PAID' &&
     !(
       order.value.delivery?.provider === 'YANDEX' &&
       order.value.delivery.externalOrderId
@@ -752,6 +775,7 @@ const cancelable = computed(
 
 const canHandoff = computed(
   () =>
+    order.value.payment?.status === 'PAID' &&
     order.value.status === 'READY' &&
     order.value.type === 'DELIVERY' &&
     order.value.delivery?.provider === 'OTHER' &&
@@ -789,7 +813,8 @@ const activeStage = computed<StageId>(() => {
 
   if (
     order.value.type === 'DELIVERY' &&
-    ['READY', 'DELIVERING'].includes(order.value.status)
+    ['READY', 'DELIVERING'].includes(order.value.status) &&
+    order.value.payment?.status === 'PAID'
   ) {
     return 'delivery'
   }
@@ -891,11 +916,7 @@ async function runAction(name: string, path: string, success: string) {
 }
 
 async function finishAssembly() {
-  const changed = await runAction('finish', 'assembly/finish', 'Заказ собран')
-
-  if (changed && order.value.type === 'DELIVERY') {
-    await goToDelivery()
-  }
+  await runAction('finish', 'assembly/finish', 'Заказ собран')
 }
 
 async function goToDelivery() {
@@ -945,10 +966,11 @@ async function calculateYandex() {
 }
 
 async function orderYandex() {
+  if (order.value.payment?.status !== 'PAID' && !window.confirm('Подтвердите, что оплата действительно поступила. После подтверждения заказ будет отмечен как оплаченный и начнётся оформление доставки.')) return
   actionLoading.value = 'yandex-order'
 
   try {
-    await api(`/staff/orders/${id}/delivery/yandex/order`, { method: 'POST' })
+    await api(`/staff/orders/${id}/delivery/yandex/confirm`, { method: 'POST' })
     yandexQuote.value = null
     await refresh()
     toast.add({
@@ -961,6 +983,7 @@ async function orderYandex() {
       description: apiError(error),
       color: 'error',
     })
+    await refresh()
   } finally {
     actionLoading.value = null
   }
@@ -1010,6 +1033,7 @@ async function pick(itemId: number) {
       },
     })
     await refresh()
+    drafts.reset(itemId)
     toast.add({ title: 'Позиция собрана' })
   } catch (error) {
     toast.add({
@@ -1033,6 +1057,7 @@ async function missing(itemId: number) {
       },
     })
     await refresh()
+    drafts.reset(itemId)
     toast.add({ title: 'Позиция отмечена отсутствующей' })
   } catch (error) {
     toast.add({
@@ -1056,6 +1081,7 @@ async function returnToAssembly(itemId: number) {
       },
     })
     await refresh()
+    drafts.reset(itemId)
     toast.add({ title: 'Позиция возвращена в сборку' })
   } catch (error) {
     toast.add({
@@ -1098,8 +1124,9 @@ async function saveDelivery() {
   deliveryLoading.value = true
 
   try {
-    await api(`/staff/orders/${id}/delivery`, {
-      method: 'PUT',
+    if (order.value.payment?.status !== 'PAID' && !window.confirm('Подтвердите, что оплата поступила. Заказ будет отмечен как оплаченный и оформлена доставка.')) return
+    await api(`/staff/orders/${id}/delivery/confirm`, {
+      method: 'POST',
       body: {
         provider: form.provider,
         trackingUrl: optional(form.trackingUrl),
@@ -1117,6 +1144,7 @@ async function saveDelivery() {
       description: apiError(error),
       color: 'error',
     })
+    await refresh()
   } finally {
     deliveryLoading.value = false
   }

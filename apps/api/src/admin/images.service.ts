@@ -161,6 +161,7 @@ export class ImagesService {
     // Keep assets referenced by historical order snapshots or another image.
     if (
       (await this.db.orderItem.count({ where: { image: url } })) ||
+      (await this.db.orderIssue.count({ where: { proposedImageUrl: url } })) ||
       (await this.db.productImage.count({ where: { url } }))
     )
       return;

@@ -22,6 +22,9 @@ process.env.NODE_ENV = 'development';
 process.env.ADMIN_PHONE = '+79990000001';
 process.env.ADMIN_PASSWORD = randomBytes(32).toString('hex');
 process.env.AUTH_SECRET = randomBytes(32).toString('hex');
+for (const key of ['PAYMENT_PHONE', 'PAYMENT_BANK_NAME', 'PAYMENT_RECIPIENT_NAME', 'PAYMENT_CARD_NUMBER', 'PAYMENT_QR_IMAGE_URL']) process.env[key] = '';
+process.env.PAYMENT_SBP_LINK = 'https://example.test/payment';
+process.env.ORDER_SMS_ENABLED = 'false';
 process.env.UPLOAD_DIR = directory;
 const connection = new pg.Client({
   connectionString: process.env.DATABASE_URL,
@@ -400,6 +403,7 @@ try {
     `/admin/products/${product.id}`,
     '/admin/products/new',
     '/admin/users',
+    '/admin/settings',
   ]) {
     const response = await fetch(`${webBase}${path}`, {
       headers: { Cookie: cookie },
@@ -426,6 +430,40 @@ try {
   const productHtml = await (
     await fetch(`${webBase}/product/${product.slug}`)
   ).text();
+  const phaseOrder = (await api('/orders', 'POST', { type: 'PICKUP', customerName: 'Phase smoke', customerPhone: shopper.data.phone, items: [{ productId: product.id, qty: 1000 }] }, 201, userCookie)).data;
+  await api(`/staff/orders/${phaseOrder.id}/confirm`, 'POST', undefined, 201);
+  await api(`/staff/orders/${phaseOrder.id}/assembly/start`, 'POST', undefined, 201);
+  await api(`/staff/orders/${phaseOrder.id}/extras`, 'POST', { title: 'Нарезка — smoke', comment: 'Помыть и нарезать', quantity: 1, unitPrice: 50000 }, 201);
+  const phaseItem = await db.orderItem.findFirstOrThrow({ where: { orderId: phaseOrder.id } });
+  await api(`/staff/orders/${phaseOrder.id}/items/${phaseItem.id}`, 'PATCH', { status: 'PICKED', actualQty: 1200 });
+  await api(`/staff/orders/${phaseOrder.id}/assembly/finish`, 'POST', undefined, 409);
+  const issue = await db.orderIssue.findFirstOrThrow({ where: { orderId: phaseOrder.id } });
+  const issueHtml = await (await fetch(`${webBase}/order/${phaseOrder.publicId}`, { headers: { Cookie: userCookie } })).text();
+  assert.ok(issueHtml.includes('Требуется ваше решение'));
+  assert.ok(issueHtml.includes('Согласен на'));
+  assert.ok(issueHtml.includes('Чат по заказу'));
+  assert.ok(!issueHtml.includes('Я оплатил'));
+  assert.ok(!issueHtml.includes('Нарезка — smoke'));
+  const issueStaffHtml = await (await fetch(`${webBase}/staff/orders/${phaseOrder.id}`, { headers: { Cookie: cookie } })).text();
+  assert.ok(issueStaffHtml.includes('Позвонить покупателю'));
+  await api(`/orders/${phaseOrder.publicId}/issues/${issue.id}/decision`, 'POST', { version: issue.version, action: 'ACCEPT_ACTUAL' }, 201, userCookie);
+  await api(`/staff/orders/${phaseOrder.id}/assembly/finish`, 'POST', undefined, 201);
+  const paymentHtml = await (await fetch(`${webBase}/order/${phaseOrder.publicId}`, { headers: { Cookie: userCookie } })).text();
+  assert.ok(paymentHtml.includes('Оплата заказа'));
+  assert.ok(!paymentHtml.includes('Я оплатил'));
+  assert.ok(paymentHtml.includes('После перевода ничего подтверждать не нужно'));
+  assert.ok(paymentHtml.includes('Открыть СБП'));
+  assert.ok(paymentHtml.includes('Нарезка — smoke'));
+  assert.ok(paymentHtml.includes('Дополнительные услуги'));
+  assert.ok(paymentHtml.includes('aria-label="Сообщения"'));
+  const staffHtml = await (await fetch(`${webBase}/staff/orders/${phaseOrder.id}`, { headers: { Cookie: cookie } })).text();
+  assert.ok(staffHtml.includes('Оплата заказа'));
+  assert.ok(staffHtml.includes('Допуск:'));
+  console.log('PASS PHASE 1 settings, finalized customer payment and staff weight/payment SSR');
+  console.log('PASS PHASE 2 customer issue SSR, exact approval, staff phone fallback and chat shell');
+  console.log('PASS PHASE 2.1 extras hidden before finalization, explicit final bill, no customer report action, Header messages SSR');
+  // Remove this disposable order before the existing unreferenced-file cleanup check.
+  await db.order.delete({ where: { id: phaseOrder.id } });
   assert.ok(productHtml.includes('gallery__rail'));
   assert.ok(productHtml.includes('Показать фото 2'));
   assert.ok(productHtml.includes('product__description'));

@@ -68,6 +68,10 @@ const { search, submitSearch, clearSearch } = useProductSearch();
 .bottom-search:focus-within {
   outline: 2px solid var(--ui-primary);
 }
+.bottom-search__input::placeholder {
+  color: var(--ui-text-muted);
+  opacity: 1;
+}
 .bottom-search__input::-webkit-search-cancel-button {
   display: none;
 }

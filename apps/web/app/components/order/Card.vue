@@ -20,14 +20,18 @@
     <p class="order__items">
       {{ products }}
     </p>
+    <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_CUSTOMER')" color="warning">Требуется ваше решение</UBadge>
+    <UBadge v-if="order.customerUnread" color="info">Новых сообщений: {{ order.customerUnread }}</UBadge>
 
     <p v-if="order.type === 'PICKUP'" class="order__items">
       Самовывоз · {{ order.deliveryAt ? `К ${pickupTime(order.deliveryAt)} (МСК)` : 'Подготовим как можно скорее' }}
     </p>
 
     <strong class="order__total">
-      {{ knownMoney(order.finalTotal ?? order.total) }}
+      Товары: {{ order.finalSubtotal === null ? '≈ ' : '' }}{{ knownMoney(order.finalSubtotal ?? order.subtotal) }}
     </strong>
+    <p v-if="order.payment" class="order__items">{{ paymentLabels[order.payment.status] }}</p>
+    <p v-if="order.type === 'DELIVERY'" class="order__items">Доставка оплачивается отдельно</p>
   </NuxtLink>
 </template>
 

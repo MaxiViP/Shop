@@ -61,6 +61,7 @@ model Product {
   sort   Int     @default(0)
 
   orderItems OrderItem[]
+  proposals  OrderIssue[]
   favorites  Favorite[]
 
   categoryId Int
@@ -88,16 +89,21 @@ model ProductImage {
 }
 
 model User {
-  id         Int       @id @default(autoincrement())
-  phone      String    @unique
+  extras     OrderExtra[]
+  id         Int          @id @default(autoincrement())
+  phone      String       @unique
   name       String?
   verifiedAt DateTime?
-  role       UserRole  @default(USER)
+  role       UserRole     @default(USER)
 
-  orders    Order[]
-  addresses Address[]
-  sessions  Session[]
-  favorites Favorite[]
+  orders            Order[]
+  addresses         Address[]
+  sessions          Session[]
+  favorites         Favorite[]
+  settingsUpdates   ShopSettings[]
+  confirmedPayments OrderPayment[]
+  issues            OrderIssue[]
+  messages          OrderChatMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -182,11 +188,15 @@ enum DeliveryStatus {
 }
 
 model Order {
-  id       Int    @id @default(autoincrement())
-  publicId String @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  extras   OrderExtra[]
+  id       Int          @id @default(autoincrement())
+  publicId String       @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  type   OrderType
-  status OrderStatus @default(NEW)
+  type                OrderType
+  status              OrderStatus   @default(NEW)
+  weightToleranceBps  Int           @default(1000)
+  assemblyFinalizedAt DateTime?
+  payment             OrderPayment?
 
   customerName  String
   customerPhone String
@@ -215,7 +225,14 @@ model Order {
   guestSessionId String?
   guestSession   GuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
 
-  items OrderItem[]
+  items                 OrderItem[]
+  issues                OrderIssue[]
+  messages              OrderChatMessage[]
+  notifications         OrderNotification[]
+  customerReadMessageId Int                 @default(0)
+  staffReadMessageId    Int                 @default(0)
+  customerUnread        Int                 @default(0)
+  staffUnread           Int                 @default(0)
 
   delivery Delivery?
 
@@ -226,6 +243,31 @@ model Order {
   @@index([guestSessionId])
   @@index([status])
   @@index([createdAt])
+}
+
+enum ExtraStatus {
+  ACTIVE
+  CANCELED
+}
+
+model OrderExtra {
+  id          Int         @id @default(autoincrement())
+  orderId     Int
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  title       String      @db.VarChar(120)
+  comment     String?     @db.VarChar(1000)
+  quantity    Int
+  unitPrice   Int
+  amount      Int
+  status      ExtraStatus @default(ACTIVE)
+  version     Int         @default(1)
+  createdById Int?
+  createdBy   User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  canceledAt  DateTime?
+
+  @@index([orderId, status])
 }
 
 model Delivery {
@@ -271,7 +313,9 @@ model OrderItem {
   actualQty Int?
   total     Int
 
-  actualTotal Int?
+  actualTotal    Int?
+  issue          OrderIssue? @relation("ItemIssue")
+  replacementFor OrderIssue? @relation("IssueReplacement")
 
   orderId Int
   order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -309,4 +353,154 @@ model Favorite {
 
   @@unique([userId, productId])
   @@index([productId])
+}
+
+model ShopSettings {
+  id                      Int      @id @default(1)
+  weightToleranceBps      Int      @default(1000)
+  customerResponseMinutes Int      @default(10)
+  updatedAt               DateTime @updatedAt
+  updatedById             Int?
+  updatedBy               User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+enum PaymentStatus {
+  AWAITING
+  REPORTED
+  PAID
+  CANCELED
+}
+
+enum PaymentMethod {
+  SBP
+  QR
+  CARD_TRANSFER
+}
+
+model OrderPayment {
+  id            Int            @id @default(autoincrement())
+  orderId       Int            @unique
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount        Int
+  status        PaymentStatus  @default(AWAITING)
+  method        PaymentMethod?
+  reportedAt    DateTime?
+  confirmedAt   DateTime?
+  confirmedById Int?
+  confirmedBy   User?          @relation(fields: [confirmedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+enum IssueType {
+  WEIGHT_DEVIATION
+  MISSING_ITEM
+  REPLACEMENT
+}
+
+enum IssueStatus {
+  WAITING_CUSTOMER
+  WAITING_SELLER
+  RESOLVED
+  CANCELED
+}
+
+enum IssueResolution {
+  ACCEPT_ACTUAL
+  REQUEST_REDUCE
+  REMOVE_ITEM
+  ACCEPT_REPLACEMENT
+  SELLER_ADJUSTED
+  CANCEL_ORDER
+}
+
+model OrderIssue {
+  id                Int                 @id @default(autoincrement())
+  orderId           Int
+  order             Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId       Int                 @unique
+  orderItem         OrderItem           @relation("ItemIssue", fields: [orderItemId], references: [id], onDelete: Cascade)
+  type              IssueType
+  status            IssueStatus         @default(WAITING_CUSTOMER)
+  version           Int                 @default(1)
+  requestedQty      Int
+  actualQty         Int?
+  approvedActualQty Int?
+  resolution        IssueResolution?
+  resolvedAt        DateTime?
+  createdById       Int?
+  createdBy         User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  proposedProductId Int?
+  proposedProduct   Product?            @relation(fields: [proposedProductId], references: [id], onDelete: SetNull)
+  proposedName      String?
+  proposedSlug      String?
+  proposedPrice     Int?
+  proposedPriceQty  Int?
+  proposedUnit      Unit?
+  proposedQty       Int?
+  proposedImageUrl  String?
+  replacementItemId Int?                @unique
+  replacementItem   OrderItem?          @relation("IssueReplacement", fields: [replacementItemId], references: [id], onDelete: SetNull)
+  messages          OrderChatMessage[]
+  notifications     OrderNotification[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([orderId, status])
+}
+
+enum MessageAuthor {
+  CUSTOMER
+  SELLER
+  ADMIN
+  SYSTEM
+}
+
+model OrderChatMessage {
+  id           Int           @id @default(autoincrement())
+  orderId      Int
+  order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  issueId      Int?
+  issue        OrderIssue?   @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  authorType   MessageAuthor
+  recipient    String        @default("both")
+  authorUserId Int?
+  authorUser   User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  text         String        @db.VarChar(2000)
+  createdAt    DateTime      @default(now())
+
+  @@index([orderId, id])
+}
+
+enum NotificationType {
+  ACTION_REQUIRED
+  PAYMENT_READY
+}
+
+enum NotificationStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  UNCONFIGURED
+  CANCELED
+}
+
+model OrderNotification {
+  id           Int                @id @default(autoincrement())
+  orderId      Int
+  order        Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  issueId      Int?
+  issue        OrderIssue?        @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  issueVersion Int?
+  type         NotificationType
+  status       NotificationStatus @default(PENDING)
+  dedupeKey    String             @unique
+  attempts     Int                @default(0)
+  error        String?
+  sentAt       DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([orderId, status])
 }

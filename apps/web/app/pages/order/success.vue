@@ -19,8 +19,7 @@
     </p>
 
     <p class="success__hint">
-      Мы свяжемся с вами, если потребуется
-      уточнить детали заказа.
+      Мы соберём и взвесим товары. После сборки в заказе появится точная сумма для оплаты.
     </p>
 
     <div v-if="order?.type === 'PICKUP'" class="success__hint">
@@ -30,6 +29,8 @@
     </div>
 
     <div class="success__actions">
+      <p v-if="order">Предварительно за товары: ≈ {{ money(order.subtotal) }}</p>
+      <UButton v-if="order" :to="`/order/${order.publicId}`">Открыть заказ</UButton>
       <UButton to="/catalog">
         Продолжить покупки
       </UButton>
@@ -90,7 +91,7 @@ useSeoMeta({
   place-items: center;
   border-radius: 50%;
   background: var(--ui-primary);
-  color: white;
+  color: var(--ui-text-inverted);
 }
 
 .success__icon svg {

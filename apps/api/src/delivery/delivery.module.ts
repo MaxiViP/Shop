@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { StaffModule } from '../staff/staff.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { DbModule } from '../db/db.module.js';
 import { DeliveryCtrl } from './delivery.ctrl.js';
@@ -9,7 +10,7 @@ import { YandexCallbackCtrl } from './yandex-callback.ctrl.js';
 import { YandexSyncService } from './yandex-sync.service.js';
 
 @Module({
-  imports: [AuthModule, DbModule],
+  imports: [AuthModule, DbModule, StaffModule],
   controllers: [DeliveryCtrl, StaffDeliveryCtrl, YandexCallbackCtrl],
   providers: [DeliveryService, YandexService, YandexSyncService],
 })

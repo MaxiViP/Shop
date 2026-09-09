@@ -32,7 +32,7 @@ export const orderSchema = z
         z.object({
           productId: z.number().int().positive(),
 
-          qty: z.number().int().positive(),
+          qty: z.number().int().positive().max(1_000_000),
         }),
       )
       .min(1)

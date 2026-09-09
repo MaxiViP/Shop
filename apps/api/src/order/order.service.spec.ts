@@ -14,6 +14,11 @@ describe('OrderService creation', () => {
         .fn()
         .mockImplementation(({ data }) => ({ id: 1, ...data }));
       const db = {
+        shopSettings: {
+          findUniqueOrThrow: vi
+            .fn()
+            .mockResolvedValue({ weightToleranceBps: 1000 }),
+        },
         product: {
           findMany: vi.fn().mockResolvedValue([
             {

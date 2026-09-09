@@ -46,6 +46,10 @@ export interface YandexQuote {
 }
 
 export interface StaffOrder {
+  issues?: { id: number; status: string }[]
+  staffUnread?: number
+  finalSubtotal: number | null
+  payment: OrderPayment | null
   id: number
   publicId: string
   type: OrderType
@@ -96,6 +100,11 @@ export interface OrderCreated {
 }
 
 export interface OrderSummary {
+  issues?: { id: number; status: string }[]
+  customerUnread?: number
+  subtotal: number
+  finalSubtotal: number | null
+  payment: OrderPayment | null
   id: number
   publicId: string
   type: OrderType
@@ -114,6 +123,12 @@ export interface OrderSummary {
 }
 
 export interface OrderDetail {
+  extras?: OrderExtra[]
+  issues?: import('./coordination').OrderIssue[]
+  weightToleranceBps: number
+  assemblyFinalizedAt: string | null
+  payment: OrderPayment | null
+  paymentDetails: PaymentDetails | null
   id: number
   publicId: string
   type: OrderType
@@ -163,6 +178,17 @@ export interface OrderDetail {
   }[]
 }
 
+export interface OrderExtra {
+  id: number
+  title: string
+  comment: string | null
+  quantity: number
+  unitPrice: number
+  amount: number
+  status?: 'ACTIVE' | 'CANCELED'
+  version?: number
+}
+
 export interface StaffOrderDetail extends OrderDetail {
   delivery: StaffDelivery | null
 }
@@ -185,4 +211,23 @@ export interface PublicTracking {
     finalSubtotal: number | null
     finalTotal: number | null
   }
+}
+
+export type PaymentMethod = 'SBP' | 'QR' | 'CARD_TRANSFER'
+export interface OrderPayment {
+  amount: number
+  status: 'AWAITING' | 'REPORTED' | 'PAID' | 'CANCELED'
+  method: PaymentMethod | null
+  reportedAt: string | null
+  confirmedAt: string | null
+  confirmedBy: { id: number; name: string | null } | null
+}
+export interface PaymentDetails {
+  recipientName: string | null
+  bankName: string | null
+  phone: string | null
+  cardNumber: string | null
+  sbpLink: string | null
+  qrImageUrl: string | null
+  methods: PaymentMethod[]
 }

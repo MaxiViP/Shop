@@ -227,10 +227,10 @@
         </div>
 
         <div class="summary__row">
-          <span>Товары</span>
+          <span>Предварительная стоимость товаров</span>
 
           <span>
-            {{ money(cart.total) }}
+            ≈ {{ money(cart.total) }}
           </span>
         </div>
 
@@ -241,10 +241,10 @@
         </div>
 
         <div class="summary__total">
-          <span> Итого </span>
+          <span> Предварительно за товары </span>
 
           <strong>
-            {{ form.type === 'PICKUP' ? money(cart.total) : 'После расчёта доставки' }}
+            ≈ {{ money(cart.total) }}
           </strong>
         </div>
 
@@ -253,8 +253,8 @@
         </UButton>
 
         <p class="summary__note">
-          <span v-if="form.type === 'DELIVERY'">Стоимость доставки зависит от способа доставки и адреса. </span>
-          Итоговая сумма весовых товаров может немного измениться после сборки.
+          Итоговая стоимость будет рассчитана после сборки и фактического взвешивания товаров. Оплата — после сборки заказа.
+          <span v-if="form.type === 'DELIVERY'">Доставка оплачивается отдельно.</span>
         </p>
       </aside>
     </div>

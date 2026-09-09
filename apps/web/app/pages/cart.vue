@@ -67,8 +67,8 @@
         </div>
 
         <div class="summary__total">
-          <span>Итого</span>
-          <strong>{{ money(cart.total) }}</strong>
+          <span>Предварительно за товары</span>
+          <strong>≈ {{ money(cart.total) }}</strong>
         </div>
 
         <UButton to="/checkout" block size="lg"> Оформить заказ </UButton>

@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import type { DeliveryStatus, Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import { deliveryTotals, positiveDeliveryPrice } from '../order/pricing.js';
+import { requirePaid, paymentSelect } from '../order/payment.js';
 import {
   type YandexClaimInfo,
   type YandexOrderInput,
@@ -108,6 +109,16 @@ export class DeliveryService {
   }
 
   async order(orderId: number) {
+    // Payment is immutable after PAID; prohibit external side effects before it.
+    const paidOrder = await this.db.order.findUniqueOrThrow({
+      where: { id: orderId },
+      select: {
+        assemblyFinalizedAt: true,
+        finalSubtotal: true,
+        payment: { select: paymentSelect },
+      },
+    });
+    requirePaid(paidOrder);
     const input = await this.yandexInput(orderId);
     const booking = await this.yandex.book(input);
     const price = booking.claim.price;
@@ -128,6 +139,8 @@ export class DeliveryService {
           status: true,
           subtotal: true,
           finalSubtotal: true,
+          assemblyFinalizedAt: true,
+          payment: { select: paymentSelect },
           delivery: { select: { externalOrderId: true, provider: true } },
         },
       });
@@ -149,6 +162,7 @@ export class DeliveryService {
           'Яндекс Доставку можно заказать только для собранного заказа',
         );
       }
+      requirePaid(order);
 
       if (
         order.delivery?.externalOrderId ||
@@ -167,7 +181,7 @@ export class DeliveryService {
           : deliveryStatus === 'PICKED_UP'
             ? 'DELIVERING'
             : deliveryStatus === 'CANCELED'
-              ? 'CANCELED'
+              ? 'READY'
               : 'READY';
       const delivery = await db.delivery.upsert({
         where: { orderId },
@@ -378,6 +392,7 @@ export class DeliveryService {
               status: true,
               subtotal: true,
               finalSubtotal: true,
+              payment: { select: { status: true } },
             },
           },
         },
@@ -436,8 +451,19 @@ export class DeliveryService {
         (orderStatus === 'READY' || orderStatus === 'DELIVERING')
       ) {
         orderStatus = 'COMPLETED';
-      } else if (status === 'CANCELED' && orderStatus === 'READY') {
+      } else if (
+        status === 'CANCELED' &&
+        orderStatus === 'READY' &&
+        current.order.payment?.status !== 'PAID'
+      ) {
         orderStatus = 'CANCELED';
+        await db.orderPayment.updateMany({
+          where: {
+            orderId: current.order.id,
+            status: { in: ['AWAITING', 'REPORTED'] },
+          },
+          data: { status: 'CANCELED' },
+        });
       }
 
       const order = await db.order.update({

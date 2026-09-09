@@ -59,6 +59,7 @@ function syncSetup(
   };
   const client = {
     $queryRaw: vi.fn().mockResolvedValue([{ id: 20 }]),
+    orderPayment: { updateMany: vi.fn() },
     delivery: {
       findUnique: vi.fn().mockResolvedValue(current),
       update: vi.fn().mockImplementation(({ data }) => ({
@@ -615,16 +616,16 @@ describe('DeliveryService Yandex booking', () => {
       const client = {
         $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
         order: {
-          findUniqueOrThrow: vi
-            .fn()
-            .mockResolvedValue({
-              id: 1,
-              status: 'COMPLETED',
-              deliveryPrice: 50_000,
-            }),
+          findUniqueOrThrow: vi.fn().mockResolvedValue({
+            id: 1,
+            status: 'COMPLETED',
+            deliveryPrice: 50_000,
+          }),
           findUnique: vi.fn().mockResolvedValue({
             type: 'DELIVERY',
             status: 'READY',
+            assemblyFinalizedAt: new Date(),
+            payment: { status: 'PAID', amount: 284_000 },
             subtotal: 300_000,
             finalSubtotal: 284_000,
             delivery: null,
@@ -644,6 +645,13 @@ describe('DeliveryService Yandex booking', () => {
       };
       const db = {
         order: {
+          findUniqueOrThrow: vi
+            .fn()
+            .mockResolvedValue({
+              assemblyFinalizedAt: new Date(),
+              finalSubtotal: 284_000,
+              payment: { status: 'PAID', amount: 284_000 },
+            }),
           findUnique: vi.fn().mockResolvedValue({
             id: 1,
             publicId: '123e4567-e89b-12d3-a456-426614174000',

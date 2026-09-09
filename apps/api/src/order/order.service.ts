@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,7 +12,10 @@ import {
   guestTokenHash,
 } from '../common/guest.js';
 import type { OrderInput } from './schema.js';
-import { totalWithDelivery } from './pricing.js';
+import { totalWithDelivery, goodsLine, goodsSum } from './pricing.js';
+import { paymentSelect, paymentDetails } from './payment.js';
+import type { PaymentMethod } from '../db/gen/client.js';
+import { issueSummary } from './coordination.js';
 
 @Injectable()
 export class OrderService {
@@ -75,7 +79,7 @@ export class OrderService {
         );
       }
 
-      const total = Math.round((product.price * itemQty) / product.priceQty);
+      const total = goodsLine(product.price, itemQty, product.priceQty);
 
       return {
         productId: product.id,
@@ -90,7 +94,7 @@ export class OrderService {
       };
     });
 
-    const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+    const subtotal = goodsSum(items.map((item) => item.total));
 
     const deliveryPrice = data.type === 'PICKUP' ? 0 : null;
     const total = totalWithDelivery(subtotal, deliveryPrice);
@@ -107,8 +111,12 @@ export class OrderService {
       newGuestToken = guest.token;
     }
 
+    const settings = await this.db.shopSettings.findUniqueOrThrow({
+      where: { id: 1 },
+    });
     const order = await this.db.order.create({
       data: {
+        weightToleranceBps: settings.weightToleranceBps,
         type: data.type,
 
         customerName: data.customerName.trim(),
@@ -179,6 +187,11 @@ export class OrderService {
           status: true,
           total: true,
           finalTotal: true,
+          subtotal: true,
+          finalSubtotal: true,
+          payment: { select: paymentSelect },
+          issues: issueSummary,
+          customerUnread: true,
           deliveryAt: true,
           createdAt: true,
 
@@ -215,6 +228,11 @@ export class OrderService {
         status: true,
         total: true,
         finalTotal: true,
+        subtotal: true,
+        finalSubtotal: true,
+        payment: { select: paymentSelect },
+        issues: issueSummary,
+        customerUnread: true,
         deliveryAt: true,
         createdAt: true,
 
@@ -233,7 +251,7 @@ export class OrderService {
     });
   }
 
-  async get(publicId: string, userId: number | null, guestToken?: string) {
+  async access(publicId: string, userId: number | null, guestToken?: string) {
     let where:
       | {
           publicId: string;
@@ -262,10 +280,29 @@ export class OrderService {
       };
     }
 
+    return where;
+  }
+
+  async unread(userId: number | null, guestToken?: string) {
+    const guestSessionId = userId ? null : await this.findGuest(guestToken);
+    if (!userId && !guestSessionId) return { count: 0, latestOrderId: null };
+    const where = userId ? { userId } : { guestSessionId: guestSessionId! };
+    const total = await this.db.order.aggregate({ where, _sum: { customerUnread: true } });
+    const latest = await this.db.orderChatMessage.findFirst({
+      where: { recipient: { in: ['customer', 'both'] }, order: { ...where, customerUnread: { gt: 0 } } },
+      orderBy: { id: 'desc' }, select: { order: { select: { publicId: true } } },
+    });
+    return { count: total._sum.customerUnread ?? 0, latestOrderId: latest?.order.publicId ?? null };
+  }
+
+  async get(publicId: string, userId: number | null, guestToken?: string) {
+    const where = await this.access(publicId, userId, guestToken);
+
     const order = await this.db.order.findFirst({
       where,
 
       select: {
+        extras: { where: { status: 'ACTIVE' }, orderBy: { id: 'asc' }, select: { id: true, title: true, comment: true, quantity: true, unitPrice: true, amount: true } },
         id: true,
         publicId: true,
         type: true,
@@ -290,6 +327,9 @@ export class OrderService {
         total: true,
         finalSubtotal: true,
         finalTotal: true,
+        assemblyFinalizedAt: true,
+        weightToleranceBps: true,
+        payment: { select: paymentSelect },
 
         createdAt: true,
         updatedAt: true,
@@ -335,7 +375,49 @@ export class OrderService {
       throw new NotFoundException('Заказ не найден');
     }
 
-    return order;
+    return {
+      ...order,
+      extras: order.assemblyFinalizedAt ? order.extras : [],
+      paymentDetails:
+        order.assemblyFinalizedAt && order.status !== 'CANCELED'
+          ? paymentDetails()
+          : null,
+    };
+  }
+
+  async reportPayment(
+    publicId: string,
+    userId: number | null,
+    guestToken: string | undefined,
+    method: PaymentMethod,
+  ) {
+    return this.db.$transaction(async (db) => {
+      await db.$queryRaw`SELECT id FROM "Order" WHERE "publicId" = ${publicId}::uuid FOR UPDATE`;
+      // Use the existing owner/guest authorization, while the order is locked.
+      const order = await this.get(publicId, userId, guestToken);
+      if (
+        order.status === 'CANCELED' ||
+        !order.assemblyFinalizedAt ||
+        !order.payment ||
+        order.payment.status === 'CANCELED' ||
+        order.payment.amount !== order.finalSubtotal
+      )
+        throw new ConflictException('Оплата заказа сейчас недоступна');
+      if (
+        order.payment.status === 'REPORTED' ||
+        order.payment.status === 'PAID'
+      )
+        return order.payment;
+      if (order.status !== 'READY')
+        throw new ConflictException('Оплата заказа сейчас недоступна');
+      if (!paymentDetails().methods.includes(method))
+        throw new BadRequestException('Способ оплаты не настроен');
+      return db.orderPayment.update({
+        where: { orderId: order.id },
+        data: { status: 'REPORTED', method, reportedAt: new Date() },
+        select: paymentSelect,
+      });
+    });
   }
 
   private async findGuest(token?: string) {

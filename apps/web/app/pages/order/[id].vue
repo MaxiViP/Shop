@@ -62,7 +62,8 @@
             </strong>
 
             <p class="item__qty">
-              {{ qty(item) }}
+              Заказано: {{ qtyText(item.unit, item.qty) }}
+              <span v-if="item.actualQty !== null"> · Собрано: {{ qty(item) }}</span>
             </p>
           </div>
 
@@ -73,8 +74,8 @@
 
         <div class="card__summary">
           <div>
-            <span>Товары</span>
-            <strong>{{ money(order.finalSubtotal ?? order.subtotal) }}</strong>
+            <span>Предварительная стоимость товаров</span>
+            <strong>≈ {{ money(order.subtotal) }}</strong>
           </div>
 
           <div v-if="order.type === 'DELIVERY'">
@@ -89,8 +90,8 @@
           </div>
 
           <div class="card__total">
-            <span>Итого</span>
-            <strong>{{ knownMoney(order.finalTotal ?? order.total) }}</strong>
+            <span>{{ order.assemblyFinalizedAt ? 'Фактическая стоимость товаров и услуг' : 'Оплата после сборки' }}</span>
+            <strong v-if="order.assemblyFinalizedAt">{{ knownMoney(order.finalSubtotal) }}</strong>
           </div>
         </div>
       </section>
@@ -179,6 +180,12 @@
         </UButton>
       </section>
     </div>
+
+    <p v-if="!order.assemblyFinalizedAt && order.status !== 'CANCELED'" class="my-4 text-muted">Мы соберём и взвесим товары. После сборки здесь появится точная сумма для оплаты.</p>
+    <p v-if="order.type === 'DELIVERY'" class="my-4 text-muted">Доставка оплачивается отдельно и не входит в перевод магазину за товары.</p>
+    <OrderExtras v-if="order.assemblyFinalizedAt" :extras="order.extras ?? []" />
+    <OrderPayment :order="order" />
+    <OrderCoordination :key="order.publicId" :base="`/orders/${order.publicId}`" :bps="order.weightToleranceBps" :assembling="order.status === 'ASSEMBLING'" @refresh="refresh" />
 
     <p
       v-if="active"

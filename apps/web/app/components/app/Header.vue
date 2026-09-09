@@ -19,6 +19,8 @@
       </nav>
 
       <div class="header__actions">
+        <AppMessages :count="communication.count.value" :to="communication.to.value" />
+        <AppThemeControl />
         <UButton v-if="auth.user?.role === 'ADMIN'" to="/admin/products" variant="ghost" color="neutral">Админка</UButton>
         <UButton
           v-if="staff"
@@ -85,6 +87,8 @@
       </div>
 
       <div class="header__mobile-actions">
+        <AppMessages :count="communication.count.value" :to="communication.to.value" />
+        <AppThemeControl />
         <div class="header__action">
           <UButton
             to="/favorites"
@@ -199,6 +203,7 @@ import { useFavoritesStore } from "~/stores/favorites";
 
 const route = useRoute();
 const auth = useAuthStore();
+const communication = useCommunication();
 const cart = useCartStore();
 const favorites = useFavoritesStore();
 const notice = useHeaderNotice();
@@ -283,7 +288,7 @@ function login() {
   place-items: center;
   border-radius: 999px;
   background: var(--ui-primary);
-  color: white;
+  color: var(--ui-text-inverted);
   font-size: 0.6875rem;
   font-weight: 700;
   line-height: 1;

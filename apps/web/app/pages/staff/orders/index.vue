@@ -48,6 +48,9 @@
           </div>
 
           <OrderStatus :status="order.status" :type="order.type" />
+          <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_CUSTOMER')" color="warning">Нужен ответ покупателя</UBadge>
+          <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_SELLER')" color="error">Нужно действие продавца</UBadge>
+          <UBadge v-if="order.staffUnread" color="info">Новых сообщений: {{ order.staffUnread }}</UBadge>
         </header>
 
         <div class="order-card__meta">
@@ -70,6 +73,7 @@
         </div>
 
         <dl class="order-card__details">
+          <div v-if="order.payment"><dt>Оплата товаров</dt><dd>{{ paymentLabels[order.payment.status] }} · {{ knownMoney(order.payment.amount) }}</dd></div>
           <div>
             <dt>{{ order.type === 'PICKUP' ? 'Самовывоз' : 'Желаемое время' }}</dt>
             <dd>
@@ -140,7 +144,7 @@
           </UButton>
 
           <UButton
-            v-if="order.status === 'READY' && order.type === 'PICKUP'"
+            v-if="order.status === 'READY' && order.type === 'PICKUP' && order.payment?.status === 'PAID'"
             size="lg"
             :loading="loading === key(order.id, 'pickup')"
             :disabled="busy(order.id)"
@@ -184,7 +188,7 @@
           </UButton>
 
           <UButton
-            v-if="cancelable(order.status)"
+            v-if="cancelable(order.status) && order.payment?.status !== 'PAID'"
             size="lg"
             color="error"
             variant="soft"

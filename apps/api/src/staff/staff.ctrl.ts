@@ -6,12 +6,15 @@ import {
   Patch,
   Post,
   Put,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthGuard } from '../auth/auth.guard.js';
+import type { AuthRequest } from '../auth/auth.guard.js';
 import { StaffGuard } from '../auth/staff.guard.js';
 import { StaffService } from './staff.service.js';
+import { extraSchema, editExtraSchema, cancelExtraSchema } from './extra.js';
 import {
   deliverySchema,
   itemSchema,
@@ -26,10 +29,39 @@ const idSchema = z.coerce.number().int().positive();
 export class StaffCtrl {
   constructor(private readonly staff: StaffService) {}
 
+  @Post(':id/extras')
+  extra(@Param('id', { schema: idSchema }) id: number, @Req() request: AuthRequest,
+    @Body({ schema: extraSchema }) body: z.infer<typeof extraSchema>) {
+    return this.staff.extra(id, request.user.id, body);
+  }
+
+  @Patch(':id/extras/:extraId')
+  editExtra(@Param('id', { schema: idSchema }) id: number, @Param('extraId', { schema: idSchema }) extraId: number,
+    @Req() request: AuthRequest, @Body({ schema: editExtraSchema }) body: z.infer<typeof editExtraSchema>) {
+    const { version, ...data } = body;
+    return this.staff.extra(id, request.user.id, data, extraId, version);
+  }
+
+  @Post(':id/extras/:extraId/cancel')
+  cancelExtra(@Param('id', { schema: idSchema }) id: number, @Param('extraId', { schema: idSchema }) extraId: number,
+    @Req() request: AuthRequest, @Body({ schema: cancelExtraSchema }) body: z.infer<typeof cancelExtraSchema>) {
+    return this.staff.extra(id, request.user.id, null, extraId, body.version);
+  }
+
+  @Post(':id/delivery/confirm')
+  async confirmDelivery(@Param('id', { schema: idSchema }) id: number, @Req() request: AuthRequest,
+    @Body({ schema: deliverySchema }) body: DeliveryInput) {
+    await this.staff.confirmPayment(id, request.user.id, 'DELIVERY');
+    return this.staff.delivery(id, body);
+  }
+
   @Get()
   list() {
     return this.staff.list();
   }
+
+  @Get('unread')
+  unread() { return this.staff.unread(); }
 
   @Get(':id')
   get(
@@ -81,6 +113,19 @@ export class StaffCtrl {
     return this.staff.completePickup(id);
   }
 
+  @Post(':id/assembly/reopen')
+  reopen(@Param('id', { schema: idSchema }) id: number) {
+    return this.staff.reopen(id);
+  }
+
+  @Post(':id/payment/confirm')
+  confirmPayment(
+    @Param('id', { schema: idSchema }) id: number,
+    @Req() request: AuthRequest,
+  ) {
+    return this.staff.confirmPayment(id, request.user.id);
+  }
+
   @Post(':id/cancel')
   cancel(
     @Param('id', {
@@ -128,6 +173,7 @@ export class StaffCtrl {
 
   @Patch(':id/items/:itemId')
   item(
+    @Req() request: AuthRequest,
     @Param('id', {
       schema: idSchema,
     })
@@ -143,6 +189,6 @@ export class StaffCtrl {
     })
     body: ItemInput,
   ) {
-    return this.staff.item(id, itemId, body);
+    return this.staff.item(id, itemId, body, request.user.id);
   }
 }

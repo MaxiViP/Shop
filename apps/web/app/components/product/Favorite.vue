@@ -2,13 +2,17 @@
   <UButton
     class="favorite"
     :class="{ 'favorite--active': active }"
-    icon="i-lucide-heart"
     :variant="active ? 'soft' : 'ghost'"
     :color="active ? 'error' : 'neutral'"
     :disabled="favorites.pending(product.id)"
-    :aria-label="active ? 'Удалить из избранного' : 'Добавить в избранное'"
+    :aria-pressed="active"
+    :aria-label="active ? 'Убрать из избранного' : 'Добавить в избранное'"
     @click.stop.prevent="toggle"
-  />
+  >
+    <template #leading>
+      <UIcon name="i-lucide-heart" mode="svg" class="favorite__icon" aria-hidden="true" />
+    </template>
+  </UButton>
 </template>
 
 <script setup lang="ts">
@@ -46,11 +50,67 @@ async function toggle() {
 
 <style scoped>
 .favorite {
-  min-width: var(--touch-target);
-  min-height: var(--touch-target);
+  width: 32px;
+  height: 32px;
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 160ms ease, background-color 160ms ease, color 160ms ease;
 }
 
-.favorite--active :deep(svg) {
+.favorite:disabled {
+  cursor: not-allowed;
+}
+
+.favorite:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+.favorite__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  transition: transform 160ms ease;
+}
+
+.favorite__icon :deep(path) {
+  fill: none;
+}
+
+.favorite--active .favorite__icon :deep(path) {
   fill: currentColor;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .favorite:not(:disabled):hover {
+    background: var(--ui-bg-elevated);
+  }
+
+  .favorite:not(:disabled):hover .favorite__icon {
+    transform: scale(1.08);
+  }
+}
+
+.favorite:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.favorite:not(:disabled):active .favorite__icon {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .favorite,
+  .favorite__icon {
+    transition: none;
+  }
+
+  .favorite:not(:disabled):active,
+  .favorite:not(:disabled):hover .favorite__icon {
+    transform: none;
+  }
 }
 </style>

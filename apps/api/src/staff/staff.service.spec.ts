@@ -7,6 +7,7 @@ import type {
 } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import { StaffService } from './staff.service.js';
+import { NotificationService } from '../order/notification.service.js';
 
 interface LockedDelivery {
   id: number;
@@ -20,6 +21,7 @@ interface LockedDelivery {
 }
 
 interface LockedOrder {
+  payment?: { status: string; amount: number } | null;
   id: number;
   type: OrderType;
   status: OrderStatus;
@@ -34,23 +36,50 @@ function setup(order: LockedOrder) {
     $queryRaw: vi.fn().mockResolvedValue([{ id: order.id }]),
 
     order: {
-      findUnique: vi.fn().mockResolvedValue(order),
+      findUniqueOrThrow: vi.fn(async () => client.order.findUnique()),
+      findUnique: vi.fn().mockResolvedValue({
+        weightToleranceBps: 1000,
+        assemblyFinalizedAt: ['READY', 'DELIVERING', 'COMPLETED'].includes(
+          order.status,
+        )
+          ? new Date()
+          : null,
+        payment: ['READY', 'DELIVERING', 'COMPLETED'].includes(order.status)
+          ? { status: 'PAID', amount: order.finalSubtotal }
+          : null,
+        ...order,
+      }),
       update: vi.fn().mockResolvedValue({ id: order.id }),
     },
 
     orderItem: {
+      findMany: vi
+        .fn()
+        .mockResolvedValue([
+          {
+            id: 10,
+            productName: 'Товар',
+            unit: 'PIECE',
+            qty: 1,
+            actualQty: 1,
+            price: 12_300,
+            priceQty: 1,
+            status: 'PICKED',
+          },
+        ]),
       findFirst: vi.fn(),
-      update: vi.fn().mockResolvedValue({ id: 10 }),
-      count: vi.fn().mockResolvedValue(0),
-      aggregate: vi.fn().mockResolvedValue({
-        _sum: { actualTotal: 0 },
-      }),
+      update: vi.fn(async ({ data }: { data: object }) => ({ id: 10, orderId: order.id, productName: 'Товар', productSlug: 'item', unit: 'PIECE', qty: 1, actualQty: 1, price: 100, priceQty: 1, status: 'PICKED', ...data })),
     },
 
     delivery: {
       update: vi.fn().mockResolvedValue({ id: 20 }),
       upsert: vi.fn().mockResolvedValue({ id: 20 }),
     },
+    orderPayment: { upsert: vi.fn().mockResolvedValue({ id: 1, updatedAt: new Date() }), updateMany: vi.fn() },
+    orderExtra: { findMany: vi.fn().mockResolvedValue([]) },
+    orderIssue: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), upsert: vi.fn().mockResolvedValue({ id: 1, orderId: order.id, version: 1 }), updateMany: vi.fn() },
+    orderNotification: { create: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
+    orderChatMessage: { create: vi.fn() },
   };
 
   const db = {
@@ -62,7 +91,7 @@ function setup(order: LockedOrder) {
 
   return {
     client,
-    service: new StaffService(db),
+    service: new StaffService(db, { dispatch: vi.fn() } as unknown as NotificationService),
   };
 }
 
@@ -77,6 +106,28 @@ const assembling: LockedOrder = {
 };
 
 describe('StaffService', () => {
+  it.each([1100, 1101, 2000])('finalize validates saved GRAM weight %i before any writes', async (actualQty) => {
+    const { client, service } = setup({ ...assembling, finalSubtotal: null });
+    client.orderItem.findMany.mockResolvedValue([
+      { id: 10, productName: 'Томаты', unit: 'GRAM', qty: 1000, actualQty,
+        price: 100000, priceQty: 1000, status: 'PICKED' },
+    ]);
+    if (actualQty === 1100) {
+      await service.finishAssembly(1);
+      expect(client.orderPayment.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: { orderId: 1, amount: 110000 },
+      }));
+    } else {
+      await expect(service.finishAssembly(1)).rejects.toMatchObject({
+        status: 409,
+        response: { code: 'WEIGHT_CONFIRMATION_REQUIRED', itemIds: [10] },
+      });
+      expect(client.orderItem.update).not.toHaveBeenCalled();
+      expect(client.order.update).not.toHaveBeenCalled();
+      expect(client.orderPayment.upsert).not.toHaveBeenCalled();
+    }
+  });
+
   it.each([
     { type: 'PICKUP', deliveryPrice: 0, finalTotal: 12_300 },
     { type: 'DELIVERY', deliveryPrice: null, finalTotal: null },
@@ -90,13 +141,15 @@ describe('StaffService', () => {
         deliveryPrice,
         finalSubtotal: null,
       });
-      client.orderItem.aggregate.mockResolvedValue({
-        _sum: { actualTotal: 12_300 },
-      });
       await service.finishAssembly(1);
       expect(client.order.update).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: { status: 'READY', finalSubtotal: 12_300, finalTotal },
+        data: {
+          status: 'READY',
+          finalSubtotal: 12_300,
+          finalTotal,
+          assemblyFinalizedAt: expect.any(Date),
+        },
       });
     },
   );
@@ -298,7 +351,9 @@ describe('StaffService', () => {
     });
 
     await service.item(1, 10, { status: 'PENDING' });
-    client.orderItem.count.mockResolvedValue(1);
+    client.orderItem.findMany.mockResolvedValue([
+      { id: 10, status: 'PENDING' },
+    ]);
 
     await expect(service.finishAssembly(1)).rejects.toBeInstanceOf(
       BadRequestException,
@@ -309,7 +364,9 @@ describe('StaffService', () => {
   it('does not finish assembly with pending items', async () => {
     const { client, service } = setup(assembling);
 
-    client.orderItem.count.mockResolvedValue(1);
+    client.orderItem.findMany.mockResolvedValue([
+      { id: 10, status: 'PENDING' },
+    ]);
 
     await expect(service.finishAssembly(1)).rejects.toBeInstanceOf(
       BadRequestException,
@@ -320,9 +377,6 @@ describe('StaffService', () => {
   it('calculates final totals when assembly is finished', async () => {
     const { client, service } = setup(assembling);
 
-    client.orderItem.aggregate.mockResolvedValue({
-      _sum: { actualTotal: 12_300 },
-    });
 
     await service.finishAssembly(1);
 
@@ -332,6 +386,7 @@ describe('StaffService', () => {
           status: 'READY',
           finalSubtotal: 12_300,
           finalTotal: 12_800,
+          assemblyFinalizedAt: expect.any(Date),
         },
       }),
     );
@@ -428,6 +483,7 @@ describe('StaffService', () => {
   it('cancels assigned delivery together with the order', async () => {
     const { client, service } = setup({
       ...assembling,
+      payment: { status: 'AWAITING', amount: 9500 },
       status: 'READY',
       delivery: {
         id: 20,

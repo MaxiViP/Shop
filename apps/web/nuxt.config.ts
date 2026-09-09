@@ -10,6 +10,16 @@ export default defineNuxtConfig({
 
   css: ["~/assets/css/main.css"],
 
+  colorMode: {
+    preference: "system",
+    fallback: "light",
+    classSuffix: "",
+    storage: "localStorage",
+    storageKey: "nuxt-color-mode",
+    // Keep active timer transitions (HeaderNotice) intact when switching themes.
+    disableTransition: false,
+  },
+
   runtimeConfig: {
     public: {
       apiBase: "http://127.0.0.1:4001/api",
