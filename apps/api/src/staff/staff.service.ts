@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import type { OrderStatus, OrderType, Prisma } from '../db/gen/client.js';
+import type { OrderStatus, OrderType, UserRole, Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import type { DeliveryInput, ItemInput } from './schema.js';
 import {
@@ -16,7 +16,7 @@ import {
   goodsSum,
 } from '../order/pricing.js';
 import { checkIssues, syncIssue, issueSummary } from '../order/coordination.js';
-import { cancelOrder } from '../order/cancel.js';
+import { cancelOrder, restoreOrder, restoreProblem, cancellationHistory } from '../order/cancel.js';
 import { NotificationService } from '../order/notification.service.js';
 import { paymentSelect, requirePaid } from '../order/payment.js';
 import { message } from '../order/coordination.js';
@@ -27,9 +27,12 @@ import type { ExtraInput } from './extra.js';
 export class StaffService {
   constructor(private readonly db: DbService, private readonly notifications: NotificationService) {}
 
-  list() {
-    return this.db.order.findMany({
+  async list(status?: OrderStatus) {
+    const orders = await this.db.order.findMany({
+      where: status ? { status } : undefined,
       select: {
+        cancellations: { ...cancellationHistory, take: 1 },
+        assemblyFinalizedAt: true,
         id: true,
         publicId: true,
         type: true,
@@ -54,6 +57,7 @@ export class StaffService {
 
         delivery: {
           select: {
+            externalOrderId: true,
             id: true,
             provider: true,
             status: true,
@@ -75,6 +79,15 @@ export class StaffService {
         createdAt: 'desc',
       },
     });
+    return orders.map(order => ({ ...order, restoreProblem: restoreProblem(order, order.cancellations[0]) }));
+  }
+
+  async newSummary() {
+    const [count, latest] = await this.db.$transaction([
+      this.db.order.count({ where: { status: 'NEW' } }),
+      this.db.order.findFirst({ where: { status: 'NEW' }, orderBy: { id: 'desc' }, select: { id: true } }),
+    ], { isolationLevel: 'RepeatableRead' });
+    return { count, latestOrderId: latest?.id ?? null };
   }
 
   async unread() {
@@ -91,6 +104,7 @@ export class StaffService {
       where: { id },
 
       select: {
+        cancellations: { ...cancellationHistory, take: 50 },
         extras: { orderBy: { id: 'asc' } },
         id: true,
         publicId: true,
@@ -171,7 +185,7 @@ export class StaffService {
       throw new NotFoundException('Заказ не найден');
     }
 
-    return order;
+    return { ...order, restoreProblem: restoreProblem(order, order.cancellations[0]) };
   }
 
   async item(orderId: number, itemId: number, data: ItemInput, userId: number | null = null) {
@@ -425,11 +439,20 @@ export class StaffService {
     });
   }
 
-  async cancel(id: number) {
+  async cancel(id: number, userId: number | null = null, role: UserRole = 'SELLER', reason?: string) {
     return this.db.$transaction(async db => {
       await this.lockedOrder(db, id);
-      return cancelOrder(db, id);
+      return cancelOrder(db, id, userId, role, reason);
     });
+  }
+
+  async restore(id: number, userId: number, role: UserRole, cancellationId: number) {
+    const saved = await this.db.$transaction(async db => {
+      await this.lockedOrder(db, id);
+      return restoreOrder(db, id, userId, role, cancellationId);
+    });
+    await this.notifications.dispatch(id);
+    return saved;
   }
 
   async delivery(id: number, data: DeliveryInput) {
@@ -603,6 +626,7 @@ export class StaffService {
     return this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, id);
 
+      if (current === 'NEW' && next === 'CONFIRMED' && order.status === 'CONFIRMED') return order;
       if (order.status !== current || (type && order.type !== type)) {
         throw new BadRequestException('Недопустимое действие с заказом');
       }

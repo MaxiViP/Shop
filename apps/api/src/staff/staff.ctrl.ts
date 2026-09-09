@@ -6,10 +6,12 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { OrderStatus } from '../db/gen/client.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import type { AuthRequest } from '../auth/auth.guard.js';
 import { StaffGuard } from '../auth/staff.guard.js';
@@ -23,6 +25,8 @@ import {
 } from './schema.js';
 
 const idSchema = z.coerce.number().int().positive();
+const cancelSchema = z.object({ reason: z.string().trim().max(1000).optional() }).strict().default({});
+const restoreSchema = z.object({ cancellationId: z.number().int().positive() }).strict();
 
 @Controller('staff/orders')
 @UseGuards(AuthGuard, StaffGuard)
@@ -56,12 +60,21 @@ export class StaffCtrl {
   }
 
   @Get()
-  list() {
-    return this.staff.list();
+  list(@Query('status', { schema: z.enum(OrderStatus).optional() }) status?: OrderStatus) {
+    return this.staff.list(status);
   }
 
   @Get('unread')
   unread() { return this.staff.unread(); }
+
+  @Get('new-summary')
+  newSummary() { return this.staff.newSummary(); }
+
+  @Post(':id/restore')
+  restore(@Param('id', { schema: idSchema }) id: number, @Req() request: AuthRequest,
+    @Body({ schema: restoreSchema }) body: z.infer<typeof restoreSchema>) {
+    return this.staff.restore(id, request.user.id, request.user.role, body.cancellationId);
+  }
 
   @Get(':id')
   get(
@@ -132,8 +145,10 @@ export class StaffCtrl {
       schema: idSchema,
     })
     id: number,
+    @Req() request: AuthRequest,
+    @Body({ schema: cancelSchema }) body: z.infer<typeof cancelSchema>,
   ) {
-    return this.staff.cancel(id);
+    return this.staff.cancel(id, request.user.id, request.user.role, body.reason);
   }
 
   @Put(':id/delivery')

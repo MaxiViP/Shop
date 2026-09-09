@@ -15,7 +15,8 @@
         :key="filter.value"
         :variant="activeFilter === filter.value ? 'solid' : 'soft'"
         :color="activeFilter === filter.value ? 'primary' : 'neutral'"
-        @click="activeFilter = filter.value"
+        :aria-pressed="activeFilter === filter.value"
+        @click="setTab(filter.value)"
       >
         {{ filter.label }}
         <UBadge
@@ -187,18 +188,8 @@
             Открыть доставку
           </UButton>
 
-          <UButton
-            v-if="cancelable(order.status) && order.payment?.status !== 'PAID'"
-            size="lg"
-            color="error"
-            variant="soft"
-            :loading="loading === key(order.id, 'cancel')"
-            :disabled="busy(order.id)"
-            @click="cancel(order.id)"
-          >
-            Отменить заказ
-          </UButton>
         </footer>
+        <OrderCancellation :order="order" :disabled="busy(order.id)" @refresh="refresh" />
       </article>
     </div>
 
@@ -218,28 +209,11 @@ import { isActiveOrder } from '~/utils/order'
 import { knownMoney } from '~/utils/money'
 import { compareQueue } from '~/utils/queue'
 import { pickupTime } from '~/utils/pickup'
+import { staffTabs, staffTab, tabForStatus } from '~/utils/staff-tabs'
 
-type FilterValue =
-  'new' | 'confirmed' | 'assembling' | 'ready' | 'delivering' | 'finished'
-
-interface QueueFilter {
-  value: FilterValue
-  label: string
-  statuses: OrderStatus[]
-}
-
-const filters: QueueFilter[] = [
-  { value: 'new', label: 'Новые', statuses: ['NEW'] },
-  { value: 'confirmed', label: 'К сборке', statuses: ['CONFIRMED'] },
-  { value: 'assembling', label: 'Сборка', statuses: ['ASSEMBLING'] },
-  { value: 'ready', label: 'Готовы', statuses: ['READY'] },
-  { value: 'delivering', label: 'В пути', statuses: ['DELIVERING'] },
-  {
-    value: 'finished',
-    label: 'Завершённые',
-    statuses: ['COMPLETED', 'CANCELED'],
-  },
-]
+const filters = staffTabs
+const route = useRoute()
+const revision = useNewOrdersRevision()
 
 const auth = useAuthStore()
 const api = useApiClient()
@@ -261,7 +235,12 @@ if (error.value) {
   })
 }
 
-const activeFilter = ref<FilterValue>('new')
+const activeFilter = computed(() => staffTab(route.query.tab))
+watch(activeFilter, () => { void refresh() })
+watch(revision, () => { void refresh() })
+async function setTab(tab: string) {
+  await navigateTo({ path: route.path, query: { ...route.query, tab: staffTab(tab) } }, { replace: true })
+}
 const loading = ref<string | null>(null)
 
 const orders = computed(() => data.value ?? [])
@@ -276,7 +255,7 @@ const visibleOrders = computed(() => {
     filter.statuses.includes(order.status),
   )
 
-  if (activeFilter.value === 'finished') {
+  if (['finished', 'canceled'].includes(activeFilter.value)) {
     return result.sort(
       (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
     )
@@ -301,10 +280,6 @@ function operational(status: OrderStatus) {
   return status !== 'COMPLETED' && status !== 'CANCELED'
 }
 
-function cancelable(status: OrderStatus) {
-  return ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY'].includes(status)
-}
-
 async function action(id: number, name: string, path: string, success: string) {
   loading.value = key(id, name)
 
@@ -313,6 +288,7 @@ async function action(id: number, name: string, path: string, success: string) {
       method: 'POST',
     })
 
+    revision.value++
     await refresh()
     toast.add({ title: success })
 
@@ -331,7 +307,7 @@ async function action(id: number, name: string, path: string, success: string) {
 }
 
 async function confirm(id: number) {
-  await action(id, 'confirm', 'confirm', 'Заказ подтверждён')
+  if (await action(id, 'confirm', 'confirm', 'Заказ подтверждён')) await setTab(tabForStatus('CONFIRMED'))
 }
 
 async function startAssembly(id: number) {
@@ -368,10 +344,6 @@ async function completePickup(id: number) {
 
 async function completeDelivery(id: number) {
   await action(id, 'delivered', 'delivery/complete', 'Доставка завершена')
-}
-
-async function cancel(id: number) {
-  await action(id, 'cancel', 'cancel', 'Заказ отменён')
 }
 
 function date(value: string) {

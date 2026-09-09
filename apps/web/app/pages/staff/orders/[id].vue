@@ -35,7 +35,7 @@
           size="lg"
           :loading="actionLoading === 'confirm'"
           :disabled="Boolean(actionLoading)"
-          @click="runAction('confirm', 'confirm', 'Заказ подтверждён')"
+          @click="confirmOrder"
         >
           Подтвердить
         </UButton>
@@ -119,17 +119,7 @@
           Обновить статус
         </UButton>
 
-        <UButton
-          v-if="cancelable"
-          size="lg"
-          color="error"
-          variant="soft"
-          :loading="actionLoading === 'cancel'"
-          :disabled="Boolean(actionLoading)"
-          @click="runAction('cancel', 'cancel', 'Заказ отменён')"
-        >
-          Отменить
-        </UButton>
+        <OrderCancellation :order="order" :disabled="Boolean(actionLoading)" @refresh="refresh" />
       </div>
     </header>
 
@@ -673,6 +663,7 @@ const config = useRuntimeConfig()
 const auth = useAuthStore()
 const api = useApiClient()
 const toast = useToast()
+const newOrdersRevision = useNewOrdersRevision()
 
 if (auth.user?.role !== 'SELLER' && auth.user?.role !== 'ADMIN') {
   await navigateTo('/')
@@ -762,16 +753,6 @@ const toleranceBlocked = computed(() => order.value.status === 'ASSEMBLING' && (
   }
 })))
 const canReopen = computed(() => order.value.status === 'READY' && (!order.value.payment || order.value.payment.status === 'AWAITING') && !order.value.delivery?.externalOrderId && order.value.delivery?.provider !== 'OTHER')
-
-const cancelable = computed(
-  () =>
-    ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY'].includes(order.value.status) &&
-    order.value.payment?.status !== 'PAID' &&
-    !(
-      order.value.delivery?.provider === 'YANDEX' &&
-      order.value.delivery.externalOrderId
-    ),
-)
 
 const canHandoff = computed(
   () =>
@@ -898,6 +879,7 @@ async function runAction(name: string, path: string, success: string) {
     await api(`/staff/orders/${id}/${path}`, {
       method: 'POST',
     })
+    newOrdersRevision.value++
     await refresh()
     toast.add({ title: success })
 
@@ -917,6 +899,10 @@ async function runAction(name: string, path: string, success: string) {
 
 async function finishAssembly() {
   await runAction('finish', 'assembly/finish', 'Заказ собран')
+}
+
+async function confirmOrder() {
+  if (await runAction('confirm', 'confirm', 'Заказ подтверждён')) await navigateTo('/staff/orders?tab=assembly')
 }
 
 async function goToDelivery() {

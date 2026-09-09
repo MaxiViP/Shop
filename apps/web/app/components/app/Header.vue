@@ -1,6 +1,6 @@
 <template>
   <header class="header">
-    <UContainer class="header__inner">
+    <UContainer class="header__inner" :class="{ 'header__inner--staff': staff }">
       <UButton
         class="header__menu"
         icon="i-lucide-menu"
@@ -22,14 +22,7 @@
         <AppMessages :count="communication.count.value" :to="communication.to.value" />
         <AppThemeControl />
         <UButton v-if="auth.user?.role === 'ADMIN'" to="/admin/products" variant="ghost" color="neutral">Админка</UButton>
-        <UButton
-          v-if="staff"
-          to="/staff/orders"
-          icon="i-lucide-clipboard-list"
-          variant="ghost"
-          color="neutral"
-          aria-label="Управление заказами"
-        />
+        <AppNewOrders v-if="staff" :count="newOrders" />
 
         <UButton
           v-if="auth.loggedIn"
@@ -87,6 +80,7 @@
       </div>
 
       <div class="header__mobile-actions">
+        <AppNewOrders v-if="staff" :count="newOrders" />
         <AppMessages :count="communication.count.value" :to="communication.to.value" />
         <AppThemeControl />
         <div class="header__action">
@@ -203,6 +197,7 @@ import { useFavoritesStore } from "~/stores/favorites";
 
 const route = useRoute();
 const auth = useAuthStore();
+const newOrders = useNewOrders();
 const communication = useCommunication();
 const cart = useCartStore();
 const favorites = useFavoritesStore();
@@ -231,6 +226,9 @@ function login() {
 </script>
 
 <style scoped>
+@media (max-width: 47.999rem) {
+  .header__inner--staff { flex-wrap: wrap; }
+}
 .header {
   position: sticky;
   top: 0;

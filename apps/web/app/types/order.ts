@@ -46,6 +46,8 @@ export interface YandexQuote {
 }
 
 export interface StaffOrder {
+  cancellations: Cancellation[]
+  restoreProblem: string | null
   issues?: { id: number; status: string }[]
   staffUnread?: number
   finalSubtotal: number | null
@@ -68,7 +70,7 @@ export interface StaffOrder {
   finalTotal: number | null
   createdAt: string
 
-  delivery: Pick<DeliveryInfo, 'provider' | 'status'> | null
+  delivery: Pick<DeliveryInfo, 'provider' | 'status' | 'externalOrderId'> | null
 
   items: {
     id: number
@@ -190,7 +192,21 @@ export interface OrderExtra {
 }
 
 export interface StaffOrderDetail extends OrderDetail {
+  cancellations: Cancellation[]
+  restoreProblem: string | null
   delivery: StaffDelivery | null
+}
+
+export interface Cancellation {
+  id: number
+  fromStatus: OrderStatus
+  reason: string | null
+  canceledAt: string
+  canceledByRole: 'USER' | 'SELLER' | 'ADMIN'
+  canceledBy: { id: number; name: string | null } | null
+  restoredAt: string | null
+  restoredByRole: 'USER' | 'SELLER' | 'ADMIN' | null
+  restoredBy: { id: number; name: string | null } | null
 }
 
 export interface PublicTracking {

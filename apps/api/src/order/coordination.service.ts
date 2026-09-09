@@ -161,16 +161,7 @@ export class CoordinationService {
       await this.assembling(db, id);
       if (issue.status !== 'WAITING_CUSTOMER') throw stale();
       if (data.action === 'CANCEL_ORDER') {
-        await cancelOrder(db, id);
-        await message(
-          db,
-          id,
-          'Покупатель отменил заказ.',
-          'SYSTEM',
-          actor.userId,
-          issue.id,
-          'staff',
-        );
+        await cancelOrder(db, id, actor.userId, 'USER');
         return db.orderIssue.findUniqueOrThrow({ where: { id: issue.id } });
       }
       if (

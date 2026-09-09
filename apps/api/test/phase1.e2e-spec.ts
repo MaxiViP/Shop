@@ -465,6 +465,9 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     await call(other.cookie)
       .post(`/orders/${other.publicId}/payment/report`, { method: 'SBP' })
       .expect(201);
+    await call(seller).post(`/staff/orders/${other.id}/cancel`).expect(409);
+    // REPORTED is legacy and needs manual payment verification, not reversible cancellation.
+    await db.orderPayment.update({ where: { orderId: other.id }, data: { status: 'AWAITING', reportedAt: null } });
     await call(seller).post(`/staff/orders/${other.id}/cancel`).expect(201);
     expect(
       (
@@ -926,6 +929,141 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     }
     await call(owner).get('/staff/orders/unread').expect(403);
     expect((await call(stranger).get('/orders/unread')).body.count).toBe(0);
+  });
+
+  it('PHASE 2.2 NEW summary is compact, guarded and excludes confirmed/canceled', async () => {
+    const previous = await db.order.findMany({ where: { status: 'NEW' }, select: { id: true } });
+    const ids = previous.map(row => row.id);
+    await db.order.updateMany({ where: { id: { in: ids } }, data: { status: 'CONFIRMED' } });
+    try {
+      await call(owner).get('/staff/orders/new-summary').expect(403);
+      await call('').get('/staff/orders/new-summary').expect(401);
+      expect((await call(seller).get('/staff/orders/new-summary').expect(200)).body).toEqual({ count: 0, latestOrderId: null });
+      const order = await create('PICKUP');
+      expect((await call(admin).get('/staff/orders/new-summary').expect(200)).body).toEqual({ count: 1, latestOrderId: order.id });
+      await Promise.all([call(seller).post(`/staff/orders/${order.id}/confirm`).expect(201), call(admin).post(`/staff/orders/${order.id}/confirm`).expect(201)]);
+      expect((await call(seller).get('/staff/orders/new-summary')).body.count).toBe(0);
+      const canceled = await create('PICKUP');
+      await request(app.getHttpServer()).post(`/api/staff/orders/${canceled.id}/cancel`).set('Cookie', seller).expect(201);
+      expect((await call(admin).get('/staff/orders/new-summary')).body.count).toBe(0);
+    } finally {
+      await db.order.updateMany({ where: { id: { in: ids } }, data: { status: 'NEW' } });
+    }
+  });
+
+  it.each(['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY'] as const)('PHASE 2.2 cancel/restore %s preserves snapshots, audit and one payment', async (status) => {
+    const order = await create('PICKUP');
+    if (status === 'CONFIRMED') await call(seller).post(`/staff/orders/${order.id}/confirm`).expect(201);
+    if (status === 'ASSEMBLING' || status === 'READY') await assemble(order, 1000);
+    if (status === 'READY') await call(seller).post(`/staff/orders/${order.id}/assembly/finish`).expect(201);
+    const before = await db.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: true, payment: true } });
+    const endpoint = `/staff/orders/${order.id}`;
+    await call(owner).post(`${endpoint}/cancel`, { reason: 'Нет' }).expect(403);
+    await call(seller).post(`${endpoint}/cancel`, { reason: 'x'.repeat(1001) }).expect(400);
+    await call(seller).post(`${endpoint}/cancel`, { reason: 'Служебная причина' }).expect(201);
+    await call(admin).post(`${endpoint}/cancel`, { reason: 'Не перезаписывать' }).expect(201);
+    const canceled = await db.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: true, payment: true, cancellations: true } });
+    expect(canceled.status).toBe('CANCELED');
+    expect(canceled.items).toEqual(before.items);
+    expect(canceled.cancellations).toHaveLength(1);
+    const record = canceled.cancellations[0]!;
+    expect(record).toMatchObject({ fromStatus: status, reason: 'Служебная причина', canceledByRole: 'SELLER' });
+    expect(record.canceledById).not.toBeNull();
+    expect(record.canceledAt).toBeInstanceOf(Date);
+    expect((await call(owner).get(`/orders/${order.publicId}`).expect(200)).text).not.toContain('Служебная причина');
+    if (status === 'READY') expect(canceled.payment?.status).toBe('CANCELED');
+    await call(seller).post(`${endpoint}/payment/confirm`).expect(409);
+    await call(owner).post(`${endpoint}/restore`, { cancellationId: record.id }).expect(403);
+    await call('').post(`${endpoint}/restore`, { cancellationId: record.id }).expect(401);
+    await Promise.all([call(admin).post(`${endpoint}/restore`, { cancellationId: record.id }).expect(201), call(seller).post(`${endpoint}/restore`, { cancellationId: record.id }).expect(201)]);
+    const restored = await db.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: true, payment: true, cancellations: true } });
+    expect(restored.status).toBe(status);
+    expect(restored.items).toEqual(before.items);
+    expect(restored.finalSubtotal).toBe(before.finalSubtotal);
+    expect(restored.payment?.amount).toBe(before.payment?.amount);
+    if (status === 'READY') expect(restored.payment?.status).toBe('AWAITING');
+    expect(restored.cancellations[0]!.restoredAt).toBeInstanceOf(Date);
+    expect(restored.cancellations[0]!.restoredById).not.toBeNull();
+    expect(await db.orderChatMessage.count({ where: { orderId: order.id, text: 'Заказ отменён продавцом.' } })).toBe(1);
+    expect(await db.orderChatMessage.count({ where: { orderId: order.id, text: 'Заказ восстановлен.' } })).toBe(1);
+    await call(seller).post(`${endpoint}/cancel`).expect(201);
+    await call(seller).post(`${endpoint}/restore`, { cancellationId: record.id }).expect(409);
+    const second = await db.orderCancellation.findFirstOrThrow({ where: { orderId: order.id }, orderBy: { id: 'desc' } });
+    await call(seller).post(`${endpoint}/restore`, { cancellationId: second.id }).expect(201);
+    expect(await db.orderCancellation.count({ where: { orderId: order.id } })).toBe(2);
+  });
+
+  it('PHASE 2.2 restore preserves pending decisions, approvals, extras and chat; stale decision cannot replay', async () => {
+    const order = await phase2Order(1200);
+    const issue = await issueFor(order.id);
+    await decision(order, issue, 'REQUEST_REDUCE').expect(201);
+    const requested = await issueFor(order.id);
+    const extra = (await call(seller).post(`/staff/orders/${order.id}/extras`, { title: 'Нарезка', quantity: 1, unitPrice: 50000 }).expect(201)).body;
+    const chat = (await call(owner).post(`/orders/${order.publicId}/messages`, { text: 'Сохранить историю' }).expect(201)).body;
+    const path = `/staff/orders/${order.id}`;
+    await Promise.all([call(seller).post(`${path}/cancel`, { reason: 'A' }).expect(201), call(admin).post(`${path}/cancel`, { reason: 'B' }).expect(201)]);
+    const canceledIssue = await issueFor(order.id);
+    expect(canceledIssue.status).toBe('CANCELED');
+    expect(canceledIssue.suspendedStatus).toBe('WAITING_SELLER');
+    const cancellation = await db.orderCancellation.findFirstOrThrow({ where: { orderId: order.id } });
+    await call(seller).post(`${path}/restore`, { cancellationId: cancellation.id }).expect(201);
+    const restored = await issueFor(order.id);
+    expect(restored).toMatchObject({ status: 'WAITING_SELLER', resolution: 'REQUEST_REDUCE' });
+    expect(restored.version).toBeGreaterThan(requested.version);
+    expect(await db.orderChatMessage.findUnique({ where: { id: chat.id } })).not.toBeNull();
+    expect(await db.orderExtra.findUnique({ where: { id: extra.id } })).toMatchObject({ amount: 50000, status: 'ACTIVE' });
+    await call(seller).post(`${path}/assembly/finish`).expect(409);
+    await decision(order, issue, 'ACCEPT_ACTUAL').expect(409);
+  });
+
+  it('PHASE 2.2 WAITING_CUSTOMER survives cancellation and requires fresh approval after restore', async () => {
+    const order = await phase2Order(2000);
+    const old = await issueFor(order.id);
+    await call(seller).post(`/staff/orders/${order.id}/cancel`).expect(201);
+    const record = await db.orderCancellation.findFirstOrThrow({ where: { orderId: order.id } });
+    await call(seller).post(`/staff/orders/${order.id}/restore`, { cancellationId: record.id }).expect(201);
+    const current = await issueFor(order.id);
+    expect(current.status).toBe('WAITING_CUSTOMER');
+    expect(current.actualQty).toBe(2000);
+    await decision(order, old, 'ACCEPT_ACTUAL').expect(409);
+    await call(seller).post(`/staff/orders/${order.id}/assembly/finish`).expect(409);
+    await decision(order, current, 'ACCEPT_ACTUAL').expect(201);
+    await call(seller).post(`/staff/orders/${order.id}/assembly/finish`).expect(201);
+  });
+
+  it('PHASE 2.2 legacy canceled cannot restore, completed and canceled queries are disjoint', async () => {
+    const canceled = await create('PICKUP');
+    const completed = await create('PICKUP');
+    await db.order.update({ where: { id: canceled.id }, data: { status: 'CANCELED' } });
+    await db.order.update({ where: { id: completed.id }, data: { status: 'COMPLETED' } });
+    const detail = (await call(seller).get(`/staff/orders/${canceled.id}`).expect(200)).body;
+    expect(detail.restoreProblem).toContain('прежнее состояние неизвестно');
+    await call(seller).post(`/staff/orders/${canceled.id}/restore`, { cancellationId: 1 }).expect(409);
+    const finishedRows = (await call(admin).get('/staff/orders?status=COMPLETED').expect(200)).body as { id: number; status: string }[];
+    const canceledRows = (await call(seller).get('/staff/orders?status=CANCELED').expect(200)).body as { id: number; status: string }[];
+    expect(finishedRows.every(row => row.status === 'COMPLETED')).toBe(true);
+    expect(canceledRows.every(row => row.status === 'CANCELED')).toBe(true);
+    expect(finishedRows.some(row => row.id === completed.id)).toBe(true);
+    expect(canceledRows.some(row => row.id === canceled.id)).toBe(true);
+    await call(seller).post(`/staff/orders/${completed.id}/cancel`).expect(400);
+    await db.order.update({ where: { id: completed.id }, data: { status: 'DELIVERING' } });
+    await call(seller).post(`/staff/orders/${completed.id}/cancel`).expect(400);
+  });
+
+  it('PHASE 2.2 cancel/payment and cancel/finalize serialize without CANCELED + actionable payment', async () => {
+    const order = await phase2Order(1000);
+    const base = `/staff/orders/${order.id}`;
+    await Promise.all([call(seller).post(`${base}/assembly/finish`), call(admin).post(`${base}/cancel`)]);
+    const canceled = await db.order.findUniqueOrThrow({ where: { id: order.id }, include: { payment: true } });
+    expect(canceled.status).toBe('CANCELED');
+    expect(canceled.payment === null || canceled.payment.status === 'CANCELED').toBe(true);
+    const ready = await phase2Order(1000);
+    const path = `/staff/orders/${ready.id}`;
+    await call(seller).post(`${path}/assembly/finish`).expect(201);
+    const race = await Promise.all([call(seller).post(`${path}/payment/confirm`), call(admin).post(`${path}/cancel`)]);
+    expect(race.map(result => result.status).sort()).toEqual([201, 409]);
+    const result = await db.order.findUniqueOrThrow({ where: { id: ready.id }, include: { payment: true } });
+    expect(result.status === 'CANCELED' ? result.payment?.status === 'CANCELED' : result.payment?.status === 'PAID').toBe(true);
   });
 
   it('PENDING and outside weight block finalize; MISSING is zero and overflow is 400', async () => {

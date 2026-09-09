@@ -305,7 +305,7 @@ let timer: ReturnType<
 
 onMounted(() => {
   timer = setInterval(() => {
-    if (active.value) {
+    if (document.visibilityState === 'visible' && (active.value || order.value.status === 'CANCELED')) {
       void refresh()
     }
   }, 15000)

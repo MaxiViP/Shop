@@ -80,6 +80,7 @@ function setup(order: LockedOrder) {
     orderIssue: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), upsert: vi.fn().mockResolvedValue({ id: 1, orderId: order.id, version: 1 }), updateMany: vi.fn() },
     orderNotification: { create: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
     orderChatMessage: { create: vi.fn() },
+    orderCancellation: { create: vi.fn() },
   };
 
   const db = {
@@ -480,7 +481,7 @@ describe('StaffService', () => {
     );
   });
 
-  it('cancels assigned delivery together with the order', async () => {
+  it('rejects cancellation of an externally assigned OTHER delivery', async () => {
     const { client, service } = setup({
       ...assembling,
       payment: { status: 'AWAITING', amount: 9500 },
@@ -497,18 +498,10 @@ describe('StaffService', () => {
       },
     });
 
-    await service.cancel(1);
-
-    expect(client.delivery.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { status: 'CANCELED' },
-      }),
-    );
-    expect(client.order.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { status: 'CANCELED' },
-      }),
-    );
+    await expect(service.cancel(1)).rejects.toThrow('внешнюю доставку');
+    expect(client.delivery.update).not.toHaveBeenCalled();
+    expect(client.order.update).not.toHaveBeenCalled();
+    expect(client.orderCancellation.create).not.toHaveBeenCalled();
   });
 
   it('completes pickup without creating delivery', async () => {

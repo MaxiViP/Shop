@@ -462,6 +462,25 @@ try {
   console.log('PASS PHASE 1 settings, finalized customer payment and staff weight/payment SSR');
   console.log('PASS PHASE 2 customer issue SSR, exact approval, staff phone fallback and chat shell');
   console.log('PASS PHASE 2.1 extras hidden before finalization, explicit final bill, no customer report action, Header messages SSR');
+  assert.ok(staffHtml.includes('Новые заказы'));
+  await api(`/staff/orders/${phaseOrder.id}/cancel`, 'POST', { reason: 'Smoke internal reason' }, 201);
+  const cancellation = await db.orderCancellation.findFirstOrThrow({ where: { orderId: phaseOrder.id } });
+  const canceledHtml = await (await fetch(`${webBase}/staff/orders?tab=canceled`, { headers: { Cookie: cookie } })).text();
+  assert.ok(canceledHtml.includes('Smoke internal reason'));
+  assert.ok(canceledHtml.includes('Восстановить заказ'));
+  const completedHtml = await (await fetch(`${webBase}/staff/orders?tab=finished`, { headers: { Cookie: cookie } })).text();
+  // The existing list fetches all orders for its tab counts. Check rendered markup,
+  // not Nuxt's serialized data payload (the API status filter is tested separately).
+  const completedMarkup = completedHtml.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  assert.ok(!completedMarkup.includes('Smoke internal reason'));
+  const canceledCustomer = await (await fetch(`${webBase}/order/${phaseOrder.publicId}`, { headers: { Cookie: userCookie } })).text();
+  assert.ok(!canceledCustomer.includes('Smoke internal reason'));
+  assert.ok(!canceledCustomer.includes('Открыть СБП'));
+  await api(`/staff/orders/${phaseOrder.id}/restore`, 'POST', { cancellationId: cancellation.id }, 201);
+  const restoredCustomer = await (await fetch(`${webBase}/order/${phaseOrder.publicId}`, { headers: { Cookie: userCookie } })).text();
+  assert.ok(restoredCustomer.includes('Открыть СБП'));
+  assert.ok(restoredCustomer.includes('Нарезка — smoke'));
+  console.log('PASS PHASE 2.2 new-order Header, separate canceled/completed SSR, private reason and safe READY/payment restore');
   // Remove this disposable order before the existing unreferenced-file cleanup check.
   await db.order.delete({ where: { id: phaseOrder.id } });
   assert.ok(productHtml.includes('gallery__rail'));

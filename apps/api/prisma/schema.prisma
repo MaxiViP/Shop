@@ -89,12 +89,14 @@ model ProductImage {
 }
 
 model User {
-  extras     OrderExtra[]
-  id         Int          @id @default(autoincrement())
-  phone      String       @unique
-  name       String?
-  verifiedAt DateTime?
-  role       UserRole     @default(USER)
+  canceledOrders OrderCancellation[] @relation("CanceledBy")
+  restoredOrders OrderCancellation[] @relation("RestoredBy")
+  extras         OrderExtra[]
+  id             Int                 @id @default(autoincrement())
+  phone          String              @unique
+  name           String?
+  verifiedAt     DateTime?
+  role           UserRole            @default(USER)
 
   orders            Order[]
   addresses         Address[]
@@ -188,9 +190,10 @@ enum DeliveryStatus {
 }
 
 model Order {
-  extras   OrderExtra[]
-  id       Int          @id @default(autoincrement())
-  publicId String       @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cancellations OrderCancellation[]
+  extras        OrderExtra[]
+  id            Int                 @id @default(autoincrement())
+  publicId      String              @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
   type                OrderType
   status              OrderStatus   @default(NEW)
@@ -415,38 +418,61 @@ enum IssueResolution {
 }
 
 model OrderIssue {
-  id                Int                 @id @default(autoincrement())
-  orderId           Int
-  order             Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderItemId       Int                 @unique
-  orderItem         OrderItem           @relation("ItemIssue", fields: [orderItemId], references: [id], onDelete: Cascade)
-  type              IssueType
-  status            IssueStatus         @default(WAITING_CUSTOMER)
-  version           Int                 @default(1)
-  requestedQty      Int
-  actualQty         Int?
-  approvedActualQty Int?
-  resolution        IssueResolution?
-  resolvedAt        DateTime?
-  createdById       Int?
-  createdBy         User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  proposedProductId Int?
-  proposedProduct   Product?            @relation(fields: [proposedProductId], references: [id], onDelete: SetNull)
-  proposedName      String?
-  proposedSlug      String?
-  proposedPrice     Int?
-  proposedPriceQty  Int?
-  proposedUnit      Unit?
-  proposedQty       Int?
-  proposedImageUrl  String?
-  replacementItemId Int?                @unique
-  replacementItem   OrderItem?          @relation("IssueReplacement", fields: [replacementItemId], references: [id], onDelete: SetNull)
-  messages          OrderChatMessage[]
-  notifications     OrderNotification[]
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  suspendedStatus     IssueStatus?
+  suspendedResolution IssueResolution?
+  suspendedResolvedAt DateTime?
+  id                  Int                 @id @default(autoincrement())
+  orderId             Int
+  order               Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId         Int                 @unique
+  orderItem           OrderItem           @relation("ItemIssue", fields: [orderItemId], references: [id], onDelete: Cascade)
+  type                IssueType
+  status              IssueStatus         @default(WAITING_CUSTOMER)
+  version             Int                 @default(1)
+  requestedQty        Int
+  actualQty           Int?
+  approvedActualQty   Int?
+  resolution          IssueResolution?
+  resolvedAt          DateTime?
+  createdById         Int?
+  createdBy           User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  proposedProductId   Int?
+  proposedProduct     Product?            @relation(fields: [proposedProductId], references: [id], onDelete: SetNull)
+  proposedName        String?
+  proposedSlug        String?
+  proposedPrice       Int?
+  proposedPriceQty    Int?
+  proposedUnit        Unit?
+  proposedQty         Int?
+  proposedImageUrl    String?
+  replacementItemId   Int?                @unique
+  replacementItem     OrderItem?          @relation("IssueReplacement", fields: [replacementItemId], references: [id], onDelete: SetNull)
+  messages            OrderChatMessage[]
+  notifications       OrderNotification[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
   @@index([orderId, status])
+}
+
+model OrderCancellation {
+  id             Int             @id @default(autoincrement())
+  orderId        Int
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus     OrderStatus
+  paymentStatus  PaymentStatus?
+  deliveryStatus DeliveryStatus?
+  reason         String?         @db.VarChar(1000)
+  canceledAt     DateTime        @default(now())
+  canceledById   Int?
+  canceledBy     User?           @relation("CanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
+  canceledByRole UserRole
+  restoredAt     DateTime?
+  restoredById   Int?
+  restoredBy     User?           @relation("RestoredBy", fields: [restoredById], references: [id], onDelete: SetNull)
+  restoredByRole UserRole?
+
+  @@index([orderId, id])
 }
 
 enum MessageAuthor {
