@@ -17,7 +17,7 @@ describe('OrderService creation', () => {
         shopSettings: {
           findUniqueOrThrow: vi
             .fn()
-            .mockResolvedValue({ weightToleranceBps: 1000 }),
+            .mockResolvedValue({ weightToleranceBps: 1000, minDeliverySubtotal: 0, deliveryEnabled: true, pickupEnabled: true }),
         },
         product: {
           findMany: vi.fn().mockResolvedValue([

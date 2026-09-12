@@ -12,10 +12,11 @@ import {
 import type { Server } from 'node:http';
 import cookieParser from 'cookie-parser';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../src/db/gen/client.js';
+import { PrismaClient, type DeliveryAttempt } from '../src/db/gen/client.js';
 import { DbService } from '../src/db/db.service.js';
 import { AppModule } from '../src/app.module.js';
-import { YandexService } from '../src/delivery/yandex.service.js';
+import { YandexService, type YandexClaimInfo } from '../src/delivery/yandex.service.js';
+import { DeliveryService } from '../src/delivery/delivery.service.js';
 import { SID } from '../src/auth/auth.service.js';
 import { OrderSmsProvider } from '../src/order/notification.service.js';
 
@@ -31,18 +32,35 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
   let admin: string, seller: string, owner: string, stranger: string;
   let productId: number;
   const sms = { available: false, send: vi.fn(async () => {}) };
-  const book = vi.fn(async () => ({
-    quote: { price: 45000, currency: 'RUB' },
-    claim: {
-      claimId: randomUUID(),
-      providerStatus: 'accepted',
-      providerUpdatedAt: new Date().toISOString(),
-      price: 45000,
-      currency: 'RUB',
-      trackingUrl: null,
-      courierName: null,
-    },
-  }));
+  // Stateful remote: create is idempotent by request_id, accept changes remote
+  // state even when a test loses the response afterwards.
+  const remote = new Map<string, YandexClaimInfo & { version: number }>();
+  const requests = new Map<string, string>();
+  const prepare = vi.fn(async () => '{"offer_payload":"snapshot"}');
+  const createClaim = vi.fn(async (requestId: string, _body: string) => {
+    const known = requests.get(requestId);
+    if (known) return known;
+    const claimId = randomUUID();
+    requests.set(requestId, claimId);
+    remote.set(claimId, {
+      claimId, providerStatus: 'ready_for_approval', version: 1,
+      providerUpdatedAt: new Date().toISOString(), price: 45000,
+      priceIsFinal: false, currency: 'RUB', trackingUrl: null,
+      courierName: null, etaMinutes: null,
+    });
+    return claimId;
+  });
+  const inspect = vi.fn(async (id: string) => ({ ...remote.get(id)! }));
+  const accept = vi.fn(async (id: string, _version: number) => {
+    remote.get(id)!.providerStatus = 'accepted';
+    return 'accepted';
+  });
+  const sync = vi.fn(async (id: string) => ({ ...remote.get(id)! }));
+  const yandex = {
+    isSyncAvailable: () => false, isAvailable: () => true,
+    prepare, create: createClaim, inspect, accept, sync,
+    bulkInfo: vi.fn(async () => []),
+  };
   const call = (cookie: string) => {
     const http = request(app.getHttpServer());
     return {
@@ -151,7 +169,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       .overrideProvider(DbService)
       .useValue(db)
       .overrideProvider(YandexService)
-      .useValue({ isSyncAvailable: () => false, isAvailable: () => true, book })
+      .useValue(yandex)
       .overrideProvider(OrderSmsProvider)
       .useValue(sms)
       .compile();
@@ -182,6 +200,11 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       },
     });
     productId = product.id;
+    expect(await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } })).toMatchObject({
+      minDeliverySubtotal: 300000, maxOrderExtraUnitPrice: 500000, maxOrderExtrasTotal: 1000000, deliveryEnabled: true, pickupEnabled: true,
+    });
+    // Legacy lifecycle fixtures intentionally exercise small baskets independently of eligibility.
+    await db.shopSettings.update({ where: { id: 1 }, data: { minDeliverySubtotal: 0 } });
   }, 30000);
   afterAll(async () => {
     await app?.close();
@@ -191,6 +214,51 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     await connection.end();
     vi.unstubAllEnvs();
   }, 30000);
+
+  it('business settings enforce public eligibility, protected extras, and safe corrections', async () => {
+    const defaults = { minDeliverySubtotal: 300000, maxOrderExtraUnitPrice: 500000, maxOrderExtrasTotal: 1000000, deliveryEnabled: true, pickupEnabled: true };
+    try {
+      await call(admin).patch('/admin/settings', defaults).expect(200);
+      expect((await call('').get('/shop/settings').expect(200)).body).toEqual({ minDeliverySubtotal: 300000, deliveryEnabled: true, pickupEnabled: true });
+      for (const cookie of [seller, owner]) await call(cookie).patch('/admin/settings', { minDeliverySubtotal: 0 }).expect(403);
+      await call(owner).get('/staff/extra-limits').expect(403);
+      await call(seller).get('/staff/extra-limits').expect(200);
+      await call(admin).patch('/admin/settings', { deliveryEnabled: false, pickupEnabled: false }).expect(400);
+      for (const input of [{ minDeliverySubtotal: -1 }, { maxOrderExtraUnitPrice: 0 }, { maxOrderExtrasTotal: 1.5 }, { minDeliverySubtotal: 100000001 }])
+        await call(admin).patch('/admin/settings', input).expect(400);
+      const checkout = (type: string, qty = 2500) => call(owner).post('/orders', { type, customerName: 'Limits', customerPhone: '+79990000103', ...(type === 'DELIVERY' ? { address: { city: 'Москва', street: 'Тест', house: '1' } } : {}), items: [{ productId, qty }] });
+      await checkout('DELIVERY').expect(400);
+      const pickup = (await checkout('PICKUP').expect(201)).body;
+      await checkout('DELIVERY', 3000).expect(201);
+      await call(admin).patch('/admin/settings', { minDeliverySubtotal: 200000 }).expect(200);
+      const old = (await checkout('DELIVERY').expect(201)).body;
+      await call(admin).patch('/admin/settings', { minDeliverySubtotal: 400000 }).expect(200);
+      await checkout('DELIVERY').expect(400);
+      expect((await call(owner).get(`/orders/${old.publicId}`).expect(200)).body.subtotal).toBe(250000);
+      await call(admin).patch('/admin/settings', { deliveryEnabled: false }).expect(200);
+      await checkout('DELIVERY', 5000).expect(400);
+      await call(admin).patch('/admin/settings', { deliveryEnabled: true, pickupEnabled: false }).expect(200);
+      await checkout('PICKUP').expect(400);
+      const id = pickup.id as number;
+      await call(seller).post(`/staff/orders/${id}/confirm`).expect(201);
+      await call(seller).post(`/staff/orders/${id}/assembly/start`).expect(201);
+      const path = `/staff/orders/${id}/extras`;
+      const service = { title: 'Упаковка', quantity: 1, unitPrice: 500000 };
+      await call(owner).post(path, service).expect(403);
+      await call(seller).post(path, { ...service, unitPrice: 500001 }).expect(400);
+      const a = (await call(seller).post(path, service).expect(201)).body;
+      const b = (await call(admin).post(path, service).expect(201)).body;
+      await call(seller).post(path, { ...service, unitPrice: 1 }).expect(400);
+      await call(admin).patch('/admin/settings', { maxOrderExtraUnitPrice: 200000, maxOrderExtrasTotal: 300000 }).expect(200);
+      const reduced = (await call(seller).patch(`${path}/${a.id}`, { ...service, unitPrice: 400000, version: a.version }).expect(200)).body;
+      await call(seller).post(`${path}/${b.id}/cancel`, { version: b.version }).expect(201);
+      await call(seller).patch(`${path}/${a.id}`, { ...service, unitPrice: 200000, version: reduced.version }).expect(200);
+      await call(seller).post(path, { ...service, unitPrice: 100000 }).expect(201);
+      await call(seller).post(path, { ...service, unitPrice: 1 }).expect(400);
+    } finally {
+      await db.shopSettings.update({ where: { id: 1 }, data: { ...defaults, minDeliverySubtotal: 0 } });
+    }
+  });
 
   it('safe migration, singleton settings, guards, immutable order snapshot', async () => {
     const legacy = await db.order.findFirstOrThrow({
@@ -361,7 +429,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
         .expect(409);
     await call(seller).post(booking).expect(409);
     await otherDelivery();
-    expect(book).not.toHaveBeenCalled();
+    expect(createClaim).not.toHaveBeenCalled();
     await call(stranger)
       .post(`/orders/${order.publicId}/payment/report`, { method: 'SBP' })
       .expect(404);
@@ -384,7 +452,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       .expect(409);
     await call(seller).post(booking).expect(409);
     await otherDelivery();
-    expect(book).not.toHaveBeenCalled();
+    expect(createClaim).not.toHaveBeenCalled();
     const confirm = `/staff/orders/${order.id}/payment/confirm`;
     await Promise.all([
       call(seller).post(confirm).expect(201),
@@ -406,7 +474,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       .patch(`/staff/orders/${order.id}/items/${itemId}`, { status: 'PENDING' })
       .expect(400);
     await call(seller).post(booking).expect(201);
-    expect(book).toHaveBeenCalledTimes(1);
+    expect(createClaim).toHaveBeenCalledTimes(1);
     expect(
       (
         await db.orderPayment.findUniqueOrThrow({
@@ -868,7 +936,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     const endpoint = `/staff/orders/${order.id}/delivery/yandex/confirm`;
     await call(owner).post(endpoint).expect(403);
     await call('').post(endpoint).expect(401);
-    book.mockRejectedValueOnce(new Error('Synthetic provider outage'));
+    createClaim.mockRejectedValueOnce(new Error('Synthetic provider outage'));
     const failure = await call(seller).post(endpoint);
     expect(failure.status).toBe(502);
     const paid = await db.orderPayment.findUniqueOrThrow({ where: { orderId: order.id } });
@@ -912,7 +980,9 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       const order = await phase2Order(1000, cookie);
       const customer = call(order.cookie);
       const before = (await customer.get('/orders/unread').expect(200)).body.count;
+      const staffBeforeOwn = (await call(seller).get('/staff/orders/unread').expect(200)).body.count;
       const entry = (await call(seller).post(`/staff/orders/${order.id}/messages`, { text: 'Здравствуйте' }).expect(201)).body;
+      expect((await call(seller).get('/staff/orders/unread')).body.count).toBe(staffBeforeOwn);
       const summary = (await customer.get('/orders/unread').expect(200)).body;
       expect(summary.count).toBe(before + 1);
       expect(summary.latestOrderId).toBe(order.publicId);
@@ -1140,5 +1210,208 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
         items: [{ productId, qty: 1000 }],
       })
       .expect(400);
+  });
+
+  async function recoveryOrder() {
+    await db.shopSettings.update({ where: { id: 1 }, data: { minDeliverySubtotal: 0, weightToleranceBps: 1000 } });
+    await db.product.update({ where: { id: productId }, data: { price: 100000, priceQty: 1000 } });
+    const order = await create();
+    await assemble(order, 1000);
+    await call(seller).post(`/staff/orders/${order.id}/assembly/finish`).expect(201);
+    return { ...order, endpoint: `/staff/orders/${order.id}/delivery/yandex/confirm` };
+  }
+
+  // Real database failures, not a rejected mock of the whole booking operation.
+  async function failBookingWrite(orderId: number, stage: 'claim-db' | 'delivery-db') {
+    const table = stage === 'claim-db' ? 'DeliveryAttempt' : 'Delivery';
+    const condition = stage === 'claim-db'
+      ? `NEW."orderId" = ${orderId} AND OLD."externalOrderId" IS NULL AND NEW."externalOrderId" IS NOT NULL`
+      : `NEW."orderId" = ${orderId}`;
+    await connection.query(`CREATE FUNCTION h1_fail_write() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF ${condition} THEN RAISE EXCEPTION 'Synthetic H1 DB failure'; END IF; RETURN NEW; END $$`);
+    await connection.query(`CREATE TRIGGER h1_fail_write BEFORE ${stage === 'claim-db' ? 'UPDATE' : 'INSERT'} ON "${table}" FOR EACH ROW EXECUTE FUNCTION h1_fail_write()`);
+    return async () => {
+      await connection.query(`DROP TRIGGER h1_fail_write ON "${table}"`);
+      await connection.query('DROP FUNCTION h1_fail_write()');
+    };
+  }
+
+  it.each(['create', 'accept', 'sync', 'claim-db', 'delivery-db'] as const)(
+    'H1 recovers the same remote claim after %s failure and preserves PAID',
+    async stage => {
+      const order = await recoveryOrder();
+      const beforeClaims = remote.size;
+      const beforePrepare = prepare.mock.calls.length;
+      const beforeAccept = accept.mock.calls.length;
+      let cleanup: (() => Promise<void>) | undefined;
+      if (stage === 'create') {
+        const impl = createClaim.getMockImplementation()!;
+        createClaim.mockImplementationOnce(async (...args) => {
+          await impl(...args); throw new Error('Lost create response after remote success');
+        });
+      } else if (stage === 'accept') {
+        const impl = accept.getMockImplementation()!;
+        accept.mockImplementationOnce(async (...args) => {
+          await impl(...args); throw new Error('Lost accept response after remote success');
+        });
+      } else if (stage === 'sync') {
+        sync.mockRejectedValueOnce(new Error('Sync timeout after acceptance'));
+      } else {
+        cleanup = await failBookingWrite(order.id, stage);
+      }
+      try { await call(seller).post(order.endpoint).expect(502); }
+      finally { await cleanup?.(); }
+      const paid = await db.orderPayment.findUniqueOrThrow({ where: { orderId: order.id } });
+      expect(paid).toMatchObject({ status: 'PAID', amount: 100000 });
+      const pending = await db.deliveryAttempt.findUniqueOrThrow({ where: { orderId: order.id } });
+      expect(pending.requestId).toBe(order.publicId);
+      expect(pending.requestBody).toBe('{"offer_payload":"snapshot"}');
+      expect(pending.leaseToken).toBeNull();
+      expect(pending.lastError).not.toBeNull();
+      const remoteId = requests.get(order.publicId)!;
+      expect(remote.size).toBe(beforeClaims + 1);
+      expect(pending.externalOrderId).toBe(['create', 'claim-db'].includes(stage) ? null : remoteId);
+      expect(await db.delivery.count({ where: { orderId: order.id } })).toBe(0);
+      await call(admin).post(order.endpoint).expect(201);
+      const active = await db.deliveryAttempt.findUniqueOrThrow({ where: { orderId: order.id } });
+      expect(active).toMatchObject({
+        state: 'ACTIVE', externalOrderId: remoteId, requestId: order.publicId,
+        lastError: null, leaseToken: null,
+      });
+      expect(active.acceptedAt).not.toBeNull();
+      expect(active.completedAt).not.toBeNull();
+      expect(remote.size).toBe(beforeClaims + 1);
+      expect(prepare.mock.calls.length).toBe(beforePrepare + 1);
+      expect(accept.mock.calls.length).toBe(beforeAccept + 1);
+      const replayBodies = createClaim.mock.calls.filter(([id]) => id === order.publicId).map(([, body]) => body);
+      expect(new Set(replayBodies).size).toBe(1);
+      expect(await db.delivery.count({ where: { orderId: order.id } })).toBe(1);
+      expect(await db.orderPayment.findUniqueOrThrow({ where: { orderId: order.id } })).toMatchObject({
+        status: 'PAID', amount: paid.amount, confirmedAt: paid.confirmedAt, confirmedById: paid.confirmedById,
+      });
+      expect(await db.orderChatMessage.count({
+        where: { orderId: order.id, text: 'Оплата получена. Оформляем доставку.' },
+      })).toBe(1);
+      // Lost successful HTTP response is also idempotent after ACTIVE.
+      const creates = createClaim.mock.calls.length;
+      await call(admin).post(order.endpoint).expect(201);
+      expect(createClaim.mock.calls.length).toBe(creates);
+    },
+  );
+
+  function barrier() {
+    let resolve!: () => void;
+    const promise = new Promise<void>(done => { resolve = done; });
+    return { promise, resolve };
+  }
+
+  it.each(['YANDEX', 'OTHER'] as const)('H1 blocks parallel %s while Yandex is reserved before HTTP completes', async provider => {
+    const order = await recoveryOrder();
+    const started = barrier(), release = barrier();
+    const impl = createClaim.getMockImplementation()!;
+    createClaim.mockImplementationOnce(async (...args) => {
+      started.resolve(); await release.promise; return impl(...args);
+    });
+    const first = call(seller).post(order.endpoint).then(response => response);
+    await started.promise;
+    try {
+      expect(await db.deliveryAttempt.findUniqueOrThrow({ where: { orderId: order.id } })).toMatchObject({
+        state: 'RESERVED', externalOrderId: null,
+      });
+      const second = provider === 'YANDEX'
+        ? call(admin).post(order.endpoint)
+        : call(admin).put(`/staff/orders/${order.id}/delivery`, {
+            provider: 'OTHER', price: 500, courierName: 'Fixture', courierPhone: '+79990000105',
+          });
+      await second.expect(409);
+      expect(await db.delivery.count({ where: { orderId: order.id } })).toBe(0);
+    } finally { release.resolve(); }
+    expect((await first).status).toBe(201);
+    expect(createClaim.mock.calls.filter(([id]) => id === order.publicId)).toHaveLength(1);
+    expect(await db.delivery.count({ where: { orderId: order.id } })).toBe(1);
+  });
+
+  it('H1 reclaims an expired process lease and fences the old worker without another claim', async () => {
+    const order = await recoveryOrder();
+    const started = barrier(), release = barrier();
+    const impl = createClaim.getMockImplementation()!;
+    createClaim.mockImplementationOnce(async (...args) => {
+      const id = await impl(...args);
+      started.resolve(); await release.promise; return id;
+    });
+    const first = call(seller).post(order.endpoint).then(response => response);
+    await started.promise;
+    let active: DeliveryAttempt | undefined;
+    try {
+      await db.deliveryAttempt.update({ where: { orderId: order.id }, data: { leaseUntil: new Date(0) } });
+      await call(admin).post(order.endpoint).expect(201);
+      active = await db.deliveryAttempt.findUniqueOrThrow({ where: { orderId: order.id } });
+    } finally { release.resolve(); }
+    expect((await first).status).toBe(409);
+    expect(await db.deliveryAttempt.findUniqueOrThrow({ where: { orderId: order.id } })).toEqual(active);
+    expect(await db.delivery.count({ where: { orderId: order.id } })).toBe(1);
+    expect(createClaim.mock.calls.filter(([id]) => id === order.publicId)).toHaveLength(2);
+    expect(active?.externalOrderId).toBe(requests.get(order.publicId));
+  });
+
+  it.each(['failed', 'cancelled', 'unknown_provider_state'])('H1 retains %s for manual review and blocks OTHER', async status => {
+    const order = await recoveryOrder();
+    const impl = inspect.getMockImplementation()!;
+    inspect.mockImplementationOnce(async id => {
+      remote.get(id)!.providerStatus = status; return impl(id);
+    });
+    const beforeAccept = accept.mock.calls.length;
+    await call(seller).post(order.endpoint).expect(409);
+    expect(await db.deliveryAttempt.findUniqueOrThrow({ where: { orderId: order.id } })).toMatchObject({
+      state: 'NEEDS_REVIEW', providerStatus: status,
+      externalOrderId: requests.get(order.publicId),
+    });
+    await call(admin).put(`/staff/orders/${order.id}/delivery`, {
+      provider: 'OTHER', price: 500, courierName: 'Fixture', courierPhone: '+79990000105',
+    }).expect(409);
+    await call(admin).post(order.endpoint).expect(409);
+    expect(accept.mock.calls.length).toBe(beforeAccept);
+    expect(createClaim.mock.calls.filter(([id]) => id === order.publicId)).toHaveLength(1);
+    expect((await db.orderPayment.findUniqueOrThrow({ where: { orderId: order.id } })).status).toBe('PAID');
+  });
+
+  it('H1 background recovery finds a claim without local Delivery after an accept/sync failure', async () => {
+    const order = await recoveryOrder();
+    sync.mockRejectedValueOnce(new Error('Sync outage'));
+    await call(seller).post(order.endpoint).expect(502);
+    await db.deliveryAttempt.update({
+      where: { orderId: order.id }, data: { updatedAt: new Date(Date.now() - 60_000) },
+    });
+    const available = vi.spyOn(yandex, 'isSyncAvailable').mockReturnValue(true);
+    try {
+      await app.get(DeliveryService).syncActiveYandexDeliveries();
+    } finally { available.mockRestore(); }
+    expect((await db.deliveryAttempt.findUniqueOrThrow({ where: { orderId: order.id } })).state).toBe('ACTIVE');
+    expect(await db.delivery.count({ where: { orderId: order.id } })).toBe(1);
+  });
+
+  it('H1 preserves legacy local bookings and does not invent another attempt', async () => {
+    const order = await recoveryOrder();
+    await call(seller).post(order.endpoint).expect(201);
+    await db.deliveryAttempt.delete({ where: { orderId: order.id } });
+    const creates = createClaim.mock.calls.length;
+    await call(admin).post(order.endpoint).expect(201);
+    expect(createClaim.mock.calls.length).toBe(creates);
+    expect(await db.deliveryAttempt.findUnique({ where: { orderId: order.id } })).toBeNull();
+  });
+
+  it.each([
+    ['delivered_finish', 'COMPLETED'], ['returned_finish', 'DELIVERING'],
+  ])('H1 reconciles a progressed %s claim without another accept or lifecycle rollback', async (status, expected) => {
+    const order = await recoveryOrder();
+    sync.mockRejectedValueOnce(new Error('Process lost sync result'));
+    await call(seller).post(order.endpoint).expect(502);
+    const accepts = accept.mock.calls.length;
+    remote.get(requests.get(order.publicId)!)!.providerStatus = status!;
+    await call(admin).post(order.endpoint).expect(201);
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe(expected);
+    expect(accept.mock.calls.length).toBe(accepts);
+    await call(admin).post(order.endpoint).expect(201);
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe(expected);
   });
 });

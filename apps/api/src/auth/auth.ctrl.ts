@@ -11,6 +11,7 @@ import {
 import { z } from 'zod';
 import { AdminLoginGuard } from './admin-login.guard.js';
 import { MethodGuard } from './method.guard.js';
+import { OtpCodeGuard, OtpLoginGuard } from './otp.guard.js';
 import type { Request, Response } from 'express';
 import { GID } from '../common/guest.js';
 
@@ -61,18 +62,32 @@ export class AuthCtrl {
   }
 
   @Post('code')
-  code(@Body() body: { phone?: string }) {
+  @UseGuards(OtpCodeGuard)
+  code(
+    @Body({
+      schema: z.strictObject({ phone: z.string().trim().min(1).max(40) }),
+    })
+    body: {
+      phone: string;
+    },
+  ) {
     return this.auth.code(body.phone);
   }
 
   @Post('login')
+  @UseGuards(OtpLoginGuard)
   async login(
     @Req() request: Request,
 
-    @Body()
+    @Body({
+      schema: z.strictObject({
+        phone: z.string().trim().min(1).max(40),
+        code: z.string().regex(/^\d{6}$/),
+      }),
+    })
     body: {
-      phone?: string;
-      code?: string;
+      phone: string;
+      code: string;
     },
 
     @Res({ passthrough: true })

@@ -2,20 +2,25 @@ import {
   BadGatewayException,
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { DeliveryStatus, Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import { deliveryTotals, positiveDeliveryPrice } from '../order/pricing.js';
-import { requirePaid, paymentSelect } from '../order/payment.js';
+import { requirePaid } from '../order/payment.js';
 import {
   type YandexClaimInfo,
   type YandexOrderInput,
+  YandexRequestError,
   YandexService,
 } from './yandex.service.js';
+
+const BOOKING_LEASE_MS = 90_000;
 
 const deliveryRank: Record<Exclude<DeliveryStatus, 'CANCELED'>, number> = {
   PENDING: 0,
@@ -47,6 +52,13 @@ const pickedUpStatuses = new Set([
 ]);
 
 const deliveredStatuses = new Set(['delivered', 'delivered_finish']);
+// Returns retain the existing fulfillment mapping; they are not COMPLETED.
+const acceptedStatuses = new Set([
+  ...assignedStatuses,
+  ...pickedUpStatuses,
+  ...deliveredStatuses,
+]);
+acceptedStatuses.delete('ready_for_approval');
 const canceledStatuses = new Set([
   'cancelled',
   'cancelled_by_taxi',
@@ -81,12 +93,13 @@ export class DeliveryService {
       await this.lockOrder(db, orderId);
       const order = await db.order.findUnique({
         where: { id: orderId },
-        include: { delivery: true },
+        include: { delivery: true, deliveryAttempt: true },
       });
       if (
         !order ||
         order.status !== 'READY' ||
         order.type !== 'DELIVERY' ||
+        order.deliveryAttempt ||
         order.delivery?.externalOrderId ||
         order.delivery?.provider === 'OTHER'
       ) {
@@ -108,118 +121,272 @@ export class DeliveryService {
     return quote;
   }
 
-  async order(orderId: number) {
-    // Payment is immutable after PAID; prohibit external side effects before it.
-    const paidOrder = await this.db.order.findUniqueOrThrow({
-      where: { id: orderId },
-      select: {
-        assemblyFinalizedAt: true,
-        finalSubtotal: true,
-        payment: { select: paymentSelect },
-      },
-    });
-    requirePaid(paidOrder);
-    const input = await this.yandexInput(orderId);
-    const booking = await this.yandex.book(input);
-    const price = booking.claim.price;
-
-    if (booking.claim.currency !== 'RUB' || price === null) {
-      throw new BadRequestException(
-        'Яндекс не вернул актуальную стоимость доставки в рублях',
-      );
-    }
-
-    positiveDeliveryPrice(price);
-    return this.db.$transaction(async (db) => {
-      await this.lockOrder(db, orderId);
-      const order = await db.order.findUnique({
-        where: { id: orderId },
-        select: {
-          type: true,
-          status: true,
-          subtotal: true,
-          finalSubtotal: true,
-          assemblyFinalizedAt: true,
-          payment: { select: paymentSelect },
-          delivery: { select: { externalOrderId: true, provider: true } },
-        },
-      });
-
-      if (
-        order?.delivery?.provider === 'YANDEX' &&
-        order.delivery.externalOrderId === booking.claim.claimId
-      ) {
-        // A concurrent booking already saved this idempotent claim. Keep its
-        // newer status and price; polling will reconcile subsequent changes.
-        return {
-          order: await db.order.findUniqueOrThrow({ where: { id: orderId } }),
-          delivery: await db.delivery.findUniqueOrThrow({ where: { orderId } }),
-          quote: booking.quote,
-        };
+  async order(orderId: number, waitForAssessment = true) {
+    const reservation = await this.reserve(orderId);
+    if ('result' in reservation) return reservation.result;
+    let { attempt } = reservation;
+    const token = attempt.leaseToken!;
+    try {
+      if (!attempt.requestBody) {
+        const body = await this.yandex.prepare(await this.yandexInput(orderId));
+        attempt = await this.checkpoint(orderId, token, { requestBody: body });
       }
-      if (!order || order.type !== 'DELIVERY' || order.status !== 'READY') {
-        throw new BadRequestException(
-          'Яндекс Доставку можно заказать только для собранного заказа',
+      if (!attempt.externalOrderId) {
+        await this.checkpoint(orderId, token, {});
+        const claimId = await this.yandex.create(
+          attempt.requestId,
+          attempt.requestBody!,
+        );
+        // The first local claim ID write precedes assessment, accept and tracking.
+        attempt = await this.checkpoint(orderId, token, {
+          externalOrderId: claimId,
+          state: 'CREATED',
+        });
+      }
+      const claimId = attempt.externalOrderId!;
+      let assessed: Awaited<ReturnType<YandexService['inspect']>> | undefined;
+      for (let index = 0; index < (waitForAssessment ? 20 : 1); index++) {
+        await this.checkpoint(orderId, token, {});
+        assessed = await this.yandex.inspect(claimId);
+        await this.checkpoint(orderId, token, {
+          providerStatus: assessed.providerStatus,
+        });
+        if (!['new', 'estimating'].includes(assessed.providerStatus)) break;
+        if (waitForAssessment) await delay(1_000);
+      }
+      if (
+        !assessed ||
+        ['new', 'estimating'].includes(assessed.providerStatus)
+      ) {
+        throw new BadGatewayException(
+          'Яндекс ещё оценивает заявку. Повторите оформление.',
         );
       }
-      requirePaid(order);
-
-      if (
-        order.delivery?.externalOrderId ||
-        order.delivery?.provider === 'OTHER'
-      ) {
-        throw new ConflictException('Для заказа уже создана внешняя доставка');
+      if (assessed.providerStatus === 'ready_for_approval') {
+        if (assessed.currency !== 'RUB' || assessed.price === null)
+          throw new BadGatewayException(
+            'Яндекс не вернул актуальную стоимость заявки в рублях',
+          );
+        positiveDeliveryPrice(assessed.price);
+        await this.checkpoint(orderId, token, {});
+        const status = await this.yandex.accept(claimId, assessed.version);
+        await this.requireAccepted(orderId, token, status);
+      } else {
+        // An accept response may have been lost. Remote state, not a second accept,
+        // tells us whether the already persisted claim is in progress.
+        await this.requireAccepted(orderId, token, assessed.providerStatus);
       }
-
-      const deliveryStatus = this.nextStatus(
-        'ASSIGNED',
-        booking.claim.providerStatus,
+      attempt = await this.checkpoint(orderId, token, {
+        state: 'ACCEPTED',
+        acceptedAt: attempt.acceptedAt ?? new Date(),
+      });
+      const synced = await this.yandex.sync(claimId);
+      if (synced.claimId !== claimId)
+        throw new BadGatewayException('Яндекс вернул другую заявку');
+      await this.requireAccepted(orderId, token, synced.providerStatus);
+      const claim = {
+        ...synced,
+        price: synced.price ?? assessed.price,
+        priceIsFinal:
+          synced.price === null ? assessed.priceIsFinal : synced.priceIsFinal,
+      };
+      if (claim.currency !== 'RUB' || claim.price === null)
+        throw new BadGatewayException(
+          'Яндекс не вернул актуальную стоимость доставки в рублях',
+        );
+      positiveDeliveryPrice(claim.price);
+      return await this.saveBooking(orderId, token, claim, claim.price);
+    } catch (error) {
+      // Keep the durable stage and replay identity even when DB/provider outcome
+      // is unknown. A dead process leaves a lease which another worker can reclaim.
+      await this.db.deliveryAttempt
+        .updateMany({
+          where: { orderId, leaseToken: token },
+          data: {
+            ...(error instanceof YandexRequestError && !error.retryable
+              ? { state: 'NEEDS_REVIEW' as const }
+              : {}),
+            leaseToken: null,
+            leaseUntil: null,
+            lastError:
+              'Оформление не завершено. Повторите проверку той же заявки; другая доставка заблокирована.',
+          },
+        })
+        .catch(() => {});
+      if (error instanceof HttpException) throw error;
+      throw new BadGatewayException(
+        'Не удалось завершить оформление Яндекс. Попытка сохранена; повторите проверку.',
       );
-      const orderStatus =
-        deliveryStatus === 'DELIVERED'
-          ? 'COMPLETED'
-          : deliveryStatus === 'PICKED_UP'
-            ? 'DELIVERING'
-            : deliveryStatus === 'CANCELED'
-              ? 'READY'
-              : 'READY';
+    }
+  }
+
+  private async reserve(orderId: number) {
+    return this.db.$transaction(async (db) => {
+      await this.lockOrder(db, orderId);
+      const order = await db.order.findUniqueOrThrow({
+        where: { id: orderId },
+        include: { payment: true, delivery: true, deliveryAttempt: true },
+      });
+      requirePaid(order);
+      if (order.type !== 'DELIVERY' || order.delivery?.provider === 'OTHER')
+        throw new ConflictException('Способ доставки уже изменился');
+      const previous = order.deliveryAttempt;
+      if (
+        order.delivery?.externalOrderId &&
+        (!previous || previous.state === 'ACTIVE')
+      ) {
+        return {
+          result: {
+            order: await db.order.findUniqueOrThrow({ where: { id: orderId } }),
+            delivery: order.delivery,
+          },
+        };
+      }
+      if (order.status !== 'READY')
+        throw new ConflictException(
+          'Оформить доставку можно только для собранного заказа',
+        );
+      if (previous?.leaseUntil && previous.leaseUntil > new Date())
+        throw new ConflictException(
+          'Заявка Яндекс уже обрабатывается. Повторите проверку позже.',
+        );
+      if (previous && previous.provider !== 'YANDEX')
+        throw new ConflictException(
+          'Для заказа уже зарезервирован другой способ доставки',
+        );
+      const lease = {
+        leaseToken: randomUUID(),
+        leaseUntil: new Date(Date.now() + BOOKING_LEASE_MS),
+      };
+      const attempt = previous
+        ? await db.deliveryAttempt.update({ where: { orderId }, data: lease })
+        : await db.deliveryAttempt.create({
+            data: {
+              orderId,
+              provider: 'YANDEX',
+              requestId: order.publicId,
+              ...lease,
+            },
+          });
+      return { attempt };
+    });
+  }
+
+  private async checkpoint(
+    orderId: number,
+    token: string,
+    data: Prisma.DeliveryAttemptUpdateManyMutationInput,
+  ) {
+    return this.db.$transaction(async (db) => {
+      await this.lockOrder(db, orderId);
+      const changed = await db.deliveryAttempt.updateMany({
+        where: { orderId, leaseToken: token, leaseUntil: { gt: new Date() } },
+        data: { ...data, leaseUntil: new Date(Date.now() + BOOKING_LEASE_MS) },
+      });
+      if (changed.count !== 1)
+        throw new ConflictException(
+          'Проверка заявки уже продолжена другим запросом. Обновите заказ.',
+        );
+      return db.deliveryAttempt.findUniqueOrThrow({ where: { orderId } });
+    });
+  }
+
+  private async requireAccepted(
+    orderId: number,
+    token: string,
+    status: string,
+  ) {
+    if (acceptedStatuses.has(status)) {
+      await this.checkpoint(orderId, token, { providerStatus: status });
+      return;
+    }
+    await this.checkpoint(orderId, token, {
+      state: 'NEEDS_REVIEW',
+      providerStatus: status,
+    });
+    throw new ConflictException(
+      'Состояние заявки Яндекс требует проверки. Новая доставка заблокирована; повторите проверку или обратитесь к администратору.',
+    );
+  }
+
+  private async saveBooking(
+    orderId: number,
+    token: string,
+    claim: YandexClaimInfo,
+    price: number,
+  ) {
+    return this.db.$transaction(async (db) => {
+      await this.lockOrder(db, orderId);
+      const attempt = await db.deliveryAttempt.findUniqueOrThrow({
+        where: { orderId },
+      });
+      if (
+        attempt.leaseToken !== token ||
+        !attempt.leaseUntil ||
+        attempt.leaseUntil <= new Date()
+      )
+        throw new ConflictException(
+          'Проверка заявки уже продолжена другим запросом',
+        );
+      const order = await db.order.findUniqueOrThrow({
+        where: { id: orderId },
+        include: { payment: true, delivery: true },
+      });
+      requirePaid(order);
+      if (
+        order.type !== 'DELIVERY' ||
+        order.status !== 'READY' ||
+        order.delivery?.provider === 'OTHER' ||
+        (order.delivery?.externalOrderId &&
+          order.delivery.externalOrderId !== claim.claimId)
+      )
+        throw new ConflictException('Способ доставки уже изменился');
+      const status = this.nextStatus('ASSIGNED', claim.providerStatus);
+      const data = {
+        provider: 'YANDEX' as const,
+        status,
+        externalOrderId: claim.claimId,
+        trackingUrl: claim.trackingUrl,
+        courierName: claim.courierName,
+        courierPhone: null,
+        price,
+        providerStatus: claim.providerStatus,
+        providerUpdatedAt: this.providerDate(claim),
+        syncedAt: new Date(),
+      };
       const delivery = await db.delivery.upsert({
         where: { orderId },
-        update: {
-          provider: 'YANDEX',
-          status: deliveryStatus,
-          externalOrderId: booking.claim.claimId,
-          trackingUrl: booking.claim.trackingUrl,
-          courierName: booking.claim.courierName,
-          courierPhone: null,
-          price,
-          providerStatus: booking.claim.providerStatus,
-          providerUpdatedAt: this.providerDate(booking.claim),
-          syncedAt: new Date(),
-        },
         create: {
           orderId,
-          provider: 'YANDEX',
-          status: deliveryStatus,
-          externalOrderId: booking.claim.claimId,
-          trackingUrl: booking.claim.trackingUrl,
-          courierName: booking.claim.courierName,
-          price,
-          providerStatus: booking.claim.providerStatus,
-          providerUpdatedAt: this.providerDate(booking.claim),
-          syncedAt: new Date(),
+          ...data,
           publicToken: randomBytes(32).toString('base64url'),
         },
+        update: data,
       });
       const updatedOrder = await db.order.update({
         where: { id: orderId },
         data: {
-          status: orderStatus,
+          status:
+            status === 'DELIVERED'
+              ? 'COMPLETED'
+              : status === 'PICKED_UP'
+                ? 'DELIVERING'
+                : 'READY',
           ...deliveryTotals(order, price),
         },
       });
-
-      return { order: updatedOrder, delivery, quote: booking.quote };
+      await db.deliveryAttempt.update({
+        where: { orderId },
+        data: {
+          state: 'ACTIVE',
+          providerStatus: claim.providerStatus,
+          completedAt: new Date(),
+          leaseToken: null,
+          leaseUntil: null,
+          lastError: null,
+        },
+      });
+      return { order: updatedOrder, delivery };
     });
   }
 
@@ -304,6 +471,29 @@ export class DeliveryService {
           }
         }
       }
+      // Bounded recovery also finds attempts which have no local Delivery yet.
+      // NEEDS_REVIEW is retried only by an explicit staff action.
+      const pending = await this.db.deliveryAttempt.findMany({
+        where: {
+          state: { in: ['RESERVED', 'CREATED', 'ACCEPTED'] },
+          updatedAt: { lte: new Date(Date.now() - 15_000) },
+          OR: [{ leaseUntil: null }, { leaseUntil: { lte: new Date() } }],
+        },
+        select: { orderId: true },
+        orderBy: { updatedAt: 'asc' },
+        take: 2,
+      });
+      await Promise.all(
+        pending.map(async (attempt) => {
+          try {
+            await this.order(attempt.orderId, false);
+          } catch {
+            this.logger.warn(
+              `Не завершена попытка Яндекс для заказа ${attempt.orderId}; состояние сохранено`,
+            );
+          }
+        }),
+      );
     } catch (error) {
       this.logger.warn(
         `Не удалось синхронизировать активные Яндекс Доставки: ${this.errorMessage(error)}`,
@@ -314,6 +504,10 @@ export class DeliveryService {
   }
 
   async syncOrder(orderId: number) {
+    const attempt = await this.db.deliveryAttempt.findUnique({
+      where: { orderId },
+    });
+    if (attempt && attempt.state !== 'ACTIVE') return this.order(orderId);
     const delivery = await this.db.delivery.findUnique({
       where: { orderId },
       select: { id: true },
@@ -329,7 +523,13 @@ export class DeliveryService {
       select: { id: true },
     });
 
-    if (!delivery) throw new NotFoundException('Яндекс Доставка не найдена');
+    if (!delivery) {
+      const attempt = await this.db.deliveryAttempt.findUnique({
+        where: { externalOrderId: claimId },
+      });
+      if (!attempt) throw new NotFoundException('Яндекс Доставка не найдена');
+      return this.order(attempt.orderId);
+    }
     return this.syncYandexDelivery(delivery.id);
   }
 

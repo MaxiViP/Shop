@@ -10,8 +10,9 @@
         :aria-expanded="mobileOpen"
         @click="mobileOpen = true"
       />
-
-      <NuxtLink to="/" class="header__logo">Market</NuxtLink>
+      <NuxtLink to="/" class="header__brand" aria-label="KorzinaMarket — на главную">
+        <AppMarketLogo />
+      </NuxtLink>
 
       <nav class="header__nav" aria-label="Основная навигация">
         <NuxtLink to="/catalog">Каталог</NuxtLink>
@@ -19,10 +20,8 @@
       </nav>
 
       <div class="header__actions">
-        <AppMessages :count="communication.count.value" :to="communication.to.value" />
         <AppThemeControl />
         <UButton v-if="auth.user?.role === 'ADMIN'" to="/admin/products" variant="ghost" color="neutral">Админка</UButton>
-        <AppNewOrders v-if="staff" :count="newOrders" />
 
         <UButton
           v-if="auth.loggedIn"
@@ -70,18 +69,11 @@
           <AppHeaderNotice target="cart" />
         </div>
 
-        <UButton
-          to="/orders"
-          icon="i-lucide-package"
-          variant="ghost"
-          color="neutral"
-          aria-label="Мои заказы"
-        />
+        <AppOrdersAction :action="orders" />
       </div>
 
       <div class="header__mobile-actions">
-        <AppNewOrders v-if="staff" :count="newOrders" />
-        <AppMessages :count="communication.count.value" :to="communication.to.value" />
+        <AppOrdersAction :action="orders" />
         <AppThemeControl />
         <div class="header__action">
           <UButton
@@ -155,9 +147,11 @@
             </UBadge>
           </NuxtLink>
 
-          <NuxtLink to="/orders" class="mobile-nav__link">
+          <NuxtLink :to="orders.to" class="mobile-nav__link mobile-nav__link--orders" :aria-label="orders.label">
             <UIcon name="i-lucide-package" />
-            <span>Мои заказы</span>
+            <span>{{ staff ? 'Заказы' : 'Мои заказы' }}</span>
+            <AppAttentionBadge :count="orders.newOrdersCount" variant="success" />
+            <AppAttentionBadge :count="orders.unreadMessagesCount" variant="info" />
           </NuxtLink>
 
           <NuxtLink
@@ -197,8 +191,7 @@ import { useFavoritesStore } from "~/stores/favorites";
 
 const route = useRoute();
 const auth = useAuthStore();
-const newOrders = useNewOrders();
-const communication = useCommunication();
+const orders = useOrdersAction();
 const cart = useCartStore();
 const favorites = useFavoritesStore();
 const notice = useHeaderNotice();
@@ -245,12 +238,18 @@ function login() {
   gap: 0.25rem;
 }
 
-.header__logo {
-  min-width: 0;
+.header__brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
   margin-right: auto;
-  padding: 0.5rem;
-  font-size: 1.125rem;
-  font-weight: 700;
+  border-radius: 0.5rem;
+}
+.header__brand:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 3px;
 }
 
 .header__menu,
@@ -336,15 +335,17 @@ function login() {
   justify-self: end;
 }
 
+.mobile-nav__link--orders {
+  position: relative;
+}
+
 @media (min-width: 48rem) {
   .header__inner {
     gap: 2rem;
   }
 
-  .header__logo {
+  .header__brand {
     margin-right: 0;
-    padding: 0;
-    font-size: 1.25rem;
   }
 
   .header__menu,

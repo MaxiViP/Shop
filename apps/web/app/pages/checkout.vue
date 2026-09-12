@@ -6,13 +6,74 @@
       <h1 class="checkout__title">Оформление заказа</h1>
     </header>
 
-    <div class="checkout__layout">
+    <UAlert
+      v-if="cart.storageWarning"
+      class="mb-4"
+      color="warning"
+      :title="cart.storageWarning"
+    />
+    <UAlert
+      v-if="cart.priceChanged"
+      class="mb-4"
+      color="info"
+      title="Цена некоторых товаров изменилась. Проверьте обновлённую сумму."
+    />
+    <UAlert
+      v-if="quoteError || settingsError"
+      class="mb-4"
+      color="error"
+      title="Не удалось проверить корзину"
+      :description="quoteError || 'Не удалось загрузить способы получения.'"
+      :actions="[{ label: 'Повторить', onClick: retryQuote }]"
+    />
+    <div
+      v-if="!ready || !settings || settingsError"
+      class="space-y-4"
+      role="status"
+      aria-live="polite"
+    >
+      <p>
+        {{
+          quoteError || settingsError
+            ? "Оформление недоступно до успешной проверки корзины."
+            : "Восстанавливаем корзину и проверяем актуальные цены…"
+        }}
+      </p>
+      <USkeleton v-if="!quoteError && !settingsError" class="h-48 w-full" />
+      <UButton to="/cart" color="neutral" variant="soft"
+        >Вернуться в корзину</UButton
+      >
+    </div>
+    <div v-else class="checkout__layout">
       <main class="checkout__main">
         <section class="section">
           <h2 class="section__title">Получение</h2>
 
+          <UAlert
+            v-if="!cart.quote?.valid"
+            class="mb-4"
+            color="warning"
+            title="Проверьте корзину"
+            description="Некоторые товары или количество недоступны для заказа. Вернитесь в корзину и исправьте позиции."
+            :actions="[{ label: 'В корзину', to: '/cart' }]"
+          />
+          <OrderDeliveryMinimum
+            v-if="cart.total !== null"
+            :settings="settings"
+            :subtotal="cart.total"
+          />
+          <p v-if="settings && !settings.pickupEnabled" class="text-muted">
+            Самовывоз временно недоступен.
+          </p>
           <div class="type">
-            <button type="button" class="type__item" :class="{ 'type__item--active': form.type === 'DELIVERY' }" :aria-pressed="form.type === 'DELIVERY'" @click="form.type = 'DELIVERY'">
+            <button
+              type="button"
+              class="type__item"
+              :disabled="!eligibility?.delivery"
+              :class="{ 'type__item--active': form.type === 'DELIVERY' }"
+              :aria-pressed="form.type === 'DELIVERY'"
+              @click="form.type = 'DELIVERY'"
+            >
               <UIcon name="i-lucide-truck" />
 
               <span>
@@ -21,7 +82,14 @@
               </span>
             </button>
 
-            <button type="button" class="type__item" :class="{ 'type__item--active': form.type === 'PICKUP' }" :aria-pressed="form.type === 'PICKUP'" @click="form.type = 'PICKUP'">
+            <button
+              type="button"
+              class="type__item"
+              :disabled="!eligibility?.pickup"
+              :class="{ 'type__item--active': form.type === 'PICKUP' }"
+              :aria-pressed="form.type === 'PICKUP'"
+              @click="form.type = 'PICKUP'"
+            >
               <UIcon name="i-lucide-store" />
 
               <span>
@@ -36,8 +104,8 @@
           <h2 class="section__title">Получатель</h2>
 
           <div class="form__row">
-            <UFormField label="Имя" :error="errors.name">
-              <UInput
+            <UFormField  label="Имя" :error="errors.name">
+              <AppTextInput
                 v-model="form.name"
                 autocomplete="name"
                 placeholder="Максим"
@@ -46,8 +114,9 @@
             </UFormField>
 
             <UFormField label="Телефон" :error="errors.phone">
-              <UInput
+              <AppTextInput
                 v-model="form.phone"
+                format="phone"
                 type="tel"
                 inputmode="tel"
                 autocomplete="tel"
@@ -117,11 +186,11 @@
           <div v-if="showAddressForm" class="address">
             <div class="form__row">
               <UFormField label="Город" :error="errors.city">
-                <UInput v-model="form.city" placeholder="Москва" />
+                <AppTextInput v-model="form.city" placeholder="Москва" />
               </UFormField>
 
               <UFormField label="Улица" :error="errors.street">
-                <UInput
+                <AppTextInput
                   v-model="form.street"
                   placeholder="Ленинский проспект"
                 />
@@ -177,18 +246,38 @@
           <fieldset class="pickup-time">
             <legend class="section__title">Когда подготовить?</legend>
             <label class="pickup-time__option">
-              <input v-model="form.pickupTiming" type="radio" value="asap" name="pickup-timing">
+              <input
+                v-model="form.pickupTiming"
+                type="radio"
+                value="asap"
+                name="pickup-timing"
+              />
               <span>Начать собирать сразу</span>
             </label>
             <p v-if="form.pickupTiming === 'asap'" class="section__hint">
               Начнём подготовку заказа сразу после его принятия.
             </p>
             <label class="pickup-time__option">
-              <input v-model="form.pickupTiming" type="radio" value="scheduled" name="pickup-timing">
+              <input
+                v-model="form.pickupTiming"
+                type="radio"
+                value="scheduled"
+                name="pickup-timing"
+              />
               <span>Ко времени</span>
             </label>
-            <UFormField v-if="form.pickupTiming === 'scheduled'" label="Дата и время (Москва)" :error="errors.deliveryAt" required>
-              <UInput v-model="form.pickupAt" type="datetime-local" required size="lg" />
+            <UFormField
+              v-if="form.pickupTiming === 'scheduled'"
+              label="Дата и время (Москва)"
+              :error="errors.deliveryAt"
+              required
+            >
+              <UInput
+                v-model="form.pickupAt"
+                type="datetime-local"
+                required
+                size="lg"
+              />
             </UFormField>
           </fieldset>
         </section>
@@ -220,41 +309,51 @@
               </small>
             </div>
 
-            <span>
-              {{ money(cart.lineTotal(item)) }}
-            </span>
+            <span v-if="cart.lineTotal(item) !== null">{{
+              money(cart.lineTotal(item) ?? 0)
+            }}</span>
+            <span v-else class="text-error">{{
+              cartLineMessage(cart.quoteLine(item.product.id))
+            }}</span>
           </div>
         </div>
 
-        <div class="summary__row">
+        <div v-if="cart.total !== null" class="summary__row">
           <span>Предварительная стоимость товаров</span>
 
-          <span>
-            ≈ {{ money(cart.total) }}
-          </span>
+          <span> ≈ {{ money(cart.total ?? 0) }} </span>
         </div>
 
         <div class="summary__row">
-          <span>{{ form.type === 'PICKUP' ? 'Самовывоз' : 'Доставка' }}</span>
+          <span>{{ form.type === "PICKUP" ? "Самовывоз" : "Доставка" }}</span>
 
-          <span>{{ form.type === 'PICKUP' ? 'Бесплатно' : 'Рассчитывается' }}</span>
+          <span>{{
+            form.type === "PICKUP" ? "Бесплатно" : "Рассчитывается"
+          }}</span>
         </div>
 
-        <div class="summary__total">
+        <div v-if="cart.total !== null" class="summary__total">
           <span> Предварительно за товары </span>
 
-          <strong>
-            ≈ {{ money(cart.total) }}
-          </strong>
+          <strong> ≈ {{ money(cart.total ?? 0) }} </strong>
         </div>
 
-        <UButton block size="xl" :loading="loading" @click="submit">
+        <UButton
+          block
+          size="xl"
+          :loading="loading"
+          :disabled="!canSubmit"
+          @click="submit"
+        >
           Оформить заказ
         </UButton>
 
         <p class="summary__note">
-          Итоговая стоимость будет рассчитана после сборки и фактического взвешивания товаров. Оплата — после сборки заказа.
-          <span v-if="form.type === 'DELIVERY'">Доставка оплачивается отдельно.</span>
+          Итоговая стоимость будет рассчитана после сборки и фактического
+          взвешивания товаров. Оплата — после сборки заказа.
+          <span v-if="form.type === 'DELIVERY'"
+            >Доставка оплачивается отдельно.</span
+          >
         </p>
       </aside>
     </div>
@@ -269,15 +368,32 @@ import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
 import { qtyText } from "~/utils/qty";
 import { pickupDate } from "~/utils/pickup";
+import {
+  deliveryEligibility,
+  type PublicShopSettings,
+} from "~/utils/shop-settings";
+import { checkoutRedirect, cartLineMessage } from "~/utils/cart";
+const {
+  data: settings,
+  error: settingsError,
+  refresh: refreshSettings,
+} = await useApi<PublicShopSettings>("/shop/settings");
 
 const auth = useAuthStore();
 const cart = useCartStore();
+const {
+  ready,
+  pending: quotePending,
+  error: quoteError,
+  refresh: refreshQuote,
+} = useCartQuote();
+const eligibility = computed(() =>
+  ready.value && cart.total !== null && settings.value && !settingsError.value
+    ? deliveryEligibility(cart.total, settings.value)
+    : null,
+);
 const api = useApiClient();
 const { name, rememberOnSuccess } = useCheckoutName();
-
-if (!cart.items.length) {
-  await navigateTo("/cart");
-}
 
 const { data: addressData } = await useApi<Address[]>("/addresses", {
   default: () => [],
@@ -289,6 +405,7 @@ const addresses = computed(() => addressData.value ?? []);
 const selectedAddressId = ref<number | null>(null);
 
 const loading = ref(false);
+const submitted = ref(false);
 const error = ref("");
 
 const errors = reactive({
@@ -301,9 +418,9 @@ const errors = reactive({
 });
 
 const form = reactive({
-  type: 'DELIVERY' as OrderType,
-  pickupTiming: 'asap',
-  pickupAt: '',
+  type: "DELIVERY" as OrderType,
+  pickupTiming: "asap",
+  pickupAt: "",
   name,
   phone: auth.user?.phone ?? "",
 
@@ -317,10 +434,50 @@ const form = reactive({
   comment: "",
 });
 
-watch(() => [form.type, form.pickupTiming], () => {
-  clearErrors();
-  error.value = '';
-});
+const canSubmit = computed(
+  () =>
+    !loading.value &&
+    !quotePending.value &&
+    cart.quote?.valid &&
+    (form.type === "DELIVERY"
+      ? eligibility.value?.delivery
+      : eligibility.value?.pickup),
+);
+// Unknown localStorage state on SSR is not an empty cart. Wait for actual restore.
+watch(
+  () => [cart.restored, cart.count, loading.value],
+  () => {
+    if (
+      import.meta.client &&
+      !loading.value &&
+      !submitted.value &&
+      checkoutRedirect(cart.restored, cart.count)
+    )
+      void navigateTo("/cart", { replace: true });
+  },
+  { immediate: true },
+);
+async function retryQuote() {
+  await Promise.all([refreshQuote(), refreshSettings()]);
+}
+watch(
+  eligibility,
+  (value) => {
+    if (form.type === "DELIVERY" && !value?.delivery && value?.pickup)
+      form.type = "PICKUP";
+    else if (form.type === "PICKUP" && !value?.pickup && value?.delivery)
+      form.type = "DELIVERY";
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [form.type, form.pickupTiming],
+  () => {
+    clearErrors();
+    error.value = "";
+  },
+);
 
 const showAddressForm = computed(
   () =>
@@ -382,21 +539,22 @@ function validate() {
     errors.phone = "Введите телефон";
   }
 
-  if (form.type === 'DELIVERY' && !form.city.trim()) {
+  if (form.type === "DELIVERY" && !form.city.trim()) {
     errors.city = "Введите город";
   }
 
-  if (form.type === 'DELIVERY' && !form.street.trim()) {
+  if (form.type === "DELIVERY" && !form.street.trim()) {
     errors.street = "Введите улицу";
   }
 
-  if (form.type === 'DELIVERY' && !form.house.trim()) {
+  if (form.type === "DELIVERY" && !form.house.trim()) {
     errors.house = "Введите дом";
   }
 
-  if (form.type === 'PICKUP' && form.pickupTiming === 'scheduled') {
+  if (form.type === "PICKUP" && form.pickupTiming === "scheduled") {
     const date = pickupDate(form.pickupAt);
-    if (!date || date.getTime() <= Date.now()) errors.deliveryAt = 'Укажите дату и время в будущем';
+    if (!date || date.getTime() <= Date.now())
+      errors.deliveryAt = "Укажите дату и время в будущем";
   }
   return !Object.values(errors).some(Boolean);
 }
@@ -411,6 +569,7 @@ function clearErrors() {
 }
 
 async function submit() {
+  if (!canSubmit.value) return;
   if (loading.value) return;
   if (!validate()) return;
 
@@ -419,33 +578,54 @@ async function submit() {
 
   const rememberName = rememberOnSuccess();
   try {
+    const previousToken = cart.quote?.token;
+    const requestedType = form.type;
+    const [refreshed] = await Promise.all([refreshQuote(), refreshSettings()]);
+    if (!refreshed || settingsError.value || !cart.quote?.valid) return;
+    if (
+      previousToken !== cart.quote.token ||
+      requestedType !== form.type ||
+      !(form.type === "DELIVERY"
+        ? eligibility.value?.delivery
+        : eligibility.value?.pickup)
+    ) {
+      error.value =
+        "Условия заказа изменились. Проверьте товары, сумму и способ получения перед оформлением.";
+      return;
+    }
     const order = await api<OrderCreated>("/orders", {
       method: "POST",
 
       body: {
         type: form.type,
-        deliveryAt: form.type === 'PICKUP' && form.pickupTiming === 'scheduled'
-          ? pickupDate(form.pickupAt)?.toISOString() : undefined,
+        quoteToken: cart.quote.token,
+        deliveryAt:
+          form.type === "PICKUP" && form.pickupTiming === "scheduled"
+            ? pickupDate(form.pickupAt)?.toISOString()
+            : undefined,
 
         customerName: form.name.trim(),
 
         customerPhone: form.phone.trim(),
 
-        address: form.type === 'DELIVERY' ? {
-          city: form.city.trim(),
-          street: form.street.trim(),
-          house: form.house.trim(),
+        address:
+          form.type === "DELIVERY"
+            ? {
+                city: form.city.trim(),
+                street: form.street.trim(),
+                house: form.house.trim(),
 
-          flat: form.flat.trim() || undefined,
+                flat: form.flat.trim() || undefined,
 
-          entrance: form.entrance.trim() || undefined,
+                entrance: form.entrance.trim() || undefined,
 
-          floor: form.floor.trim() || undefined,
+                floor: form.floor.trim() || undefined,
 
-          intercom: form.intercom.trim() || undefined,
+                intercom: form.intercom.trim() || undefined,
 
-          comment: form.comment.trim() || undefined,
-        } : undefined,
+                comment: form.comment.trim() || undefined,
+              }
+            : undefined,
 
         items: cart.items.map((item) => ({
           productId: item.product.id,
@@ -455,11 +635,15 @@ async function submit() {
     });
 
     rememberName();
+    submitted.value = true;
     cart.clear();
 
     await navigateTo(`/order/${order.publicId}`);
   } catch (cause) {
-    error.value = getMessage(cause);
+    const message = getMessage(cause);
+    // No automatic POST retry: refresh data, then require another deliberate submit.
+    await retryQuote();
+    error.value = message;
   } finally {
     loading.value = false;
   }
@@ -628,6 +812,7 @@ useSeoMeta({
 .form__row {
   display: grid;
   gap: 1rem;
+
 }
 
 .form__grid {

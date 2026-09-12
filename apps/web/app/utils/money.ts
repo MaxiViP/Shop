@@ -6,11 +6,11 @@ export function knownMoney(value: number | null, unknown = "Рассчитыва
   return value === null ? unknown : money(value);
 }
 
-export function rublesToKopecks(value: string): number | null {
+export function rublesToKopecks(value: string, allowZero = false): number | null {
   const match = /^(\d{1,7})(?:[.,](\d{1,2}))?$/.exec(value.trim());
   if (!match) return null;
   const price = Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0'));
-  return price > 0 && price <= 100_000_000 ? price : null;
+  return price >= (allowZero ? 0 : 1) && price <= 100_000_000 ? price : null;
 }
 
 export function kopecksToRubles(value: number): string {

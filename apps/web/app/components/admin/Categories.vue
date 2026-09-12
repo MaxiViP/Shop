@@ -49,7 +49,7 @@
         <form class="space-y-4" @submit.prevent="save">
           <fieldset :disabled="busy" class="space-y-4">
             <UFormField label="Название" required
-              ><UInput
+              ><AppTextInput
                 v-model="form.name"
                 required
                 maxlength="160"

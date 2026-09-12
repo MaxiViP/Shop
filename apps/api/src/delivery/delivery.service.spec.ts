@@ -12,7 +12,10 @@ function yandexMock(claim: YandexClaimInfo) {
     sync: vi.fn().mockResolvedValue(claim),
     bulkInfo: vi.fn().mockResolvedValue([claim]),
     calculate: vi.fn(),
-    book: vi.fn(),
+    prepare: vi.fn(),
+    create: vi.fn(),
+    inspect: vi.fn(),
+    accept: vi.fn(),
   } as unknown as YandexService;
 }
 
@@ -73,6 +76,10 @@ function syncSetup(
   };
   const findMany = vi.fn().mockResolvedValue([]);
   const db = {
+    deliveryAttempt: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
     delivery: {
       findMany,
       findUnique: vi.fn().mockResolvedValue({
@@ -581,148 +588,70 @@ describe('DeliveryService Yandex polling', () => {
   });
 });
 
-describe('DeliveryService Yandex booking', () => {
-  it.each([
-    { action: 'quote', price: 43_700, concurrent: false },
-    { action: 'order', price: 44_125, concurrent: false },
-    { action: 'order', price: 44_125, concurrent: true },
-  ] as const)(
-    'stores $action price and recalculates both totals on backend',
-    async ({ action, price, concurrent }) => {
-      const bookingClaim = claim('accepted', { price: 44_125 });
-      const yandex = yandexMock(bookingClaim);
-      vi.mocked(yandex.calculate).mockResolvedValue({
-        price: 43_700,
-        currency: 'RUB',
-        pickupFrom: '',
-        pickupTo: '',
-        deliveryFrom: '',
-        deliveryTo: '',
-        expiresAt: null,
-        offerPayload: 'quote',
-      });
-      vi.mocked(yandex.book).mockResolvedValue({
-        quote: {
-          price: 43_700,
-          currency: 'RUB',
-          pickupFrom: '2026-09-01T10:00:00Z',
-          pickupTo: '2026-09-01T10:15:00Z',
-          deliveryFrom: '2026-09-01T10:15:00Z',
-          deliveryTo: '2026-09-01T10:40:00Z',
-          expiresAt: null,
+describe('DeliveryService Yandex quote', () => {
+  it('stores the quote price and recalculates totals before booking', async () => {
+    const yandex = yandexMock(claim('accepted'));
+    vi.mocked(yandex.calculate).mockResolvedValue({
+      price: 43_700,
+      currency: 'RUB',
+      pickupFrom: '',
+      pickupTo: '',
+      deliveryFrom: '',
+      deliveryTo: '',
+      expiresAt: null,
+      offerPayload: 'quote',
+    });
+    const order = {
+      id: 1,
+      publicId: '123e4567-e89b-12d3-a456-426614174000',
+      type: 'DELIVERY',
+      status: 'READY',
+      subtotal: 300_000,
+      finalSubtotal: 284_000,
+      customerName: 'Fixture',
+      customerPhone: '+79990000000',
+      city: 'Москва',
+      street: 'Тест',
+      house: '1',
+      delivery: null,
+      items: [
+        {
+          id: 10,
+          productName: 'Яблоки',
+          unit: 'GRAM',
+          status: 'PICKED',
+          actualQty: 1063,
+          actualTotal: 47835,
         },
-        claim: bookingClaim,
-      });
-      const client = {
-        $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
-        order: {
-          findUniqueOrThrow: vi.fn().mockResolvedValue({
-            id: 1,
-            status: 'COMPLETED',
-            deliveryPrice: 50_000,
-          }),
-          findUnique: vi.fn().mockResolvedValue({
-            type: 'DELIVERY',
-            status: 'READY',
-            assemblyFinalizedAt: new Date(),
-            payment: { status: 'PAID', amount: 284_000 },
-            subtotal: 300_000,
-            finalSubtotal: 284_000,
-            delivery: null,
-          }),
-          update: vi
-            .fn()
-            .mockImplementation(({ data }) => ({ id: 1, ...data })),
-        },
-        delivery: {
-          findUniqueOrThrow: vi
-            .fn()
-            .mockResolvedValue({ id: 20, price: 50_000 }),
-          upsert: vi
-            .fn()
-            .mockImplementation(({ create }) => ({ id: 20, ...create })),
-        },
-      };
-      const db = {
-        order: {
-          findUniqueOrThrow: vi
-            .fn()
-            .mockResolvedValue({
-              assemblyFinalizedAt: new Date(),
-              finalSubtotal: 284_000,
-              payment: { status: 'PAID', amount: 284_000 },
-            }),
-          findUnique: vi.fn().mockResolvedValue({
-            id: 1,
-            publicId: '123e4567-e89b-12d3-a456-426614174000',
-            type: 'DELIVERY',
-            status: 'READY',
-            customerName: 'Максим',
-            customerPhone: '+79050000000',
-            city: 'Москва',
-            street: 'Пинский проезд',
-            house: '7',
-            flat: null,
-            entrance: null,
-            floor: null,
-            intercom: null,
-            comment: null,
-            delivery: null,
-            items: [
-              {
-                id: 10,
-                productName: 'Яблоки',
-                unit: 'GRAM',
-                status: 'PICKED',
-                actualQty: 1_063,
-                actualTotal: 47_835,
-              },
-            ],
-          }),
-        },
-        $transaction: vi.fn(
-          (callback: (value: typeof client) => Promise<unknown>) =>
-            callback(client),
-        ),
-      } as unknown as DbService;
-
-      if (concurrent) {
-        client.order.findUnique.mockResolvedValue({
-          type: 'DELIVERY',
-          status: 'COMPLETED',
-          subtotal: 300_000,
-          finalSubtotal: 284_000,
-          delivery: {
-            provider: 'YANDEX',
-            externalOrderId: bookingClaim.claimId,
-          },
-        });
-      }
-      const result = await new DeliveryService(db, yandex)[action](1);
-      if (concurrent) {
-        expect(result).toMatchObject({
-          order: { status: 'COMPLETED', deliveryPrice: 50_000 },
-          delivery: { price: 50_000 },
-        });
-        expect(client.delivery.upsert).not.toHaveBeenCalled();
-        expect(client.order.update).not.toHaveBeenCalled();
-        return;
-      }
-
-      expect(client.delivery.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          create: expect.objectContaining({ price }),
+      ],
+    };
+    const client = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
+      order: { findUnique: vi.fn().mockResolvedValue(order), update: vi.fn() },
+      delivery: { upsert: vi.fn() },
+    };
+    const db = {
+      order: client.order,
+      $transaction: vi.fn(
+        (callback: (value: typeof client) => Promise<unknown>) =>
+          callback(client),
+      ),
+    } as unknown as DbService;
+    await new DeliveryService(db, yandex).quote(1);
+    expect(client.delivery.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ price: 43_700 }),
+      }),
+    );
+    expect(client.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          deliveryPrice: 43_700,
+          total: 343_700,
+          finalTotal: 327_700,
         }),
-      );
-      expect(client.order.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            deliveryPrice: price,
-            total: 300_000 + price,
-            finalTotal: 284_000 + price,
-          }),
-        }),
-      );
-    },
-  );
+      }),
+    );
+    expect(yandex.create).not.toHaveBeenCalled();
+  });
 });

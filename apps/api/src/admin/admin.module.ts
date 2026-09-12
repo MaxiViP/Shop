@@ -8,7 +8,7 @@ import { AdminCategoriesService } from './categories.service.js';
 import { AdminUsersCtrl } from './users.ctrl.js';
 import { AdminUsersService } from './users.service.js';
 import { ImagesService } from './images.service.js';
-import { SettingsCtrl } from './settings.ctrl.js';
+import { SettingsCtrl, PublicSettingsCtrl, ExtraLimitsCtrl } from './settings.ctrl.js';
 import { SettingsService } from './settings.service.js';
 @Module({
   imports: [AuthModule, DbModule],
@@ -17,6 +17,8 @@ import { SettingsService } from './settings.service.js';
     AdminCategoriesCtrl,
     AdminUsersCtrl,
     SettingsCtrl,
+    PublicSettingsCtrl,
+    ExtraLimitsCtrl,
   ],
   providers: [
     AdminProductsService,

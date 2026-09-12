@@ -12,12 +12,13 @@
     <template #body>
       <form class="auth" @submit.prevent="submit">
         <UFormField v-if="!codeSent" label="Телефон">
-          <UInput
+          <AppTextInput
             v-model="phone"
+            format="phone"
             type="tel"
             inputmode="tel"
             autocomplete="tel"
-            placeholder="+7 999 123-45-67"
+            placeholder="+7 999 123 45 67"
             size="lg"
             autofocus
             :disabled="loading"

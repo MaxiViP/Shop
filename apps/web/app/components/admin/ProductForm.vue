@@ -5,7 +5,7 @@
         <template #header><h2 class="font-semibold">Основное</h2></template>
         <div class="grid sm:grid-cols-2 gap-4">
           <UFormField label="Название товара" required
-            ><UInput
+            ><AppTextInput
               v-model="form.name"
               required
               maxlength="160"

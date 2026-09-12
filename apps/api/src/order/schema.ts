@@ -27,6 +27,8 @@ export const orderSchema = z
 
     deliveryAt: z.string().datetime().optional(),
 
+    quoteToken: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+
     items: z
       .array(
         z.object({

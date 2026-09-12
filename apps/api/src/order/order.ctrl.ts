@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { reportSchema } from './payment.js';
 import { OrderService } from './order.service.js';
 import { orderSchema, type OrderInput } from './schema.js';
+import { quoteSchema, type QuoteInput } from './cart-quote.js';
 
 const prod = process.env.NODE_ENV === 'production';
 
@@ -15,6 +16,11 @@ export class OrderCtrl {
     private readonly order: OrderService,
     private readonly auth: AuthService,
   ) {}
+
+  @Post('quote')
+  quote(@Body({ schema: quoteSchema }) body: QuoteInput) {
+    return this.order.quote(body);
+  }
 
   @Post()
   async create(

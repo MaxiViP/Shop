@@ -75,6 +75,7 @@ function setup(order: LockedOrder) {
       update: vi.fn().mockResolvedValue({ id: 20 }),
       upsert: vi.fn().mockResolvedValue({ id: 20 }),
     },
+    deliveryAttempt: { findUnique: vi.fn().mockResolvedValue(null) },
     orderPayment: { upsert: vi.fn().mockResolvedValue({ id: 1, updatedAt: new Date() }), updateMany: vi.fn() },
     orderExtra: { findMany: vi.fn().mockResolvedValue([]) },
     orderIssue: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), upsert: vi.fn().mockResolvedValue({ id: 1, orderId: order.id, version: 1 }), updateMany: vi.fn() },

@@ -4,7 +4,7 @@
       <h1 class="cart__title">Корзина</h1>
 
       <UButton
-        v-if="cart.items.length"
+        v-if="cart.restored && cart.items.length"
         class="cart__clear"
         variant="ghost"
         color="neutral"
@@ -14,7 +14,13 @@
       </UButton>
     </div>
 
-    <div v-if="cart.items.length" class="cart__layout">
+    <UAlert v-if="cart.storageWarning" class="mb-4" color="warning" :title="cart.storageWarning" />
+    <UAlert v-if="cart.priceChanged" class="mb-4" color="info" title="Цена некоторых товаров изменилась. Расчёт обновлён." />
+    <UAlert v-if="quoteError || settingsError" class="mb-4" color="error" title="Не удалось обновить корзину" :description="quoteError || 'Не удалось загрузить способы получения.'" :actions="[{ label: 'Повторить', onClick: retry }]" />
+    <div v-if="!cart.restored" role="status" aria-live="polite" class="space-y-4">
+      <p>Восстанавливаем корзину…</p><USkeleton class="h-32 w-full" /><USkeleton class="h-32 w-full" />
+    </div>
+    <div v-else-if="cart.items.length" class="cart__layout">
       <div class="cart__items">
         <article v-for="item in cart.items" :key="item.product.id" class="item">
           <NuxtLink :to="`/product/${item.product.slug}`" class="item__img">
@@ -32,9 +38,16 @@
               {{ item.product.name }}
             </NuxtLink>
 
-            <ProductPrice :product="item.product" />
+            <ProductPrice v-if="ready && cart.quoteLine(item.product.id)?.product" :product="item.product" />
+            <span v-else-if="!ready" class="text-muted" role="status">Проверяем цену…</span>
+            <p v-if="ready && cartLineMessage(cart.quoteLine(item.product.id))" class="text-error" role="alert">{{ cartLineMessage(cart.quoteLine(item.product.id)) }}</p>
+            <template v-if="ready && cart.quoteLine(item.product.id)?.status === 'INVALID_QUANTITY'">
+              <p class="text-muted">Выбрано: {{ qtyText(item.product.unit, item.qty) }}. Минимум: {{ qtyText(item.product.unit, item.product.min) }}, шаг: {{ qtyText(item.product.unit, item.product.step) }}.</p>
+              <UButton color="neutral" variant="soft" @click="setQty(item.product.id, item.product.min)">Установить {{ qtyText(item.product.unit, item.product.min) }}</UButton>
+            </template>
 
             <ProductQty
+              v-else-if="ready && cart.quoteLine(item.product.id)?.product"
               :model-value="item.qty"
               :product="item.product"
               @update:model-value="setQty(item.product.id, $event)"
@@ -42,8 +55,8 @@
           </div>
 
           <div class="item__side">
-            <strong class="item__total">
-              {{ money(cart.lineTotal(item)) }}
+            <strong v-if="ready && cart.lineTotal(item) !== null" class="item__total">
+              {{ money(cart.lineTotal(item) ?? 0) }}
             </strong>
 
             <UButton
@@ -66,12 +79,15 @@
           <span>{{ cart.count }}</span>
         </div>
 
-        <div class="summary__total">
+        <div v-if="ready && cart.total !== null" class="summary__total">
           <span>Предварительно за товары</span>
-          <strong>≈ {{ money(cart.total) }}</strong>
+          <strong>≈ {{ money(cart.total ?? 0) }}</strong>
         </div>
 
-        <UButton to="/checkout" block size="lg"> Оформить заказ </UButton>
+        <p v-else class="my-4 text-muted" role="status">{{ ready ? 'Исправьте отмеченные позиции для расчёта суммы.' : 'Проверяем товары и цены…' }}</p>
+        <UAlert v-if="ready && cart.quote?.error === 'TOTAL_OVERFLOW'" class="mb-4" color="error" title="Сумма корзины слишком велика. Уменьшите количество или удалите позиции." />
+        <OrderDeliveryMinimum v-if="ready && cart.total !== null" :settings="settings" :subtotal="cart.total" />
+        <UButton to="/checkout" block size="lg" :disabled="!ready || !cart.quote?.valid || !settings || !!settingsError"> Оформить заказ </UButton>
       </aside>
     </div>
 
@@ -90,10 +106,16 @@
 <script setup lang="ts">
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
+import type { PublicShopSettings } from "~/utils/shop-settings";
+import { cartLineMessage } from "~/utils/cart";
+import { qtyText } from "~/utils/qty";
+const { data: settings, error: settingsError, refresh: refreshSettings } = await useApi<PublicShopSettings>("/shop/settings");
 
 const cart = useCartStore();
 const asset = useAsset();
 const notice = useHeaderNotice();
+const { ready, error: quoteError, refresh: refreshQuote } = useCartQuote();
+async function retry() { await Promise.all([refreshQuote(), refreshSettings()]); }
 
 function setQty(id: number, qty: number) {
   const previous = cart.qty(id);

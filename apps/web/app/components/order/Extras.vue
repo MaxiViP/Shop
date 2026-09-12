@@ -4,6 +4,8 @@
       ><h2 class="text-xl font-semibold">Дополнительные услуги</h2></template
     >
     <div class="extras">
+      <p v-if="staff && limits" class="text-muted">Максимум за единицу: {{ money(limits.maxOrderExtraUnitPrice) }}. Активных услуг: {{ money(activeTotal) }} / {{ money(limits.maxOrderExtrasTotal) }}.</p>
+      <p v-if="staff && limitsError" class="text-error">Не удалось загрузить лимиты услуг. Обновите страницу.</p>
       <article v-for="extra in extras" :key="extra.id" class="extras__row">
         <div>
           <h3 class="font-semibold">{{ extra.title }}</h3>
@@ -38,7 +40,7 @@
       >
       <form v-if="editable && open" class="extras__form" @submit.prevent="save">
         <UFormField label="Название" required
-          ><UInput v-model="form.title" class="w-full" maxlength="120" required
+          ><AppTextInput v-model="form.title" class="w-full" maxlength="120" required
         /></UFormField>
         <UFormField label="Комментарий"
           ><UTextarea v-model="form.comment" class="w-full" maxlength="1000"
@@ -56,8 +58,9 @@
           ><UInput v-model="form.price" inputmode="decimal" required
         /></UFormField>
         <p>Итого: {{ preview === null ? "—" : money(preview) }}</p>
+        <p v-if="limitError" class="text-error" role="status">{{ limitError }}</p>
         <div class="flex gap-2">
-          <UButton type="submit" :loading="busy">Сохранить</UButton
+          <UButton type="submit" :loading="busy" :disabled="!limits || !!limitError">Сохранить</UButton
           ><UButton variant="ghost" :disabled="busy" @click="open = false"
             >Закрыть</UButton
           >
@@ -68,6 +71,7 @@
 </template>
 <script setup lang="ts">
 import type { OrderExtra } from "~/types/order";
+import { extraLimitError, type ExtraLimits } from "~/utils/shop-settings";
 const props = defineProps<{
   extras: OrderExtra[];
   staff?: boolean;
@@ -75,6 +79,8 @@ const props = defineProps<{
   orderId?: number;
 }>();
 const emit = defineEmits<{ refresh: [] }>();
+const { data: limits, error: limitsError, refresh: refreshLimits } = await useApi<ExtraLimits>("/staff/extra-limits", { immediate: !!props.staff });
+const activeTotal = computed(() => props.extras.filter(extra => extra.status === 'ACTIVE').reduce((sum, extra) => sum + extra.amount, 0));
 const api = useApiClient();
 const toast = useToast();
 const open = ref(false);
@@ -91,7 +97,12 @@ const preview = computed(() => {
     ? amount
     : null;
 });
+const limitError = computed(() => {
+  const price = rublesToKopecks(form.price);
+  return limits.value && price !== null && preview.value !== null ? extraLimitError(price, preview.value, activeTotal.value, selected.value, limits.value) : '';
+});
 function edit(extra?: OrderExtra) {
+  void refreshLimits();
   selected.value = extra;
   Object.assign(form, {
     title: extra?.title ?? "",
@@ -102,7 +113,7 @@ function edit(extra?: OrderExtra) {
   open.value = true;
 }
 async function save() {
-  if (busy.value || !props.editable) return;
+  if (busy.value || !props.editable || !limits.value || limitError.value) return;
   if (preview.value === null || !form.title.trim()) {
     toast.add({
       title: "Проверьте название, количество и цену",

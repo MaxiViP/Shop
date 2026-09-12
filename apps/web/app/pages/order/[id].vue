@@ -16,34 +16,7 @@
       <OrderStatus :status="order.status" :type="order.type" />
     </header>
 
-    <section
-      v-if="order.status !== 'CANCELED'"
-      class="progress"
-    >
-      <div
-        v-for="step in steps"
-        :key="step.status"
-        class="progress__item"
-        :class="{
-          'progress__item--done': step.done,
-          'progress__item--current':
-            step.status === order.status,
-        }"
-      >
-        <span class="progress__dot" />
-
-        <span class="progress__label">
-          {{ step.label }}
-        </span>
-      </div>
-    </section>
-
-    <UAlert
-      v-else
-      color="error"
-      variant="soft"
-      title="Заказ отменён"
-    />
+    <OrderProgress :status="order.status" :type="order.type" />
 
     <div class="order__layout">
       <section class="card">
@@ -199,7 +172,6 @@
 <script setup lang="ts">
 import type {
   OrderDetail,
-  OrderStatus,
 } from '~/types/order'
 import {
   isActiveOrder,
@@ -243,35 +215,6 @@ const active = computed(
   () => isActiveOrder(order.value.status),
 )
 
-const flow = computed<OrderStatus[]>(() =>
-  order.value.type === 'DELIVERY'
-    ? [
-        'NEW',
-        'CONFIRMED',
-        'ASSEMBLING',
-        'READY',
-        'DELIVERING',
-        'COMPLETED',
-      ]
-    : [
-        'NEW',
-        'CONFIRMED',
-        'ASSEMBLING',
-        'READY',
-        'COMPLETED',
-      ],
-)
-
-const steps = computed(() => {
-  const current =
-    flow.value.indexOf(order.value.status)
-
-  return flow.value.map((item, index) => ({
-    status: item,
-    label: orderMeta(item, order.value.type).label,
-    done: index <= current,
-  }))
-})
 
 const address = computed(() =>
   [
@@ -351,67 +294,6 @@ useSeoMeta({
   overflow-wrap: anywhere;
 }
 
-.progress {
-  display: flex;
-  max-width: 100%;
-  margin-block: 3rem;
-  padding-bottom: 0.5rem;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scroll-snap-type: inline proximity;
-  scrollbar-width: thin;
-}
-
-.progress__item {
-  position: relative;
-  display: grid;
-  flex: 1;
-  gap: 0.75rem;
-  color: var(--ui-text-muted);
-  font-size: 0.8rem;
-  min-width: 7.75rem;
-  scroll-snap-align: start;
-}
-
-.progress__item::before {
-  position: absolute;
-  top: 7px;
-  right: 50%;
-  left: -50%;
-  height: 2px;
-  background: var(--ui-border);
-  content: '';
-}
-
-.progress__item:first-child::before {
-  display: none;
-}
-
-.progress__dot {
-  z-index: 1;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--ui-border);
-  border-radius: 50%;
-  background: var(--ui-bg);
-}
-
-.progress__item--done {
-  color: var(--ui-text);
-}
-
-.progress__item--done::before {
-  background: var(--ui-primary);
-}
-
-.progress__item--done .progress__dot {
-  border-color: var(--ui-primary);
-  background: var(--ui-primary);
-}
-
-.progress__item--current {
-  font-weight: 700;
-}
 
 .order__layout {
   display: grid;
@@ -529,9 +411,6 @@ useSeoMeta({
     align-items: center;
   }
 
-  .progress__item {
-    min-width: 8rem;
-  }
 
   .card__summary > div {
     display: flex;

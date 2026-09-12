@@ -22,6 +22,7 @@
       <ProductPrice :product="product" />
 
       <div class="product__buy">
+        <UAlert v-if="cartQty && !validCartQty(cartQty, product)" color="warning" title="Сохранённое количество не соответствует текущему шагу. Выберите новое и нажмите «Обновить количество»." />
         <ProductQty v-model="qty" :product="product" />
 
         <div class="product__purchase">
@@ -30,7 +31,7 @@
           </span>
 
           <UButton size="lg" class="product__btn" @click="add">
-            В корзину · {{ money(total) }}
+            {{ cartQty ? 'Обновить количество' : 'В корзину' }} · {{ money(total) }}
           </UButton>
         </div>
       </div>
@@ -51,6 +52,7 @@ import type { Product } from "~/types/product";
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
 import { qtyText } from "~/utils/qty";
+import { validCartQty } from "~/utils/cart";
 
 const route = useRoute();
 const slug = String(route.params.slug);
@@ -61,9 +63,8 @@ const notice = useHeaderNotice();
 function add() {
   if (!product.value) return;
 
-  cart.add(product.value, qty.value);
-
-  notice.show({ target: 'cart', text: 'Добавлено в корзину' });
+  const updated = cart.put(product.value, qty.value);
+  notice.show({ target: 'cart', text: updated ? 'Количество в корзине сохранено' : 'Проверьте количество и лимит позиций в корзине' });
 }
 
 const { data: product, error } = await useApi<Product>(`/products/${slug}`);
@@ -76,6 +77,10 @@ if (error.value || !product.value) {
 }
 
 const qty = ref(product.value.min);
+watch(() => [cart.restored, cart.qty(product.value!.id)], () => {
+  const current = cart.qty(product.value!.id);
+  if (current) qty.value = validCartQty(current, product.value!) ? current : product.value!.min;
+}, { immediate: true });
 
 const total = computed(() => {
   if (!product.value) return 0;

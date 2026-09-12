@@ -3,10 +3,18 @@ import {
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 
 const BASE_URL = 'https://b2b.taxi.yandex.net/b2b/cargo/integration/v2';
+
+export class YandexRequestError extends BadGatewayException {
+  constructor(
+    message: string,
+    readonly retryable: boolean,
+  ) {
+    super(message);
+  }
+}
 
 const intervalSchema = z.object({
   from: z.string(),
@@ -135,11 +143,6 @@ export interface YandexClaimInfo {
   courierName: string | null;
 }
 
-export interface YandexBooking {
-  quote: Omit<YandexQuote, 'offerPayload'>;
-  claim: YandexClaimInfo;
-}
-
 export function rublesToKopecks(value: string) {
   const match = /^(\d{1,14})(?:\.(\d{0,4}))?$/.exec(value);
 
@@ -210,59 +213,38 @@ export class YandexService {
     };
   }
 
-  async book(input: YandexOrderInput): Promise<YandexBooking> {
+  async prepare(input: YandexOrderInput): Promise<string> {
     const quote = await this.calculate(input);
+    if (quote.currency !== 'RUB') {
+      throw new BadGatewayException('Яндекс вернул стоимость не в рублях');
+    }
+    // Persist before create: retry must not depend on changed offers or env data.
+    return JSON.stringify(this.claimBody(input, quote.offerPayload));
+  }
+
+  async create(requestId: string, requestBody: string): Promise<string> {
+    // Official claims/create contract: replay request_id on timeout/5xx.
     const created = createdClaimSchema.parse(
       await this.request('/claims/create', {
         method: 'POST',
-        query: { request_id: input.requestId },
-        body: this.claimBody(input, quote.offerPayload),
+        query: { request_id: requestId },
+        body: requestBody,
       }),
     );
-    const assessed = await this.waitForAssessment(created.id);
+    return created.id;
+  }
 
-    if (assessed.status !== 'ready_for_approval') {
-      throw new BadGatewayException(this.claimError(assessed));
-    }
-
-    const assessedClaim = this.normalizeClaim(assessed, null);
-    const assessedPrice = assessedClaim.price;
-
-    if (assessedPrice === null) {
-      throw new BadGatewayException(
-        'Яндекс не вернул актуальную стоимость заявки',
-      );
-    }
-
-    acceptedClaimSchema.parse(
+  async accept(claimId: string, version: number) {
+    const accepted = acceptedClaimSchema.parse(
       await this.request('/claims/accept', {
         method: 'POST',
-        query: { claim_id: created.id },
-        body: { version: assessed.version },
+        query: { claim_id: claimId },
+        body: { version },
       }),
     );
-
-    const claim = await this.sync(created.id);
-
-    return {
-      quote: {
-        price: quote.price,
-        currency: quote.currency,
-        pickupFrom: quote.pickupFrom,
-        pickupTo: quote.pickupTo,
-        deliveryFrom: quote.deliveryFrom,
-        deliveryTo: quote.deliveryTo,
-        expiresAt: quote.expiresAt,
-      },
-      claim: {
-        ...claim,
-        price: claim.price ?? assessedPrice,
-        priceIsFinal:
-          claim.price === null
-            ? assessedClaim.priceIsFinal
-            : claim.priceIsFinal,
-      },
-    };
+    if (accepted.id !== claimId)
+      throw new BadGatewayException('Яндекс вернул другую заявку');
+    return accepted.status;
   }
 
   async sync(claimId: string): Promise<YandexClaimInfo> {
@@ -307,22 +289,16 @@ export class YandexService {
     return response.claims.map((claim) => this.normalizeClaim(claim, null));
   }
 
-  private async waitForAssessment(claimId: string) {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      const claim = claimSchema.parse(
-        await this.request('/claims/info', {
-          method: 'POST',
-          query: { claim_id: claimId },
-        }),
-      );
-
-      if (!['new', 'estimating'].includes(claim.status)) return claim;
-      await delay(1_000);
-    }
-
-    throw new BadGatewayException(
-      'Яндекс не успел рассчитать окончательную стоимость заявки',
+  async inspect(claimId: string) {
+    const claim = claimSchema.parse(
+      await this.request('/claims/info', {
+        method: 'POST',
+        query: { claim_id: claimId },
+      }),
     );
+    if (claim.id !== claimId)
+      throw new BadGatewayException('Яндекс вернул другую заявку');
+    return { ...this.normalizeClaim(claim, null), version: claim.version };
   }
 
   private normalizeClaim(
@@ -503,7 +479,7 @@ export class YandexService {
     options: {
       method: 'GET' | 'POST';
       query?: Record<string, string>;
-      body?: object;
+      body?: object | string;
     },
   ): Promise<unknown> {
     const token = this.token();
@@ -523,7 +499,12 @@ export class YandexService {
           'Accept-Language': 'ru',
           ...(options.body ? { 'Content-Type': 'application/json' } : {}),
         },
-        body: options.body ? JSON.stringify(options.body) : undefined,
+        body:
+          typeof options.body === 'string'
+            ? options.body
+            : options.body
+              ? JSON.stringify(options.body)
+              : undefined,
         signal: AbortSignal.timeout(20_000),
       });
     } catch {
@@ -536,10 +517,11 @@ export class YandexService {
       const error = z
         .object({ message: z.string().optional() })
         .safeParse(payload);
-      throw new BadGatewayException(
+      throw new YandexRequestError(
         error.success && error.data.message
           ? `Ошибка Яндекс Доставки: ${error.data.message}`
           : `Ошибка Яндекс Доставки (${response.status})`,
+        response.status >= 500 || response.status === 429,
       );
     }
 
@@ -556,12 +538,5 @@ export class YandexService {
     }
 
     return token;
-  }
-
-  private claimError(claim: z.infer<typeof claimSchema>) {
-    return (
-      claim.error_messages?.map((error) => error.message).join('; ') ||
-      `Яндекс не может выполнить доставку (статус: ${claim.status})`
-    );
   }
 }

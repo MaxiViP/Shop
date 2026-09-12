@@ -10,15 +10,18 @@ import {
   createHmac,
   randomBytes,
   randomInt,
+  randomUUID,
   timingSafeEqual,
 } from 'node:crypto';
 import { phone as normalizePhone } from '../common/phone.js';
 import { DbService } from '../db/db.service.js';
+import type { Prisma } from '../db/gen/client.js';
 import { guestTokenHash } from '../common/guest.js';
 import { adminPhone } from './admin.config.js';
 
 const OTP_TTL = 5 * 60 * 1000;
 const OTP_COOLDOWN = 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
 const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 
 export const SID = process.env.NODE_ENV === 'production' ? '__Host-sid' : 'sid';
@@ -45,40 +48,33 @@ export class AuthService {
   async code(value: unknown) {
     const phone = normalizePhone(value);
     await this.rejectAdminOtp(phone);
-    const now = Date.now();
-
-    const current = await this.db.otp.findUnique({
-      where: { phone },
-    });
-
-    if (current && now - current.createdAt.getTime() < OTP_COOLDOWN) {
-      throw new HttpException(
-        'Повторите запрос через минуту',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    const code = String(randomInt(100000, 1000000));
-
-    const codeHash = this.codeHash(phone, code);
-
-    await this.db.otp.upsert({
-      where: { phone },
-
-      update: {
-        codeHash,
+    const code = await this.db.$transaction(async (db) => {
+      await this.lockOtp(db, phone);
+      const now = Date.now();
+      const current = await db.otp.findUnique({ where: { phone } });
+      if (current && now - current.createdAt.getTime() < OTP_COOLDOWN) {
+        throw new HttpException(
+          'Повторите запрос через минуту',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      const code = String(randomInt(100000, 1000000));
+      const data = {
+        id: randomUUID(),
+        codeHash: this.codeHash(phone, code),
         attempts: 0,
         expiresAt: new Date(now + OTP_TTL),
-        createdAt: new Date(),
-      },
-
-      create: {
-        phone,
-        codeHash,
-        expiresAt: new Date(now + OTP_TTL),
-      },
+        createdAt: new Date(now),
+      };
+      await db.otp.upsert({
+        where: { phone },
+        create: { phone, ...data },
+        update: data,
+      });
+      return code;
     });
 
+    // A future SMS adapter must run after this transaction commits, never inside it.
     return process.env.NODE_ENV === 'production'
       ? { ok: true }
       : {
@@ -95,44 +91,36 @@ export class AuthService {
       throw new BadRequestException('Некорректный код');
     }
 
-    const otp = await this.db.otp.findUnique({
-      where: { phone },
-    });
+    const result = await this.db.$transaction(async (db) => {
+      await this.lockOtp(db, phone);
+      const otp = await db.otp.findUnique({ where: { phone } });
+      if (!otp || otp.expiresAt.getTime() <= Date.now())
+        throw new UnauthorizedException('Код истёк или не существует');
+      if (otp.attempts >= OTP_MAX_ATTEMPTS)
+        throw new HttpException(
+          'Слишком много попыток',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
 
-    if (!otp || otp.expiresAt.getTime() < Date.now()) {
-      throw new UnauthorizedException('Код истёк или не существует');
-    }
+      if (!this.equal(otp.codeHash, this.codeHash(phone, codeValue))) {
+        await db.otp.update({
+          where: { id: otp.id },
+          data: { attempts: { increment: 1 } },
+        });
+        // Throwing here would roll the increment back. Commit it before returning 401.
+        return null;
+      }
 
-    if (otp.attempts >= 5) {
-      throw new HttpException(
-        'Слишком много попыток',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    const valid = this.equal(otp.codeHash, this.codeHash(phone, codeValue));
-
-    if (!valid) {
-      await this.db.otp.update({
-        where: { phone },
-
-        data: {
-          attempts: {
-            increment: 1,
-          },
-        },
+      const consumed = await db.otp.deleteMany({
+        where: { phone, id: otp.id, expiresAt: { gt: new Date() } },
       });
-
-      throw new UnauthorizedException('Неверный код');
-    }
-
-    const token = randomBytes(32).toString('hex');
-
-    const tokenHash = this.tokenHash(token);
-
-    const expiresAt = new Date(Date.now() + SESSION_TTL);
-
-    const user = await this.db.$transaction(async (db) => {
+      if (consumed.count !== 1)
+        throw new UnauthorizedException(
+          'Код истёк или был заменён. Запросите новый код',
+        );
+      const token = randomBytes(32).toString('hex');
+      const tokenHash = this.tokenHash(token);
+      const expiresAt = new Date(Date.now() + SESSION_TTL);
       const user = await db.user.upsert({
         where: { phone },
 
@@ -183,10 +171,6 @@ export class AuthService {
         }
       }
 
-      await db.otp.delete({
-        where: { phone },
-      });
-
       await db.session.create({
         data: {
           tokenHash,
@@ -195,13 +179,18 @@ export class AuthService {
         },
       });
 
-      return user;
+      return { token, user };
     });
 
-    return {
-      token,
-      user,
-    };
+    if (!result) throw new UnauthorizedException('Неверный код');
+    return result;
+  }
+
+  private async lockOtp(db: Prisma.TransactionClient, phone: string) {
+    // A row lock alone cannot serialize the first request when Otp does not exist.
+    // All code/login writers use this transaction-scoped, per-phone lock.
+    // Hash collisions only serialize unrelated phones; no state is shared.
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(704002, hashtext(${phone}))`;
   }
 
   async me(token?: string) {

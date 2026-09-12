@@ -3,10 +3,10 @@ import { z } from 'zod';
 import { AdminGuard } from '../auth/admin.guard.js';
 import type { AuthRequest } from '../auth/auth.guard.js';
 import { SettingsService } from './settings.service.js';
-export const settingsSchema = z.strictObject({
-  weightToleranceBps: z.number().int().min(0).max(5000),
-  customerResponseMinutes: z.number().int().min(1).max(120).optional(),
-});
+import { settingsSchema } from './settings.schema.js';
+export { settingsSchema } from './settings.schema.js';
+import { AuthGuard } from '../auth/auth.guard.js';
+import { StaffGuard } from '../auth/staff.guard.js';
 @Controller('admin/settings')
 @UseGuards(AdminGuard)
 export class SettingsCtrl {
@@ -20,6 +20,29 @@ export class SettingsCtrl {
     @Body({ schema: settingsSchema }) body: z.infer<typeof settingsSchema>,
     @Req() request: AuthRequest,
   ) {
-    return this.settings.update(body.weightToleranceBps, request.user.id, body.customerResponseMinutes);
+    return this.settings.update(body, request.user.id);
+  }
+}
+
+@Controller('shop/settings')
+export class PublicSettingsCtrl {
+  constructor(private readonly settings: SettingsService) {}
+  @Get()
+  async get() {
+    const { minDeliverySubtotal, deliveryEnabled, pickupEnabled } =
+      await this.settings.get();
+    return { minDeliverySubtotal, deliveryEnabled, pickupEnabled };
+  }
+}
+
+@Controller('staff/extra-limits')
+@UseGuards(AuthGuard, StaffGuard)
+export class ExtraLimitsCtrl {
+  constructor(private readonly settings: SettingsService) {}
+  @Get()
+  async get() {
+    const { maxOrderExtraUnitPrice, maxOrderExtrasTotal } =
+      await this.settings.get();
+    return { maxOrderExtraUnitPrice, maxOrderExtrasTotal };
   }
 }

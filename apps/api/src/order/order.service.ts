@@ -12,75 +12,48 @@ import {
   guestTokenHash,
 } from '../common/guest.js';
 import type { OrderInput } from './schema.js';
-import { totalWithDelivery, goodsLine, goodsSum } from './pricing.js';
+import { totalWithDelivery } from './pricing.js';
 import { paymentSelect, paymentDetails } from './payment.js';
 import type { PaymentMethod } from '../db/gen/client.js';
 import { issueSummary } from './coordination.js';
+import { checkoutLimits } from './limits.js';
+import {
+  cartProductSelect,
+  cartQuantities,
+  cartQuote,
+  type QuoteInput,
+} from './cart-quote.js';
 
 @Injectable()
 export class OrderService {
   constructor(private readonly db: DbService) {}
+
+  async quote(data: QuoteInput) {
+    const quantities = cartQuantities(data.items);
+    const products = await this.db.product.findMany({
+      where: { id: { in: [...quantities.keys()] }, active: true },
+      select: cartProductSelect,
+    });
+    return cartQuote(quantities, products);
+  }
 
   async create(
     userId: number | null,
     guestToken: string | undefined,
     data: OrderInput,
   ) {
-    const qty = new Map<number, number>();
-
-    for (const item of data.items) {
-      qty.set(item.productId, (qty.get(item.productId) ?? 0) + item.qty);
-    }
-
-    const ids = [...qty.keys()];
-
-    const products = await this.db.product.findMany({
-      where: {
-        id: {
-          in: ids,
-        },
-        active: true,
-      },
-
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        price: true,
-        priceQty: true,
-        unit: true,
-        min: true,
-        step: true,
-
-        images: {
-          where: { visible: true },
-          select: {
-            url: true,
-          },
-          orderBy: [{ sort: 'asc' }, { id: 'asc' }],
-          take: 1,
-        },
-      },
-    });
-
-    if (products.length !== ids.length) {
-      throw new BadRequestException('Некоторые товары недоступны');
-    }
-
-    const items = products.map((product) => {
-      const itemQty = qty.get(product.id)!;
-
-      if (
-        itemQty < product.min ||
-        (itemQty - product.min) % product.step !== 0
-      ) {
-        throw new BadRequestException(
-          `Некорректное количество: ${product.name}`,
-        );
-      }
-
-      const total = goodsLine(product.price, itemQty, product.priceQty);
-
+    const quote = await this.quote(data);
+    if (data.quoteToken && data.quoteToken !== quote.token)
+      throw new ConflictException({
+        code: 'CART_CHANGED',
+        message: 'Корзина изменилась. Проверьте актуальные товары и сумму.',
+      });
+    if (!quote.valid)
+      throw new BadRequestException(
+        'Проверьте доступность, количество и стоимость товаров в корзине',
+      );
+    const items = quote.items.map((item) => {
+      const product = item.product!;
       return {
         productId: product.id,
         productName: product.name,
@@ -89,12 +62,14 @@ export class OrderService {
         price: product.price,
         priceQty: product.priceQty,
         unit: product.unit,
-        qty: itemQty,
-        total,
+        qty: item.qty,
+        total: item.lineTotal!,
       };
     });
 
-    const subtotal = goodsSum(items.map((item) => item.total));
+    const subtotal = quote.subtotal!;
+    const settings = await this.db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
+    checkoutLimits(data.type, subtotal, settings);
 
     const deliveryPrice = data.type === 'PICKUP' ? 0 : null;
     const total = totalWithDelivery(subtotal, deliveryPrice);
@@ -111,9 +86,6 @@ export class OrderService {
       newGuestToken = guest.token;
     }
 
-    const settings = await this.db.shopSettings.findUniqueOrThrow({
-      where: { id: 1 },
-    });
     const order = await this.db.order.create({
       data: {
         weightToleranceBps: settings.weightToleranceBps,

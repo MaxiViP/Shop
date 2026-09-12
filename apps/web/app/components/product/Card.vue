@@ -62,9 +62,8 @@ const notice = useHeaderNotice();
 const cartQty = computed(() => cart.qty(product.id));
 
 function add() {
-  cart.add(product);
-
-  notice.show({ target: 'cart', text: 'Добавлено в корзину' });
+  const added = cart.add(product);
+  notice.show({ target: 'cart', text: added ? 'Добавлено в корзину' : 'Проверьте количество и лимит позиций в корзине' });
 }
 </script>
 

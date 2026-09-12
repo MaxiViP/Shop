@@ -7,6 +7,7 @@ import { AuthService } from './auth.service.js';
 import { StaffGuard } from './staff.guard.js';
 import { AdminLoginGuard } from './admin-login.guard.js';
 import { MethodGuard } from './method.guard.js';
+import { OtpCodeGuard, OtpLoginGuard } from './otp.guard.js';
 
 @Module({
   imports: [DbModule],
@@ -20,6 +21,8 @@ import { MethodGuard } from './method.guard.js';
     StaffGuard,
     AdminLoginGuard,
     MethodGuard,
+    OtpCodeGuard,
+    OtpLoginGuard,
   ],
 
   exports: [AuthService, AuthGuard, AdminGuard, StaffGuard],

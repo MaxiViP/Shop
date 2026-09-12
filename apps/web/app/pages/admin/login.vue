@@ -6,8 +6,9 @@
       >
       <form class="space-y-4" @submit.prevent="login">
         <UFormField label="Телефон" required
-          ><UInput
+          ><AppTextInput
             v-model="phone"
+            format="phone"
             type="tel"
             autocomplete="username"
             required

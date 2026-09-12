@@ -14,7 +14,7 @@
         @submit.prevent="save"
       >
         <UFormField label="Название">
-          <UInput
+          <AppTextInput
             v-model="form.label"
             placeholder="Дом"
             maxlength="30"
@@ -25,7 +25,7 @@
 
         <div class="form__row">
           <UFormField label="Город">
-            <UInput
+            <AppTextInput
               v-model="form.city"
               placeholder="Москва"
               size="lg"
@@ -33,7 +33,7 @@
           </UFormField>
 
           <UFormField label="Улица">
-            <UInput
+            <AppTextInput
               v-model="form.street"
               placeholder="Ленинский проспект"
               size="lg"

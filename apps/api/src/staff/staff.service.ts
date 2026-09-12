@@ -21,6 +21,7 @@ import { NotificationService } from '../order/notification.service.js';
 import { paymentSelect, requirePaid } from '../order/payment.js';
 import { message } from '../order/coordination.js';
 import type { ExtraInput } from './extra.js';
+import { extraLimits } from '../order/limits.js';
 
 
 @Injectable()
@@ -432,6 +433,9 @@ export class StaffService {
         return db.orderExtra.update({ where: { id: current.id }, data: { status: 'CANCELED', canceledAt: new Date(), version: { increment: 1 } } });
       }
       const amount = goodsLine(data.unitPrice, data.quantity, 1);
+      const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
+      const active = await db.orderExtra.findMany({ where: { orderId, status: 'ACTIVE' }, select: { amount: true } });
+      extraLimits(data.unitPrice, amount, active.reduce((sum, extra) => sum + BigInt(extra.amount), 0n), current, settings);
       const values = { ...data, comment: data.comment || null, amount };
       return current
         ? db.orderExtra.update({ where: { id: current.id }, data: { ...values, version: { increment: 1 } } })
@@ -470,6 +474,11 @@ export class StaffService {
         throw new BadRequestException(
           'Яндекс Доставка оформляется через автоматический расчёт',
         );
+      }
+
+      // The Order lock also serializes Yandex reservations before external HTTP.
+      if (await db.deliveryAttempt.findUnique({ where: { orderId: id } })) {
+        throw new ConflictException('Для заказа зарезервирована заявка Яндекс. Сначала необходимо разрешить её состояние.');
       }
 
       if (

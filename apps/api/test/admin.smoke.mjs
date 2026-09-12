@@ -427,6 +427,23 @@ try {
   console.log(
     'PASS authenticated Nuxt SSR products, edit, create, users; login and USER redirects',
   );
+  // localStorage cannot be known to SSR, for either a guest or a signed-in buyer.
+  for (const session of ['', userCookie]) {
+    const checkout = await fetch(`${webBase}/checkout`, {
+      headers: session ? { Cookie: session } : {}, redirect: 'manual',
+    });
+    assert.equal(checkout.status, 200, 'Direct checkout must not redirect before cart restore');
+    assert.equal(checkout.headers.has('location'), false);
+    const html = (await checkout.text()).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+    assert.ok(html.includes('Восстанавливаем корзину и проверяем актуальные цены'));
+    assert.ok(!html.includes('Корзина пустая'));
+    assert.ok(!html.includes('До доставки осталось'));
+    assert.ok(!html.includes('≈ 0'));
+  }
+  const cartShell = await (await fetch(`${webBase}/cart`, { redirect: 'manual' })).text();
+  assert.ok(cartShell.includes('Восстанавливаем корзину'));
+  assert.ok(!cartShell.includes('Корзина пустая'));
+  console.log('PASS M1 guest/USER direct checkout SSR: 200, stable restore shell, no empty/zero-price redirect');
   const productHtml = await (
     await fetch(`${webBase}/product/${product.slug}`)
   ).text();
@@ -455,14 +472,22 @@ try {
   assert.ok(paymentHtml.includes('Открыть СБП'));
   assert.ok(paymentHtml.includes('Нарезка — smoke'));
   assert.ok(paymentHtml.includes('Дополнительные услуги'));
-  assert.ok(paymentHtml.includes('aria-label="Сообщения"'));
+  assert.ok(paymentHtml.includes('aria-label="Мои заказы"'));
   const staffHtml = await (await fetch(`${webBase}/staff/orders/${phaseOrder.id}`, { headers: { Cookie: cookie } })).text();
   assert.ok(staffHtml.includes('Оплата заказа'));
   assert.ok(staffHtml.includes('Допуск:'));
   console.log('PASS PHASE 1 settings, finalized customer payment and staff weight/payment SSR');
   console.log('PASS PHASE 2 customer issue SSR, exact approval, staff phone fallback and chat shell');
   console.log('PASS PHASE 2.1 extras hidden before finalization, explicit final bill, no customer report action, Header messages SSR');
-  assert.ok(staffHtml.includes('Новые заказы'));
+  assert.ok(staffHtml.includes('aria-label="Заказы"'));
+  assert.ok(staffHtml.includes('Максимум за единицу:'));
+  const settingsHtml = await (await fetch(`${webBase}/admin/settings`, { headers: { Cookie: cookie } })).text();
+  assert.ok(settingsHtml.includes('Минимальная сумма заказа для доставки'));
+  assert.ok(settingsHtml.includes('Максимальная сумма дополнительных услуг'));
+  assert.ok(settingsHtml.includes('Получение заказа'));
+  const publicSettings = (await api('/shop/settings', 'GET', undefined, 200, '')).data;
+  assert.deepEqual(Object.keys(publicSettings).sort(), ['deliveryEnabled', 'minDeliverySubtotal', 'pickupEnabled']);
+  console.log('PASS business settings SSR, staff limits and minimal public settings response');
   await api(`/staff/orders/${phaseOrder.id}/cancel`, 'POST', { reason: 'Smoke internal reason' }, 201);
   const cancellation = await db.orderCancellation.findFirstOrThrow({ where: { orderId: phaseOrder.id } });
   const canceledHtml = await (await fetch(`${webBase}/staff/orders?tab=canceled`, { headers: { Cookie: cookie } })).text();

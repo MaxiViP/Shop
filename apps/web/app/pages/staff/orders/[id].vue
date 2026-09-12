@@ -569,12 +569,13 @@
             </UFormField>
 
             <UFormField label="Имя курьера *" required>
-              <UInput v-model="form.courierName" required size="lg" />
+              <AppTextInput v-model="form.courierName" required size="lg" />
             </UFormField>
 
             <UFormField label="Телефон курьера *" required>
-              <UInput
+              <AppTextInput
                 v-model="form.courierPhone"
+                format="phone"
                 type="tel"
                 required
                 placeholder="+7 999 123-45-67"

@@ -2,6 +2,7 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import {
   rublesToKopecks,
   type YandexOrderInput,
+  YandexRequestError,
   YandexService,
 } from './yandex.service.js';
 
@@ -221,11 +222,15 @@ describe('YandexService', () => {
       );
     vi.stubGlobal('fetch', fetchMock);
 
-    const booking = await new YandexService().book(input);
-
-    expect(booking.quote.price).toBe(43_700);
-    expect(booking.claim.price).toBe(44_125);
-    expect(booking.claim.trackingUrl).toBe('https://yandex.example/track');
+    const service = new YandexService();
+    const body = await service.prepare(input);
+    const id = await service.create(input.requestId, body);
+    const assessed = await service.inspect(id);
+    expect(assessed.price).toBe(44_125);
+    expect(await service.accept(id, assessed.version)).toBe('accepted');
+    const saved = await service.sync(id);
+    expect(saved.price).toBe(44_125);
+    expect(saved.trackingUrl).toBe('https://yandex.example/track');
     expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([
       expect.stringContaining('/offers/calculate'),
       expect.stringContaining('/claims/create?request_id='),
@@ -252,6 +257,80 @@ describe('YandexService', () => {
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('replays the exact create body and request_id after a lost HTTP response', async () => {
+    configured();
+    const remote = new Map<string, string>();
+    const bodies: string[] = [];
+    let loseResponse = true;
+    const fetchMock = vi.fn(async (url: URL, options: RequestInit) => {
+      if (url.pathname.endsWith('/offers/calculate')) return json(offer());
+      const key = url.searchParams.get('request_id')!;
+      bodies.push(String(options.body));
+      if (!remote.has(key)) remote.set(key, 'same-claim');
+      if (loseResponse) {
+        loseResponse = false;
+        throw new Error('Remote commit, response lost');
+      }
+      return json({ id: remote.get(key) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const service = new YandexService();
+    const body = await service.prepare(input);
+    await expect(service.create(input.requestId, body)).rejects.toThrow();
+    // A changed source configuration must not change a persisted create replay.
+    vi.stubEnv('YANDEX_DELIVERY_SOURCE_ADDRESS', 'Другая точка');
+    expect(await service.create(input.requestId, body)).toBe('same-claim');
+    expect(remote.size).toBe(1);
+    expect(bodies).toEqual([body, body]);
+    expect(
+      fetchMock.mock.calls.filter(([url]) =>
+        url.pathname.endsWith('/offers/calculate'),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('reads accepted remote state after a lost accept response', async () => {
+    configured();
+    let status = 'ready_for_approval';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: URL) => {
+        if (url.pathname.endsWith('/claims/accept')) {
+          status = 'accepted';
+          throw new Error('Accept succeeded remotely');
+        }
+        return json(claim(status));
+      }),
+    );
+    const service = new YandexService();
+    const id = claim(status).id;
+    await expect(service.accept(id, 1)).rejects.toThrow();
+    expect(await service.inspect(id)).toMatchObject({
+      claimId: id,
+      providerStatus: 'accepted',
+      version: 1,
+    });
+  });
+
+  it.each([400, 403, 429, 500])(
+    'classifies provider HTTP %s without losing the attempt identity',
+    async (status) => {
+      configured();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(new Response('{}', { status })),
+      );
+      await expect(
+        new YandexService().create(input.requestId, '{}'),
+      ).rejects.toMatchObject({
+        retryable: status === 429 || status >= 500,
+      });
+      await expect(
+        new YandexService().create(input.requestId, '{}'),
+      ).rejects.toBeInstanceOf(YandexRequestError);
+    },
+  );
 
   it('can sync with only a token and without a callback URL', () => {
     vi.stubEnv('YANDEX_DELIVERY_TOKEN', 'test-token');

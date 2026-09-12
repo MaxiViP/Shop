@@ -5,7 +5,7 @@
     >
       <h1 class="text-xl font-semibold mr-auto">Админка</h1>
       <AppThemeControl />
-      <AppMessages :count="communication.count.value" :to="communication.to.value" />
+      <AppOrdersAction :action="orders" />
       <UButton to="/" variant="ghost" color="neutral">На сайт</UButton>
       <UButton :loading="busy" variant="outline" color="neutral" @click="logout"
         >Выйти</UButton
@@ -34,7 +34,7 @@
 import { useAuthStore } from "~/stores/auth";
 const route = useRoute();
 const auth = useAuthStore();
-const communication = useCommunication();
+const orders = useOrdersAction();
 const api = useApiClient();
 const toast = useToast();
 const busy = ref(false);

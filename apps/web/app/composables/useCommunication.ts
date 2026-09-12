@@ -70,6 +70,7 @@ export function useCommunication() {
     window.removeEventListener("focus", wake);
   });
   return {
+    latestOrderId: computed(() => summary.value.latestOrderId),
     count: computed(() => summary.value.count),
     to: computed(() =>
       summary.value.latestOrderId

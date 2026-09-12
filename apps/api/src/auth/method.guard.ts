@@ -7,6 +7,7 @@ import {
 import type { Request } from 'express';
 import { allowedOrigin } from './admin.config.js';
 import { AttemptLimit } from './attempt-limit.js';
+import { clientIp } from './proxy.js';
 
 @Injectable()
 export class MethodGuard implements CanActivate {
@@ -16,7 +17,7 @@ export class MethodGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     if (request.headers.origin && !allowedOrigin(request.headers.origin))
       throw new ForbiddenException();
-    this.limit.check(request.socket.remoteAddress ?? 'unknown');
+    this.limit.check(clientIp(request));
     return true;
   }
 }
