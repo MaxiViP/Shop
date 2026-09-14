@@ -1,0 +1,25 @@
+[Unit]
+Description=Korzina Market Nuxt SSR
+Wants=shop-api.service
+After=network.target shop-api.service
+
+[Service]
+Type=simple
+User=shop
+Group=shop
+WorkingDirectory=/opt/korzinamarket
+EnvironmentFile=/etc/korzinamarket/web.env
+Environment=NITRO_HOST=127.0.0.1
+Environment=NITRO_PORT=3000
+ExecStart=/usr/bin/node /opt/korzinamarket/apps/web/.output/server/index.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
