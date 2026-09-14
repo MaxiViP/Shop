@@ -27,7 +27,7 @@ useSeoMeta({
 }
 
 .orders__head {
-  margin-bottom: 2rem;
+  margin-bottom: var(--card-padding);
 }
 
 .orders__label {

@@ -364,14 +364,15 @@ function login() {
     margin-right: auto;
   }
 
+  .header__nav > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
+  }
+
   .header__actions {
     gap: 0.25rem;
   }
 
-  /* .header__actions > *,
-  .header__action > :deep(*) {
-    min-width: var(--touch-target);
-    min-height: var(--touch-target);
-  } */
 }
 </style>

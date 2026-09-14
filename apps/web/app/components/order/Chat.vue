@@ -1,5 +1,5 @@
 <template>
-  <UCard id="order-chat">
+  <UCard id="order-chat" class="chat">
     <template #header><h3 class="font-semibold">Чат по заказу</h3></template>
     <UAlert v-if="error" color="error" title="Не удалось обновить чат"
       ><template #actions
@@ -53,7 +53,7 @@
       Непрочитанных сообщений: {{ unread }}
     </p>
     <form class="chat__form" @submit.prevent="send">
-      <UFormField label="Сообщение продавцу" :ui="{ root: 'grow' }">
+      <UFormField label="Сообщение продавцу" class="chat__field">
         <template #label>{{
           staff ? "Сообщение покупателю" : "Сообщение продавцу"
         }}</template>
@@ -241,33 +241,51 @@ useOrderPolling(load);
 </script>
 
 <style scoped>
+.chat {
+  min-width: 0;
+  scroll-margin-top: calc(var(--header-height) + 1rem);
+}
 .chat__messages {
+  min-width: 0;
   min-height: 8rem;
-  max-height: 24rem;
+  max-height: min(24rem, 55dvh);
   overflow-y: auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: 0.75rem;
-  padding: 0.5rem;
+  padding: var(--card-padding);
+  border: 1px solid var(--ui-border);
+  border-radius: 0.875rem;
+  background: var(--ui-bg-muted);
   overscroll-behavior: contain;
+}
+.chat__messages:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
 }
 .chat__message {
   justify-self: start;
-  max-width: 82%;
+  max-width: 94%;
   min-width: 0;
   padding: 0.75rem;
   border-radius: 0.75rem;
-  background: var(--ui-bg-elevated);
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
 }
 .chat__message--customer {
   justify-self: end;
+  border-color: color-mix(in srgb, var(--ui-primary) 30%, var(--ui-border));
   background: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-bg));
 }
 .chat__message--system {
   justify-self: center;
+  max-width: 100%;
   text-align: center;
   color: var(--ui-text-muted);
-  background: transparent;
-  border: 1px solid var(--ui-border);
+  background: var(--ui-bg-elevated);
 }
 .chat__text {
   white-space: pre-wrap;
@@ -275,14 +293,29 @@ useOrderPolling(load);
   line-height: 1.6;
 }
 .chat__form {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   align-items: end;
   gap: 0.75rem;
   padding-top: 1rem;
   padding-bottom: env(safe-area-inset-bottom);
 }
+.chat__field {
+  min-width: 0;
+  width: 100%;
+}
 .chat__send {
-  min-height: 44px;
+  width: 100%;
+  min-height: var(--touch-target);
+  justify-content: center;
+}
+@media (min-width: 40rem) {
+  .chat__form {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .chat__message {
+    max-width: 82%;
+  }
 }
 </style>

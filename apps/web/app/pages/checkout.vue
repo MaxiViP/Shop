@@ -708,10 +708,13 @@ useSeoMeta({
 }
 
 .checkout__head {
-  margin-bottom: 2rem;
+  margin-bottom: var(--card-padding);
 }
 
 .section__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
   color: var(--ui-text-muted);
 }
 
@@ -776,10 +779,10 @@ useSeoMeta({
 
 .type__item {
   display: flex;
-  min-height: 90px;
+  min-height: calc(var(--touch-target) + 1rem);
   align-items: center;
   gap: 1rem;
-  padding: 1rem;
+  padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
   text-align: left;
@@ -811,17 +814,21 @@ useSeoMeta({
 
 .form__row {
   display: grid;
+  min-width: 0;
   gap: 1rem;
 
 }
 
 .form__grid {
   display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 
 .address {
   display: grid;
+  min-width: 0;
   gap: 1rem;
   margin-top: 1rem;
 }
@@ -886,6 +893,11 @@ useSeoMeta({
   gap: 1rem;
 }
 
+.summary__item > span {
+  min-width: 0;
+  text-align: right;
+}
+
 .summary__item > div {
   display: grid;
   min-width: 0;
@@ -904,8 +916,10 @@ useSeoMeta({
 .summary__row,
 .summary__total {
   display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.5rem 1rem;
 }
 
 .summary__row {
@@ -917,13 +931,25 @@ useSeoMeta({
   margin-block: 1.25rem;
   padding-top: 1.25rem;
   border-top: 1px solid var(--ui-border);
-  font-size: 1.25rem;
+  font-size: var(--section-title);
+}
+
+.summary__row > *,
+.summary__total > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.summary__row > :last-child,
+.summary__total > :last-child {
+  margin-left: auto;
+  text-align: right;
 }
 
 .summary__note {
   margin-top: 1rem;
   color: var(--ui-text-muted);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   line-height: 1.5;
 }
 

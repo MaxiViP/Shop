@@ -104,7 +104,7 @@ useSeoMeta({
 .product {
   display: grid;
   min-width: 0;
-  gap: 2rem;
+  gap: var(--card-padding);
   padding-block: var(--page-start) var(--page-end);
 }
 
@@ -118,6 +118,9 @@ useSeoMeta({
 }
 
 .product__category {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
   color: var(--ui-primary);
 }
 
@@ -125,7 +128,7 @@ useSeoMeta({
   min-width: 0;
   font-size: var(--page-title);
   font-weight: 700;
-  line-height: 1.05;
+  line-height: 1.15;
   overflow-wrap: anywhere;
 }
 
@@ -156,7 +159,7 @@ useSeoMeta({
 .product__buy {
   display: grid;
   gap: 1rem;
-  margin-top: 2rem;
+  margin-top: var(--card-padding);
 }
 
 .product__btn {

@@ -60,6 +60,7 @@ const { search, submitSearch, clearSearch } = useProductSearch();
 .bottom-search__input {
   flex: 1;
   min-width: 0;
+  min-height: var(--touch-target);
   padding: 0.5rem 0.25rem;
   font-size: 1rem;
   background: transparent;

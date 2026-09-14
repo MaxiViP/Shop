@@ -151,7 +151,7 @@ useSeoMeta({
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: var(--card-padding);
 }
 
 .cart__title {
@@ -238,7 +238,7 @@ useSeoMeta({
 .summary {
   min-width: 0;
   align-self: start;
-  padding: 1.5rem;
+  padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
 }
@@ -257,7 +257,10 @@ useSeoMeta({
 .summary__row,
 .summary__total {
   display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 0.5rem 1rem;
 }
 
 .summary__row {
@@ -268,13 +271,25 @@ useSeoMeta({
   margin-block: 1rem 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--ui-border);
-  font-size: 1.25rem;
+  font-size: var(--section-title);
+}
+
+.summary__row > *,
+.summary__total > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.summary__row > :last-child,
+.summary__total > :last-child {
+  margin-left: auto;
+  text-align: right;
 }
 
 .cart__empty {
   display: grid;
   max-width: 26.25rem;
-  margin: clamp(4rem, 12vw, 7rem) auto;
+  margin: var(--section-gap) auto;
   justify-items: center;
   gap: 1rem;
   text-align: center;

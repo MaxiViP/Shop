@@ -256,7 +256,7 @@ useSeoMeta({
 }
 
 .profile__head {
-  margin-bottom: 2rem;
+  margin-bottom: var(--card-padding);
 }
 
 .profile__label {
@@ -307,7 +307,7 @@ useSeoMeta({
 }
 
 .profile__section {
-  margin-top: 3rem;
+  margin-top: var(--section-gap);
 }
 
 .profile__section-title {
@@ -329,7 +329,7 @@ useSeoMeta({
 .profile__empty {
   display: grid;
   margin-top: 1.5rem;
-  padding: clamp(2rem, 8vw, 3rem) 1rem;
+  padding: var(--section-gap) var(--card-padding);
   justify-items: center;
   gap: 0.75rem;
   border: 1px dashed var(--ui-border);

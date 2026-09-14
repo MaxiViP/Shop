@@ -66,7 +66,7 @@ const {
 
 .hero {
   max-width: 47.5rem;
-  padding-block: clamp(3.5rem, 8vw, 6rem);
+  padding-block: var(--page-start) var(--section-gap);
 }
 
 .hero__label {
@@ -76,14 +76,14 @@ const {
 
 .hero__title {
   margin-top: 0.75rem;
-  font-size: clamp(2.25rem, 1.55rem + 3.5vw, 4.5rem);
+  font-size: clamp(2rem, 1.25rem + 3.5vw, 4.5rem);
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.12;
 }
 
 .hero__text {
   max-width: 35rem;
-  margin-block: 1.5rem 2rem;
+  margin-block: 1rem 1.5rem;
   color: var(--ui-text-muted);
   font-size: clamp(1.0625rem, 0.95rem + 0.5vw, 1.25rem);
   line-height: 1.6;
@@ -117,6 +117,12 @@ const {
 
 .home__head .home__title {
   margin-bottom: 0;
+}
+
+.home__head > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
 }
 
 @media (min-width: 40rem) {

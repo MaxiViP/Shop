@@ -47,6 +47,8 @@ const label = computed(() => qtyText(product.unit, value.value));
 <style scoped>
 .qty {
   display: flex;
+  min-width: 0;
+  width: fit-content;
   max-width: 100%;
   align-items: center;
   gap: 0.25rem;
@@ -59,7 +61,8 @@ const label = computed(() => qtyText(product.unit, value.value));
 }
 
 .qty__value {
-  min-width: 3.5rem;
+  min-width: 0;
+  flex: 0 1 3.5rem;
   text-align: center;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -71,7 +74,7 @@ const label = computed(() => qtyText(product.unit, value.value));
   }
 
   .qty__value {
-    min-width: 5rem;
+    flex-basis: 5rem;
   }
 }
 </style>

@@ -1,5 +1,8 @@
 <template>
-  <strong class="price"> {{ money(product.price) }} / {{ unit }} </strong>
+  <strong class="price">
+    <span>{{ money(product.price) }}</span>
+    <span class="price__unit">/ {{ unit }}</span>
+  </strong>
 </template>
 
 <script setup lang="ts">
@@ -25,11 +28,20 @@ const unit = computed(() => {
 
 <style scoped>
 .price {
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.25em;
   min-width: 0;
   font-size: 0.9375rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.price__unit {
+  color: var(--ui-text-muted);
+  font-size: 0.875rem;
+  font-weight: 400;
 }
 
 @media (min-width: 40rem) {

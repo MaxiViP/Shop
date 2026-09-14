@@ -278,7 +278,7 @@ useSeoMeta({
   align-items: start;
   justify-content: space-between;
   gap: 1rem;
-  margin-top: 2rem;
+  margin-top: var(--card-padding);
 }
 
 .order__number {
@@ -344,7 +344,7 @@ useSeoMeta({
 
 .delivery dt {
   color: var(--ui-text-muted);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 .delivery dd {
@@ -373,7 +373,7 @@ useSeoMeta({
 
 .item__qty {
   margin-top: 0.25rem;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 .card__summary {
@@ -402,7 +402,7 @@ useSeoMeta({
 .order__refresh {
   margin-top: 1rem;
   color: var(--ui-text-muted);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 @media (min-width: 40rem) {

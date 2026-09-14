@@ -1305,10 +1305,10 @@ useSeoMeta({
 .stage {
   display: grid;
   gap: 1rem;
-  margin-top: 2rem;
+  margin-top: var(--card-padding);
   min-width: 0;
   padding: 0.75rem;
-  scroll-margin-top: 1rem;
+  scroll-margin-top: calc(var(--header-height) + var(--card-padding));
   border: 2px solid transparent;
   border-radius: 1.25rem;
 }
@@ -1321,7 +1321,7 @@ useSeoMeta({
 
 .stage__number {
   color: var(--ui-primary);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -1363,7 +1363,7 @@ useSeoMeta({
 .item__stats dt,
 .delivery-card__details dt {
   color: var(--ui-text-muted);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 .items {
@@ -1479,7 +1479,7 @@ useSeoMeta({
 .yandex-delivery {
   display: grid;
   gap: 1.25rem;
-  padding: 1.25rem;
+  padding: var(--card-padding);
   min-width: 0;
 }
 
@@ -1588,7 +1588,7 @@ useSeoMeta({
   .workspace__bar {
     position: sticky;
     z-index: 20;
-    top: 0;
+    top: var(--header-height);
     align-items: center;
     justify-content: space-between;
     flex-direction: row;
@@ -1597,7 +1597,7 @@ useSeoMeta({
   }
 
   .stage {
-    scroll-margin-top: 10rem;
+    scroll-margin-top: calc(var(--header-height) + 10rem);
   }
 }
 </style>

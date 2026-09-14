@@ -64,7 +64,7 @@ const products = computed(() =>
   display: grid;
   min-width: 0;
   gap: 1rem;
-  padding: 1.25rem;
+  padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
   transition: border-color 0.2s;
@@ -88,7 +88,7 @@ const products = computed(() =>
 .order__date {
   margin-top: 0.25rem;
   color: var(--ui-text-muted);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 .order__items {

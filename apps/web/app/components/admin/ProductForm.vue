@@ -109,7 +109,7 @@
         </div>
       </UCard>
       <UAlert v-if="error" color="error" :title="error" />
-      <div class="flex gap-3">
+      <div class="flex flex-wrap gap-3">
         <UButton type="submit" :loading="busy">{{
           product ? "Сохранить изменения" : "Создать товар"
         }}</UButton

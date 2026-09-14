@@ -6,13 +6,13 @@
     <p v-else-if="!categories?.length">Категорий пока нет</p>
     <div v-else class="grid md:grid-cols-2 gap-3">
       <UCard v-for="category in categories" :key="category.id">
-        <div class="flex flex-wrap gap-2 items-center">
+        <div class="flex flex-wrap gap-2 items-center [overflow-wrap:anywhere]">
           <strong>{{ category.name }}</strong
           ><UBadge :color="category.active ? 'success' : 'neutral'">{{
             category.active ? "Опубликована" : "Скрыта"
           }}</UBadge>
         </div>
-        <p class="text-sm text-muted my-2">
+        <p class="text-sm text-muted my-2 [overflow-wrap:anywhere]">
           {{ category.slug }} · Порядок: {{ category.sort }} · Товаров:
           {{ category._count?.products }} · Подкатегорий:
           {{ category._count?.children }}
@@ -24,7 +24,7 @@
             "Нет"
           }}
         </p>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <UButton variant="outline" @click="edit(category)"
             >Редактировать</UButton
           ><UButton

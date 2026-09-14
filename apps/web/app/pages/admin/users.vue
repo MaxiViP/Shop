@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-5">
     <h2 class="text-2xl font-semibold">Пользователи</h2>
-    <form class="flex flex-wrap gap-3 items-end" @submit.prevent="apply">
+    <form class="grid min-w-0 gap-3 items-end sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto]" @submit.prevent="apply">
       <UFormField label="Телефон или имя"
         ><UInput v-model="search" maxlength="160"
       /></UFormField>
@@ -43,7 +43,7 @@
           >
             <td class="p-3">
               <button
-                class="text-primary text-left"
+                class="min-h-(--touch-target) text-primary text-left"
                 @click="
                   detailId = user.id;
                   detailOpen = true;
@@ -89,7 +89,7 @@
         </tbody>
       </table>
     </div>
-    <div v-if="data" class="flex items-center gap-3">
+    <div v-if="data" class="flex flex-wrap items-center gap-3">
       <UButton
         :disabled="query.page <= 1 || pending"
         variant="outline"

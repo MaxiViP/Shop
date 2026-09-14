@@ -114,11 +114,12 @@ function add() {
 .card__category {
   display: block;
   min-width: 0;
-  min-height: 1.2em;
+  min-height: var(--touch-target);
+  align-content: center;
   color: var(--ui-text-muted);
   overflow: hidden;
-  font-size: 0.75rem;
-  line-height: 1.2;
+  font-size: 0.8125rem;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -131,15 +132,17 @@ function add() {
 .card__link {
   display: block;
   min-width: 0;
+  min-height: var(--touch-target);
 }
 
 .card__title {
   margin-top: 0.25rem;
-  min-height: 2.5em;
+  min-height: 2.8em;
+  overflow-wrap: anywhere;
   overflow: hidden;
   font-size: 0.9375rem;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.4;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -147,6 +150,7 @@ function add() {
 
 .card__bottom {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   min-width: 0;
@@ -157,27 +161,27 @@ function add() {
 
 .card__bottom :deep(.price) {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 7rem;
 }
 
 .card__cart {
-  display: grid;
+  display: flex;
+  flex: 1 0 auto;
   min-width: 0;
   max-width: 100%;
-  justify-items: center;
-  gap: 0.125rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem;
 }
 
 .card__qty {
   min-width: 0;
   max-width: 100%;
   color: var(--ui-text);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .card__favorite,

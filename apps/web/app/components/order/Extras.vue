@@ -18,7 +18,7 @@
             >Отменена</UBadge
           >
         </div>
-        <div v-if="editable && extra.status === 'ACTIVE'" class="flex gap-2">
+        <div v-if="editable && extra.status === 'ACTIVE'" class="flex flex-wrap gap-2">
           <UButton variant="ghost" :disabled="busy" @click="edit(extra)"
             >Изменить</UButton
           >
@@ -59,7 +59,7 @@
         /></UFormField>
         <p>Итого: {{ preview === null ? "—" : money(preview) }}</p>
         <p v-if="limitError" class="text-error" role="status">{{ limitError }}</p>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <UButton type="submit" :loading="busy" :disabled="!limits || !!limitError">Сохранить</UButton
           ><UButton variant="ghost" :disabled="busy" @click="open = false"
             >Закрыть</UButton
