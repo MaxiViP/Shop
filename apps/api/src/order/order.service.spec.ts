@@ -30,6 +30,7 @@ describe('OrderService creation', () => {
               unit: 'GRAM',
               min: 500,
               step: 500,
+              portionQty: 500,
               images: [],
             },
           ]),

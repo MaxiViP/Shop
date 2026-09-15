@@ -25,6 +25,7 @@ export interface AdminProduct {
   unit: Unit;
   step: number;
   min: number;
+  portionQty: number;
   categoryId: number;
   active: boolean;
   sort: number;

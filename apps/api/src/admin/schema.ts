@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_QTY, quantityErrors } from '../order/assembly.js';
 
 export const idSchema = z.coerce.number().int().positive().max(2_147_483_647);
 const name = z.string().trim().min(1).max(160);
@@ -9,8 +10,8 @@ const slug = z
   .max(180)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug: латинские буквы, цифры и дефисы');
 const sort = z.number().int().min(-1_000_000).max(1_000_000);
-const qty = z.number().int().positive().max(1_000_000);
-export const productSchema = z.strictObject({
+const qty = z.number().int().positive().max(MAX_QTY);
+const productFields = z.strictObject({
   name,
   slug,
   description: z.string().trim().max(10000).nullable(),
@@ -19,11 +20,17 @@ export const productSchema = z.strictObject({
   unit: z.enum(['GRAM', 'PIECE', 'BUNCH', 'PACK']),
   step: qty,
   min: qty,
+  portionQty: qty,
   categoryId: z.number().int().positive(),
   active: z.boolean(),
   sort,
 });
-export const productPatch = productSchema.partial();
+export const productSchema = productFields.superRefine((data, ctx) => {
+  for (const [field, message] of Object.entries(quantityErrors(data)))
+    ctx.addIssue({ code: 'custom', path: [field], message });
+});
+// Cross-field validation uses the merged current product inside the transaction.
+export const productPatch = productFields.partial();
 export const categorySchema = z.strictObject({
   name,
   slug,

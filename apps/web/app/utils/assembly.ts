@@ -4,6 +4,11 @@ export {
   outsideTolerance,
   weightRange,
   approvedWeight,
+  MAX_QTY,
+  quantityErrors,
+  validQuantity,
+  quickQuantity,
+  manualQuantity,
 } from "../../../api/src/order/assembly.ts";
 
 export function percentToBps(value: string): number | null {

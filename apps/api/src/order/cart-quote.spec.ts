@@ -17,6 +17,7 @@ const product = {
   unit: 'GRAM' as const,
   min: 500,
   step: 300,
+  portionQty: 500,
   images: [],
   category: { name: 'Фрукты', slug: 'fruit' },
 };
@@ -50,6 +51,34 @@ describe('Current server cart quote', () => {
     const second = calculate(1100, { priceQty: 500 });
     expect(second.subtotal).toBe(770000);
     expect(second.token).not.toBe(first.token);
+  });
+  it.each([
+    { price: 15000, priceQty: 500, totals: [15000, 30000, 45000] },
+    { price: 19900, priceQty: 1000, totals: [9950, 19900, 29850] },
+  ])('prices quantities in base units for $price/$priceQty', ({ price, priceQty, totals }) => {
+    for (const [index, qty] of [500, 1000, 1500].entries()) {
+      expect(calculate(qty, { price, priceQty, step: 100 }).subtotal).toBe(totals[index]);
+    }
+  });
+  it('portion changes invalidate the fingerprint without changing the requested quantity or price', () => {
+    const before = calculate(700, { step: 100 });
+    const after = calculate(700, { step: 100, portionQty: 1000 });
+    expect(after.subtotal).toBe(before.subtotal);
+    expect(after.items[0]!.qty).toBe(700);
+    expect(after.token).not.toBe(before.token);
+  });
+  it('rejects tampered quantities using database rules before any order write', async () => {
+    const create = vi.fn();
+    const db = {
+      product: { findMany: vi.fn().mockResolvedValue([{ ...product, step: 100 }]) },
+      order: { create },
+    } as unknown as DbService;
+    const input = orderSchema.parse({
+      type: 'PICKUP', customerName: 'Иван', customerPhone: '+79991234567',
+      items: [{ productId: 1, qty: 501, min: 1, step: 1, portionQty: 1, price: 1 }],
+    });
+    await expect(new OrderService(db).create(42, undefined, input)).rejects.toMatchObject({ status: 400 });
+    expect(create).not.toHaveBeenCalled();
   });
   it('unavailable/hidden/deleted IDs expose neither product nor partial eligibility subtotal', () => {
     const quote = cartQuote(

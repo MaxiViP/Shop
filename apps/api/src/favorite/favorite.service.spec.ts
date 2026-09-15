@@ -14,6 +14,7 @@ const product = {
   unit: 'PIECE' as const,
   step: 1,
   min: 1,
+  portionQty: 1,
   category: { name: 'Фрукты', slug: 'fruits' },
   images: [],
 };

@@ -1,4 +1,5 @@
 import type { ProductListItem, Unit } from "../types/product";
+import { lineAmount, validQuantity, quickQuantity } from "./assembly.ts";
 
 export interface CartItem {
   product: ProductListItem;
@@ -21,28 +22,26 @@ export interface CartQuote {
 export function checkoutRedirect(restored: boolean, count: number) {
   return restored && count === 0;
 }
+export function previewTotal(product: ProductListItem, qty: number): number | null {
+  if (!validQuantity(qty, product)) return null;
+  try {
+    return lineAmount(product.price, qty, product.priceQty);
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return null;
+  }
+}
 export function validCartQty(
   qty: number,
   product: Pick<ProductListItem, "min" | "step">,
 ) {
-  return (
-    Number.isSafeInteger(qty) &&
-    qty >= product.min &&
-    qty <= 1_000_000 &&
-    product.min > 0 &&
-    product.step > 0 &&
-    (qty - product.min) % product.step === 0
-  );
+  return validQuantity(qty, product);
 }
 export function nextCartQty(
   current: number | undefined,
-  product: Pick<ProductListItem, "min" | "step">,
+  product: Pick<ProductListItem, "min" | "step" | "portionQty">,
 ) {
-  if (current === undefined)
-    return validCartQty(product.min, product) ? product.min : null;
-  if (!validCartQty(current, product)) return null; // Explicit correction in cart, never silent rounding.
-  const next = current + product.step;
-  return validCartQty(next, product) ? next : null;
+  return quickQuantity(current, product);
 }
 export function cartKey(items: CartItem[]) {
   return JSON.stringify(items.map((item) => [item.product.id, item.qty]));
@@ -114,6 +113,7 @@ function storedItem(value: unknown): CartItem | null {
     !positiveInt(p.priceQty) ||
     !positiveInt(p.min) ||
     !positiveInt(p.step) ||
+    (p.portionQty !== undefined && !positiveInt(p.portionQty)) ||
     !["GRAM", "PIECE", "PACK", "BUNCH"].includes(String(p.unit)) ||
     !record(p.category) ||
     typeof p.category.name !== "string" ||
@@ -131,6 +131,8 @@ function storedItem(value: unknown): CartItem | null {
       priceQty: p.priceQty,
       min: p.min,
       step: p.step,
+      // Old carts keep their quantities; current product data arrives through quote.
+      portionQty: p.portionQty === undefined ? p.min : p.portionQty as number,
       unit: p.unit as Unit,
       category: { name: p.category.name, slug: p.category.slug },
       images: p.images

@@ -30,8 +30,8 @@
             В корзине: {{ qtyText(product.unit, cartQty) }}
           </span>
 
-          <UButton size="lg" class="product__btn" @click="add">
-            {{ cartQty ? 'Обновить количество' : 'В корзину' }} · {{ money(total) }}
+          <UButton size="lg" class="product__btn" :disabled="total === null" @click="add">
+            {{ total === null ? 'Проверьте количество и стоимость' : `${cartQty ? 'Обновить количество' : 'В корзину'} · ${money(total)}` }}
           </UButton>
         </div>
       </div>
@@ -52,7 +52,7 @@ import type { Product } from "~/types/product";
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
 import { qtyText } from "~/utils/qty";
-import { validCartQty } from "~/utils/cart";
+import { previewTotal, validCartQty } from "~/utils/cart";
 
 const route = useRoute();
 const slug = String(route.params.slug);
@@ -61,7 +61,7 @@ const cart = useCartStore();
 const notice = useHeaderNotice();
 
 function add() {
-  if (!product.value) return;
+  if (!product.value || total.value === null) return;
 
   const updated = cart.put(product.value, qty.value);
   notice.show({ target: 'cart', text: updated ? 'Количество в корзине сохранено' : 'Проверьте количество и лимит позиций в корзине' });
@@ -85,7 +85,7 @@ watch(() => [cart.restored, cart.qty(product.value!.id)], () => {
 const total = computed(() => {
   if (!product.value) return 0;
 
-  return Math.round((product.value.price * qty.value) / product.value.priceQty);
+  return previewTotal(product.value, qty.value);
 });
 
 const cartQty = computed(() =>

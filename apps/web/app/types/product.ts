@@ -14,6 +14,7 @@ export interface ProductListItem {
   unit: Unit;
   step: number;
   min: number;
+  portionQty: number;
 
   category: {
     name: string;

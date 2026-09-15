@@ -22,6 +22,7 @@ const product = {
   unit: 'GRAM' as const,
   min: 500,
   step: 100,
+  portionQty: 500,
   categoryId: 1,
   active: true,
   sort: 0,
@@ -120,6 +121,31 @@ describe('Admin products', () => {
       active: false,
     });
     expect(db.product.delete).not.toHaveBeenCalled();
+  });
+  it.each([{ step: 300 }, { min: 600 }, { portionQty: 550 }, { portionQty: 0 }])(
+    'validates a partial update against the current product: %j', async (patch) => {
+      db.product.findUnique.mockResolvedValue(product);
+      await expect(service.update(1, patch)).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.product.update).not.toHaveBeenCalled();
+    },
+  );
+  it('accepts a compatible multi-field change in one update', async () => {
+    db.product.findUnique.mockResolvedValue(product);
+    const patch = { min: 600, step: 300, portionQty: 900 };
+    db.product.update.mockResolvedValue({ ...product, ...patch });
+    await expect(service.update(1, patch)).resolves.toMatchObject(patch);
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
+  });
+  it('rejects an incompatible create before writing', async () => {
+    await expect(service.create({ ...product, portionQty: 501 })).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.product.create).not.toHaveBeenCalled();
+  });
+  it('requires an edited legacy product to have a compatible quantity configuration', async () => {
+    db.product.findUnique.mockResolvedValue({ ...product, step: 300 });
+    await expect(service.update(1, { name: 'Новое название' })).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.product.update).not.toHaveBeenCalled();
+    db.product.update.mockResolvedValue(product);
+    await expect(service.update(1, { step: 100 })).resolves.toMatchObject(product);
   });
   it('includes inactive products admin-side', async () => {
     db.product.findMany.mockResolvedValue([{ ...product, active: false }]);

@@ -1,6 +1,6 @@
 <template>
   <header class="header">
-    <UContainer class="header__inner" :class="{ 'header__inner--staff': staff }">
+    <UContainer class="header__inner">
       <UButton
         class="header__menu"
         icon="i-lucide-menu"
@@ -20,25 +20,29 @@
       </nav>
 
       <div class="header__actions">
-        <AppThemeControl />
-        <UButton v-if="auth.user?.role === 'ADMIN'" to="/admin/products" variant="ghost" color="neutral">Админка</UButton>
+        <div class="header__secondary">
+          <AppThemeControl />
+        </div>
+        <UButton
+          v-if="account.adminTo"
+          :to="account.adminTo"
+          icon="i-lucide-settings"
+          variant="ghost"
+          color="neutral"
+          aria-label="Админка"
+          title="Админка"
+        >
+          <span class="header__admin-label">Админка</span>
+        </UButton>
 
         <UButton
-          v-if="auth.loggedIn"
-          to="/profile"
+          :to="account.to"
           icon="i-lucide-user"
           variant="ghost"
           color="neutral"
-          aria-label="Профиль"
-        />
-
-        <UButton
-          v-else
-          icon="i-lucide-user"
-          variant="ghost"
-          color="neutral"
-          aria-label="Войти"
-          @click="loginOpen = true"
+          :aria-label="account.label"
+          :title="account.label"
+          @click="!account.to && login()"
         />
 
         <div class="header__action">
@@ -69,39 +73,7 @@
           <AppHeaderNotice target="cart" />
         </div>
 
-        <AppOrdersAction :action="orders" />
-      </div>
-
-      <div class="header__mobile-actions">
-        <AppOrdersAction :action="orders" />
-        <AppThemeControl />
-        <div class="header__action">
-          <UButton
-            to="/favorites"
-            icon="i-lucide-heart"
-            variant="ghost"
-            color="neutral"
-            aria-label="Избранное"
-          />
-          <span v-if="favorites.count" class="header__count">
-            {{ favorites.count }}
-          </span>
-          <AppHeaderNotice target="favorites" />
-        </div>
-
-        <div class="header__action">
-          <UButton
-            to="/cart"
-            icon="i-lucide-shopping-bag"
-            variant="ghost"
-            color="neutral"
-            aria-label="Корзина"
-          />
-          <span v-if="cart.count" class="header__count">
-            {{ cart.count }}
-          </span>
-          <AppHeaderNotice target="cart" />
-        </div>
+        <AppOrdersAction class="header__secondary" :action="orders" />
       </div>
     </UContainer>
 
@@ -177,6 +149,10 @@
             <span>Рабочее место продавца</span>
           </NuxtLink>
         </nav>
+        <div class="mobile-nav__theme">
+          <span>Тема оформления</span>
+          <AppThemeControl />
+        </div>
       </template>
     </UDrawer>
 
@@ -188,6 +164,7 @@
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
 import { useFavoritesStore } from "~/stores/favorites";
+import { headerAccount } from "~/utils/header-account";
 
 const route = useRoute();
 const auth = useAuthStore();
@@ -199,6 +176,7 @@ onBeforeUnmount(notice.clear);
 watch(() => auth.user?.id, notice.clear);
 const loginOpen = ref(false);
 const mobileOpen = ref(false);
+const account = computed(() => headerAccount(auth.user));
 
 const staff = computed(
   () => auth.user?.role === "SELLER" || auth.user?.role === "ADMIN",
@@ -219,9 +197,6 @@ function login() {
 </script>
 
 <style scoped>
-@media (max-width: 47.999rem) {
-  .header__inner--staff { flex-wrap: wrap; }
-}
 .header {
   position: sticky;
   top: 0;
@@ -253,20 +228,24 @@ function login() {
 }
 
 .header__menu,
-.header__mobile-actions :deep(a),
-.header__mobile-actions :deep(button) {
+.header__actions :deep(a),
+.header__actions :deep(button) {
   min-width: var(--touch-target);
   min-height: var(--touch-target);
+  flex-shrink: 0;
+  justify-content: center;
 }
 
 .header__nav,
-.header__actions {
+.header__secondary,
+.header__admin-label {
   display: none;
 }
 
-.header__mobile-actions {
+.header__actions {
   display: flex;
   flex: 0 0 auto;
+  align-items: center;
   gap: 0.125rem;
 }
 
@@ -339,6 +318,23 @@ function login() {
   position: relative;
 }
 
+.mobile-nav__theme {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 var(--page-x) var(--page-x);
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--ui-border);
+}
+
+@media (min-width: 26rem) {
+  .header__secondary {
+    display: flex;
+  }
+}
+
 @media (min-width: 48rem) {
   .header__inner {
     gap: 2rem;
@@ -348,15 +344,17 @@ function login() {
     margin-right: 0;
   }
 
-  .header__menu,
-  .header__mobile-actions {
+  .header__menu {
     display: none;
   }
 
-  .header__nav,
-  .header__actions {
+  .header__nav {
     display: flex;
     align-items: center;
+  }
+
+  .header__admin-label {
+    display: inline;
   }
 
   .header__nav {

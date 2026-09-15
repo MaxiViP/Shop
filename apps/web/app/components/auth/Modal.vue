@@ -1,7 +1,7 @@
 <template>
   <UModal
     v-model:open="open"
-    title="Вход"
+    :title="mode === 'PASSWORD' ? 'Вход' : 'Вход или регистрация'"
     :description="description"
     :dismissible="!loading"
     :ui="{

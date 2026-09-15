@@ -4,7 +4,7 @@ export function qtyText(unit: Unit, value: number) {
   if (unit === "GRAM") {
     if (value >= 1000) {
       return `${(value / 1000).toLocaleString("ru-RU", {
-        maximumFractionDigits: 2,
+        maximumFractionDigits: 3,
       })} кг`;
     }
 

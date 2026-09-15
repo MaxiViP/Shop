@@ -9,6 +9,7 @@ export const productListSelect = {
   unit: true,
   step: true,
   min: true,
+  portionQty: true,
   category: {
     select: {
       name: true,

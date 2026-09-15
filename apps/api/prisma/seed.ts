@@ -99,10 +99,12 @@ async function main() {
       where: { slug: product.slug },
       update: {
         ...product,
+        portionQty: product.min,
         category: { connect: { slug: category } },
       },
       create: {
         ...product,
+        portionQty: product.min,
         category: { connect: { slug: category } },
       },
     });

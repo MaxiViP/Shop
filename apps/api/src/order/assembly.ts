@@ -2,6 +2,50 @@
 export const MAX_QTY = 1_000_000;
 export const MAX_MONEY = 2_147_483_647;
 
+export interface ProductQuantity {
+  min: number;
+  step: number;
+  portionQty: number;
+}
+
+const positiveQuantity = (value: number) =>
+  Number.isSafeInteger(value) && value > 0 && value <= MAX_QTY;
+
+export function quantityErrors(product: ProductQuantity) {
+  const errors: Partial<Record<keyof ProductQuantity, string>> = {};
+  for (const field of ['min', 'step', 'portionQty'] as const) {
+    if (!positiveQuantity(product[field]))
+      errors[field] = 'Укажите целое количество от 1 до 1 000 000.';
+  }
+  if (!errors.min && !errors.step && product.min % product.step !== 0)
+    errors.min = 'Минимальный заказ должен быть кратен шагу изменения.';
+  if (!errors.portionQty && !errors.step && product.portionQty % product.step !== 0)
+    errors.portionQty = 'Количество для быстрого добавления должно быть кратно шагу изменения.';
+  if (!errors.portionQty && positiveQuantity(product.min) && product.portionQty < product.min)
+    errors.portionQty = 'Быстрое добавление не может быть меньше минимального заказа.';
+  return errors;
+}
+
+export function validQuantity(qty: number, product: Pick<ProductQuantity, 'min' | 'step'>) {
+  return positiveQuantity(qty) && positiveQuantity(product.min) &&
+    positiveQuantity(product.step) && qty >= product.min &&
+    (qty - product.min) % product.step === 0;
+}
+
+export function quickQuantity(current: number | undefined, product: ProductQuantity): number | null {
+  if (Object.keys(quantityErrors(product)).length) return null;
+  if (current === undefined || current === 0) return product.portionQty;
+  if (!validQuantity(current, product)) return null;
+  const next = current + product.portionQty;
+  return validQuantity(next, product) ? next : null;
+}
+
+export function manualQuantity(current: number, product: Pick<ProductQuantity, 'min' | 'step'>, direction: 1 | -1): number | null {
+  if (!validQuantity(current, product)) return null;
+  const next = Math.max(product.min, current + direction * product.step);
+  return validQuantity(next, product) ? next : null;
+}
+
 export function approvedWeight(issue: { status: string; resolution: string | null; approvedActualQty: number | null; actualQty: number | null } | undefined, actual: number | null) {
   return actual !== null && issue?.status === 'RESOLVED' && issue.resolution === 'ACCEPT_ACTUAL' && issue.approvedActualQty === actual && issue.actualQty === actual;
 }

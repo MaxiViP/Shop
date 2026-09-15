@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_QTY } from './assembly.js';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
@@ -34,7 +35,7 @@ export const orderSchema = z
         z.object({
           productId: z.number().int().positive(),
 
-          qty: z.number().int().positive().max(1_000_000),
+          qty: z.number().int().positive().max(MAX_QTY),
         }),
       )
       .min(1)

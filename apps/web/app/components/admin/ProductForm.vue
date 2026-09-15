@@ -66,31 +66,47 @@
               v-model.number="form.priceQty"
               type="number"
               min="1"
-              max="1000000"
+              :max="MAX_QTY"
               step="1"
               required
               class="w-full"
           /></UFormField>
-          <UFormField :label="`Минимальный заказ (${quantityLabel})`"
+          <UFormField :label="`Минимальный заказ (${quantityLabel})`" :error="quantityError.min" help="Меньше этого количества купить нельзя."
             ><UInput
               v-model.number="form.min"
               type="number"
               min="1"
-              max="1000000"
+              :max="MAX_QTY"
               step="1"
               required
               class="w-full"
           /></UFormField>
-          <UFormField :label="`Шаг заказа (${quantityLabel})`"
+          <UFormField :label="`Шаг изменения (${quantityLabel})`" :error="quantityError.step" help="На столько меняется количество кнопками + и −."
             ><UInput
               v-model.number="form.step"
               type="number"
               min="1"
-              max="1000000"
+              :max="MAX_QTY"
               step="1"
               required
               class="w-full"
           /></UFormField>
+          <UFormField :label="`Быстро добавить (${quantityLabel})`" :error="quantityError.portionQty" help="Столько товара добавляется одним нажатием + в каталоге."
+            ><UInput
+              v-model.number="form.portionQty"
+              type="number"
+              min="1"
+              :max="MAX_QTY"
+              step="1"
+              required
+              class="w-full"
+          /></UFormField>
+        </div>
+        <div v-if="preview" class="mt-4 space-y-1 text-sm text-muted" aria-live="polite">
+          <h3 class="font-semibold text-default">Настройки количества</h3>
+          <p>Минимум: {{ qtyText(form.unit, form.min) }} · Шаг: {{ qtyText(form.unit, form.step) }} · Быстро добавить: {{ qtyText(form.unit, form.portionQty) }}</p>
+          <p>Каталог: {{ preview.quick }}</p>
+          <p>Изменение количества: {{ preview.manual }}</p>
         </div>
       </UCard>
       <UCard>
@@ -136,6 +152,8 @@
 <script setup lang="ts">
 import type { AdminProduct, AdminCategory } from "~/types/admin";
 import type { Unit } from "~/types/product";
+import { MAX_QTY, manualQuantity, quantityErrors, quickQuantity } from "~/utils/assembly";
+import { qtyText } from "~/utils/qty";
 const props = defineProps<{
   product?: AdminProduct;
   categories: AdminCategory[];
@@ -151,6 +169,7 @@ const form = reactive({
   unit: source?.unit ?? ("PIECE" as Unit),
   min: source?.min ?? 1,
   step: source?.step ?? 1,
+  portionQty: source?.portionQty ?? source?.min ?? 1,
   active: source?.active ?? true,
   sort: source?.sort ?? 0,
 });
@@ -165,6 +184,22 @@ const units = [
 const quantityLabel = computed(
   () => ({ GRAM: "г", PIECE: "шт.", BUNCH: "пуч.", PACK: "уп." })[form.unit],
 );
+const quantityError = computed(() => quantityErrors(form));
+const preview = computed(() => {
+  if (Object.keys(quantityError.value).length) return null;
+  const quick: number[] = [];
+  const manual = [form.min];
+  for (let i = 0; i < 3; i++) {
+    const next = quickQuantity(quick.at(-1), form);
+    if (next !== null) quick.push(next);
+    if (i < 2) {
+      const nextManual = manualQuantity(manual.at(-1)!, form, 1);
+      if (nextManual !== null) manual.push(nextManual);
+    }
+  }
+  const format = (values: number[]) => values.map(value => qtyText(form.unit, value)).join(' → ');
+  return { quick: format(quick), manual: format(manual) };
+});
 const categoryItems = computed(() =>
   props.categories.map((category) => ({
     label: category.name + (category.active ? "" : " (скрыта)"),
@@ -180,6 +215,10 @@ const busy = ref(false);
 const error = ref("");
 async function save() {
   if (busy.value) return;
+  if (Object.keys(quantityError.value).length) {
+    error.value = 'Проверьте настройки количества товара.';
+    return;
+  }
   const price = rublesToKopecks(rubles.value);
   if (price === null) {
     error.value =

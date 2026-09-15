@@ -31,17 +31,20 @@
       <div class="card__bottom">
         <ProductPrice :product="product" />
 
-        <div class="card__cart">
-          <span v-if="cartQty" class="card__qty">
-            {{ qtyText(product.unit, cartQty) }}
-          </span>
-
-          <UButton
-            icon="i-lucide-plus"
-            :aria-label="`Добавить ${product.name} в корзину`"
-            @click="add"
+        <UButton
+          class="card__add"
+          :aria-label="action.ariaLabel"
+          @click="add"
+        >
+          <UIcon
+            v-if="action.added"
+            name="i-lucide-check"
+            class="card__add-icon"
+            aria-hidden="true"
           />
-        </div>
+          <span class="card__add-label">{{ action.label }}</span>
+          <UIcon name="i-lucide-plus" class="card__add-icon" aria-hidden="true" />
+        </UButton>
       </div>
     </div>
   </article>
@@ -50,7 +53,7 @@
 <script setup lang="ts">
 import type { ProductListItem } from "~/types/product";
 import { useCartStore } from "~/stores/cart";
-import { qtyText } from "~/utils/qty";
+import { quickAddState } from "~/utils/quick-add";
 
 const { product } = defineProps<{
   product: ProductListItem;
@@ -60,6 +63,7 @@ const cart = useCartStore();
 const asset = useAsset();
 const notice = useHeaderNotice();
 const cartQty = computed(() => cart.qty(product.id));
+const action = computed(() => quickAddState(product, cartQty.value));
 
 function add() {
   const added = cart.add(product);
@@ -149,10 +153,8 @@ function add() {
 }
 
 .card__bottom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 0.5rem;
   margin-top: auto;
@@ -161,31 +163,34 @@ function add() {
 
 .card__bottom :deep(.price) {
   min-width: 0;
-  flex: 1 1 7rem;
 }
 
-.card__cart {
+.card__add {
   display: flex;
-  flex: 1 0 auto;
+  flex-wrap: nowrap;
+  width: 100%;
   min-width: 0;
-  max-width: 100%;
+  min-height: var(--touch-target);
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.375rem;
+  gap: 0.25rem;
 }
 
-.card__qty {
+.card__add-label {
+  flex: 1;
   min-width: 0;
-  max-width: 100%;
-  color: var(--ui-text);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
 }
 
-.card__favorite,
-.card__cart :deep(button) {
+.card__add-icon {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+}
+
+.card__favorite {
   min-width: var(--touch-target);
   min-height: var(--touch-target);
   flex: 0 0 auto;
@@ -202,10 +207,6 @@ function add() {
 
   .card__bottom {
     gap: 0.65rem;
-  }
-
-  .card__qty {
-    font-size: 0.8125rem;
   }
 }
 </style>

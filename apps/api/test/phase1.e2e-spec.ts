@@ -197,6 +197,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
         priceQty: 1000,
         min: 500,
         step: 100,
+        portionQty: 500,
       },
     });
     productId = product.id;

@@ -4,7 +4,7 @@
       icon="i-lucide-minus"
       variant="soft"
       color="neutral"
-      :disabled="value <= product.min"
+      :disabled="decreased === null || decreased === value"
       aria-label="Уменьшить"
       @click="dec"
     />
@@ -18,6 +18,7 @@
       variant="soft"
       color="neutral"
       aria-label="Увеличить"
+      :disabled="increased === null"
       @click="inc"
     />
   </div>
@@ -26,19 +27,22 @@
 <script setup lang="ts">
 import type { ProductListItem } from "~/types/product";
 import { qtyText } from "~/utils/qty";
+import { manualQuantity } from "~/utils/assembly";
 
 const { product } = defineProps<{
   product: ProductListItem;
 }>();
 
 const value = defineModel<number>({ required: true });
+const decreased = computed(() => manualQuantity(value.value, product, -1));
+const increased = computed(() => manualQuantity(value.value, product, 1));
 
 function dec() {
-  value.value = Math.max(product.min, value.value - product.step);
+  if (decreased.value !== null) value.value = decreased.value;
 }
 
 function inc() {
-  value.value += product.step;
+  if (increased.value !== null) value.value = increased.value;
 }
 
 const label = computed(() => qtyText(product.unit, value.value));

@@ -3,7 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
 import type { Prisma } from '../db/gen/client.js';
 import { productListSelect } from '../product/select.js';
-import { MAX_QTY } from './assembly.js';
+import { validQuantity } from './assembly.js';
 import { goodsLine, goodsSum } from './pricing.js';
 
 // Strip unsolicited client prices. Only IDs and quantities are used.
@@ -34,16 +34,7 @@ type LineStatus =
   'AVAILABLE' | 'UNAVAILABLE' | 'INVALID_QUANTITY' | 'PRICE_OVERFLOW';
 
 export function cartQuantityValid(qty: number, min: number, step: number) {
-  return (
-    Number.isSafeInteger(qty) &&
-    qty >= min &&
-    qty <= MAX_QTY &&
-    Number.isSafeInteger(min) &&
-    min > 0 &&
-    Number.isSafeInteger(step) &&
-    step > 0 &&
-    (qty - min) % step === 0
-  );
+  return validQuantity(qty, { min, step });
 }
 
 export function cartQuantities(items: QuoteInput['items']) {
@@ -110,6 +101,7 @@ export function cartQuote(
                     p.unit,
                     p.min,
                     p.step,
+                    p.portionQty,
                   ];
                 }),
             ),

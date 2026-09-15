@@ -166,6 +166,7 @@ try {
         unit: 'GRAM',
         min: 500,
         step: 100,
+        portionQty: 500,
         active: true,
         sort: 0,
         categoryId: category.id,

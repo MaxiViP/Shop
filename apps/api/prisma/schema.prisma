@@ -51,11 +51,12 @@ model Product {
   slug        String  @unique
   description String?
 
-  price    Int
-  priceQty Int  @default(1)
-  unit     Unit
-  step     Int  @default(1)
-  min      Int  @default(1)
+  price      Int
+  priceQty   Int  @default(1)
+  unit       Unit
+  step       Int  @default(1)
+  min        Int  @default(1)
+  portionQty Int
 
   active Boolean @default(true)
   sort   Int     @default(0)

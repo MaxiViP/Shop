@@ -30,6 +30,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     let productId: number;
     let categoryId: number;
     let cookie: string;
+    let legacyProducts: { id: number; min: number; step: number }[] = [];
     const items = () => [{ productId, qty: 1000 }];
     const quote = () =>
       request(app.getHttpServer())
@@ -65,10 +66,25 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const root = resolve('prisma/migrations');
       for (const migration of (await readdir(root, { withFileTypes: true }))
         .filter((entry) => entry.isDirectory())
-        .sort((a, b) => a.name.localeCompare(b.name)))
+        .sort((a, b) => a.name.localeCompare(b.name))) {
+        if (migration.name === '20260915120000_product_portion_qty') {
+          await connection.query(`
+            INSERT INTO "Category" (id, name, slug, "updatedAt")
+              VALUES (-1, 'Legacy fixtures', 'legacy-fixtures', NOW());
+            INSERT INTO "Product" (id, name, slug, price, unit, "categoryId", min, step, "updatedAt") VALUES
+              (-1, 'Legacy grams', 'legacy-grams', 100, 'GRAM', -1, 500, 1, NOW()),
+              (-2, 'Legacy grid', 'legacy-grid', 100, 'GRAM', -1, 500, 300, NOW()),
+              (-3, 'Legacy zero', 'legacy-zero', 100, 'PIECE', -1, 0, 0, NOW()),
+              (-4, 'Legacy negative', 'legacy-negative', 100, 'PIECE', -1, -1, 1, NOW());
+          `);
+          legacyProducts = (await connection.query<{ id: number; min: number; step: number }>(
+            'SELECT * FROM "Product" WHERE id < 0 ORDER BY id',
+          )).rows;
+        }
         await connection.query(
           await readFile(join(root, migration.name, 'migration.sql'), 'utf8'),
         );
+      }
       db = new PrismaClient({
         adapter: new PrismaPg(
           {
@@ -121,6 +137,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             unit: 'GRAM',
             min: 1000,
             step: 250,
+            portionQty: 1000,
             categoryId,
           },
         })
@@ -143,6 +160,21 @@ describe.skipIf(!process.env.DATABASE_URL)(
       vi.unstubAllEnvs();
     }, 30000);
 
+    it('migration backfills every legacy product from min without changing existing columns', async () => {
+      expect(legacyProducts).toHaveLength(4);
+      const result = await connection.query('SELECT * FROM "Product" WHERE id < 0 ORDER BY id');
+      expect(result.rows).toEqual(legacyProducts.map((product) => ({
+        ...product, portionQty: product.min,
+      })));
+      const column = await connection.query<{ is_nullable: string }>(
+        `SELECT is_nullable FROM information_schema.columns
+          WHERE table_schema = $1 AND table_name = 'Product' AND column_name = 'portionQty'`,
+        [schema],
+      );
+      expect(column.rows).toEqual([{ is_nullable: 'NO' }]);
+      await expect(connection.query('UPDATE "Product" SET "portionQty" = NULL WHERE id = -1'))
+        .rejects.toMatchObject({ code: '23502' });
+    });
     it('quote is public, read-only and restricted to the public product contract', async () => {
       const before = await db.order.count();
       const guests = await db.guestSession.count();
@@ -165,6 +197,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           'slug',
           'price',
           'priceQty',
+          'portionQty',
           'unit',
           'min',
           'step',
@@ -230,7 +263,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         ).userId,
       ).not.toBeNull();
     });
-    it.each(['price', 'priceQty', 'min', 'active'] as const)(
+    it.each(['price', 'priceQty', 'min', 'step', 'portionQty', 'active'] as const)(
       'change to %s after quote returns 409 before order creation',
       async (field) => {
         const before = await db.order.count();
@@ -243,6 +276,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
                 ? false
                 : field === 'price'
                   ? 360000
+                  : field === 'portionQty'
+                    ? 2000
                   : field === 'min'
                     ? 1500
                     : 500,
@@ -280,6 +315,43 @@ describe.skipIf(!process.env.DATABASE_URL)(
         data: { pickupEnabled: false, deliveryEnabled: true },
       });
       await order('PICKUP').expect(400);
+    });
+    it.each([
+      { price: 15000, priceQty: 500, expected: [15000, 30000, 45000] },
+      { price: 19900, priceQty: 1000, expected: [9950, 19900, 29850] },
+    ])('quote and persisted order agree for price=$price / priceQty=$priceQty', async ({ price, priceQty, expected }) => {
+      await db.product.update({ where: { id: productId }, data: { min: 500, step: 100, portionQty: 500, price, priceQty } });
+      for (const [index, qty] of [500, 1000, 1500].entries()) {
+        const items = [{ productId, qty, price: 1, total: 1, step: 1, portionQty: 1 }];
+        const quoted = await request(app.getHttpServer()).post('/api/orders/quote').send({ items }).expect(201);
+        expect(quoted.body.subtotal).toBe(expected[index]);
+        expect(quoted.body.items[0].product.portionQty).toBe(500);
+        const created = await request(app.getHttpServer()).post('/api/orders').set('Cookie', cookie).send({
+          type: 'PICKUP', customerName: 'Покупатель', customerPhone: '+79990000444',
+          items, quoteToken: quoted.body.token, subtotal: 1,
+        }).expect(201);
+        const saved = await db.order.findUniqueOrThrow({ where: { publicId: created.body.publicId as string }, include: { items: true } });
+        expect(saved).toMatchObject({ subtotal: expected[index], total: expected[index] });
+        expect(saved.items[0]).toMatchObject({ qty, price, priceQty, unit: 'GRAM', total: expected[index] });
+        await db.product.update({ where: { id: productId }, data: { price: price + 100 } });
+        expect((await db.orderItem.findUniqueOrThrow({ where: { id: saved.items[0]!.id } })).total).toBe(expected[index]);
+        await db.product.update({ where: { id: productId }, data: { price } });
+      }
+    });
+    it('accepts manual desired total independently of the catalogue portion and rejects 501g', async () => {
+      await db.product.update({ where: { id: productId }, data: { min: 500, step: 100, portionQty: 1000, price: 19900, priceQty: 1000 } });
+      const before = await db.order.count();
+      const invalid = [{ productId, qty: 501, min: 1, step: 1, portionQty: 1 }];
+      const quoted = await request(app.getHttpServer()).post('/api/orders/quote').send({ items: invalid }).expect(201);
+      expect(quoted.body).toMatchObject({ valid: false, items: [{ qty: 501, status: 'INVALID_QUANTITY' }] });
+      const checkout = (qty: number) => request(app.getHttpServer()).post('/api/orders').set('Cookie', cookie).send({
+        type: 'PICKUP', customerName: 'Покупатель', customerPhone: '+79990000444', items: [{ productId, qty }],
+      });
+      await checkout(501).expect(400);
+      expect(await db.order.count()).toBe(before);
+      const created = await checkout(700).expect(201);
+      const saved = await db.order.findUniqueOrThrow({ where: { publicId: created.body.publicId as string }, include: { items: true } });
+      expect(saved.items[0]).toMatchObject({ qty: 700, total: 13930 });
     });
     it.each(['hidden', 'deleted'])(
       '%s product is a structured unavailable line without disclosing its data',

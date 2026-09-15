@@ -1,9 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DbService } from '../db/db.service.js';
 import type { Prisma } from '../db/gen/client.js';
 import type { ProductInput, ProductQuery } from './schema.js';
 import { dbError } from './errors.js';
 import { ImagesService } from './images.service.js';
+import { quantityErrors, type ProductQuantity } from '../order/assembly.js';
+
+function validateQuantity(product: ProductQuantity) {
+  const errors = Object.values(quantityErrors(product));
+  if (errors.length) throw new BadRequestException(errors);
+}
 
 const include = {
   category: true,
@@ -50,6 +56,7 @@ export class AdminProductsService {
     return product;
   }
   async create(data: ProductInput) {
+    validateQuantity(data);
     try {
       return await this.db.product.create({ data, include });
     } catch (error) {
@@ -62,6 +69,7 @@ export class AdminProductsService {
         async (db) => {
           const current = await db.product.findUnique({ where: { id } });
           if (!current) throw new NotFoundException('Товар не найден');
+          validateQuantity({ ...current, ...data });
           return db.product.update({ where: { id }, data, include });
         },
         { isolationLevel: 'Serializable' },
