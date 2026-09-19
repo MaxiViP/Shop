@@ -110,10 +110,10 @@ function subtract() {
 
 <style scoped>
 .card {
-  --card-inset: 0.5rem;
-  display: grid;
+  --card-inset: clamp(0.625rem, 0.5rem + 0.5vw, 1rem);
+  display: flex;
   min-width: 0;
-  grid-template-columns: clamp(6rem, 32%, 8rem) minmax(0, 1fr);
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
@@ -130,16 +130,16 @@ function subtract() {
 
 .card__quantity {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset-inline: 0.5rem;
+  bottom: 0.5rem;
   width: fit-content;
   max-width: calc(100% - 1rem);
-  padding: 0.25rem 0.5rem;
+  margin-inline: auto;
+  padding: 0.25rem 0.625rem;
   border-radius: 0.75rem;
   background: var(--ui-bg);
   color: var(--ui-text-highlighted);
-  font-size: 1.125rem;
+  font-size: clamp(1.125rem, 3.5vw, 1.5rem);
   font-weight: 700;
   line-height: 1.25;
   text-align: center;
@@ -153,8 +153,10 @@ function subtract() {
   align-items: center;
   min-width: 0;
   min-height: var(--touch-target);
+  margin-inline: calc(-1 * var(--card-inset));
+  margin-bottom: calc(-1 * var(--card-inset));
   background: var(--ui-bg-elevated);
-  border-radius: 0.5rem;
+  border-top: 1px solid var(--ui-border);
 }
 
 .card__portion {
@@ -188,37 +190,34 @@ function subtract() {
 
 .card__media {
   position: relative;
-  min-width: 0;
 }
 
 .card__favorite {
   position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
+  top: 0.75rem;
+  right: 0.75rem;
   border: 1px solid var(--ui-border);
   background: var(--ui-bg);
 }
 
 .card__img {
-  position: absolute;
-  inset: 0;
   display: grid;
+  aspect-ratio: 4 / 3;
   place-items: center;
   background: var(--ui-bg-muted);
   color: var(--ui-text-muted);
 }
 
 .card__img img {
-  position: absolute;
-  inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 .card__body {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
   padding: var(--card-inset);
 }
@@ -248,6 +247,7 @@ function subtract() {
 }
 
 .card__title {
+  margin-top: 0.25rem;
   min-height: 2.8em;
   overflow-wrap: anywhere;
   overflow: hidden;
@@ -263,9 +263,9 @@ function subtract() {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
-  gap: 0.25rem;
+  gap: 0.5rem;
   margin-top: auto;
-  padding-top: 0.25rem;
+  padding-top: 0.75rem;
 }
 
 .card__bottom :deep(.price) {
@@ -304,8 +304,16 @@ function subtract() {
 }
 
 @media (min-width: 40rem) {
+  .card__category {
+    font-size: 0.8125rem;
+  }
+
   .card__title {
     font-size: 1rem;
+  }
+
+  .card__bottom {
+    gap: 0.65rem;
   }
 }
 </style>
