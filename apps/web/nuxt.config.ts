@@ -8,6 +8,13 @@ export default defineNuxtConfig({
 
   modules: ["@nuxt/ui", "@pinia/nuxt", "@nuxt/eslint"],
 
+  app: {
+    head: {
+      htmlAttrs: { lang: "ru" },
+      meta: [{ property: "og:locale", content: "ru_RU" }],
+    },
+  },
+
   icon: {
     clientBundle: {
       // Include application icons as well as Nuxt UI defaults, before any render.

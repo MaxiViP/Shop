@@ -32,6 +32,12 @@
       <USkeleton class="h-48 w-full" />
     </div>
     <div v-else-if="!cart.count" class="checkout__empty">
+      <div v-if="lastRemoved" class="section__items-head">
+            <h2 class="section__title">Ваши товары</h2>
+            <UButton v-if="lastRemoved" type="button" icon="i-lucide-undo-2" variant="ghost" color="neutral" class="section__undo" aria-label="Вернуть удалённый товар" @click="undoRemoval">
+              <span class="section__undo-label">Вернуть</span>
+            </UButton>
+          </div>
       <UIcon name="i-lucide-shopping-bag" class="checkout__empty-icon" />
       <h2>Корзина пустая</h2>
       <p>Добавьте свежие продукты из каталога.</p>
@@ -41,8 +47,13 @@
       <fieldset class="checkout__main" :disabled="loading">
         <legend class="sr-only">Товары и данные заказа</legend>
         <section class="section">
-          <h2 class="section__title">Ваши товары</h2>
-          <CartItems />
+          <div class="section__items-head">
+            <h2 class="section__title">Ваши товары</h2>
+            <UButton v-if="lastRemoved" type="button" icon="i-lucide-undo-2" variant="ghost" color="neutral" class="section__undo" aria-label="Вернуть удалённый товар" @click="undoRemoval">
+              <span class="section__undo-label">Вернуть</span>
+            </UButton>
+          </div>
+          <CartItems :disabled="loading" @removed="lastRemoved = $event" />
           <p v-if="!ready || !settings || settingsError" class="section__hint" role="status">
             {{ quoteError || settingsError
               ? 'Оформление будет доступно после проверки корзины. Товары можно редактировать.'
@@ -351,6 +362,7 @@
 </template>
 
 <script setup lang="ts">
+import type { CartItem } from "~/utils/cart";
 import type { Address } from "~/types/address";
 import type { OrderCreated, OrderType } from "~/types/order";
 import { useAuthStore } from "~/stores/auth";
@@ -433,6 +445,17 @@ const canSubmit = computed(
       : eligibility.value?.pickup),
 );
 const notice = useHeaderNotice();
+const lastRemoved = shallowRef<CartItem | null>(null);
+function undoRemoval() {
+  if (!lastRemoved.value || loading.value) return;
+  const { product, qty } = lastRemoved.value;
+  if (cart.put(product, qty)) {
+    lastRemoved.value = null;
+    notice.show({ target: 'cart', text: 'Товар возвращён в корзину' });
+  } else {
+    notice.show({ target: 'cart', text: 'Не удалось вернуть товар. Проверьте количество и лимит позиций.' });
+  }
+}
 function clearCart() {
   cart.clear();
   notice.show({ target: 'cart', text: 'Корзина очищена' });
@@ -666,6 +689,31 @@ useSeoMeta({
 </script>
 
 <style scoped>
+.section__items-head {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.section__items-head .section__title {
+  margin-bottom: 0;
+}
+
+.section__undo {
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+@media (max-width: 360px) {
+  .section__undo-label { display: none; }
+}
+
 .checkout {
   min-width: 0;
   padding-block: var(--page-start) calc(var(--page-end) + 6rem + var(--safe-bottom));

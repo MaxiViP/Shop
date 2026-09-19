@@ -43,13 +43,21 @@
         </UButton>
       </form>
 
-      <USelect
-        v-model="sort"
-        class="catalog__sort"
-        :items="productSortOptions"
-        aria-label="Сортировка товаров"
-        size="lg"
-      />
+      <div class="catalog__sort" role="group" aria-label="Сортировка товаров">
+        <button
+          v-for="option in productSortOptions"
+          :key="option.value"
+          type="button"
+          class="catalog__sort-option"
+          :aria-pressed="sort === option.value"
+          :aria-label="option.label"
+          :title="option.label"
+          @click="sort = option.value"
+        >
+          <UIcon :name="option.icon" class="catalog__sort-icon" aria-hidden="true" />
+          <span class="catalog__sort-label">{{ option.label }}</span>
+        </button>
+      </div>
     </div>
 
     <p v-if="status === 'pending'" class="catalog__state">Загружаем...</p>
@@ -184,12 +192,58 @@ async function showMore() {
 }
 
 .catalog__sort {
-  width: 100%;
-  min-height: var(--touch-target);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  min-width: 0;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--ui-border);
+  border-radius: 0.75rem;
+  background: var(--ui-bg-muted);
 }
 
-.catalog__search :deep(input),
-.catalog__sort :deep(button) {
+.catalog__sort-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: var(--touch-target);
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.catalog__sort-option:hover {
+  background: var(--ui-bg-elevated);
+  color: var(--ui-text);
+}
+
+.catalog__sort-option[aria-pressed="true"] {
+  background: var(--ui-bg);
+  color: var(--ui-primary);
+  box-shadow: inset 0 0 0 1px var(--ui-primary);
+}
+
+.catalog__sort-option:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+.catalog__sort-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+
+.catalog__sort-label {
+  display: none;
+}
+
+.catalog__search :deep(input) {
   font-size: 1rem;
 }
 
@@ -226,6 +280,14 @@ async function showMore() {
 }
 
 @media (min-width: 40rem) {
+  .catalog__sort-icon {
+    display: none;
+  }
+
+  .catalog__sort-label {
+    display: inline;
+  }
+
   .catalog__head,
   .catalog__categories {
     margin-bottom: 1.5rem;
@@ -259,15 +321,6 @@ async function showMore() {
   .catalog__head,
   .catalog__categories {
     margin-bottom: 2rem;
-  }
-
-  .catalog__toolbar {
-    grid-template-columns: minmax(0, 1fr) 13.75rem;
-    align-items: center;
-  }
-
-  .catalog__sort {
-    width: 13.75rem;
   }
 }
 </style>

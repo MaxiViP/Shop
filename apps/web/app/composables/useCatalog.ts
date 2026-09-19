@@ -6,12 +6,12 @@ import type {
 
 const limit = 24;
 
-export const productSortOptions: { label: string; value: ProductSort }[] = [
-  { label: "Рекомендуемые", value: "recommended" },
-  { label: "Сначала дешевле", value: "price_asc" },
-  { label: "Сначала дороже", value: "price_desc" },
-  { label: "Новинки", value: "newest" },
-  { label: "По названию", value: "name" },
+export const productSortOptions: { label: string; value: ProductSort; icon: string }[] = [
+  { label: "Рекомендуемые", value: "recommended", icon: "i-lucide-sparkles" },
+  { label: "Сначала дешевле", value: "price_asc", icon: "i-lucide-arrow-down-wide-narrow" },
+  { label: "Сначала дороже", value: "price_desc", icon: "i-lucide-arrow-up-wide-narrow" },
+  { label: "Новинки", value: "newest", icon: "i-lucide-clock" },
+  { label: "По названию", value: "name", icon: "i-lucide-a-large-small" },
 ];
 
 const sorts = new Set<ProductSort>(
