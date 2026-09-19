@@ -7,12 +7,16 @@
           :src="asset(product.images[0].url)"
           :alt="product.images[0].alt || product.name"
         >
-
         <span v-else> Фото скоро </span>
       </NuxtLink>
 
-      <span v-if="action.added" class="card__quantity" role="status" aria-live="polite">
-        <span class="sr-only">В корзине: </span>{{ action.label }}
+      <span
+        v-if="action.added"
+        class="card__quantity"
+        role="status"
+        aria-live="polite"
+      >
+        <span class="sr-only">В корзине: </span>{{ quantityLabel }}
       </span>
       <ProductFavorite class="card__favorite" :product="product" />
     </div>
@@ -42,9 +46,18 @@
           @click="add"
         >
           <span class="card__add-label">{{ action.label }}</span>
-          <UIcon name="i-lucide-plus" class="card__add-icon" aria-hidden="true" />
+          <UIcon
+            name="i-lucide-plus"
+            class="card__add-icon"
+            aria-hidden="true"
+          />
         </UButton>
-        <div v-else class="card__control" role="group" :aria-label="product.name + ': в корзине ' + action.label">
+        <div
+          v-else
+          class="card__control"
+          role="group"
+          :aria-label="product.name + ': в корзине ' + action.label"
+        >
           <UButton
             icon="i-lucide-minus"
             variant="ghost"
@@ -54,8 +67,13 @@
             :disabled="previousCartQty(cartQty, cartProduct) === null"
             @click="subtract"
           />
-          <span class="card__total" :class="{ 'card__total--stale': !cart.quoteReady }" :title="totalLabel" :aria-label="totalLabel">
-            {{ lineTotal !== null ? money(lineTotal) : '…' }}
+          <span
+            class="card__total"
+            :class="{ 'card__total--stale': !cart.quoteReady }"
+            :title="totalLabel"
+            :aria-label="totalLabel"
+          >
+            {{ lineTotal !== null ? money(lineTotal) : "…" }}
           </span>
           <UButton
             icon="i-lucide-plus"
@@ -88,23 +106,49 @@ const cart = useCartStore();
 const asset = useAsset();
 const notice = useHeaderNotice();
 const cartQty = computed(() => cart.qty(product.id));
-const cartProduct = computed(() => cart.items.find(item => item.product.id === product.id)?.product ?? product);
+const cartProduct = computed(
+  () =>
+    cart.items.find((item) => item.product.id === product.id)?.product ??
+    product,
+);
+const quantityLabel = computed(() =>
+  qtyText(cartProduct.value.unit, cartQty.value),
+);
 const action = computed(() => quickAddState(cartProduct.value, cartQty.value));
-const portion = computed(() => qtyText(cartProduct.value.unit, cartProduct.value.portionQty));
+const portion = computed(() =>
+  qtyText(cartProduct.value.unit, cartProduct.value.portionQty),
+);
 const lineTotal = computed(() => cart.displayLineTotal(product.id));
-const totalLabel = computed(() => lineTotal.value !== null
-  ? (cart.quoteReady ? 'Стоимость позиции: ' : 'Последний расчёт позиции, сумма уточняется: ') + money(lineTotal.value)
-  : cart.quoteReady ? 'Проверьте позицию в корзине' : 'Стоимость позиции рассчитывается');
+const totalLabel = computed(() =>
+  lineTotal.value !== null
+    ? (cart.quoteReady
+        ? "Стоимость позиции: "
+        : "Последний расчёт позиции, сумма уточняется: ") +
+      money(lineTotal.value)
+    : cart.quoteReady
+      ? "Проверьте позицию в корзине"
+      : "Стоимость позиции рассчитывается",
+);
 
 function add() {
   const added = cart.add(cartProduct.value);
-  notice.show({ target: 'cart', text: added ? 'Добавлено в корзину' : 'Проверьте количество и лимит позиций в корзине' });
+  notice.show({
+    target: "cart",
+    text: added
+      ? "Добавлено в корзину"
+      : "Проверьте количество и лимит позиций в корзине",
+  });
 }
 function subtract() {
   const changed = cart.subtract(cartProduct.value);
-  notice.show({ target: 'cart', text: changed
-    ? cart.qty(product.id) ? 'Количество уменьшено' : 'Удалено из корзины'
-    : 'Проверьте количество в корзине' });
+  notice.show({
+    target: "cart",
+    text: changed
+      ? cart.qty(product.id)
+        ? "Количество уменьшено"
+        : "Удалено из корзины"
+      : "Проверьте количество в корзине",
+  });
 }
 </script>
 
@@ -123,19 +167,20 @@ function subtract() {
   border-color: var(--ui-primary);
 }
 
-.card--added .card__img > * {
+.card--added .card__img img {
   opacity: 0.45;
   filter: grayscale(0.25);
 }
 
 .card__quantity {
   position: absolute;
-  inset-inline: 0.5rem;
-  bottom: 0.5rem;
-  width: fit-content;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  width: max-content;
   max-width: calc(100% - 1rem);
-  margin-inline: auto;
-  padding: 0.25rem 0.625rem;
+  padding: 0.3rem 0.65rem;
   border-radius: 0.75rem;
   background: var(--ui-bg);
   color: var(--ui-text-highlighted);
@@ -143,7 +188,6 @@ function subtract() {
   font-weight: 700;
   line-height: 1.25;
   text-align: center;
-  overflow-wrap: anywhere;
   pointer-events: none;
 }
 
@@ -155,20 +199,22 @@ function subtract() {
   min-height: var(--touch-target);
   margin-inline: calc(-1 * var(--card-inset));
   margin-bottom: calc(-1 * var(--card-inset));
-  background: var(--ui-bg-elevated);
-  border-top: 1px solid var(--ui-border);
+  background: var(--ui-primary);
+  color: var(--ui-bg);
+  border-top: 1px solid var(--ui-primary);
 }
-
 .card__portion {
   width: var(--touch-target);
   min-height: var(--touch-target);
   padding: 0;
   justify-content: center;
+  color: var(--ui-bg);
 }
 
 .card__total {
   min-width: 0;
   padding: 0.125rem;
+  color: var(--ui-bg);
   font-size: 0.8125rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -178,7 +224,7 @@ function subtract() {
 }
 
 .card__total--stale {
-  color: var(--ui-text-muted);
+  opacity: 0.7;
 }
 
 .card__img:focus-visible,
