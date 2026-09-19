@@ -19,9 +19,6 @@ export interface CartQuote {
   error: "TOTAL_OVERFLOW" | null;
   token: string | null;
 }
-export function checkoutRedirect(restored: boolean, count: number) {
-  return restored && count === 0;
-}
 export function previewTotal(product: ProductListItem, qty: number): number | null {
   if (!validQuantity(qty, product)) return null;
   try {
@@ -42,6 +39,16 @@ export function nextCartQty(
   product: Pick<ProductListItem, "min" | "step" | "portionQty">,
 ) {
   return quickQuantity(current, product);
+}
+// Quick removal mirrors quick-add portions; manual editors keep using step.
+export function previousCartQty(
+  current: number,
+  product: Pick<ProductListItem, "min" | "step" | "portionQty">,
+) {
+  if (!validCartQty(current, product) || nextCartQty(undefined, product) === null)
+    return null;
+  const next = current - product.portionQty;
+  return next < product.min ? 0 : validCartQty(next, product) ? next : null;
 }
 export function cartKey(items: CartItem[]) {
   return JSON.stringify(items.map((item) => [item.product.id, item.qty]));

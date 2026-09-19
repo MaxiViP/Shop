@@ -3,7 +3,6 @@ import test from "node:test";
 import { createPinia, setActivePinia } from "pinia";
 import { useCartStore } from "../app/stores/cart.ts";
 import {
-  checkoutRedirect,
   decodeCart,
   cartKey,
   reconcileCart,
@@ -78,12 +77,6 @@ function store() {
   return useCartStore();
 }
 
-test("checkout redirects only after restore confirms an empty cart", () => {
-  assert.equal(checkoutRedirect(false, 0), false);
-  assert.equal(checkoutRedirect(false, 1), false);
-  assert.equal(checkoutRedirect(true, 0), true);
-  assert.equal(checkoutRedirect(true, 1), false);
-});
 test("restore never treats saved prices as a current quote", () => {
   const cart = store();
   assert.equal(cart.restored, false);
@@ -307,4 +300,141 @@ test('quantity formatting keeps whole grams without losing precision in kilogram
     assert.equal(qtyText('GRAM', qty), text);
   for (const [unit, text] of [['PIECE', '2 шт.'], ['PACK', '2 уп.'], ['BUNCH', '2 пуч.']])
     assert.equal(qtyText(unit, 2), text);
+});
+
+for (const [unit, min, step, portionQty, start, expected] of [
+  ["GRAM", 500, 100, 500, 1500, [1000, 500, 0]],
+  ["GRAM", 500, 100, 500, 1300, [800, 0]],
+  ["GRAM", 500, 250, 1000, 1500, [500, 0]],
+  ["PIECE", 1, 1, 1, 3, [2, 1, 0]],
+  ["PIECE", 2, 1, 3, 6, [3, 0]],
+  ["PACK", 1, 1, 1, 2, [1, 0]],
+  ["BUNCH", 1, 1, 1, 1, [0]],
+]) {
+  test(`card minus: ${unit}, portion ${portionQty}, preserves manual quantities until below min`, () => {
+    const cart = store();
+    const current = { ...product, unit, min, step, portionQty };
+    cart.restore([{ product: current, qty: start }]);
+    for (const qty of expected) {
+      const key = cart.key;
+      assert.equal(cart.subtract(current), true);
+      assert.equal(cart.qty(current.id), qty);
+      assert.equal(cart.quoteReady, false);
+      assert.equal(cart.total, null);
+      assert.notEqual(cart.key, key);
+    }
+    assert.equal(cart.count, 0);
+    assert.equal(cart.subtract(current), false);
+  });
+}
+
+test("card minus refuses invalid legacy quantities without rounding or removing them", () => {
+  const cart = store();
+  cart.restore([{ product, qty: 1001 }]);
+  assert.equal(cart.subtract(product), false);
+  assert.equal(cart.qty(product.id), 1001);
+  cart.restore([{ product, qty: 1500 }]);
+  cart.applyQuote(quote(350000, 1500, 525000), cart.key);
+  assert.equal(cart.subtract({ ...product, portionQty: 501 }), false);
+  assert.equal(cart.qty(product.id), 1500);
+  assert.equal(cart.total, 525000);
+});
+
+test("card and header totals stay server-authoritative through portion edits", () => {
+  const cart = store();
+  cart.restore([{ product, qty: 1500 }]);
+  cart.applyQuote(quote(350000, 1500, 12345), cart.key);
+  assert.equal(cart.total, 12345);
+  assert.equal(cart.quoteLine(product.id).lineTotal, 12345);
+  const previousKey = cart.key;
+  cart.subtract(product);
+  assert.equal(cart.total, null);
+  assert.equal(cart.quoteLine(product.id), undefined);
+  assert.equal(cart.applyQuote(quote(350000, 1500, 12345), previousKey), false);
+  cart.applyQuote(quote(350000, 1000, 90000), cart.key);
+  assert.equal(cart.total, 90000);
+  assert.equal(cart.quoteLine(product.id).lineTotal, 90000);
+});
+
+for (const qty of [600, 700]) {
+  test(`card minus removes manual ${qty}g below min, without rounding to 500g`, () => {
+    const cart = store();
+    cart.restore([{ product, qty }]);
+    assert.equal(cart.subtract(product), true);
+    assert.equal(cart.count, 0);
+  });
+}
+test("card plus preserves manually chosen 700g: 700 + portion 500 = 1200", () => {
+  const cart = store();
+  cart.restore([{ product, qty: 700 }]);
+  assert.equal(cart.add(product), true);
+  assert.equal(cart.qty(product.id), 1200);
+  assert.equal(manualQuantity(1200, product, 1), 1300);
+});
+
+test("same-quantity put preserves fresh quote and reconciled server product, not catalog prices", () => {
+  const cart = store();
+  cart.restore([{ product, qty: 1000 }]);
+  cart.applyQuote(quote(250000, 1000, 250000), cart.key);
+  const reconciled = cart.items[0].product;
+  const token = cart.quote.token;
+  // The catalogue snapshot has another price. A quantity no-op must not install it.
+  assert.equal(cart.put({ ...product }, 1000), true);
+  assert.equal(cart.quoteReady, true);
+  assert.equal(cart.items[0].product, reconciled);
+  assert.equal(cart.items[0].product.price, 250000);
+  assert.equal(cart.total, 250000);
+  assert.equal(cart.quote.token, token);
+  assert.equal(cart.put(product, 1001), false);
+  assert.equal(cart.quoteReady, true);
+  // Actual server reconciliation still updates price and warnings.
+  cart.applyQuote(quote(200000, 1000, 200000), cart.key);
+  assert.equal(cart.items[0].product.price, 200000);
+  assert.equal(cart.total, 200000);
+  assert.equal(cart.priceChanged, true);
+  assert.equal(cart.put(product, 1200), true);
+  assert.equal(cart.quoteReady, false);
+  assert.equal(cart.total, null);
+});
+
+test("display amounts retain server values while current totals remain unavailable", () => {
+  const cart = store();
+  cart.restore([{ product, qty: 500 }]);
+  assert.equal(cart.displayTotal, null);
+  assert.equal(cart.displayLineTotal(1), null);
+  cart.applyQuote(quote(350000, 500, 125000), cart.key);
+  assert.equal(cart.displayTotal, 125000);
+  assert.equal(cart.displayLineTotal(1), 125000);
+  cart.add(product);
+  assert.equal(cart.displayTotal, 125000);
+  assert.equal(cart.displayLineTotal(1), 125000);
+  assert.equal(cart.total, null);
+  assert.equal(cart.quoteReady, false);
+  assert.equal(cart.lineTotal(cart.items[0]), null);
+  cart.applyQuote(quote(350000, 1000, 150000), cart.key);
+  assert.equal(cart.displayTotal, 150000);
+  assert.equal(cart.displayLineTotal(1), 150000);
+  // No server amount exists for a newly added product.
+  cart.add({ ...product, id: 2 });
+  assert.equal(cart.displayLineTotal(2), null);
+  cart.remove(1);
+  assert.equal(cart.displayLineTotal(1), null);
+  cart.clear();
+  assert.equal(cart.displayTotal, null);
+  assert.equal(cart.displayLineTotal(1), null);
+  cart.restore([{ product, qty: 500 }]);
+  assert.equal(cart.displayTotal, null);
+});
+
+test("an invalid fresh quote replaces previous displayed amounts and remains ineligible", () => {
+  const cart = store();
+  cart.restore([{ product, qty: 500 }]);
+  cart.applyQuote(quote(350000, 500, 125000), cart.key);
+  cart.applyQuote({ valid: false, token: null, error: null, subtotal: null,
+    items: [{ productId: 1, qty: 500, product: null, status: "UNAVAILABLE", lineTotal: null }] }, cart.key);
+  assert.equal(cart.count, 1);
+  assert.equal(cart.displayTotal, null);
+  assert.equal(cart.displayLineTotal(1), null);
+  assert.equal(cart.total, null);
+  assert.equal(cart.quote.valid, false);
 });

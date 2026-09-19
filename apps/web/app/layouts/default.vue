@@ -14,6 +14,7 @@
 
 <script setup lang="ts">
 import { showBottomSearch } from "~/utils/search";
+useCartQuote();
 const route = useRoute();
 const bottomSearch = computed(() => showBottomSearch(route.path));
 </script>

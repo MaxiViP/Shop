@@ -1,7 +1,20 @@
-import { useCartStore } from "~/stores/cart";
-import type { CartQuote } from "~/utils/cart";
+import { computed, inject, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
+import type { ComputedRef, InjectionKey, Ref } from "vue";
+import { useCartStore } from "../stores/cart.ts";
+import type { CartQuote } from "../utils/cart.ts";
 
-export function useCartQuote() {
+type QuoteState = {
+  pending: Ref<boolean>;
+  error: Ref<string>;
+  refresh: () => Promise<boolean>;
+  ready: ComputedRef<boolean>;
+};
+const quoteKey: InjectionKey<QuoteState> = Symbol("cart-quote");
+
+export function useCartQuote(): QuoteState {
+  // The storefront layout owns one request lifecycle shared by its descendants.
+  const shared = inject(quoteKey, null);
+  if (shared) return shared;
   const cart = useCartStore();
   const api = useApiClient();
   const pending = ref(false);
@@ -15,6 +28,7 @@ export function useCartQuote() {
     controller?.abort();
     const request = ++sequence;
     if (disposed || !cart.restored || !cart.count) {
+      error.value = "";
       pending.value = false;
       return false;
     }
@@ -63,10 +77,12 @@ export function useCartQuote() {
     ++sequence;
     controller?.abort();
   });
-  return {
+  const state = {
     pending,
     error,
     refresh,
     ready: computed(() => mounted.value && cart.quoteReady && !pending.value),
   };
+  provide(quoteKey, state);
+  return state;
 }

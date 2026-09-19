@@ -65,11 +65,12 @@
             icon="i-lucide-shopping-bag"
             variant="ghost"
             color="neutral"
-            aria-label="Корзина"
-          />
-          <span v-if="cart.count" class="header__count">
-            {{ cart.count }}
-          </span>
+            class="header__cart"
+            :aria-label="cartLabel"
+            :title="cartLabel"
+          >
+            <span v-if="cart.count" class="header__amount" :class="{ 'header__amount--stale': !cart.quoteReady }">{{ cart.displayTotal !== null ? money(cart.displayTotal) : '…' }}</span>
+          </UButton>
           <AppHeaderNotice target="cart" />
         </div>
 
@@ -111,12 +112,12 @@
             </UBadge>
           </NuxtLink>
 
-          <NuxtLink to="/cart" class="mobile-nav__link">
+          <NuxtLink to="/cart" class="mobile-nav__link" :aria-label="cartLabel">
             <UIcon name="i-lucide-shopping-bag" />
             <span>Корзина</span>
-            <UBadge v-if="cart.count" class="mobile-nav__count">
-              {{ cart.count }}
-            </UBadge>
+            <span v-if="cart.count" class="mobile-nav__amount" :class="{ 'mobile-nav__amount--stale': !cart.quoteReady }">
+              {{ cart.displayTotal !== null ? money(cart.displayTotal) : '…' }}
+            </span>
           </NuxtLink>
 
           <NuxtLink :to="orders.to" class="mobile-nav__link mobile-nav__link--orders" :aria-label="orders.label">
@@ -165,12 +166,16 @@ import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
 import { useFavoritesStore } from "~/stores/favorites";
 import { headerAccount } from "~/utils/header-account";
+import { money } from "~/utils/money";
 
 const route = useRoute();
 const auth = useAuthStore();
 const orders = useOrdersAction();
 const cart = useCartStore();
 const favorites = useFavoritesStore();
+const cartLabel = computed(() => !cart.count ? 'Корзина'
+  : cart.displayTotal !== null ? (cart.quoteReady ? 'Корзина. Предварительная сумма товаров ' : 'Корзина. Последний расчёт, сумма уточняется: ') + money(cart.displayTotal)
+  : cart.quoteReady ? 'Корзина. Проверьте товары' : 'Корзина. Сумма рассчитывается');
 const notice = useHeaderNotice();
 onBeforeUnmount(notice.clear);
 watch(() => auth.user?.id, notice.clear);
@@ -253,6 +258,35 @@ function login() {
   position: relative;
 }
 
+.header__cart {
+  flex-direction: column;
+  width: clamp(2.75rem, calc(100vw - 17rem), 6rem);
+  gap: 0.125rem;
+  padding-inline: 0.125rem;
+}
+
+.header__amount {
+  max-width: 100%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.header__amount--stale,
+.mobile-nav__amount--stale {
+  color: var(--ui-text-muted);
+}
+
+.mobile-nav__amount {
+  max-width: 8rem;
+  text-align: right;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
 .header__count {
   position: absolute;
   top: 0;
@@ -329,15 +363,27 @@ function login() {
   border-top: 1px solid var(--ui-border);
 }
 
-@media (min-width: 26rem) {
+@media (min-width: 48rem) {
   .header__secondary {
     display: flex;
   }
 }
 
 @media (min-width: 48rem) {
+  .header__cart {
+    flex-direction: row;
+    width: auto;
+    max-width: 12rem;
+    gap: 0.5rem;
+    padding-inline: 0.5rem;
+  }
+
+  .header__amount {
+    font-size: 0.875rem;
+  }
+
   .header__inner {
-    gap: 2rem;
+    gap: 1rem;
   }
 
   .header__brand {
@@ -351,10 +397,6 @@ function login() {
   .header__nav {
     display: flex;
     align-items: center;
-  }
-
-  .header__admin-label {
-    display: inline;
   }
 
   .header__nav {
@@ -372,5 +414,14 @@ function login() {
     gap: 0.25rem;
   }
 
+}
+@media (min-width: 64rem) {
+  .header__inner {
+    gap: 2rem;
+  }
+
+  .header__admin-label {
+    display: inline;
+  }
 }
 </style>

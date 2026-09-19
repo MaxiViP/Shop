@@ -4,6 +4,7 @@ import type { ProductListItem } from "~/types/product";
 import {
   cartKey,
   nextCartQty,
+  previousCartQty,
   validCartQty,
   reconcileCart,
   type CartItem,
@@ -33,6 +34,17 @@ export const useCartStore = defineStore("cart", () => {
     quoteReady.value ? quote.value!.subtotal : null,
   );
 
+  // Display only: these server amounts may belong to an earlier cart quantity.
+  // Eligibility and order submission must use total/quoteReady instead.
+  const displayTotal = computed(() =>
+    restored.value && count.value ? quote.value?.subtotal ?? null : null,
+  );
+  function displayLineTotal(id: number) {
+    return restored.value && qty(id) > 0
+      ? quote.value?.items.find((line) => line.productId === id)?.lineTotal ?? null
+      : null;
+  }
+
   function quoteLine(id: number) {
     return quoteReady.value
       ? quote.value?.items.find((item) => item.productId === id)
@@ -49,11 +61,26 @@ export const useCartStore = defineStore("cart", () => {
     return next !== null && put(product, next);
   }
 
+  function subtract(product: ProductListItem) {
+    const item = items.value.find((item) => item.product.id === product.id);
+    if (!item) return false;
+    const next = previousCartQty(item.qty, product);
+    if (next === null) return false;
+    if (next === 0) {
+      remove(product.id);
+      return true;
+    }
+    return put(product, next);
+  }
+
   // Product detail edits the desired TOTAL, never adds two min-based quantities.
   function put(product: ProductListItem, qty: number) {
     if (!validCartQty(qty, product)) return false;
     const item = items.value.find((item) => item.product.id === product.id);
     if (!item && items.value.length >= 50) return false;
+    // The same desired quantity is a no-op. Keep reconciled server product data,
+    // rather than replacing it with a potentially older catalog snapshot.
+    if (item?.qty === qty) return true;
     invalidateQuote();
     if (item) {
       item.product = product;
@@ -83,6 +110,7 @@ export const useCartStore = defineStore("cart", () => {
 
   function restore(value: CartItem[], warning = "") {
     invalidateQuote();
+    quote.value = null;
     items.value = value;
     storageWarning.value = warning;
     restored.value = true;
@@ -107,7 +135,10 @@ export const useCartStore = defineStore("cart", () => {
     qty,
     total,
     lineTotal,
+    displayTotal,
+    displayLineTotal,
     add,
+    subtract,
     setQty,
     remove,
     clear,
