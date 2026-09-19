@@ -8,6 +8,15 @@ export default defineNuxtConfig({
 
   modules: ["@nuxt/ui", "@pinia/nuxt", "@nuxt/eslint"],
 
+  icon: {
+    clientBundle: {
+      // Include application icons as well as Nuxt UI defaults, before any render.
+      scan: { globInclude: ["app/**/*.{vue,ts}"] },
+      sizeLimitKb: 32,
+    },
+    fallbackToApi: false,
+  },
+
   css: ["~/assets/css/main.css"],
 
   colorMode: {
