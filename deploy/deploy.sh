@@ -2,6 +2,25 @@
 set -euo pipefail
 umask 027
 
+services_stopped=0
+
+recover() {
+  local status=$?
+  trap - EXIT
+  if (( status != 0 && services_stopped )); then
+    printf 'Deployment failed (exit %s) after stopping services; attempting recovery.\n' "$status" >&2
+    local service
+    for service in shop-api.service shop-web.service; do
+      if systemctl restart "$service"; then
+        printf 'Recovery: restarted %s.\n' "$service" >&2
+      else
+        printf 'Recovery: failed to restart %s; manual intervention required.\n' "$service" >&2
+      fi
+    done
+  fi
+  exit "$status"
+}
+
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 
 as_shop() {
@@ -78,12 +97,14 @@ NODE
   install -d -o shop -g shop -m 0750 /var/lib/korzinamarket/uploads/products
   install -m 0644 deploy/shop-api.service deploy/shop-web.service /etc/systemd/system/
   systemctl daemon-reload
-  # In-place builds replace live output: use a maintenance window, including on failure.
-  systemctl stop shop-web.service shop-api.service
+  # In-place builds replace live output: use a maintenance window.
+  systemctl stop shop-web.service
+  services_stopped=1
+  systemctl stop shop-api.service
 
   corepack enable
   as_shop pnpm install --frozen-lockfile --prod=false
-  prisma generate
+  prisma generate --no-hints
   as_shop pnpm build
   # Build first: a build failure must not advance the database schema.
   prisma migrate deploy
@@ -100,4 +121,5 @@ NODE
   as_shop git log -1 --oneline
 }
 
+trap recover EXIT
 main "$@"
