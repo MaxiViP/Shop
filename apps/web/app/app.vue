@@ -13,6 +13,19 @@ import { useAuthStore } from '~/stores/auth'
 
 const auth = useAuthStore()
 
+useHead({
+  htmlAttrs: {
+    lang: "ru",
+    dir: "ltr",
+  },
+  meta: [
+    {
+      property: "og:locale",
+      content: "ru_RU",
+    },
+  ],
+})
+
 const { data: user } = await useApi<User | null>('/auth/me', {
   default: () => null,
 })
