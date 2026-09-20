@@ -150,6 +150,10 @@
         </text>
       </g>
     </svg>
+    <span class="market-logo__compact" aria-hidden="true">
+  <span class="market-logo__compact-k">K</span>
+  <span class="market-logo__compact-m">M</span>
+</span>
   </div>
 </template>
 
@@ -162,16 +166,43 @@ const fillId = `${id}-basket-fill`;
 <style scoped>
 .market-logo {
   display: flex;
-  align-items: center;
   width: 48px;
   height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
 }
+
 .market-logo__svg {
-  display: block;
+  display: none;
   flex: none;
-  width: 188px;
   height: 44px;
+}
+
+.market-logo__compact {
+  display: inline-flex;
+  align-items: center;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.08em;
+}
+
+.market-logo__compact-k {
+  color: var(--ui-success);
+}
+
+.market-logo__compact-m {
+  color: var(--ui-text);
 }
 .market-logo__basket-draw {
   opacity: 0;
@@ -330,10 +361,21 @@ const fillId = `${id}-basket-fill`;
     transform: translateY(0.5px) rotate(0deg);
   }
 }
-@media (min-width: 64rem) {
+@media (min-width: 34rem) {
   .market-logo {
-    width: 188px;
+    width: clamp(9.5rem, 31vw, 11.75rem);
+    justify-content: flex-start;
   }
+
+  .market-logo__svg {
+    display: block;
+    width: clamp(9.5rem, 31vw, 11.75rem);
+  }
+
+  .market-logo__compact {
+    display: none;
+  }
+
   .market-logo__wordmark {
     display: inline;
   }

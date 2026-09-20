@@ -10,7 +10,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      htmlAttrs: { lang: "ru" },
+      htmlAttrs: { lang: "ru-RU" },
       meta: [{ property: "og:locale", content: "ru_RU" }],
     },
   },

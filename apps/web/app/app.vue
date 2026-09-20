@@ -15,7 +15,7 @@ const auth = useAuthStore()
 
 useHead({
   htmlAttrs: {
-    lang: "ru",
+    lang: "ru-RU",
     dir: "ltr",
   },
   meta: [

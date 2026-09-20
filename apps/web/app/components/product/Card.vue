@@ -6,7 +6,7 @@
           v-if="product.images[0]"
           :src="asset(product.images[0].url)"
           :alt="product.images[0].alt || product.name"
-        />
+        >
         <span v-else> Фото скоро </span>
       </NuxtLink>
 

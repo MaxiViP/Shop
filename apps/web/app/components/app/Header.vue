@@ -1,8 +1,5 @@
 <template>
-  <header
-    class="header"
-    :class="{ 'header--hidden': mobileHeaderHidden }"
-  >
+  <header class="header" :class="{ 'header--hidden': mobileHeaderHidden }">
     <UContainer class="header__inner" :inert="mobileHeaderHidden">
       <UButton
         class="header__menu"
@@ -29,12 +26,11 @@
       </nav>
 
       <div class="header__actions">
-        <div class="header__secondary">
-          <AppThemeControl />
-        </div>
+        <AppThemeControl class="header__theme" />
         <UButton
           v-if="account.adminTo"
           :to="account.adminTo"
+          class="header__admin-action"
           icon="i-lucide-settings"
           variant="ghost"
           color="neutral"
@@ -104,7 +100,8 @@
       close
       :ui="{
         overlay: 'bg-black/35 backdrop-blur-[2px]',
-        content: '[--initial-transform:calc(100%_+_max(0.5rem,var(--safe-left)))] inset-y-auto top-[max(0.5rem,var(--safe-top))] left-[max(0.5rem,var(--safe-left))] h-auto max-h-[calc(100dvh_-_max(0.5rem,var(--safe-top))_-_max(0.5rem,var(--safe-bottom)))] w-[min(20rem,calc(100vw_-_max(0.5rem,var(--safe-left))_-_max(0.5rem,var(--safe-right))))] max-w-none rounded-[1.25rem] overflow-hidden border border-default bg-default shadow-xl ring-0',
+        content:
+          '[--initial-transform:calc(100%_+_max(0.5rem,var(--safe-left)))] inset-y-auto top-[max(0.5rem,var(--safe-top))] left-[max(0.5rem,var(--safe-left))] h-auto max-h-[calc(100dvh_-_max(0.5rem,var(--safe-top))_-_max(0.5rem,var(--safe-bottom)))] w-[min(20rem,calc(100vw_-_max(0.5rem,var(--safe-left))_-_max(0.5rem,var(--safe-right))))] max-w-none rounded-[1.25rem] overflow-hidden border border-default bg-default shadow-xl ring-0',
         container: 'min-h-0 max-h-[inherit] gap-0 overflow-hidden p-0',
         header: 'min-h-16 shrink-0 px-4 py-2',
         body: 'min-h-0 flex-auto overflow-y-auto overscroll-contain p-2 pt-0',
@@ -132,7 +129,11 @@
               </UBadge>
             </NuxtLink>
 
-            <NuxtLink to="/cart" class="mobile-nav__link" :aria-label="cartLabel">
+            <NuxtLink
+              to="/cart"
+              class="mobile-nav__link"
+              :aria-label="cartLabel"
+            >
               <UIcon name="i-lucide-shopping-basket" />
               <span>Корзина</span>
               <span
@@ -140,7 +141,9 @@
                 class="mobile-nav__amount"
                 :class="{ 'mobile-nav__amount--stale': !cart.quoteReady }"
               >
-                {{ cart.displayTotal !== null ? money(cart.displayTotal) : "…" }}
+                {{
+                  cart.displayTotal !== null ? money(cart.displayTotal) : "…"
+                }}
               </span>
             </NuxtLink>
           </div>
@@ -165,12 +168,21 @@
               </span>
             </NuxtLink>
 
-            <NuxtLink v-if="auth.loggedIn" to="/profile" class="mobile-nav__link">
+            <NuxtLink
+              v-if="auth.loggedIn"
+              to="/profile"
+              class="mobile-nav__link"
+            >
               <UIcon name="i-lucide-user" />
               <span>Профиль</span>
             </NuxtLink>
 
-            <button v-else type="button" class="mobile-nav__link" @click="login">
+            <button
+              v-else
+              type="button"
+              class="mobile-nav__link"
+              @click="login"
+            >
               <UIcon name="i-lucide-log-in" />
               <span>Войти</span>
             </button>
@@ -265,8 +277,12 @@ const catalogRoute = computed(
 const narrow = ref(false);
 const scrolled = ref(false);
 const mobileHeaderHidden = computed(
-  () => catalogRoute.value && narrow.value && scrolled.value
-    && !mobileOpen.value && !loginOpen.value,
+  () =>
+    catalogRoute.value &&
+    narrow.value &&
+    scrolled.value &&
+    !mobileOpen.value &&
+    !loginOpen.value,
 );
 let stopScroll = () => {};
 
@@ -300,7 +316,10 @@ onMounted(() => {
   syncWidth();
   window.addEventListener("scroll", onScroll, { passive: true });
   media.addEventListener("change", syncWidth);
-  const stopWatch = watch([() => route.path, mobileOpen, loginOpen], syncScroll);
+  const stopWatch = watch(
+    [() => route.path, mobileOpen, loginOpen],
+    syncScroll,
+  );
   stopScroll = () => {
     window.removeEventListener("scroll", onScroll);
     media.removeEventListener("change", syncWidth);
@@ -337,6 +356,15 @@ function login() {
   border-bottom: 1px solid var(--ui-border);
 }
 
+.header__theme {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.header__admin-action {
+  display: none;
+}
+
 .floating-cart {
   position: fixed;
   top: max(0.5rem, env(safe-area-inset-top, 0px));
@@ -344,7 +372,10 @@ function login() {
   z-index: 30;
   min-width: 44px;
   min-height: 44px;
-  max-width: calc(100vw - max(0.5rem, env(safe-area-inset-left, 0px)) - max(0.5rem, env(safe-area-inset-right, 0px)));
+  max-width: calc(
+    100vw - max(0.5rem, env(safe-area-inset-left, 0px)) -
+      max(0.5rem, env(safe-area-inset-right, 0px))
+  );
   gap: 0.5rem;
   padding: 0.625rem 0.875rem;
   border: 1px solid var(--ui-border);
@@ -377,7 +408,9 @@ function login() {
 }
 
 .floating-cart-enter-active {
-  transition: opacity 180ms ease 180ms, transform 180ms ease 180ms;
+  transition:
+    opacity 180ms ease 180ms,
+    transform 180ms ease 180ms;
 }
 
 .floating-cart-enter-from {
@@ -460,7 +493,9 @@ function login() {
   height: 2px;
   border-radius: 999px;
   background: currentColor;
-  transition: transform 180ms ease, width 180ms ease;
+  transition:
+    transform 180ms ease,
+    width 180ms ease;
 }
 
 .header__burger::before {
@@ -637,6 +672,9 @@ function login() {
 @media (min-width: 48rem) {
   .header__secondary {
     display: flex;
+  }
+  .header__admin-action {
+    display: inline-flex;
   }
 }
 
