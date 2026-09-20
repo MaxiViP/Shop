@@ -154,132 +154,98 @@ function subtract() {
 
 <style scoped>
 .card {
-  --card-inset: 0.625rem;
-
+  --card-inset: clamp(0.375rem, 0.25rem + 0.4vw, 0.5rem);
   display: flex;
   min-width: 0;
   flex-direction: column;
   overflow: hidden;
-
   border: 1px solid var(--ui-border);
-  border-radius: 1rem;
-
+  border-radius: 0.75rem;
   background: var(--ui-bg);
 }
 
-/* Добавленный товар не меняет форму карточки */
-.card--added {
-  border-color: var(--ui-border);
-}
-
-/* Затемняем ТОЛЬКО фотографию */
 .card--added .card__img img {
-  opacity: 0.58;
-  filter: brightness(0.9);
+  opacity: 0.6;
+  filter: grayscale(1);
 }
-
-/* =========================================================
-   MEDIA
-   ========================================================= */
 
 .card__media {
   position: relative;
-  background: #fff;
+  flex: none;
 }
 
 .card__img {
+  position: relative;
   display: grid;
   width: 100%;
-  aspect-ratio: 4 / 3;
-
+  aspect-ratio: 1 / 1;
   place-items: center;
   overflow: hidden;
-
   background: #fff;
-  color: var(--ui-text-muted);
+  color: var(--color-neutral-600);
 }
 
 .card__img img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-
   object-fit: contain;
-
-  transition:
-    opacity 0.2s ease,
-    filter 0.2s ease;
+  object-position: center;
+  transition: opacity 0.2s ease, filter 0.2s ease;
 }
 
-/* Количество — по центру НИЖНЕГО края картинки */
 .card__quantity {
   position: absolute;
   top: 50%;
   left: 50%;
-  z-index: 3;
   transform: translate(-50%, -50%);
   width: max-content;
   max-width: calc(100% - 1rem);
-  padding: 0.3rem 0.65rem;
-  border-radius: 0.7rem;
-  background: #101b31;
-  color: #fff;
-  font-size: 0.95rem;
-  font-weight: 800;
+  padding: 0.25rem 0.5rem;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 0.5rem;
+  background: var(--ui-bg-elevated);
+  color: var(--ui-text-highlighted);
+  font-size: clamp(0.75rem, 0.6rem + 0.6vw, 1rem);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  line-height: 1.15;
+  line-height: 1.2;
   text-align: center;
+  text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
 }
-/* =========================================================
-   FAVORITE
-   ========================================================= */
 
 .card__favorite {
   position: absolute;
-  top: 0.625rem;
-  right: 0.625rem;
-  z-index: 4;
-
+  top: 0.25rem;
+  right: 0.25rem;
   width: var(--touch-target);
   min-width: var(--touch-target);
   height: var(--touch-target);
   min-height: var(--touch-target);
-
-  border: 0;
-  border-radius: 0.4rem;
-
-  background: #101b31;
-
-  flex: 0 0 auto;
+  border: 1px solid var(--ui-border);
+  border-radius: 0.5rem;
+  background: var(--ui-bg);
 }
-
-/* =========================================================
-   BODY
-   ========================================================= */
 
 .card__body {
   display: flex;
   min-width: 0;
   flex: 1;
   flex-direction: column;
-
   padding: var(--card-inset);
 }
 
 .card__category {
   display: block;
-
   min-width: 0;
-  min-height: 1.5rem;
-
-  color: var(--ui-text-muted);
-
   overflow: hidden;
-  font-size: 0.75rem;
-  line-height: 1.25;
-
+  color: var(--ui-text-muted);
+  font-size: clamp(0.6875rem, 0.64rem + 0.2vw, 0.75rem);
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -296,18 +262,13 @@ function subtract() {
 
 .card__title {
   display: -webkit-box;
-
-  min-height: 2.5rem;
-  margin-top: 0.35rem;
-
+  min-height: 2.6em;
+  margin-top: 0.125rem;
   overflow: hidden;
-
-  font-size: 0.875rem;
-  font-weight: 700;
+  font-size: clamp(0.8125rem, 0.72rem + 0.3vw, 0.9375rem);
+  font-weight: 600;
   line-height: 1.3;
-
   overflow-wrap: anywhere;
-
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -319,54 +280,47 @@ function subtract() {
   outline-offset: -2px;
 }
 
-/* =========================================================
-   PRICE + CONTROL
-   ========================================================= */
-
 .card__bottom {
   display: grid;
-
   grid-template-columns: minmax(0, 1fr);
-
   min-width: 0;
-
-  gap: 0.45rem;
+  gap: 0.25rem;
   margin-top: auto;
-  padding-top: 0.5rem;
+  padding-top: 0.25rem;
 }
 
 .card__bottom :deep(.price) {
   min-width: 0;
-
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: clamp(0.8125rem, 0.75rem + 0.25vw, 1rem);
 }
 
-/* =========================================================
-   BUTTON "В КОРЗИНУ"
-   ========================================================= */
+.card__bottom :deep(.price__unit) {
+  font-size: clamp(0.6875rem, 0.6rem + 0.25vw, 0.8125rem);
+}
 
-.card__add {
-  display: flex;
-
-  width: 100%;
+.card__add,
+.card__control {
+  width: calc(100% + 2 * var(--card-inset));
   min-width: 0;
   min-height: var(--touch-target);
+  margin-inline: calc(-1 * var(--card-inset));
+  margin-bottom: calc(-1 * var(--card-inset));
+  border-radius: 0;
+}
 
+.card__add {
+  max-width: none;
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-
   gap: 0.25rem;
-
-  border-radius: 0.5rem;
+  padding-inline: 0.5rem;
 }
 
 .card__add-label {
   flex: 1;
-
   min-width: 0;
-
   overflow: hidden;
-
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -374,37 +328,17 @@ function subtract() {
 
 .card__add-icon {
   flex: none;
-
   width: 1rem;
   height: 1rem;
 }
 
-/* =========================================================
-   ДОБАВЛЕННЫЙ ТОВАР: − СУММА +
-   ========================================================= */
-
 .card__control {
   display: grid;
-
-  grid-template-columns:
-    var(--touch-target)
-    minmax(0, 1fr)
-    var(--touch-target);
-
+  grid-template-columns: var(--touch-target) minmax(0, 1fr) var(--touch-target);
   align-items: center;
-
-  min-width: 0;
-  min-height: var(--touch-target);
-
-  margin-inline: calc(-1 * var(--card-inset));
-  margin-bottom: calc(-1 * var(--card-inset));
-
-  overflow: hidden;
-
-  border-top: 1px solid var(--ui-border);
-  border-radius: 0 0 0.875rem 0.875rem;
-
-  background: var(--ui-bg-elevated);
+  border-top: 1px solid color-mix(in srgb, var(--ui-primary) 35%, var(--ui-border));
+  background: color-mix(in srgb, var(--ui-primary) 14%, var(--ui-bg));
+  color: var(--ui-text-highlighted);
 }
 
 .card__portion {
@@ -412,60 +346,22 @@ function subtract() {
   min-width: var(--touch-target);
   height: var(--touch-target);
   min-height: var(--touch-target);
-
   padding: 0;
-
   justify-content: center;
 }
 
 .card__total {
   min-width: 0;
-
-  padding-inline: 0.25rem;
-
-  overflow: hidden;
-
-  font-size: 0.75rem;
-  font-weight: 800;
+  padding: 0.125rem;
+  font-size: clamp(0.6875rem, 0.625rem + 0.3vw, 0.8125rem);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
-
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .card__total--stale {
-  opacity: 0.65;
-}
-
-/* =========================================================
-   TABLET+
-   ========================================================= */
-
-@media (min-width: 40rem) {
-  .card {
-    --card-inset: 0.75rem;
-  }
-
-  .card__category {
-    font-size: 0.75rem;
-  }
-
-  .card__title {
-    font-size: 0.9375rem;
-  }
-
-  .card__quantity {
-    bottom: 0.625rem;
-
-    padding: 0.3rem 0.65rem;
-
-    font-size: 1rem;
-  }
-
-  .card__bottom {
-    gap: 0.55rem;
-  }
+  color: var(--ui-text-muted);
 }
 </style>
