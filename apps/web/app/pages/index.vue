@@ -2,15 +2,17 @@
   <div class="home">
     <UContainer>
       <section class="hero">
-        <p class="hero__label">Москва</p>
+        <div class="hero__content">
+          <p class="hero__label">Москва</p>
 
-        <h1 class="hero__title">Свежие продукты и товары с рынка</h1>
+          <h1 class="hero__title">Свежие продукты и товары с рынка</h1>
 
-        <p class="hero__text">Овощи, Фрукты, Ягоды, Зелень и многое другое с доставкой на дом.</p>
+          <p class="hero__text">Овощи, Фрукты, Ягоды, Зелень и многое другое с доставкой на дом.</p>
 
-        <UButton class="hero__action" to="/catalog" size="lg">
-          В каталог
-        </UButton>
+          <UButton class="hero__action" to="/catalog" size="lg">
+            В каталог
+          </UButton>
+        </div>
       </section>
 
       <section class="home__section">
@@ -65,8 +67,38 @@ const {
 }
 
 .hero {
-  max-width: 47.5rem;
-  padding-block: var(--page-start) var(--section-gap);
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: clamp(24rem, 80vw, 30rem);
+  align-items: center;
+  margin-top: var(--page-start);
+  padding: clamp(1rem, 4vw, 4rem);
+  overflow: hidden;
+  border-radius: 1rem;
+  background-color: #050f1e;
+  background-image: url('/images/market-hero.webp');
+  background-size: cover;
+  background-position: center 45%;
+  background-repeat: no-repeat;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(5, 15, 30, 0.88) 0%, rgba(5, 15, 30, 0.76) 55%, rgba(5, 15, 30, 0.64) 100%);
+  pointer-events: none;
+}
+
+.hero__content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: 40rem;
 }
 
 .hero__label {
@@ -75,6 +107,9 @@ const {
 }
 
 .hero__title {
+  max-width: 40rem;
+  color: #fff;
+  overflow-wrap: anywhere;
   margin-top: 0.75rem;
   font-size: clamp(2rem, 1.25rem + 3.5vw, 4.5rem);
   font-weight: 700;
@@ -84,7 +119,7 @@ const {
 .hero__text {
   max-width: 35rem;
   margin-block: 1rem 1.5rem;
-  color: var(--ui-text-muted);
+  color: rgba(255, 255, 255, 0.9);
   font-size: clamp(1.0625rem, 0.95rem + 0.5vw, 1.25rem);
   line-height: 1.6;
 }
@@ -128,6 +163,16 @@ const {
 @media (min-width: 40rem) {
   .hero__action {
     width: auto;
+  }
+}
+@media (min-width: 48rem) {
+  .hero {
+    min-height: clamp(22rem, 42vw, 36rem);
+    background-position: center center;
+  }
+
+  .hero::before {
+    background: linear-gradient(90deg, rgba(5, 15, 30, 0.86) 0%, rgba(5, 15, 30, 0.68) 55%, rgba(5, 15, 30, 0.28) 100%);
   }
 }
 </style>

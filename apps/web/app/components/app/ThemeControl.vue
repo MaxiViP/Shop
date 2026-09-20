@@ -1,6 +1,6 @@
 <template>
   <ClientOnly>
-    <UDropdownMenu :items="items" :content="{ align: 'end' }">
+    <UDropdownMenu :items="items" :content="{ align: 'end' }" :modal="false">
       <UButton
         class="theme-control"
         type="button"
