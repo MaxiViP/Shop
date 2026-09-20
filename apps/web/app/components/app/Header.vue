@@ -271,19 +271,13 @@ watch(() => auth.user?.id, notice.clear);
 const loginOpen = ref(false);
 const mobileOpen = ref(false);
 const account = computed(() => headerAccount(auth.user));
-const catalogRoute = computed(
-  () => route.path === "/catalog" || route.path.startsWith("/catalog/"),
-);
+
 const narrow = ref(false);
 const scrolled = ref(false);
 const mobileHeaderHidden = computed(
-  () =>
-    catalogRoute.value &&
-    narrow.value &&
-    scrolled.value &&
-    !mobileOpen.value &&
-    !loginOpen.value,
+  () => narrow.value && scrolled.value && !mobileOpen.value && !loginOpen.value,
 );
+
 let stopScroll = () => {};
 
 onMounted(() => {
@@ -291,7 +285,7 @@ onMounted(() => {
   let frame = 0;
 
   function syncScroll() {
-    if (!catalogRoute.value || !narrow.value) {
+    if (!narrow.value) {
       scrolled.value = false;
     } else if (window.scrollY <= 24) {
       scrolled.value = false;
@@ -301,7 +295,7 @@ onMounted(() => {
   }
 
   function onScroll() {
-    if (!catalogRoute.value || !narrow.value || frame) return;
+    if (!narrow.value || frame) return;
     frame = window.requestAnimationFrame(() => {
       frame = 0;
       syncScroll();
