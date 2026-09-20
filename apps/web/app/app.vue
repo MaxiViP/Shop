@@ -12,6 +12,7 @@ import type { User } from '~/types/user'
 import { useAuthStore } from '~/stores/auth'
 
 const auth = useAuthStore()
+useSiteSeo()
 
 useHead({
   htmlAttrs: {

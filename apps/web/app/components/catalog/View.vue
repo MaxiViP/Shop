@@ -1,5 +1,6 @@
 <template>
   <UContainer class="catalog">
+    <AppBreadcrumbs :items="breadcrumbs" />
     <header class="catalog__head">
       <h1 class="catalog__title">{{ title }}</h1>
       <p class="catalog__text">{{ description }}</p>
@@ -104,6 +105,12 @@ const { title, description, category = undefined, categories } = defineProps<{
   category?: string;
   categories: Category[];
 }>();
+
+const breadcrumbs = computed(() => [
+  { label: "Главная", to: "/" },
+  { label: "Каталог", to: "/catalog" },
+  ...(category ? [{ label: title, to: '/catalog/' + encodeURIComponent(category) }] : []),
+]);
 
 const toast = useToast();
 const {

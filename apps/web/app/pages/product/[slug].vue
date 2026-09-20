@@ -1,5 +1,6 @@
 <template>
   <UContainer v-if="product" class="product">
+    <AppBreadcrumbs :items="breadcrumbs" />
     <AppBackButton class="product__back" :fallback="product.category.slug ? `/catalog/${product.category.slug}` : '/catalog'" />
     <ProductGallery :images="product.images" :name="product.name" />
 
@@ -48,6 +49,7 @@
 </template>
 
 <script setup lang="ts">
+import { breadcrumbSchema, productSchema, productSeo } from "~/utils/seo";
 import type { Product } from "~/types/product";
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
@@ -71,8 +73,8 @@ const { data: product, error } = await useApi<Product>(`/products/${slug}`);
 
 if (error.value || !product.value) {
   throw createError({
-    status: 404,
-    statusText: "Товар не найден",
+    statusCode: error.value?.statusCode === 404 || !error.value ? 404 : 503,
+    statusMessage: error.value && error.value.statusCode !== 404 ? "Каталог временно недоступен" : "Товар не найден",
   });
 }
 
@@ -92,12 +94,18 @@ const cartQty = computed(() =>
   product.value ? cart.qty(product.value.id) : 0,
 );
 
-useSeoMeta({
-  title: () => product.value?.name ?? "Товар",
-  description: () =>
-    product.value?.description ??
-    `${product.value?.name ?? "Продукт"} с доставкой по Москве.`,
-});
+const breadcrumbs = computed(() => [
+  { label: "Главная", to: "/" },
+  { label: "Каталог", to: "/catalog" },
+  { label: product.value!.category.name, to: '/catalog/' + encodeURIComponent(product.value!.category.slug) },
+  { label: product.value!.name, to: '/product/' + encodeURIComponent(product.value!.slug) },
+]);
+usePageSeo(() => ({
+  ...productSeo(product.value!),
+  image: product.value?.images[0]?.url,
+  indexable: product.value?.indexable,
+}));
+useJsonLd(() => [productSchema(product.value!), breadcrumbSchema(breadcrumbs.value)]);
 </script>
 
 <style scoped>

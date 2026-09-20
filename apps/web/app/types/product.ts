@@ -7,6 +7,9 @@ export interface ProductListItem {
   id: number;
   name: string;
   slug: string;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  indexable?: boolean;
 
   price: number;
   priceQty: number;
