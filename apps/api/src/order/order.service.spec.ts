@@ -1,6 +1,9 @@
+import type { TelegramService } from '../telegram/telegram.service.js';
 import { DbService } from '../db/db.service.js';
 import { OrderService } from './order.service.js';
 import { orderSchema } from './schema.js';
+
+const telegram = { notifyNewOrder: vi.fn().mockResolvedValue(undefined) } as unknown as TelegramService;
 
 describe('OrderService creation', () => {
   it.each([
@@ -51,7 +54,7 @@ describe('OrderService creation', () => {
         total: 1,
         finalTotal: 1,
       });
-      const { order } = await new OrderService(db).create(42, undefined, input);
+      const { order } = await new OrderService(db, telegram).create(42, undefined, input);
       expect(order).toMatchObject({
         customerName: 'Александр',
         subtotal: 45_000,

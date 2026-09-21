@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { phone } from '../common/phone.js';
 import { DbService } from '../db/db.service.js';
+import { TelegramService } from '../telegram/telegram.service.js';
 import {
   createGuestToken,
   GUEST_TTL,
@@ -26,7 +27,10 @@ import {
 
 @Injectable()
 export class OrderService {
-  constructor(private readonly db: DbService) {}
+  constructor(
+    private readonly db: DbService,
+    private readonly telegram: TelegramService,
+  ) {}
 
   async quote(data: QuoteInput) {
     const quantities = cartQuantities(data.items);
@@ -138,6 +142,9 @@ export class OrderService {
         },
       },
     });
+
+    // Nested order/items write has committed; Telegram failure cannot fail checkout.
+    void this.telegram.notifyNewOrder(order.id);
 
     return {
       order,

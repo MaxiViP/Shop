@@ -1,3 +1,4 @@
+import type { TelegramService } from '../telegram/telegram.service.js';
 import { DbService } from '../db/db.service.js';
 import { OrderService } from './order.service.js';
 import {
@@ -7,6 +8,8 @@ import {
   cartQuantityValid,
 } from './cart-quote.js';
 import { orderSchema } from './schema.js';
+
+const telegram = { notifyNewOrder: vi.fn().mockResolvedValue(undefined) } as unknown as TelegramService;
 
 const product = {
   id: 1,
@@ -29,7 +32,7 @@ describe('Current server cart quote', () => {
     const findMany = vi.fn().mockResolvedValue([product]);
     const service = new OrderService({
       product: { findMany },
-    } as unknown as DbService);
+    } as unknown as DbService, telegram);
     const body = quoteSchema.parse({
       items: [{ productId: 1, qty: 1100, price: 1, lineTotal: 1 }],
       subtotal: 1,
@@ -77,7 +80,7 @@ describe('Current server cart quote', () => {
       type: 'PICKUP', customerName: 'Иван', customerPhone: '+79991234567',
       items: [{ productId: 1, qty: 501, min: 1, step: 1, portionQty: 1, price: 1 }],
     });
-    await expect(new OrderService(db).create(42, undefined, input)).rejects.toMatchObject({ status: 400 });
+    await expect(new OrderService(db, telegram).create(42, undefined, input)).rejects.toMatchObject({ status: 400 });
     expect(create).not.toHaveBeenCalled();
   });
   it('unavailable/hidden/deleted IDs expose neither product nor partial eligibility subtotal', () => {
@@ -164,7 +167,7 @@ describe('Current server cart quote', () => {
       quoteToken: calculate().token,
     });
     await expect(
-      new OrderService(db).create(null, undefined, input),
+      new OrderService(db, telegram).create(null, undefined, input),
     ).rejects.toMatchObject({
       status: 409,
       response: { code: 'CART_CHANGED' },
