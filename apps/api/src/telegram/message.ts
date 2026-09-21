@@ -1,7 +1,7 @@
 import type { Prisma, Unit } from '../db/gen/client.js';
 
 export const telegramOrderSelect = {
-  id: true, type: true, customerName: true, customerPhone: true,
+  id: true, status: true, type: true, customerName: true, customerPhone: true,
   city: true, street: true, house: true, flat: true, entrance: true,
   floor: true, intercom: true, comment: true, deliveryAt: true,
   subtotal: true, deliveryPrice: true, total: true,

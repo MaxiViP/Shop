@@ -7,7 +7,7 @@ import { TelegramService } from './telegram.service.js';
 import type { TelegramOrder } from './message.js';
 
 const order: TelegramOrder = {
-  id: 154, type: 'PICKUP', customerName: 'Private customer', customerPhone: '+70000000000',
+  id: 154, status: 'NEW', type: 'PICKUP', customerName: 'Private customer', customerPhone: '+70000000000',
   city: null, street: null, house: null, flat: null, entrance: null,
   floor: null, intercom: null, comment: null, deliveryAt: null,
   subtotal: 12345, deliveryPrice: 0, total: 12345,
@@ -38,6 +38,7 @@ function database() {
 }
 
 beforeEach(() => {
+  vi.stubEnv('TELEGRAM_WEBHOOK_SECRET', '');
   token = randomUUID(); // Ephemeral test value, never a real bot credential.
   vi.stubEnv('TELEGRAM_BOT_TOKEN', token);
   vi.stubEnv('TELEGRAM_ADMIN_CHAT_IDS', '123,456');
@@ -53,6 +54,19 @@ afterEach(() => {
 });
 
 describe('TelegramService', () => {
+  it('adds NEW callback buttons when webhook is configured while preserving v1 notification', async () => {
+    vi.stubEnv('TELEGRAM_WEBHOOK_SECRET', randomUUID());
+    await new TelegramService(database() as unknown as DbService).notifyNewOrder(154);
+    for (const [, options] of fetcher.mock.calls) {
+      const body = JSON.parse(String(options?.body));
+      expect(body.text).toContain('154');
+      expect(body.reply_markup.inline_keyboard.flat()).toEqual([
+        { text: '✅ Подтвердить', callback_data: 'order:154:confirm' },
+        { text: 'Открыть заказ', url: 'https://shop.example/staff/orders/154' },
+      ]);
+    }
+  });
+
   it.each([
     ['TELEGRAM_BOT_TOKEN', ''], ['TELEGRAM_ADMIN_CHAT_IDS', ' , '],
     ['TELEGRAM_ADMIN_CHAT_IDS', '0,abc,1.5,9007199254740992'],

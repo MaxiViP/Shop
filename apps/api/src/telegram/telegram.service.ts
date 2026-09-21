@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DbService } from '../db/db.service.js';
+import type { OrderStatus } from '../db/gen/client.js';
 import { newOrderMessage, telegramOrderSelect } from './message.js';
+import { orderKeyboard, type OrderCallback } from './callback.js';
 
 @Injectable()
 export class TelegramService {
@@ -19,6 +21,18 @@ export class TelegramService {
     return Boolean(this.token && this.chatIds.length);
   }
 
+  private get callbacksAvailable(): boolean {
+    const secret = process.env.TELEGRAM_WEBHOOK_SECRET ?? '';
+    return this.available && secret.length > 0 && secret.length <= 256 && !/[^A-Za-z0-9_-]/.test(secret);
+  }
+
+  canManage(callback: OrderCallback): boolean {
+    const { from, message } = callback;
+    return this.callbacksAvailable && this.chatIds.includes(String(from.id)) &&
+      this.chatIds.includes(String(message.chat.id)) &&
+      (message.chat.type !== 'private' || message.chat.id === from.id);
+  }
+
   // This boundary never rejects. The caller can dispatch without awaiting Telegram.
   async notifyNewOrder(orderId: number): Promise<void> {
     if (!this.available) return;
@@ -28,12 +42,27 @@ export class TelegramService {
       });
       if (!order) return;
       const text = newOrderMessage(order);
-      const url = this.orderUrl(orderId);
-      await Promise.all(this.chatIds.map(chatId => this.send(orderId, chatId, text, url)));
+      const keyboard = orderKeyboard(orderId, order.status, this.orderUrl(orderId), this.callbacksAvailable);
+      await Promise.all(this.chatIds.map(chatId => this.request('sendMessage', {
+        chat_id: chatId, text,
+        link_preview_options: { is_disabled: true },
+        ...(keyboard.inline_keyboard.length ? { reply_markup: keyboard } : {}),
+      }, 'Telegram notification failed for order ' + orderId)));
     } catch {
-      // Never log caught errors, provider responses, request URLs or customer data.
       this.logger.warn('Telegram notification failed for order ' + orderId);
     }
+  }
+
+  async answerCallbackQuery(id: string, text: string): Promise<void> {
+    await this.request('answerCallbackQuery', { callback_query_id: id, text, cache_time: 0 },
+      'Telegram callback answer failed', 3000);
+  }
+
+  async editOrderKeyboard(chatId: number, messageId: number, orderId: number, status: OrderStatus): Promise<void> {
+    await this.request('editMessageReplyMarkup', {
+      chat_id: chatId, message_id: messageId,
+      reply_markup: orderKeyboard(orderId, status, this.orderUrl(orderId), this.callbacksAvailable),
+    }, 'Telegram keyboard update failed for order ' + orderId, 3000);
   }
 
   private orderUrl(orderId: number): string | undefined {
@@ -48,29 +77,31 @@ export class TelegramService {
     }
   }
 
-  private async send(orderId: number, chatId: string, text: string, url?: string): Promise<void> {
+  private async request(
+    method: 'sendMessage' | 'answerCallbackQuery' | 'editMessageReplyMarkup',
+    payload: object,
+    failure: string,
+    timeout = 7000,
+  ): Promise<void> {
+    if (!this.token) return;
     try {
-      const response = await fetch('https://api.telegram.org/bot' + this.token + '/sendMessage', {
+      const response = await fetch('https://api.telegram.org/bot' + this.token + '/' + method, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         redirect: 'error',
-        signal: AbortSignal.timeout(7000),
-        body: JSON.stringify({
-          chat_id: chatId, text,
-          link_preview_options: { is_disabled: true },
-          ...(url ? { reply_markup: { inline_keyboard: [[{ text: 'Открыть заказ', url }]] } } : {}),
-        }),
+        signal: AbortSignal.timeout(timeout),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         await response.body?.cancel();
-        throw new Error('TELEGRAM_SEND_FAILED');
+        throw new Error('TELEGRAM_REQUEST_FAILED');
       }
       const body: unknown = await response.json();
       if (!body || typeof body !== 'object' || !('ok' in body) || body.ok !== true)
-        throw new Error('TELEGRAM_SEND_FAILED');
+        throw new Error('TELEGRAM_REQUEST_FAILED');
     } catch {
-      // Each recipient is isolated; do not include chat IDs or error contents.
-      this.logger.warn('Telegram notification failed for order ' + orderId);
+      // Never log errors, provider responses, chat IDs, credentials or request URLs.
+      this.logger.warn(failure);
     }
   }
 }

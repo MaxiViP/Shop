@@ -1,7 +1,7 @@
 import { newOrderMessage, type TelegramOrder } from './message.js';
 
 const order: TelegramOrder = {
-  id: 154, type: 'DELIVERY', customerName: 'Максим <&_*[]>', customerPhone: '+70000000000',
+  id: 154, status: 'NEW', type: 'DELIVERY', customerName: 'Максим <&_*[]>', customerPhone: '+70000000000',
   city: 'Москва', street: 'Рыночная', house: '1', flat: '2', entrance: '3',
   floor: '4', intercom: '5', comment: 'Позвонить <before> & [arrival]',
   deliveryAt: null, subtotal: 69000, deliveryPrice: null, total: null,

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { TelegramWebhookModule } from './telegram/telegram-webhook.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { AddressModule } from './address/address.module.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -20,6 +21,7 @@ import { StaffModule } from './staff/staff.module.js';
     DeliveryModule,
     FavoriteModule,
     OrderModule,
+    TelegramWebhookModule,
     ProductModule,
   ],
 
