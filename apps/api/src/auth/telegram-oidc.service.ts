@@ -296,25 +296,28 @@ export class TelegramOidcService {
       stage = 'OIDC_NONCE_INVALID';
       const { nonce } = claimsSchema.pick({ nonce: true }).parse(rawClaims);
       if (!sameText(nonce, flow.nonce)) throw new Error();
-      stage = 'OIDC_PROFILE_INVALID';
-      const claims = claimsSchema
-        .pick({
-          sub: true,
-          id: true,
-          given_name: true,
-          family_name: true,
-          name: true,
-          preferred_username: true,
-        })
-        .parse(rawClaims);
+      stage = 'OIDC_PROFILE_SUB_INVALID';
+      claimsSchema.shape.sub.parse(rawClaims.sub);
+      stage = 'OIDC_PROFILE_ID_INVALID';
+      const id = claimsSchema.shape.id.parse(rawClaims.id);
+      stage = 'OIDC_PROFILE_NAME_INVALID';
+      const name = claimsSchema.shape.name.parse(rawClaims.name);
+      stage = 'OIDC_PROFILE_USERNAME_INVALID';
+      const username = claimsSchema.shape.preferred_username.parse(
+        rawClaims.preferred_username,
+      );
+      stage = 'OIDC_PROFILE_GIVEN_NAME_INVALID';
+      const givenName = claimsSchema.shape.given_name.parse(rawClaims.given_name);
+      stage = 'OIDC_PROFILE_FAMILY_NAME_INVALID';
+      const familyName = claimsSchema.shape.family_name.parse(rawClaims.family_name);
+      stage = 'OIDC_PROFILE_MAPPING_INVALID';
       // Telegram's verified numeric "id" is the Bot/Mini App identity; sub is opaque.
       const profile = oidcProfile.parse({
-        id: claims.id,
-        first_name: claims.name ?? claims.given_name ?? undefined,
+        id,
+        first_name: name ?? givenName ?? undefined,
         // The full display name already includes any family name.
-        last_name:
-          claims.name != null ? undefined : claims.family_name ?? undefined,
-        username: claims.preferred_username ?? undefined,
+        last_name: name != null ? undefined : familyName ?? undefined,
+        username: username ?? undefined,
       });
       return {
         profile,

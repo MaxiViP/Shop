@@ -99,7 +99,13 @@ describe('Telegram website OIDC', () => {
         'OIDC_AUDIENCE_INVALID',
         'OIDC_TIME_INVALID',
         'OIDC_NONCE_INVALID',
-        'OIDC_PROFILE_INVALID',
+        'OIDC_PROFILE_SUB_INVALID',
+        'OIDC_PROFILE_ID_INVALID',
+        'OIDC_PROFILE_NAME_INVALID',
+        'OIDC_PROFILE_USERNAME_INVALID',
+        'OIDC_PROFILE_GIVEN_NAME_INVALID',
+        'OIDC_PROFILE_FAMILY_NAME_INVALID',
+        'OIDC_PROFILE_MAPPING_INVALID',
       ].map((stage) => 'Telegram OIDC failed: ' + stage),
     );
     for (const call of logs) {
@@ -218,22 +224,61 @@ describe('Telegram website OIDC', () => {
     async (id) => {
       claims.id = id;
       await expect(callback()).rejects.toThrow('TELEGRAM_AUTH_INVALID');
-      logged('OIDC_PROFILE_INVALID');
+      logged('OIDC_PROFILE_ID_INVALID');
     },
   );
   it.each([
-    ['given_name', 'x'.repeat(257)],
-    ['family_name', 'x'.repeat(257)],
-    ['preferred_username', 'x'.repeat(257)],
-    ['name', 'x'.repeat(513)],
-    ['given_name', 123],
-    ['family_name', {}],
-    ['preferred_username', []],
-    ['name', true],
-  ])('rejects invalid optional profile field %s safely', async (field, value) => {
-    claims[String(field)] = value;
+    ['given_name', 'x'.repeat(257), 'OIDC_PROFILE_GIVEN_NAME_INVALID'],
+    ['family_name', 'x'.repeat(257), 'OIDC_PROFILE_FAMILY_NAME_INVALID'],
+    ['preferred_username', 'x'.repeat(257), 'OIDC_PROFILE_USERNAME_INVALID'],
+    ['name', 'x'.repeat(513), 'OIDC_PROFILE_NAME_INVALID'],
+    ['given_name', 123, 'OIDC_PROFILE_GIVEN_NAME_INVALID'],
+    ['family_name', {}, 'OIDC_PROFILE_FAMILY_NAME_INVALID'],
+    ['preferred_username', [], 'OIDC_PROFILE_USERNAME_INVALID'],
+    ['name', true, 'OIDC_PROFILE_NAME_INVALID'],
+  ] as const)('diagnoses invalid profile field %s safely', async (field, value, stage) => {
+    claims[field] = value;
     await expect(callback()).rejects.toThrow('TELEGRAM_AUTH_INVALID');
-    logged('OIDC_PROFILE_INVALID');
+    logged(stage);
+  });
+  it.each([undefined, null, '', 123, {}])(
+    'diagnoses missing or invalid sub variant %# without using it as identity',
+    async (sub) => {
+      claims.sub = sub;
+      await expect(callback()).rejects.toThrow('TELEGRAM_AUTH_INVALID');
+      logged('OIDC_PROFILE_SUB_INVALID');
+    },
+  );
+  it('diagnoses internal mapping failure without logging the error or profile', async () => {
+    // All signed fields are valid; inject only a failure at the mapping boundary.
+    vi.resetModules();
+    vi.doMock('./telegram-init-data.js', async () => {
+      const actual = await vi.importActual<typeof import('./telegram-init-data.js')>(
+        './telegram-init-data.js',
+      );
+      return {
+        ...actual,
+        telegramProfile: {
+          extend: () => ({
+            parse: () => {
+              throw new Error(JSON.stringify(claims) + secret);
+            },
+          }),
+        },
+      };
+    });
+    try {
+      const { TelegramOidcService: MappingFailureService } = await import(
+        './telegram-oidc.service.js'
+      );
+      service = new MappingFailureService();
+      await expect(callback()).rejects.toThrow(/^TELEGRAM_AUTH_INVALID$/);
+      logged('OIDC_PROFILE_MAPPING_INVALID');
+      expect(logs).toHaveLength(1);
+    } finally {
+      vi.doUnmock('./telegram-init-data.js');
+      vi.resetModules();
+    }
   });
   it('rejects wrong/missing state, tampered cookie and expired flow before network', async () => {
     for (const [state, cookie] of [
@@ -259,8 +304,8 @@ describe('Telegram website OIDC', () => {
     [{ iat: 1 }, 'OIDC_TIME_INVALID'],
     [{ iat: 99999999999 }, 'OIDC_TIME_INVALID'],
     [{ nbf: 99999999999 }, 'OIDC_TIME_INVALID'],
-    [{ id: '123' }, 'OIDC_PROFILE_INVALID'],
-    [{ id: undefined }, 'OIDC_PROFILE_INVALID'],
+    [{ id: '123' }, 'OIDC_PROFILE_ID_INVALID'],
+    [{ id: undefined }, 'OIDC_PROFILE_ID_INVALID'],
     [{ aud: ['test-client', 'another'] }, 'OIDC_AUDIENCE_INVALID'],
     [{ azp: 'another' }, 'OIDC_AUDIENCE_INVALID'],
   ])('diagnoses signed claim failure %j as %s', async (change, stage) => {
