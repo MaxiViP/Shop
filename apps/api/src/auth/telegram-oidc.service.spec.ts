@@ -135,6 +135,106 @@ describe('Telegram website OIDC', () => {
     expect(service.destination()).toBe('https://shop.example/profile');
     expect(logs).toEqual([]);
   });
+  it.each([
+    {
+      profile: {
+        id: 123,
+        name: 'Maksim',
+        preferred_username: null,
+        given_name: null,
+        family_name: null,
+      },
+      expected: { id: 123, first_name: 'Maksim' },
+    },
+    {
+      profile: { id: 123, name: 'Maksim' },
+      expected: { id: 123, first_name: 'Maksim' },
+    },
+    {
+      profile: { id: 123, preferred_username: 'max' },
+      expected: { id: 123, username: 'max' },
+    },
+    {
+      profile: {
+        id: 123,
+        name: null,
+        given_name: null,
+        family_name: null,
+        preferred_username: null,
+      },
+      expected: { id: 123 },
+    },
+    {
+      profile: {
+        id: 123,
+        name: 'Maksim Petrov',
+        given_name: 'Maksim',
+        family_name: 'Petrov',
+      },
+      expected: { id: 123, first_name: 'Maksim Petrov' },
+    },
+    {
+      profile: {
+        id: 123,
+        name: 'Maksim Ivanov',
+        given_name: null,
+        family_name: 'Ivanov',
+      },
+      expected: { id: 123, first_name: 'Maksim Ivanov' },
+    },
+    {
+      profile: { id: 123, name: null, given_name: 'Maksim', family_name: 'Petrov' },
+      expected: { id: 123, first_name: 'Maksim', last_name: 'Petrov' },
+    },
+    {
+      profile: { id: 123, name: 'x'.repeat(512) },
+      expected: { id: 123, first_name: 'x'.repeat(512) },
+    },
+    {
+      profile: {
+        id: 123,
+        given_name: 'x'.repeat(256),
+        family_name: 'y'.repeat(256),
+        preferred_username: 'z'.repeat(256),
+      },
+      expected: {
+        id: 123,
+        first_name: 'x'.repeat(256),
+        last_name: 'y'.repeat(256),
+        username: 'z'.repeat(256),
+      },
+    },
+  ])('accepts optional OIDC profile variant %#', async ({ profile, expected }) => {
+    for (const field of ['given_name', 'family_name', 'name', 'preferred_username'])
+      delete claims[field];
+    Object.assign(claims, profile);
+    const proof = await callback();
+    expect(proof.profile).toEqual(expected);
+    expect(Object.values(proof.profile)).not.toContain(null);
+    expect(logs).toEqual([]);
+  });
+  it.each([null, '123', -1, 0, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid numeric identity variant %# at the profile stage',
+    async (id) => {
+      claims.id = id;
+      await expect(callback()).rejects.toThrow('TELEGRAM_AUTH_INVALID');
+      logged('OIDC_PROFILE_INVALID');
+    },
+  );
+  it.each([
+    ['given_name', 'x'.repeat(257)],
+    ['family_name', 'x'.repeat(257)],
+    ['preferred_username', 'x'.repeat(257)],
+    ['name', 'x'.repeat(513)],
+    ['given_name', 123],
+    ['family_name', {}],
+    ['preferred_username', []],
+    ['name', true],
+  ])('rejects invalid optional profile field %s safely', async (field, value) => {
+    claims[String(field)] = value;
+    await expect(callback()).rejects.toThrow('TELEGRAM_AUTH_INVALID');
+    logged('OIDC_PROFILE_INVALID');
+  });
   it('rejects wrong/missing state, tampered cookie and expired flow before network', async () => {
     for (const [state, cookie] of [
       ['wrong', start.cookie],

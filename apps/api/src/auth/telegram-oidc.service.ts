@@ -46,10 +46,14 @@ const claimsSchema = z.object({
   nbf: z.number().int().optional(),
   nonce: z.string(),
   id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-  given_name: z.string().max(256).optional(),
-  family_name: z.string().max(256).optional(),
-  name: z.string().max(512).optional(),
-  preferred_username: z.string().max(256).optional(),
+  given_name: z.string().max(256).nullish(),
+  family_name: z.string().max(256).nullish(),
+  name: z.string().max(512).nullish(),
+  preferred_username: z.string().max(256).nullish(),
+});
+// OIDC name is a full display name, unlike the Mini App first_name field.
+const oidcProfile = telegramProfile.extend({
+  first_name: z.string().max(512).optional(),
 });
 type Flow = z.infer<typeof flowSchema>;
 type Key = z.infer<typeof jwkSchema>;
@@ -304,11 +308,13 @@ export class TelegramOidcService {
         })
         .parse(rawClaims);
       // Telegram's verified numeric "id" is the Bot/Mini App identity; sub is opaque.
-      const profile = telegramProfile.parse({
+      const profile = oidcProfile.parse({
         id: claims.id,
-        first_name: claims.given_name ?? claims.name,
-        last_name: claims.family_name,
-        username: claims.preferred_username,
+        first_name: claims.name ?? claims.given_name ?? undefined,
+        // The full display name already includes any family name.
+        last_name:
+          claims.name != null ? undefined : claims.family_name ?? undefined,
+        username: claims.preferred_username ?? undefined,
       });
       return {
         profile,
