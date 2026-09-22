@@ -3,11 +3,13 @@ import { DbService } from '../db/db.service.js';
 import type { OrderStatus } from '../db/gen/client.js';
 import { newOrderMessage, telegramOrderSelect } from './message.js';
 import { orderKeyboard, type OrderCallback } from './callback.js';
+import { botRequest, type BotMethod } from './bot-api.js';
+import { staffBotToken, staffWebhookSecret, validWebhookSecret } from './bot-config.js';
 
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
-  private readonly token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  private readonly token = staffBotToken();
   private readonly chatIds = [...new Set(
     (process.env.TELEGRAM_ADMIN_CHAT_IDS ?? '').split(',')
       .map(value => value.trim())
@@ -22,8 +24,7 @@ export class TelegramService {
   }
 
   private get callbacksAvailable(): boolean {
-    const secret = process.env.TELEGRAM_WEBHOOK_SECRET ?? '';
-    return this.available && secret.length > 0 && secret.length <= 256 && !/[^A-Za-z0-9_-]/.test(secret);
+    return this.available && validWebhookSecret(staffWebhookSecret());
   }
 
   canManage(callback: OrderCallback): boolean {
@@ -78,30 +79,12 @@ export class TelegramService {
   }
 
   private async request(
-    method: 'sendMessage' | 'answerCallbackQuery' | 'editMessageReplyMarkup',
+    method: BotMethod,
     payload: object,
     failure: string,
     timeout = 7000,
   ): Promise<void> {
-    if (!this.token) return;
-    try {
-      const response = await fetch('https://api.telegram.org/bot' + this.token + '/' + method, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        redirect: 'error',
-        signal: AbortSignal.timeout(timeout),
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        await response.body?.cancel();
-        throw new Error('TELEGRAM_REQUEST_FAILED');
-      }
-      const body: unknown = await response.json();
-      if (!body || typeof body !== 'object' || !('ok' in body) || body.ok !== true)
-        throw new Error('TELEGRAM_REQUEST_FAILED');
-    } catch {
-      // Never log errors, provider responses, chat IDs, credentials or request URLs.
+    if (this.token && !await botRequest(this.token, method, payload, timeout))
       this.logger.warn(failure);
-    }
   }
 }

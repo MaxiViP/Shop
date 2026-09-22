@@ -15,6 +15,8 @@ const callback = (data = 'order:154:confirm'): OrderCallback => ({
 const fetcher = vi.fn<typeof fetch>();
 beforeEach(() => {
   vi.stubEnv('TELEGRAM_BOT_TOKEN', randomUUID());
+  vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', '');
+  vi.stubEnv('TELEGRAM_STAFF_WEBHOOK_SECRET', '');
   vi.stubEnv('TELEGRAM_ADMIN_CHAT_IDS', '123,-100456');
   vi.stubEnv('TELEGRAM_WEBHOOK_SECRET', randomUUID());
   vi.stubEnv('ORDER_SITE_URL', 'https://shop.example');

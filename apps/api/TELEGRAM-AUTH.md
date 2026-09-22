@@ -1,5 +1,68 @@
 # Telegram customer authentication
 
+## Two-bot foundation (customer and staff)
+
+The existing OIDC/Mini App bot remains the CUSTOMER bot. Its numeric Telegram
+user ID still resolves to the same TelegramIdentity/User/Session. The existing
+`/api/telegram/webhook` remains the STAFF endpoint, including its callback
+allowlist and order transitions. The new CUSTOMER endpoint is
+`POST /api/telegram/customer/webhook`; it accepts only private-chat updates
+with its own secret. No webhook is registered at application startup.
+
+Configuration is intentionally staged:
+
+| Purpose | Preferred env | Legacy fallback |
+| --- | --- | --- |
+| CUSTOMER token (Mini App HMAC and customer Bot API) | `TELEGRAM_CUSTOMER_BOT_TOKEN` | `TELEGRAM_BOT_TOKEN` |
+| STAFF token (new-order messages and callbacks) | `TELEGRAM_STAFF_BOT_TOKEN` | `TELEGRAM_BOT_TOKEN` |
+| STAFF webhook secret | `TELEGRAM_STAFF_WEBHOOK_SECRET` | `TELEGRAM_WEBHOOK_SECRET` |
+| CUSTOMER webhook secret | `TELEGRAM_CUSTOMER_WEBHOOK_SECRET` | none |
+| STAFF recipient/actor allowlist | `TELEGRAM_ADMIN_CHAT_IDS` | none |
+
+The CUSTOMER webhook fails closed until both bot tokens and both webhook
+secrets are present and each pair is distinct. This keeps the first deploy
+with legacy env fully operational: staff notifications/callbacks and customer
+OIDC/Mini App login continue, while the customer webhook remains unavailable.
+Telegram allows only one webhook per bot token, so do not point the legacy
+single bot at two endpoints. Keep the existing CUSTOMER bot token for OIDC and
+Mini App; introduce a NEW STAFF bot token. Do not rotate OIDC credentials or
+change BotFather settings merely to deploy this code. After setting distinct
+server env, register each bot's webhook separately as an operator action.
+Treat legacy variables as deprecated only after both bots are verified;
+removing them is a later, separate change.
+
+Customer `/start` marks `TelegramIdentity.customerBotStartedAt` and clears
+`customerBotBlockedAt`. Existing identities remain inactive after the
+additive migration `20260922220000_customer_bot_activation`. No outbound
+customer notifications are sent in this stage. Linked users get a Russian
+inline menu; `/orders` and the order/current-order callbacks read only
+`Order.userId = TelegramIdentity.userId`. Order links use HTTPS
+`ORDER_SITE_URL/order/:publicId`; no guest credential enters a URL. Unlinked
+users receive a site-login prompt. CUSTOMER updates never use
+`TELEGRAM_ADMIN_CHAT_IDS` and never mutate order status. The activation
+columns allow a later notification worker to avoid sending before `/start`
+and mark blocked users after a provider 403.
+
+Production cutover, later and only by the owner:
+1. Apply the additive migration after a backup/staging review, before the
+   updated API starts. Do not use `migrate reset`.
+2. Keep `TELEGRAM_BOT_TOKEN` as the CUSTOMER token; configure a different
+   `TELEGRAM_STAFF_BOT_TOKEN`, `TELEGRAM_STAFF_WEBHOOK_SECRET`, and
+   `TELEGRAM_CUSTOMER_WEBHOOK_SECRET` in server-only API env. Keep the old
+   webhook secret during transition. Configure `ORDER_SITE_URL` as HTTPS.
+3. After deploying the API, move the NEW STAFF bot's webhook to
+   `https://korzinamarket.ru/api/telegram/webhook` with its staff secret
+   and `allowed_updates=["callback_query"]`. Verify notifications/buttons.
+4. Move the EXISTING CUSTOMER bot's webhook to
+   `https://korzinamarket.ru/api/telegram/customer/webhook` with the
+   customer secret and `allowed_updates=["message","callback_query"]`.
+   This replaces that bot's old staff webhook. Verify OIDC/Mini App login
+   and `/start`, `/orders`. There is no automatic `setWebhook` call.
+5. Only after both paths work should legacy env be considered for removal.
+
+No production env, BotFather, webhook or database is changed by this patch.
+
+
 Customer authentication is separate from Bot v1/v2. Bot notifications, staff
 webhook secret, TELEGRAM_ADMIN_CHAT_IDS, StaffService and order transitions are
 unchanged. Customer authentication does not grant staff permissions.

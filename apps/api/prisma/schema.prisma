@@ -570,18 +570,20 @@ model OrderNotification {
 }
 
 model TelegramIdentity {
-  id             Int      @id @default(autoincrement())
-  telegramUserId BigInt   @unique
-  username       String?
-  firstName      String?
-  lastName       String?
-  photoUrl       String?
-  phoneNumber    String?
-  phoneVerified  Boolean  @default(false)
-  userId         Int      @unique
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                   Int       @id @default(autoincrement())
+  telegramUserId       BigInt    @unique
+  username             String?
+  firstName            String?
+  lastName             String?
+  photoUrl             String?
+  phoneNumber          String?
+  phoneVerified        Boolean   @default(false)
+  customerBotStartedAt DateTime?
+  customerBotBlockedAt DateTime?
+  userId               Int       @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
 
 // Short-lived consumed authentication proofs; never store raw Telegram payloads.

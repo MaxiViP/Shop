@@ -39,6 +39,8 @@ function database() {
 
 beforeEach(() => {
   vi.stubEnv('TELEGRAM_WEBHOOK_SECRET', '');
+  vi.stubEnv('TELEGRAM_STAFF_WEBHOOK_SECRET', '');
+  vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', '');
   token = randomUUID(); // Ephemeral test value, never a real bot credential.
   vi.stubEnv('TELEGRAM_BOT_TOKEN', token);
   vi.stubEnv('TELEGRAM_ADMIN_CHAT_IDS', '123,456');
@@ -78,6 +80,15 @@ describe('TelegramService', () => {
     await service.notifyNewOrder(154);
     expect(db.order.findUnique).not.toHaveBeenCalled();
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('prefers separate STAFF token over legacy token for notifications', async () => {
+    const staffToken = randomUUID();
+    vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', staffToken);
+    await new TelegramService(database() as unknown as DbService).notifyNewOrder(154);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    for (const [url] of fetcher.mock.calls)
+      expect(String(url)).toContain('/bot' + staffToken + '/sendMessage');
   });
 
   it('normalizes, validates and deduplicates recipients and sends plain text with staff link', async () => {

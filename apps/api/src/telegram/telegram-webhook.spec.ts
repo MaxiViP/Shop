@@ -22,6 +22,7 @@ describe('Telegram webhook HTTP boundary', () => {
   beforeEach(() => {
     secret = randomUUID();
     vi.stubEnv('TELEGRAM_WEBHOOK_SECRET', secret);
+    vi.stubEnv('TELEGRAM_STAFF_WEBHOOK_SECRET', '');
     handle.mockClear();
   });
   afterEach(() => vi.unstubAllEnvs());

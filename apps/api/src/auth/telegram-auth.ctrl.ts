@@ -19,6 +19,7 @@ import { TelegramAuthGuard } from './telegram-auth.guard.js';
 import { TelegramAuthService } from './telegram-auth.service.js';
 import { TelegramOidcService } from './telegram-oidc.service.js';
 import { PROOF_TTL } from './telegram-init-data.js';
+import { customerBotToken } from '../telegram/bot-config.js';
 
 const FLOW =
   process.env.NODE_ENV === 'production'
@@ -40,7 +41,7 @@ export class TelegramAuthCtrl {
   config() {
     return {
       websiteAvailable: this.oidc.available,
-      miniAppAvailable: Boolean(process.env.TELEGRAM_BOT_TOKEN),
+      miniAppAvailable: Boolean(customerBotToken()),
     };
   }
 

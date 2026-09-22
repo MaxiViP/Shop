@@ -15,6 +15,7 @@ import { AuthModule } from '../src/auth/auth.module.js';
 import { AuthService } from '../src/auth/auth.service.js';
 import { TelegramAuthService } from '../src/auth/telegram-auth.service.js';
 import { TelegramOidcService } from '../src/auth/telegram-oidc.service.js';
+import { CustomerUpdateService } from '../src/telegram/customer-update.service.js';
 import { configureProxy } from '../src/auth/proxy.js';
 import { guestTokenHash } from '../src/common/guest.js';
 import { signedInitData } from './telegram.fixture.js';
@@ -88,6 +89,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
         throw new Error('Local test database required');
       vi.stubEnv('AUTH_SECRET', secret);
       vi.stubEnv('TELEGRAM_BOT_TOKEN', botToken);
+      vi.stubEnv('TELEGRAM_CUSTOMER_BOT_TOKEN', '');
+      vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', '');
+      vi.stubEnv('TELEGRAM_CUSTOMER_WEBHOOK_SECRET', '');
+      vi.stubEnv('TELEGRAM_STAFF_WEBHOOK_SECRET', '');
       vi.stubEnv('ADMIN_PHONE', '+79990000001');
       vi.stubEnv('TELEGRAM_ADMIN_CHAT_IDS', '1001');
       vi.stubEnv('TRUST_PROXY', '127.0.0.1/32,::1/128');
@@ -169,6 +174,27 @@ describe.skipIf(!process.env.DATABASE_URL)(
       vi.restoreAllMocks();
     }, 30000);
 
+    it('separate CUSTOMER token validates Mini App proof without changing identity semantics', async () => {
+      const customerToken = randomBytes(32).toString('hex');
+      vi.stubEnv('TELEGRAM_CUSTOMER_BOT_TOKEN', customerToken);
+      vi.stubEnv('TELEGRAM_BOT_TOKEN', '');
+      try {
+        const config = await request(app.getHttpServer()).get('/api/auth/telegram/config').expect(200);
+        expect(config.body.miniAppAvailable).toBe(true);
+        const telegramId = ++id;
+        const proof = signedInitData(customerToken, { id: telegramId, first_name: 'Customer' },
+          { query_id: randomUUID() });
+        const login = await telegram.miniApp(proof);
+        expect(login.user).toMatchObject({ role: 'USER', phone: null });
+        expect(await db.telegramIdentity.findUnique({
+          where: { telegramUserId: BigInt(telegramId) },
+        })).toMatchObject({ userId: login.user.id });
+      } finally {
+        vi.stubEnv('TELEGRAM_CUSTOMER_BOT_TOKEN', '');
+        vi.stubEnv('TELEGRAM_BOT_TOKEN', botToken);
+      }
+    });
+
     it('migration preserves existing phone/user/session and allows multiple null phones', async () => {
       expect(
         await db.user.findUnique({ where: { id: existingUser } }),
@@ -196,6 +222,42 @@ describe.skipIf(!process.env.DATABASE_URL)(
     it('metadata migration preserves existing Telegram identity with nullable/default fields', async () => {
       expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: preservedIdentity } }))
         .toMatchObject({ telegramUserId: 999000n, userId: existingUser, username: 'preserved', photoUrl: null, phoneNumber: null, phoneVerified: false });
+    });
+    it('customer bot activation and order reads stay bound to the linked User in PostgreSQL', async () => {
+      const foreignUser = await db.user.create({ data: {} });
+      const owned = await db.order.create({ data: {
+        type: 'PICKUP', customerName: 'Owned', customerPhone: '+79911111111',
+        subtotal: 12345, total: 12345, userId: existingUser,
+      } });
+      const foreign = await db.order.create({ data: {
+        type: 'PICKUP', customerName: 'Foreign', customerPhone: '+79912222222',
+        subtotal: 77777, total: 77777, userId: foreignUser.id,
+      } });
+      const previousFetch = globalThis.fetch;
+      const calls: string[] = [];
+      vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init: RequestInit) => {
+        calls.push(String(init.body));
+        return Response.json({ ok: true });
+      }));
+      try {
+        const bot = new CustomerUpdateService(db as unknown as DbService);
+        const actor = { id: 999000, is_bot: false };
+        const chat = { id: 999000, type: 'private' };
+        await bot.handle({ message: { from: actor, chat, text: '/start' } });
+        expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: preservedIdentity } }))
+          .toMatchObject({ customerBotStartedAt: expect.any(Date), customerBotBlockedAt: null });
+        await bot.handle({ message: { from: actor, chat, text: '/orders' } });
+        expect(calls.join(' ')).toContain(owned.publicId);
+        expect(calls.join(' ')).not.toContain(foreign.publicId);
+        const before = calls.length;
+        await bot.handle({ callback_query: {
+          id: 'foreign', from: actor, message: { chat }, data: 'order:' + foreign.publicId,
+        } });
+        expect(calls.slice(before)).toHaveLength(1);
+        expect(calls[before]).toContain('Заказ недоступен');
+      } finally {
+        vi.stubGlobal('fetch', previousFetch);
+      }
     });
     it('persists verified OIDC metadata without linking User.phone and preserves it across Mini App login', async () => {
       const telegramId = ++id;

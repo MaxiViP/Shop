@@ -9,6 +9,7 @@ import { AuthService } from './auth.service.js';
 import { adminPhone } from './admin.config.js';
 import { authUser, authUserSelect as select } from './auth-user.js';
 import { verifyInitData, type TelegramProof } from './telegram-init-data.js';
+import { customerBotToken } from '../telegram/bot-config.js';
 
 @Injectable()
 export class TelegramAuthService {
@@ -19,7 +20,7 @@ export class TelegramAuthService {
 
   miniApp(initData: string, previousToken?: string) {
     return this.login(
-      verifyInitData(initData, process.env.TELEGRAM_BOT_TOKEN ?? ''),
+      verifyInitData(initData, customerBotToken()),
       previousToken,
     );
   }

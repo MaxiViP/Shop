@@ -1,5 +1,20 @@
 # Telegram Bot v1/v2 — KorzinaMarket
 
+## Two-bot migration note
+
+This document's legacy `TELEGRAM_BOT_TOKEN` and
+`TELEGRAM_WEBHOOK_SECRET` examples describe the existing single-bot
+deployment. The current code prefers `TELEGRAM_STAFF_BOT_TOKEN` and
+`TELEGRAM_STAFF_WEBHOOK_SECRET` for STAFF, with the old variables as
+fallback. The STAFF webhook URL remains `/api/telegram/webhook`.
+The separate CUSTOMER webhook is `/api/telegram/customer/webhook`,
+requires `TELEGRAM_CUSTOMER_WEBHOOK_SECRET`, and remains disabled until
+the staff/customer tokens and secrets differ. The full staged cutover is
+documented in [TELEGRAM-AUTH.md](TELEGRAM-AUTH.md). Do not run the legacy
+`setWebhook` example with the CUSTOMER bot during the split; Telegram
+permits only one webhook per bot token.
+
+
 ## Архитектура
 Bot v1 сохранён: OrderCtrl → OrderService → успешное сохранение Order/items → неблокирующий TelegramService.notifyNewOrder(id). Plain text, реальные qty/unit и суммы из БД, несколько получателей, максимум 4000 UTF-16 units, timeout sendMessage 7 секунд. Нет новых зависимостей или Prisma migration. Перезапуск процесса может потерять in-flight notification: durable queue/retries по-прежнему отсутствуют.
 
