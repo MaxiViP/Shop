@@ -299,7 +299,27 @@ export class TelegramOidcService {
       stage = 'OIDC_PROFILE_SUB_INVALID';
       claimsSchema.shape.sub.parse(rawClaims.sub);
       stage = 'OIDC_PROFILE_ID_INVALID';
-      const id = claimsSchema.shape.id.parse(rawClaims.id);
+      const rawId = rawClaims.id;
+      // Classify only the shape for diagnostics; Zod remains the acceptance gate.
+      if (!Object.hasOwn(rawClaims, 'id'))
+        stage = 'OIDC_PROFILE_ID_MISSING';
+      else if (rawId === null)
+        stage = 'OIDC_PROFILE_ID_NULL';
+      else if (typeof rawId === 'number') {
+        if (!Number.isInteger(rawId))
+          stage = 'OIDC_PROFILE_ID_NUMBER_NON_INTEGER';
+        else if (rawId <= 0)
+          stage = 'OIDC_PROFILE_ID_NUMBER_NON_POSITIVE';
+        else if (!Number.isSafeInteger(rawId))
+          stage = 'OIDC_PROFILE_ID_NUMBER_UNSAFE';
+      } else if (typeof rawId === 'string') {
+        stage = /^\d+$/.test(rawId)
+          ? 'OIDC_PROFILE_ID_STRING_DIGITS'
+          : 'OIDC_PROFILE_ID_STRING_OTHER';
+      } else {
+        stage = 'OIDC_PROFILE_ID_OTHER_TYPE';
+      }
+      const id = claimsSchema.shape.id.parse(rawId);
       stage = 'OIDC_PROFILE_NAME_INVALID';
       const name = claimsSchema.shape.name.parse(rawClaims.name);
       stage = 'OIDC_PROFILE_USERNAME_INVALID';

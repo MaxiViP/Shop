@@ -5,6 +5,8 @@ import {
   randomBytes,
   sign,
 } from 'node:crypto';
+import { signedInitData } from '../../test/telegram.fixture.js';
+import { verifyInitData } from './telegram-init-data.js';
 import { TelegramOidcService } from './telegram-oidc.service.js';
 
 describe('Telegram website OIDC', () => {
@@ -101,6 +103,14 @@ describe('Telegram website OIDC', () => {
         'OIDC_NONCE_INVALID',
         'OIDC_PROFILE_SUB_INVALID',
         'OIDC_PROFILE_ID_INVALID',
+        'OIDC_PROFILE_ID_MISSING',
+        'OIDC_PROFILE_ID_NULL',
+        'OIDC_PROFILE_ID_NUMBER_NON_INTEGER',
+        'OIDC_PROFILE_ID_NUMBER_NON_POSITIVE',
+        'OIDC_PROFILE_ID_NUMBER_UNSAFE',
+        'OIDC_PROFILE_ID_STRING_DIGITS',
+        'OIDC_PROFILE_ID_STRING_OTHER',
+        'OIDC_PROFILE_ID_OTHER_TYPE',
         'OIDC_PROFILE_NAME_INVALID',
         'OIDC_PROFILE_USERNAME_INVALID',
         'OIDC_PROFILE_GIVEN_NAME_INVALID',
@@ -141,6 +151,42 @@ describe('Telegram website OIDC', () => {
     expect(service.destination()).toBe('https://shop.example/profile');
     expect(logs).toEqual([]);
   });
+  it.each([987654321, 2 ** 32, Number.MAX_SAFE_INTEGER])(
+    'keeps the same verified numeric identity across OIDC and Mini App variant %#',
+    async (id) => {
+      // Official OIDC example: sub is a separate string, not the Bot user ID.
+      claims.sub = '1234123412341234123';
+      claims.id = id;
+      const oidc = await callback();
+      const botToken = randomBytes(32).toString('hex');
+      const miniApp = verifyInitData(signedInitData(botToken, { id }), botToken);
+      expect(oidc.profile.id).toBe(id);
+      expect(oidc.profile.id).toBe(miniApp.profile.id);
+      // Both channels reach TelegramAuthService.login with this same DB lookup key.
+      expect(BigInt(oidc.profile.id)).toBe(BigInt(miniApp.profile.id));
+      expect(logs).toEqual([]);
+    },
+  );
+  it.each([
+    [undefined, 'OIDC_PROFILE_ID_MISSING'],
+    [null, 'OIDC_PROFILE_ID_NULL'],
+    ['987654321', 'OIDC_PROFILE_ID_STRING_DIGITS'],
+    [0, 'OIDC_PROFILE_ID_NUMBER_NON_POSITIVE'],
+    [-1, 'OIDC_PROFILE_ID_NUMBER_NON_POSITIVE'],
+    [1.5, 'OIDC_PROFILE_ID_NUMBER_NON_INTEGER'],
+    [Number.MAX_SAFE_INTEGER + 1, 'OIDC_PROFILE_ID_NUMBER_UNSAFE'],
+    [{}, 'OIDC_PROFILE_ID_OTHER_TYPE'],
+    [[], 'OIDC_PROFILE_ID_OTHER_TYPE'],
+  ] as const)(
+    'never substitutes a numeric-looking sub for an invalid id variant %#',
+    async (id, stage) => {
+      claims.sub = '987654321';
+      claims.id = id;
+      await expect(callback()).rejects.toThrow(/^TELEGRAM_AUTH_INVALID$/);
+      logged(stage);
+      expect(logs).toHaveLength(1);
+    },
+  );
   it.each([
     {
       profile: {
@@ -219,14 +265,36 @@ describe('Telegram website OIDC', () => {
     expect(Object.values(proof.profile)).not.toContain(null);
     expect(logs).toEqual([]);
   });
-  it.each([null, '123', -1, 0, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+  it.each([
+    [null, 'OIDC_PROFILE_ID_NULL'],
+    ['123', 'OIDC_PROFILE_ID_STRING_DIGITS'],
+    [-1, 'OIDC_PROFILE_ID_NUMBER_NON_POSITIVE'],
+    [0, 'OIDC_PROFILE_ID_NUMBER_NON_POSITIVE'],
+    [1.5, 'OIDC_PROFILE_ID_NUMBER_NON_INTEGER'],
+    [Number.MAX_SAFE_INTEGER + 1, 'OIDC_PROFILE_ID_NUMBER_UNSAFE'],
+  ] as const)(
     'rejects invalid numeric identity variant %# at the profile stage',
-    async (id) => {
+    async (id, stage) => {
       claims.id = id;
       await expect(callback()).rejects.toThrow('TELEGRAM_AUTH_INVALID');
-      logged('OIDC_PROFILE_ID_INVALID');
+      logged(stage);
     },
   );
+  it.each([
+    ['', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['private-id-not-for-logs', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['-123', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['1.5', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    [' 123', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['0', 'OIDC_PROFILE_ID_STRING_DIGITS'],
+    ['9007199254740992', 'OIDC_PROFILE_ID_STRING_DIGITS'],
+    [false, 'OIDC_PROFILE_ID_OTHER_TYPE'],
+    [{ private: 'must-not-appear-in-logs' }, 'OIDC_PROFILE_ID_OTHER_TYPE'],
+  ] as const)('rejects diagnostic-only ID shape variant %# without logging values', async (id, stage) => {
+    claims.id = id;
+    await expect(callback()).rejects.toThrow(/^TELEGRAM_AUTH_INVALID$/);
+    expect(logs).toEqual([['Telegram OIDC failed: ' + stage]]);
+  });
   it.each([
     ['given_name', 'x'.repeat(257), 'OIDC_PROFILE_GIVEN_NAME_INVALID'],
     ['family_name', 'x'.repeat(257), 'OIDC_PROFILE_FAMILY_NAME_INVALID'],
@@ -304,8 +372,8 @@ describe('Telegram website OIDC', () => {
     [{ iat: 1 }, 'OIDC_TIME_INVALID'],
     [{ iat: 99999999999 }, 'OIDC_TIME_INVALID'],
     [{ nbf: 99999999999 }, 'OIDC_TIME_INVALID'],
-    [{ id: '123' }, 'OIDC_PROFILE_ID_INVALID'],
-    [{ id: undefined }, 'OIDC_PROFILE_ID_INVALID'],
+    [{ id: '123' }, 'OIDC_PROFILE_ID_STRING_DIGITS'],
+    [{ id: undefined }, 'OIDC_PROFILE_ID_MISSING'],
     [{ aud: ['test-client', 'another'] }, 'OIDC_AUDIENCE_INVALID'],
     [{ azp: 'another' }, 'OIDC_AUDIENCE_INVALID'],
   ])('diagnoses signed claim failure %j as %s', async (change, stage) => {
