@@ -1,3 +1,7 @@
+import { TelegramAuthCtrl } from './telegram-auth.ctrl.js';
+import { TelegramAuthService } from './telegram-auth.service.js';
+import { TelegramOidcService } from './telegram-oidc.service.js';
+import { TelegramAuthGuard } from './telegram-auth.guard.js';
 import { Module } from '@nestjs/common';
 import { DbModule } from '../db/db.module.js';
 import { AdminGuard } from './admin.guard.js';
@@ -12,10 +16,13 @@ import { OtpCodeGuard, OtpLoginGuard } from './otp.guard.js';
 @Module({
   imports: [DbModule],
 
-  controllers: [AuthCtrl],
+  controllers: [AuthCtrl, TelegramAuthCtrl],
 
   providers: [
     AuthService,
+    TelegramAuthService,
+    TelegramOidcService,
+    TelegramAuthGuard,
     AuthGuard,
     AdminGuard,
     StaffGuard,

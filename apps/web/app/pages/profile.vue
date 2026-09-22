@@ -22,14 +22,14 @@
         <span>Телефон</span>
 
         <strong>
-          {{ auth.user?.phone }}
+          {{ auth.user?.phone ?? "Телефон не указан" }}
         </strong>
       </div>
 
       <div class="profile__row">
         <span>Статус</span>
 
-        <UBadge color="success"> Подтверждён </UBadge>
+        <UBadge color="success"> Вход выполнен </UBadge>
       </div>
 
       <div class="profile__row">

@@ -63,6 +63,15 @@ describe('Admin security', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     }
   });
+  it('does not treat missing admin config and null phone as matching credentials', async () => {
+    vi.stubEnv('ADMIN_PHONE', '');
+    const auth = {
+      me: vi.fn().mockResolvedValue({ role: 'ADMIN', phone: null }),
+    };
+    await expect(
+      new AdminGuard(auth as unknown as AuthService).canActivate(context()),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
   it('rejects invalid credentials with identical error', async () => {
     vi.stubEnv('ADMIN_PASSWORD', randomBytes(32).toString('hex'));
     const auth = new AuthService({} as DbService);

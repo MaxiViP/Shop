@@ -3,7 +3,7 @@
     v-model:open="open"
     :title="mode === 'PASSWORD' ? 'Вход' : 'Вход или регистрация'"
     :description="description"
-    :dismissible="!loading"
+    :dismissible="!loading && !telegramLoading"
     :ui="{
       content: 'w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)]',
       body: 'overflow-y-auto',
@@ -11,6 +11,19 @@
   >
     <template #body>
       <form class="auth" @submit.prevent="submit">
+        <UButton
+type="button" size="lg" block icon="i-lucide-send"
+          :loading="telegramLoading" :disabled="loading || !telegramAvailable" @click="telegramLogin">
+          Войти через Telegram
+        </UButton>
+        <p v-if="!telegramAvailable" class="text-sm text-muted">
+          Вход через Telegram пока недоступен. Можно продолжить без регистрации.
+        </p>
+        <UButton
+type="button" variant="ghost" color="neutral" block
+          :disabled="loading || telegramLoading" @click="open = false">
+          Продолжить без регистрации
+        </UButton>
         <UFormField v-if="!codeSent" label="Телефон">
           <AppTextInput
             v-model="phone"
@@ -21,7 +34,7 @@
             placeholder="+7 999 123 45 67"
             size="lg"
             autofocus
-            :disabled="loading"
+            :disabled="loading || telegramLoading"
           />
         </UFormField>
 
@@ -40,7 +53,7 @@
             autocomplete="current-password"
             size="lg"
             required
-            :disabled="loading"
+            :disabled="loading || telegramLoading"
           />
         </UFormField>
 
@@ -54,7 +67,7 @@
               placeholder="000000"
               size="lg"
               autofocus
-              :disabled="loading"
+              :disabled="loading || telegramLoading"
             />
           </UFormField>
           <UAlert
@@ -72,7 +85,7 @@
           block
           :loading="loading"
           :disabled="
-            mode === 'CHECKING_METHOD' || (mode === 'PHONE' && !methodError)
+            telegramLoading || mode === 'CHECKING_METHOD' || (mode === 'PHONE' && !methodError)
           "
         >
           {{
@@ -90,7 +103,7 @@
           variant="ghost"
           color="neutral"
           block
-          :disabled="loading"
+          :disabled="loading || telegramLoading"
           @click="back"
         >
           Изменить номер
@@ -116,6 +129,31 @@ const codeSent = ref(false);
 const devCode = ref("");
 const error = ref("");
 const loading = ref(false);
+const telegramLoading = ref(false);
+const telegramAvailable = ref(false);
+
+watch(open, async (value) => {
+  if (!value) return;
+  try {
+    const config = await api<{ websiteAvailable: boolean }>("/auth/telegram/config");
+    telegramAvailable.value = config.websiteAvailable;
+  } catch {
+    telegramAvailable.value = false;
+  }
+}, { immediate: true });
+
+async function telegramLogin() {
+  if (loading.value || telegramLoading.value || !telegramAvailable.value) return;
+  telegramLoading.value = true;
+  error.value = "";
+  try {
+    const result = await api<{ url: string }>("/auth/telegram/start", { method: "POST" });
+    window.location.assign(result.url);
+  } catch {
+    error.value = "Не удалось начать вход через Telegram. Попробуйте ещё раз.";
+    telegramLoading.value = false;
+  }
+}
 const {
   mode,
   error: methodError,
@@ -171,7 +209,7 @@ function back() {
 }
 
 async function submit() {
-  if (loading.value || mode.value === "CHECKING_METHOD") return;
+  if (loading.value || telegramLoading.value || mode.value === "CHECKING_METHOD") return;
   error.value = "";
   if (mode.value === "PHONE") {
     change(phone.value, 0);

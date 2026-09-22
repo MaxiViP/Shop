@@ -42,7 +42,7 @@ export interface AdminPage<T> {
 export interface AdminUser {
   id: number;
   name: string | null;
-  phone: string;
+  phone: string | null;
   role: "USER" | "SELLER" | "ADMIN";
   verifiedAt: string | null;
   createdAt: string;

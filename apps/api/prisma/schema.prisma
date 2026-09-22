@@ -94,13 +94,14 @@ model User {
   restoredOrders OrderCancellation[] @relation("RestoredBy")
   extras         OrderExtra[]
   id             Int                 @id @default(autoincrement())
-  phone          String              @unique
+  phone          String?             @unique
   name           String?
   verifiedAt     DateTime?
   role           UserRole            @default(USER)
 
   orders            Order[]
   addresses         Address[]
+  telegramIdentity  TelegramIdentity?
   sessions          Session[]
   favorites         Favorite[]
   settingsUpdates   ShopSettings[]
@@ -566,4 +567,24 @@ model OrderNotification {
   updatedAt    DateTime           @updatedAt
 
   @@index([orderId, status])
+}
+
+model TelegramIdentity {
+  id             Int      @id @default(autoincrement())
+  telegramUserId BigInt   @unique
+  username       String?
+  firstName      String?
+  lastName       String?
+  userId         Int      @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Short-lived consumed authentication proofs; never store raw Telegram payloads.
+model TelegramAuthReplay {
+  tokenHash String   @id
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }

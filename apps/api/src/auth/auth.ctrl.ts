@@ -16,9 +16,7 @@ import type { Request, Response } from 'express';
 import { GID } from '../common/guest.js';
 
 import { AuthService, SID } from './auth.service.js';
-const prod = process.env.NODE_ENV === 'production';
-
-const maxAge = 30 * 24 * 60 * 60 * 1000;
+import { sessionCookie } from './session-cookie.js';
 
 @Controller('auth')
 export class AuthCtrl {
@@ -51,13 +49,7 @@ export class AuthCtrl {
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.auth.adminLogin(body.phone, body.password);
-    response.cookie(SID, result.token, {
-      httpOnly: true,
-      secure: prod,
-      sameSite: 'lax',
-      path: '/',
-      maxAge,
-    });
+    response.cookie(SID, result.token, sessionCookie);
     return result.user;
   }
 
@@ -97,15 +89,11 @@ export class AuthCtrl {
       body.phone,
       body.code,
       request.cookies?.[GID],
+      (await this.auth.me(request.cookies?.[SID]))?.id,
+      request.cookies?.[SID],
     );
 
-    response.cookie(SID, result.token, {
-      httpOnly: true,
-      secure: prod,
-      sameSite: 'lax',
-      path: '/',
-      maxAge,
-    });
+    response.cookie(SID, result.token, sessionCookie);
 
     return result.user;
   }
@@ -124,12 +112,7 @@ export class AuthCtrl {
   ) {
     await this.auth.logout(request.cookies?.[SID]);
 
-    response.clearCookie(SID, {
-      httpOnly: true,
-      secure: prod,
-      sameSite: 'lax',
-      path: '/',
-    });
+    response.clearCookie(SID, { ...sessionCookie, maxAge: undefined });
 
     return { ok: true };
   }

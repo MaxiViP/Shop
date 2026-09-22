@@ -76,7 +76,9 @@ export class AdminUsersService {
         const value = stats.find((item) => item.userId === user.id);
         return {
           ...user,
-          protected: user.role === 'ADMIN' || user.phone === adminPhone(),
+          protected:
+            user.role === 'ADMIN' ||
+            (user.phone !== null && user.phone === adminPhone()),
           orders: value?.orders ?? 0,
           completed: value?.completed ?? 0,
           spent: Number(value?.spent ?? 0),
@@ -137,7 +139,10 @@ export class AdminUsersService {
             where: { id },
             select,
           });
-          if (user.role === 'ADMIN' || user.phone === adminPhone())
+          if (
+            user.role === 'ADMIN' ||
+            (user.phone !== null && user.phone === adminPhone())
+          )
             throw new ForbiddenException('Роль администратора нельзя изменить');
           return db.user.update({ where: { id }, data: { role }, select });
         },

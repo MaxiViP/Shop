@@ -52,7 +52,7 @@
                 #{{ user.id }}<br >{{ user.name ?? "Без имени" }}
               </button>
             </td>
-            <td class="pr-3">{{ user.phone }}</td>
+            <td class="pr-3">{{ user.phone ?? "—" }}</td>
             <td class="pr-3">
               <UBadge :color="user.role === 'ADMIN' ? 'primary' : 'neutral'">{{
                 roles[user.role]
@@ -112,7 +112,7 @@
           ? 'Сделать пользователя продавцом?'
           : 'Убрать права продавца?'
       "
-      :description="selected?.phone"
+      :description="selected?.phone ?? selected?.name ?? undefined"
       :busy="busy"
       @confirm="changeRole"
     />

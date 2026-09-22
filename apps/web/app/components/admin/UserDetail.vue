@@ -14,7 +14,7 @@
           <dt>Имя</dt>
           <dd>{{ user.name ?? "—" }}</dd>
           <dt>Телефон</dt>
-          <dd>{{ user.phone }}</dd>
+          <dd>{{ user.phone ?? "—" }}</dd>
           <dt>Роль</dt>
           <dd>{{ user.role }}</dd>
           <dt>Верифицирован</dt>

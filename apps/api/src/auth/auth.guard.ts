@@ -10,7 +10,7 @@ import { AuthService, SID } from './auth.service.js';
 export type AuthRequest = Request & {
   user: {
     id: number;
-    phone: string;
+    phone: string | null;
     name: string | null;
     role: 'USER' | 'SELLER' | 'ADMIN';
     verifiedAt: Date | null;

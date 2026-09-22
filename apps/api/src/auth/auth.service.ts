@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -22,7 +23,7 @@ import { adminPhone } from './admin.config.js';
 const OTP_TTL = 5 * 60 * 1000;
 const OTP_COOLDOWN = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
-const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
+export const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 
 export const SID = process.env.NODE_ENV === 'production' ? '__Host-sid' : 'sid';
 
@@ -83,7 +84,13 @@ export class AuthService {
         };
   }
 
-  async login(phoneValue: unknown, codeValue: unknown, guestToken?: string) {
+  async login(
+    phoneValue: unknown,
+    codeValue: unknown,
+    guestToken?: string,
+    currentUserId?: number,
+    previousToken?: string,
+  ) {
     const phone = normalizePhone(phoneValue);
     await this.rejectAdminOtp(phone);
 
@@ -118,30 +125,41 @@ export class AuthService {
         throw new UnauthorizedException(
           'Код истёк или был заменён. Запросите новый код',
         );
-      const token = randomBytes(32).toString('hex');
-      const tokenHash = this.tokenHash(token);
-      const expiresAt = new Date(Date.now() + SESSION_TTL);
-      const user = await db.user.upsert({
-        where: { phone },
-
-        update: {
-          verifiedAt: new Date(),
-        },
-
-        create: {
-          phone,
-          verifiedAt: new Date(),
-        },
-
-        select: {
-          id: true,
-          phone: true,
-          name: true,
-          role: true,
-          verifiedAt: true,
-        },
-      });
-
+      const select = {
+        id: true,
+        phone: true,
+        name: true,
+        role: true,
+        verifiedAt: true,
+      } as const;
+      // Serialize phone attachment for the same account as well as the OTP phone.
+      if (currentUserId)
+        await db.$executeRaw`SELECT pg_advisory_xact_lock(704004, ${currentUserId}::integer)`;
+      const owner = currentUserId
+        ? await db.user.findUnique({ where: { phone }, select })
+        : null;
+      if (owner && owner.id !== currentUserId)
+        throw new ConflictException('ACCOUNT_LINK_REQUIRED');
+      const current = currentUserId
+        ? await db.user.findUnique({ where: { id: currentUserId }, select })
+        : null;
+      if (currentUserId && (!current || current.role === 'ADMIN'))
+        throw new UnauthorizedException();
+      // Changing an existing verified number needs its own account recovery flow.
+      if (current?.phone && current.phone !== phone)
+        throw new ConflictException('ACCOUNT_LINK_REQUIRED');
+      const user = current
+        ? await db.user.update({
+            where: { id: current.id },
+            data: { phone, verifiedAt: new Date() },
+            select,
+          })
+        : await db.user.upsert({
+            where: { phone },
+            update: { verifiedAt: new Date() },
+            create: { phone, verifiedAt: new Date() },
+            select,
+          });
       if (user.role === 'ADMIN' || user.phone === adminPhone())
         throw new UnauthorizedException('Используйте вход администратора');
       if (guestToken) {
@@ -171,13 +189,7 @@ export class AuthService {
         }
       }
 
-      await db.session.create({
-        data: {
-          tokenHash,
-          expiresAt,
-          userId: user.id,
-        },
-      });
+      const token = await this.createSession(db, user.id, previousToken);
 
       return { token, user };
     });
@@ -244,7 +256,10 @@ export class AuthService {
       });
     }
 
-    if (session.user.role === 'ADMIN' && session.user.phone !== adminPhone())
+    if (
+      session.user.role === 'ADMIN' &&
+      (!adminPhone() || session.user.phone !== adminPhone())
+    )
       return null;
     return session.user;
   }
@@ -273,15 +288,22 @@ export class AuthService {
     );
     if (!configured || !expected || phone !== configured || !passwordValid)
       throw new UnauthorizedException('Неверные данные для входа');
-    const token = randomBytes(32).toString('hex');
-    const user = await this.db.$transaction(async (db) => {
+    return this.db.$transaction(async (db) => {
       // Serialize admin bootstrap; old admin sessions must not survive a configured phone change.
       await db.$executeRaw`SELECT pg_advisory_xact_lock(704001)`;
       await db.session.deleteMany({
-        where: { user: { role: 'ADMIN', phone: { not: configured } } },
+        where: {
+          user: {
+            role: 'ADMIN',
+            OR: [{ phone: null }, { phone: { not: configured } }],
+          },
+        },
       });
       await db.user.updateMany({
-        where: { role: 'ADMIN', phone: { not: configured } },
+        where: {
+          role: 'ADMIN',
+          OR: [{ phone: null }, { phone: { not: configured } }],
+        },
         data: { role: 'USER' },
       });
       const existing = await db.user.findUnique({
@@ -302,16 +324,29 @@ export class AuthService {
           verifiedAt: true,
         },
       });
-      await db.session.create({
-        data: {
-          userId: result.id,
-          tokenHash: this.tokenHash(token),
-          expiresAt: new Date(Date.now() + SESSION_TTL),
-        },
-      });
-      return result;
+      const token = await this.createSession(db, result.id);
+      return { user: result, token };
     });
-    return { user, token };
+  }
+
+  async createSession(
+    db: Prisma.TransactionClient,
+    userId: number,
+    previousToken?: string,
+  ) {
+    const token = randomBytes(32).toString('hex');
+    if (previousToken)
+      await db.session.deleteMany({
+        where: { tokenHash: this.tokenHash(previousToken) },
+      });
+    await db.session.create({
+      data: {
+        userId,
+        tokenHash: this.tokenHash(token),
+        expiresAt: new Date(Date.now() + SESSION_TTL),
+      },
+    });
+    return token;
   }
 
   async logout(token?: string) {
