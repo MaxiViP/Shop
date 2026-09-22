@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -55,6 +56,7 @@ type Key = z.infer<typeof jwkSchema>;
 
 @Injectable()
 export class TelegramOidcService {
+  private readonly logger = new Logger(TelegramOidcService.name);
   private keys: Key[] = [];
   private keysUntil = 0;
 
@@ -180,11 +182,14 @@ export class TelegramOidcService {
     state: string,
     cookie: string,
   ): Promise<TelegramProof> {
-    const config = this.requiredConfig();
+    let stage = 'OIDC_CONFIG_INVALID';
     try {
+      const config = this.requiredConfig();
+      stage = 'OIDC_FLOW_INVALID';
       const flow = this.readFlow(cookie, state, config.secret);
       if (!code || code.length > 4096) throw new Error();
-      const data = await this.json(issuer + '/token', {
+      stage = 'OIDC_TOKEN_EXCHANGE_FAILED';
+      const response = await this.request(issuer + '/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -202,6 +207,8 @@ export class TelegramOidcService {
           code_verifier: flow.verifier,
         }).toString(),
       });
+      stage = 'OIDC_ID_TOKEN_INVALID';
+      const data = await this.json(response);
       const { id_token: token } = z
         .object({ id_token: z.string().min(1).max(16384) })
         .parse(data);
@@ -221,7 +228,10 @@ export class TelegramOidcService {
           JSON.parse(Buffer.from(parts[0]!, 'base64url').toString('utf8')),
         );
       if (this.keysUntil <= Date.now()) {
-        const raw = await this.json(issuer + '/.well-known/jwks.json');
+        stage = 'OIDC_JWKS_FAILED';
+        const response = await this.request(issuer + '/.well-known/jwks.json');
+        stage = 'OIDC_JWKS_INVALID';
+        const raw = await this.json(response);
         const entries = z
           .object({ keys: z.array(z.unknown()).max(32) })
           .parse(raw).keys;
@@ -231,33 +241,68 @@ export class TelegramOidcService {
         });
         this.keysUntil = Date.now() + 60_000;
       }
+      stage = 'OIDC_SIGNING_KEY_NOT_FOUND';
       const jwk = this.keys.find((key) => key.kid === header.kid);
+      if (!jwk) throw new Error();
+      stage = 'OIDC_JWKS_INVALID';
+      const publicKey = createPublicKey({ key: jwk, format: 'jwk' });
+      stage = 'OIDC_SIGNATURE_INVALID';
       if (
-        !jwk ||
         !verify(
           'RSA-SHA256',
           Buffer.from(parts[0] + '.' + parts[1]),
-          createPublicKey({ key: jwk, format: 'jwk' }),
+          publicKey,
           Buffer.from(parts[2]!, 'base64url'),
         )
       )
         throw new Error();
-      const claims = claimsSchema.parse(
-        JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8')),
-      );
-      const audience = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-      const now = Date.now() / 1000;
+      stage = 'OIDC_CLAIMS_INVALID';
+      const rawClaims = z
+        .record(z.string(), z.unknown())
+        .parse(
+          JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8')),
+        );
+      stage = 'OIDC_ISSUER_INVALID';
+      claimsSchema.pick({ iss: true }).parse(rawClaims);
+      stage = 'OIDC_AUDIENCE_INVALID';
+      const recipient = claimsSchema
+        .pick({ aud: true, azp: true })
+        .parse(rawClaims);
+      const audience = Array.isArray(recipient.aud)
+        ? recipient.aud
+        : [recipient.aud];
       if (
         !audience.includes(config.clientId) ||
-        (audience.length > 1 && claims.azp !== config.clientId) ||
-        (claims.azp && claims.azp !== config.clientId) ||
-        claims.exp <= now ||
-        claims.iat > now + 30 ||
-        claims.iat + PROOF_TTL <= now ||
-        (claims.nbf !== undefined && claims.nbf > now + 30) ||
-        !sameText(claims.nonce, flow.nonce)
+        (audience.length > 1 && recipient.azp !== config.clientId) ||
+        (recipient.azp && recipient.azp !== config.clientId)
       )
         throw new Error();
+      stage = 'OIDC_TIME_INVALID';
+      const time = claimsSchema
+        .pick({ exp: true, iat: true, nbf: true })
+        .parse(rawClaims);
+      const now = Date.now() / 1000;
+      if (
+        time.exp <= now ||
+        time.iat > now + 30 ||
+        time.iat + PROOF_TTL <= now ||
+        (time.nbf !== undefined && time.nbf > now + 30)
+      )
+        throw new Error();
+      stage = 'OIDC_NONCE_INVALID';
+      const { nonce } = claimsSchema.pick({ nonce: true }).parse(rawClaims);
+      if (!sameText(nonce, flow.nonce)) throw new Error();
+      stage = 'OIDC_PROFILE_INVALID';
+      const claims = claimsSchema
+        .pick({
+          sub: true,
+          id: true,
+          given_name: true,
+          family_name: true,
+          name: true,
+          preferred_username: true,
+        })
+        .parse(rawClaims);
       // Telegram's verified numeric "id" is the Bot/Mini App identity; sub is opaque.
       const profile = telegramProfile.parse({
         id: claims.id,
@@ -271,13 +316,16 @@ export class TelegramOidcService {
         expiresAt: new Date(
           Math.min(
             flow.expiresAt,
-            claims.exp * 1000,
-            (claims.iat + PROOF_TTL) * 1000,
+            time.exp * 1000,
+            (time.iat + PROOF_TTL) * 1000,
           ),
         ),
       };
     } catch {
-      // Never surface provider body, authorization header, code, token or crypto errors.
+      // Only locally assigned static codes; never log a caught error or payload.
+      this.logger.warn('Telegram OIDC failed: ' + stage);
+      if (stage === 'OIDC_CONFIG_INVALID')
+        throw new ServiceUnavailableException('TELEGRAM_LOGIN_UNAVAILABLE');
       throw new UnauthorizedException('TELEGRAM_AUTH_INVALID');
     }
   }
@@ -289,13 +337,20 @@ export class TelegramOidcService {
     );
   }
 
-  private async json(url: string, init: RequestInit = {}): Promise<unknown> {
+  private async request(
+    url: string,
+    init: RequestInit = {},
+  ): Promise<Response> {
     const response = await fetch(url, {
       ...init,
       redirect: 'error',
       signal: AbortSignal.timeout(7000),
     });
     if (!response.ok) throw new Error();
+    return response;
+  }
+
+  private async json(response: Response): Promise<unknown> {
     const text = await response.text();
     if (text.length > 65536) throw new Error();
     return JSON.parse(text) as unknown;

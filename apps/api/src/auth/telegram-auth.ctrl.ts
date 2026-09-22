@@ -4,6 +4,7 @@ import {
   Get,
   Header,
   Inject,
+  Logger,
   Post,
   Query,
   Req,
@@ -28,6 +29,7 @@ const flowCookie = { ...sessionCookie, maxAge: PROOF_TTL * 1000 };
 @Controller('auth/telegram')
 @UseGuards(TelegramAuthGuard)
 export class TelegramAuthCtrl {
+  private readonly logger = new Logger(TelegramAuthCtrl.name);
   constructor(
     @Inject(TelegramAuthService) private readonly telegram: TelegramAuthService,
     @Inject(TelegramOidcService) private readonly oidc: TelegramOidcService,
@@ -77,18 +79,23 @@ export class TelegramAuthCtrl {
     @Res() response: Response,
   ) {
     response.clearCookie(FLOW, { ...flowCookie, maxAge: undefined });
+    let stage: 'OIDC_FLOW_INVALID' | 'TELEGRAM_IDENTITY_LOGIN_FAILED' | null =
+      'OIDC_FLOW_INVALID';
     try {
       const data = z
         .object({ code: z.string().max(4096), state: z.string().max(128) })
         .parse(query);
+      stage = null; // OIDC service logs its own precise stage once.
       const proof = await this.oidc.callback(
         data.code,
         data.state,
         request.cookies?.[FLOW] ?? '',
       );
+      stage = 'TELEGRAM_IDENTITY_LOGIN_FAILED';
       const result = await this.telegram.login(proof, request.cookies?.[SID]);
       response.cookie(SID, result.token, sessionCookie);
     } catch {
+      if (stage) this.logger.warn('Telegram OIDC failed: ' + stage);
       // Only a server-configured origin is ever used; no client return URL.
       if (!this.oidc.available)
         return response.status(503).send('TELEGRAM_LOGIN_UNAVAILABLE');
