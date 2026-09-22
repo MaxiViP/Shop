@@ -39,6 +39,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     let existingUser = 0;
     let existingOrder = 0;
     let preservedOrder = 0;
+    let preservedIdentity = 0;
     let id = 2000;
     const origin = 'http://localhost:3000';
     const raw = (userId = ++id, fields: Record<string, unknown> = {}) =>
@@ -121,6 +122,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
             ['preserved-session', 'preserved-hash', existingUser],
           );
         }
+        if (entry.name === '20260922190000_telegram_profile_metadata') {
+          const identity = await connection.query<{ id: number }>(
+            'INSERT INTO "TelegramIdentity" ("telegramUserId", "userId", username, "updatedAt") VALUES ($1,$2,$3,NOW()) RETURNING id',
+            ['999000', existingUser, 'preserved'],
+          );
+          preservedIdentity = identity.rows[0]!.id;
+        }
         await connection.query(
           await readFile(join(root, entry.name, 'migration.sql'), 'utf8'),
         );
@@ -184,6 +192,53 @@ describe.skipIf(!process.env.DATABASE_URL)(
         total: 100,
         customerPhone: '+79919999999',
       });
+    });
+    it('metadata migration preserves existing Telegram identity with nullable/default fields', async () => {
+      expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: preservedIdentity } }))
+        .toMatchObject({ telegramUserId: 999000n, userId: existingUser, username: 'preserved', photoUrl: null, phoneNumber: null, phoneVerified: false });
+    });
+    it('persists verified OIDC metadata without linking User.phone and preserves it across Mini App login', async () => {
+      const telegramId = ++id;
+      const first = await telegram.login({
+        profile: { id: telegramId, first_name: 'Initial', photo_url: 'https://example.test/first.webp' },
+        phone: { number: '+79991234567', verified: true },
+        tokenHash: randomUUID(), expiresAt: new Date(Date.now() + 300_000),
+      });
+      expect(first.user.phone).toBeNull();
+      expect(first.user.telegram).toMatchObject({ connected: true, phoneNumber: '+79991234567', phoneVerified: true, photoUrl: 'https://example.test/first.webp' });
+      await db.user.update({ where: { id: first.user.id }, data: { name: 'User chosen name' } });
+      const again = await telegram.miniApp(raw(telegramId));
+      expect(again.user.id).toBe(first.user.id);
+      expect(again.user.name).toBe('User chosen name');
+      expect(again.user.phone).toBeNull();
+      expect(again.user.telegram).toMatchObject({ phoneNumber: '+79991234567', phoneVerified: true, photoUrl: 'https://example.test/first.webp' });
+      const me = await request(app.getHttpServer()).get('/api/auth/me')
+        .set('Cookie', 'sid=' + again.token).expect(200);
+      expect(me.headers['cache-control']).toBe('no-store');
+      expect(me.body.telegram).toEqual({
+        connected: true, username: 'old', firstName: 'Test', lastName: null,
+        photoUrl: 'https://example.test/first.webp', phoneNumber: '+79991234567', phoneVerified: true,
+      });
+      expect(Object.keys(me.body).sort()).toEqual(['id', 'name', 'phone', 'role', 'telegram', 'verifiedAt']);
+      expect(JSON.stringify(me.body)).not.toMatch(/telegramUserId|telegramIdentity|tokenHash/);
+      expect(me.body.telegram).not.toHaveProperty('id');
+      const updated = await telegram.miniApp(raw(telegramId, { photo_url: 'https://example.test/new.webp' }));
+      expect(updated.user.telegram).toMatchObject({ photoUrl: 'https://example.test/new.webp', phoneNumber: '+79991234567', phoneVerified: true });
+      expect(await db.telegramIdentity.count({ where: { telegramUserId: BigInt(telegramId) } })).toBe(1);
+    });
+    it('does not carry verified=true over to a different unverified Telegram phone', async () => {
+      const telegramId = ++id;
+      const base = { profile: { id: telegramId }, expiresAt: new Date(Date.now() + 300_000) };
+      await telegram.login({ ...base, tokenHash: randomUUID(), phone: { number: '+79991234567', verified: true } });
+      const next = await telegram.login({ ...base, tokenHash: randomUUID(), phone: { number: '+79997654321', verified: false } });
+      expect(next.user.telegram).toMatchObject({ phoneNumber: '+79997654321', phoneVerified: false });
+      expect(next.user.phone).toBeNull();
+    });
+    it('/auth/me keeps a normal phone account compatible with telegram=null', async () => {
+      const user = await db.user.create({ data: { phone: '+79918888888' } });
+      const token = await auth.createSession(db, user.id);
+      const me = await request(app.getHttpServer()).get('/api/auth/me').set('Cookie', 'sid=' + token).expect(200);
+      expect(me.body).toMatchObject({ id: user.id, phone: '+79918888888', telegram: null });
     });
     it('serializes two free phone attachments to the same account', async () => {
       const user = await telegram.miniApp(raw());

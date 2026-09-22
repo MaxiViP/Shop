@@ -22,6 +22,22 @@ describe('Telegram Mini App signature', () => {
       verifyInitData(raw, token).tokenHash,
     );
   });
+  it('accepts a signed HTTPS avatar without treating Mini App phone fields as OIDC metadata', () => {
+    const proof = verifyInitData(signedInitData(token, {
+      id: 123,
+      photo_url: 'https://example.test/avatar.webp',
+      phone_number: '+79991234567',
+      phone_number_verified: true,
+    }), token);
+    expect(proof.profile.photo_url).toBe('https://example.test/avatar.webp');
+    expect(proof.phone).toBeUndefined();
+  });
+  it.each(['http://example.test/avatar', 'not-a-url', 'data:image/png;base64,a', 'https://user:pass@example.test/avatar'])(
+    'rejects unsafe signed Mini App avatar variant %#', (photo_url) => {
+      expect(() => verifyInitData(signedInitData(token, { id: 123, photo_url }), token))
+        .toThrow('TELEGRAM_AUTH_INVALID');
+    },
+  );
   it.each([-301, 120, 10_000_000])(
     'rejects expired/future auth_date: %s',
     (offset) => {

@@ -18,6 +18,7 @@ import {
   proofHash,
   sameText,
   telegramProfile,
+  telegramPhotoUrl,
   type TelegramProof,
 } from './telegram-init-data.js';
 
@@ -50,6 +51,11 @@ const claimsSchema = z.object({
   family_name: z.string().max(256).nullish(),
   name: z.string().max(512).nullish(),
   preferred_username: z.string().max(256).nullish(),
+  picture: telegramPhotoUrl.nullish(),
+  phone_number: z.string().max(16).refine(
+    (value) => /^\+?[1-9][0-9]{6,14}$/.exec(value)?.[0] === value,
+  ).nullish(),
+  phone_number_verified: z.boolean().nullish(),
 });
 // OIDC name is a full display name, unlike the Mini App first_name field.
 const oidcProfile = telegramProfile.extend({
@@ -127,7 +133,7 @@ export class TelegramOidcService {
       client_id: config.clientId,
       redirect_uri: config.redirectUri,
       response_type: 'code',
-      scope: 'openid profile',
+      scope: 'openid profile phone',
       state: flow.state,
       nonce: flow.nonce,
       code_challenge: createHash('sha256')
@@ -338,6 +344,14 @@ export class TelegramOidcService {
       const givenName = claimsSchema.shape.given_name.parse(rawClaims.given_name);
       stage = 'OIDC_PROFILE_FAMILY_NAME_INVALID';
       const familyName = claimsSchema.shape.family_name.parse(rawClaims.family_name);
+      stage = 'OIDC_PROFILE_PICTURE_INVALID';
+      const picture = claimsSchema.shape.picture.parse(rawClaims.picture);
+      stage = 'OIDC_PROFILE_PHONE_INVALID';
+      const phoneNumber = claimsSchema.shape.phone_number.parse(rawClaims.phone_number);
+      stage = 'OIDC_PROFILE_PHONE_VERIFIED_INVALID';
+      const phoneVerified = claimsSchema.shape.phone_number_verified.parse(
+        rawClaims.phone_number_verified,
+      );
       stage = 'OIDC_PROFILE_MAPPING_INVALID';
       // Telegram's verified numeric "id" is the Bot/Mini App identity; sub is opaque.
       const profile = oidcProfile.parse({
@@ -346,9 +360,16 @@ export class TelegramOidcService {
         // The full display name already includes any family name.
         last_name: name != null ? undefined : familyName ?? undefined,
         username: username ?? undefined,
+        photo_url: picture ?? undefined,
       });
       return {
         profile,
+        ...(phoneNumber != null ? {
+          phone: {
+            number: phoneNumber.startsWith('+') ? phoneNumber : '+' + phoneNumber,
+            verified: phoneVerified === true,
+          },
+        } : {}),
         tokenHash: proofHash('oidc:' + flow.state),
         expiresAt: new Date(
           Math.min(

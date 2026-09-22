@@ -7,15 +7,8 @@ import {
 import { DbService } from '../db/db.service.js';
 import { AuthService } from './auth.service.js';
 import { adminPhone } from './admin.config.js';
+import { authUser, authUserSelect as select } from './auth-user.js';
 import { verifyInitData, type TelegramProof } from './telegram-init-data.js';
-
-const select = {
-  id: true,
-  phone: true,
-  name: true,
-  role: true,
-  verifiedAt: true,
-} as const;
 
 @Injectable()
 export class TelegramAuthService {
@@ -64,6 +57,11 @@ export class TelegramAuthService {
             username: profile.username ?? null,
             firstName: profile.first_name ?? null,
             lastName: profile.last_name ?? null,
+            ...(profile.photo_url !== undefined ? { photoUrl: profile.photo_url } : {}),
+            ...(proof.phone !== undefined ? {
+              phoneNumber: proof.phone.number,
+              phoneVerified: proof.phone.verified,
+            } : {}),
           };
           const linked = identity
             ? await db.telegramIdentity.update({
@@ -99,7 +97,7 @@ export class TelegramAuthService {
             linked.user.id,
             previousToken,
           );
-          return { token, user: linked.user };
+          return { token, user: authUser(linked.user) };
         });
       } catch (error) {
         // Retry once and re-read identity after a concurrent unique insert.

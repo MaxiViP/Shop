@@ -19,6 +19,28 @@ The migration was not applied to the working database or production. Integration
 tests apply migrations only inside a newly generated local test schema and remove
 that schema afterwards.
 
+## Telegram profile metadata
+
+Additive migration: prisma/migrations/20260922190000_telegram_profile_metadata/migration.sql.
+It adds TelegramIdentity.photoUrl and phoneNumber as nullable TEXT, and phoneVerified
+as BOOLEAN NOT NULL DEFAULT false. Existing identities, phones, orders and sessions
+are preserved. Review and apply this migration before running the updated API;
+no new env values or BotFather settings are required by this patch.
+
+OIDC picture and Mini App photo_url update the same identity's avatar. OIDC phone
+metadata is stored only when a validated phone was actually supplied; a Mini App
+login cannot set phone metadata. Omitted/null OIDC photo/phone fields retain stored
+values. A supplied new phone without explicit verification resets phoneVerified
+rather than inheriting the old number's verification. User.name is not overwritten.
+
+GET /auth/me and successful login responses return telegram=null or a safe object
+with connected, username, firstName, lastName, photoUrl, phoneNumber, phoneVerified.
+No Telegram numeric ID, identity row ID or session fields are returned. /auth/me is
+marked Cache-Control: no-store. The website renders this metadata separately from
+User.phone, with an avatar fallback and badges only for actual connected/verified
+states. Existing sessions see stored metadata immediately; missing metadata requires
+a new Telegram login and, for the phone scope, the user's consent.
+
 ## Mini App
 
 Configure the Mini App URL later as https://korzinamarket.ru/telegram.
@@ -59,7 +81,12 @@ an unknown key fails closed until refresh. RS256 is required (BotFather default)
 The signature, issuer, audience/authorized party, expiration, issued-at, optional
 not-before and nonce are checked. The verified numeric id claim is the common
 Bot/Mini App identity; opaque sub and mutable username are NOT identity keys.
-Only openid profile scopes are requested. Phone claims are deliberately ignored.
+Scopes are openid profile phone. Consented phone claims are validated as international
+numbers (7-15 digits, optional leading +) and stored with a leading +. Verification
+is true only for a signed boolean phone_number_verified=true. A missing phone is
+allowed. These claims are profile metadata only, never User.phone or account-link
+proof. Avatar URLs must be HTTPS (max 2048 characters, no URL credentials); the API
+never fetches them. Static failure codes never include these values.
 
 Success creates the regular SID cookie and redirects to the configured site
 /profile. Failure clears the flow cookie and redirects to /telegram?error=login
@@ -116,7 +143,7 @@ No SMS provider is installed; production OTP codes are not exposed or simulated.
 Usable production OTP attachment still needs the separately configured SMS channel.
 
 Not implemented: linking two existing accounts, staff identity linking, bot contact
-handling, /start registration, phone claims from OIDC, account merging, synchronized
+handling, /start registration, phone-based Telegram account merging, synchronized
 Telegram cart. Future contact handling must verify contact.user_id == sender.id
 from a trusted webhook before offering phone attachment.
 

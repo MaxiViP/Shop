@@ -99,6 +99,7 @@ export class AuthCtrl {
   }
 
   @Get('me')
+  @Header('Cache-Control', 'no-store')
   me(@Req() request: Request) {
     return this.auth.me(request.cookies?.[SID]);
   }

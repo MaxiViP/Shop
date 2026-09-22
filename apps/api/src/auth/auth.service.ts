@@ -19,6 +19,7 @@ import { DbService } from '../db/db.service.js';
 import type { Prisma } from '../db/gen/client.js';
 import { guestTokenHash } from '../common/guest.js';
 import { adminPhone } from './admin.config.js';
+import { authUser, authUserSelect } from './auth-user.js';
 
 const OTP_TTL = 5 * 60 * 1000;
 const OTP_COOLDOWN = 60 * 1000;
@@ -125,13 +126,7 @@ export class AuthService {
         throw new UnauthorizedException(
           'Код истёк или был заменён. Запросите новый код',
         );
-      const select = {
-        id: true,
-        phone: true,
-        name: true,
-        role: true,
-        verifiedAt: true,
-      } as const;
+      const select = authUserSelect;
       // Serialize phone attachment for the same account as well as the OTP phone.
       if (currentUserId)
         await db.$executeRaw`SELECT pg_advisory_xact_lock(704004, ${currentUserId}::integer)`;
@@ -191,7 +186,7 @@ export class AuthService {
 
       const token = await this.createSession(db, user.id, previousToken);
 
-      return { token, user };
+      return { token, user: authUser(user) };
     });
 
     if (!result) throw new UnauthorizedException('Неверный код');
@@ -219,13 +214,7 @@ export class AuthService {
         lastUsedAt: true,
 
         user: {
-          select: {
-            id: true,
-            phone: true,
-            name: true,
-            role: true,
-            verifiedAt: true,
-          },
+          select: authUserSelect,
         },
       },
     });
@@ -261,7 +250,7 @@ export class AuthService {
       (!adminPhone() || session.user.phone !== adminPhone())
     )
       return null;
-    return session.user;
+    return authUser(session.user);
   }
 
   private async rejectAdminOtp(phone: string) {
@@ -316,16 +305,10 @@ export class AuthService {
         where: { phone: configured },
         update: { role: 'ADMIN' },
         create: { phone: configured, role: 'ADMIN' },
-        select: {
-          id: true,
-          phone: true,
-          name: true,
-          role: true,
-          verifiedAt: true,
-        },
+        select: authUserSelect,
       });
       const token = await this.createSession(db, result.id);
-      return { user: result, token };
+      return { user: authUser(result), token };
     });
   }
 

@@ -117,6 +117,9 @@ describe('Telegram website OIDC', () => {
         'OIDC_PROFILE_GIVEN_NAME_INVALID',
         'OIDC_PROFILE_FAMILY_NAME_INVALID',
         'OIDC_PROFILE_MAPPING_INVALID',
+        'OIDC_PROFILE_PICTURE_INVALID',
+        'OIDC_PROFILE_PHONE_INVALID',
+        'OIDC_PROFILE_PHONE_VERIFIED_INVALID',
       ].map((stage) => 'Telegram OIDC failed: ' + stage),
     );
     for (const call of logs) {
@@ -131,7 +134,7 @@ describe('Telegram website OIDC', () => {
     service.callback('code', url.searchParams.get('state')!, start.cookie);
   it('uses official code flow, profile, PKCE and server-only exchange', async () => {
     expect(url.origin + url.pathname).toBe('https://oauth.telegram.org/auth');
-    expect(url.searchParams.get('scope')).toBe('openid profile');
+    expect(url.searchParams.get('scope')).toBe('openid profile phone');
     expect(url.searchParams.get('response_type')).toBe('code');
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     const proof = await callback();
@@ -151,6 +154,48 @@ describe('Telegram website OIDC', () => {
     );
     expect(service.destination()).toBe('https://shop.example/profile');
     expect(logs).toEqual([]);
+  });
+  it('maps consented OIDC avatar and verified phone as separate metadata', async () => {
+    claims.picture = 'https://cdn4.telesco.pe/avatar.webp';
+    claims.phone_number = '79991234567';
+    claims.phone_number_verified = true;
+    const proof = await callback();
+    expect(proof.profile.photo_url).toBe(claims.picture);
+    expect(proof.phone).toEqual({ number: '+79991234567', verified: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2); // token + JWKS, never avatar
+    expect(logs).toEqual([]);
+  });
+  it.each([{}, { picture: null, phone_number: null, phone_number_verified: null }])(
+    'does not require optional photo or phone metadata %#', async (metadata) => {
+      Object.assign(claims, metadata);
+      const proof = await callback();
+      expect(proof.profile.photo_url).toBeUndefined();
+      expect(proof.phone).toBeUndefined();
+      expect(logs).toEqual([]);
+    },
+  );
+  it('only marks the supplied phone verified on explicit boolean true', async () => {
+    claims.phone_number = '+79991234567';
+    expect((await callback()).phone).toEqual({ number: '+79991234567', verified: false });
+    delete claims.phone_number;
+    claims.phone_number_verified = true;
+    expect((await callback()).phone).toBeUndefined();
+  });
+  it.each([
+    [{ picture: 'http://example.test/photo' }, 'OIDC_PROFILE_PICTURE_INVALID'],
+    [{ picture: 'javascript:alert(1)' }, 'OIDC_PROFILE_PICTURE_INVALID'],
+    [{ picture: 'https://user:password@example.test/photo' }, 'OIDC_PROFILE_PICTURE_INVALID'],
+    [{ picture: 'https://example.test/' + 'x'.repeat(2048) }, 'OIDC_PROFILE_PICTURE_INVALID'],
+    [{ picture: 123 }, 'OIDC_PROFILE_PICTURE_INVALID'],
+    [{ phone_number: 79991234567 }, 'OIDC_PROFILE_PHONE_INVALID'],
+    [{ phone_number: 'not-a-phone' }, 'OIDC_PROFILE_PHONE_INVALID'],
+    [{ phone_number: '+79991234567\n' }, 'OIDC_PROFILE_PHONE_INVALID'],
+    [{ phone_number: '+1234567890123456' }, 'OIDC_PROFILE_PHONE_INVALID'],
+    [{ phone_number_verified: 'true' }, 'OIDC_PROFILE_PHONE_VERIFIED_INVALID'],
+  ])('rejects invalid signed metadata variant %# without logging values', async (metadata, stage) => {
+    Object.assign(claims, metadata);
+    await expect(callback()).rejects.toThrow(/^TELEGRAM_AUTH_INVALID$/);
+    expect(logs).toEqual([['Telegram OIDC failed: ' + stage]]);
   });
   it.each([987654321, 2 ** 32, Number.MAX_SAFE_INTEGER])(
     'keeps the same verified numeric identity across OIDC and Mini App variant %#',

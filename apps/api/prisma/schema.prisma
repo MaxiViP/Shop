@@ -575,6 +575,9 @@ model TelegramIdentity {
   username       String?
   firstName      String?
   lastName       String?
+  photoUrl       String?
+  phoneNumber    String?
+  phoneVerified  Boolean  @default(false)
   userId         Int      @unique
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())

@@ -17,27 +17,7 @@
       </UButton>
     </header>
 
-    <section class="profile__user">
-      <div class="profile__row">
-        <span>Телефон</span>
-
-        <strong>
-          {{ auth.user?.phone ?? "Телефон не указан" }}
-        </strong>
-      </div>
-
-      <div class="profile__row">
-        <span>Статус</span>
-
-        <UBadge color="success"> Вход выполнен </UBadge>
-      </div>
-
-      <div class="profile__row">
-        <span>Вход</span>
-
-        <strong> Пароль не требуется </strong>
-      </div>
-    </section>
+    <AuthProfileCard v-if="auth.user" :user="auth.user" />
 
     <section class="profile__section">
       <header class="profile__section-head">
@@ -275,37 +255,6 @@ useSeoMeta({
   margin-top: 1.5rem;
 }
 
-.profile__user {
-  overflow: hidden;
-  border: 1px solid var(--ui-border);
-  border-radius: 1rem;
-}
-
-.profile__row {
-  display: grid;
-  min-height: 64px;
-  grid-template-columns: minmax(5rem, auto) minmax(0, 1fr);
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-}
-
-.profile__row + .profile__row {
-  border-top: 1px solid var(--ui-border);
-}
-
-.profile__row > span:first-child {
-  color: var(--ui-text-muted);
-}
-
-.profile__row > :last-child {
-  min-width: 0;
-  justify-self: end;
-  text-align: right;
-  overflow-wrap: anywhere;
-}
-
 .profile__section {
   margin-top: var(--section-gap);
 }
@@ -366,10 +315,6 @@ useSeoMeta({
 @media (min-width: 40rem) {
   .profile__add {
     width: auto;
-  }
-
-  .profile__row {
-    padding-inline: 1.25rem;
   }
 
   .profile__section-head {

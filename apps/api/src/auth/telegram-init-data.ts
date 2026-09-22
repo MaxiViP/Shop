@@ -3,16 +3,23 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 
 export const PROOF_TTL = 300;
+export const telegramPhotoUrl = z.string().max(2048).url().refine((value) => {
+  const url = URL.parse(value);
+  return value === value.trim() && url?.protocol === 'https:' && !url.username && !url.password;
+});
 export const telegramProfile = z.object({
   id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   first_name: z.string().max(256).optional(),
   last_name: z.string().max(256).optional(),
   username: z.string().max(256).optional(),
+  photo_url: telegramPhotoUrl.optional(),
   is_bot: z.literal(false).optional(),
 });
 export type TelegramProfile = z.infer<typeof telegramProfile>;
 export type TelegramProof = {
   profile: TelegramProfile;
+  // OIDC-only consented phone metadata; never used for phone authentication.
+  phone?: { number: string; verified: boolean };
   tokenHash: string;
   expiresAt: Date;
 };
