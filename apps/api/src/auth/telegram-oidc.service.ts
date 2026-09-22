@@ -300,7 +300,8 @@ export class TelegramOidcService {
       claimsSchema.shape.sub.parse(rawClaims.sub);
       stage = 'OIDC_PROFILE_ID_INVALID';
       const rawId = rawClaims.id;
-      // Classify only the shape for diagnostics; Zod remains the acceptance gate.
+      let normalizedId = rawId;
+      // Keep numeric identity internally; normalize only strictly decimal OIDC IDs.
       if (!Object.hasOwn(rawClaims, 'id'))
         stage = 'OIDC_PROFILE_ID_MISSING';
       else if (rawId === null)
@@ -313,13 +314,20 @@ export class TelegramOidcService {
         else if (!Number.isSafeInteger(rawId))
           stage = 'OIDC_PROFILE_ID_NUMBER_UNSAFE';
       } else if (typeof rawId === 'string') {
-        stage = /^\d+$/.test(rawId)
-          ? 'OIDC_PROFILE_ID_STRING_DIGITS'
-          : 'OIDC_PROFILE_ID_STRING_OTHER';
+        stage = 'OIDC_PROFILE_ID_STRING_OTHER';
+        // Compare the full match: JavaScript $ also matches before a final newline.
+        if (/^[0-9]+$/.exec(rawId)?.[0] !== rawId) throw new Error();
+        const integer = BigInt(rawId);
+        stage = 'OIDC_PROFILE_ID_STRING_NON_POSITIVE';
+        if (integer <= 0n) throw new Error();
+        stage = 'OIDC_PROFILE_ID_STRING_UNSAFE';
+        if (integer > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error();
+        normalizedId = Number(integer);
+        stage = 'OIDC_PROFILE_ID_INVALID';
       } else {
         stage = 'OIDC_PROFILE_ID_OTHER_TYPE';
       }
-      const id = claimsSchema.shape.id.parse(rawId);
+      const id = claimsSchema.shape.id.parse(normalizedId);
       stage = 'OIDC_PROFILE_NAME_INVALID';
       const name = claimsSchema.shape.name.parse(rawClaims.name);
       stage = 'OIDC_PROFILE_USERNAME_INVALID';

@@ -108,7 +108,8 @@ describe('Telegram website OIDC', () => {
         'OIDC_PROFILE_ID_NUMBER_NON_INTEGER',
         'OIDC_PROFILE_ID_NUMBER_NON_POSITIVE',
         'OIDC_PROFILE_ID_NUMBER_UNSAFE',
-        'OIDC_PROFILE_ID_STRING_DIGITS',
+        'OIDC_PROFILE_ID_STRING_NON_POSITIVE',
+        'OIDC_PROFILE_ID_STRING_UNSAFE',
         'OIDC_PROFILE_ID_STRING_OTHER',
         'OIDC_PROFILE_ID_OTHER_TYPE',
         'OIDC_PROFILE_NAME_INVALID',
@@ -168,9 +169,28 @@ describe('Telegram website OIDC', () => {
     },
   );
   it.each([
+    ['123456789', 123456789],
+    ['123', 123],
+    ['987654321', 987654321],
+    ['000123456789', 123456789],
+    ['1', 1],
+    [String(Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER],
+  ] as const)(
+    'normalizes a signed decimal OIDC ID to the same Mini App identity key variant %#',
+    async (rawId, id) => {
+      claims.id = rawId;
+      const oidc = await callback();
+      const botToken = randomBytes(32).toString('hex');
+      const miniApp = verifyInitData(signedInitData(botToken, { id }), botToken);
+      expect(oidc.profile.id).toBe(id);
+      expect(oidc.profile.id).toBe(miniApp.profile.id);
+      expect(BigInt(oidc.profile.id)).toBe(BigInt(miniApp.profile.id));
+      expect(logs).toEqual([]);
+    },
+  );
+  it.each([
     [undefined, 'OIDC_PROFILE_ID_MISSING'],
     [null, 'OIDC_PROFILE_ID_NULL'],
-    ['987654321', 'OIDC_PROFILE_ID_STRING_DIGITS'],
     [0, 'OIDC_PROFILE_ID_NUMBER_NON_POSITIVE'],
     [-1, 'OIDC_PROFILE_ID_NUMBER_NON_POSITIVE'],
     [1.5, 'OIDC_PROFILE_ID_NUMBER_NON_INTEGER'],
@@ -267,7 +287,6 @@ describe('Telegram website OIDC', () => {
   });
   it.each([
     [null, 'OIDC_PROFILE_ID_NULL'],
-    ['123', 'OIDC_PROFILE_ID_STRING_DIGITS'],
     [-1, 'OIDC_PROFILE_ID_NUMBER_NON_POSITIVE'],
     [0, 'OIDC_PROFILE_ID_NUMBER_NON_POSITIVE'],
     [1.5, 'OIDC_PROFILE_ID_NUMBER_NON_INTEGER'],
@@ -282,15 +301,28 @@ describe('Telegram website OIDC', () => {
   );
   it.each([
     ['', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['abc', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['123abc', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['-1', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['+1', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['1.2', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['1e3', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    [' ', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['123 ', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['123\n', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['123\r\n', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['\t123', 'OIDC_PROFILE_ID_STRING_OTHER'],
+    ['000', 'OIDC_PROFILE_ID_STRING_NON_POSITIVE'],
+    ['999999999999999999999999999999', 'OIDC_PROFILE_ID_STRING_UNSAFE'],
     ['private-id-not-for-logs', 'OIDC_PROFILE_ID_STRING_OTHER'],
     ['-123', 'OIDC_PROFILE_ID_STRING_OTHER'],
     ['1.5', 'OIDC_PROFILE_ID_STRING_OTHER'],
     [' 123', 'OIDC_PROFILE_ID_STRING_OTHER'],
-    ['0', 'OIDC_PROFILE_ID_STRING_DIGITS'],
-    ['9007199254740992', 'OIDC_PROFILE_ID_STRING_DIGITS'],
+    ['0', 'OIDC_PROFILE_ID_STRING_NON_POSITIVE'],
+    ['9007199254740992', 'OIDC_PROFILE_ID_STRING_UNSAFE'],
     [false, 'OIDC_PROFILE_ID_OTHER_TYPE'],
     [{ private: 'must-not-appear-in-logs' }, 'OIDC_PROFILE_ID_OTHER_TYPE'],
-  ] as const)('rejects diagnostic-only ID shape variant %# without logging values', async (id, stage) => {
+  ] as const)('rejects invalid ID variant %# without logging values', async (id, stage) => {
     claims.id = id;
     await expect(callback()).rejects.toThrow(/^TELEGRAM_AUTH_INVALID$/);
     expect(logs).toEqual([['Telegram OIDC failed: ' + stage]]);
@@ -372,7 +404,7 @@ describe('Telegram website OIDC', () => {
     [{ iat: 1 }, 'OIDC_TIME_INVALID'],
     [{ iat: 99999999999 }, 'OIDC_TIME_INVALID'],
     [{ nbf: 99999999999 }, 'OIDC_TIME_INVALID'],
-    [{ id: '123' }, 'OIDC_PROFILE_ID_STRING_DIGITS'],
+    [{ id: '123abc' }, 'OIDC_PROFILE_ID_STRING_OTHER'],
     [{ id: undefined }, 'OIDC_PROFILE_ID_MISSING'],
     [{ aud: ['test-client', 'another'] }, 'OIDC_AUDIENCE_INVALID'],
     [{ azp: 'another' }, 'OIDC_AUDIENCE_INVALID'],
