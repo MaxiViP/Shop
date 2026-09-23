@@ -13,18 +13,18 @@ export const telegramOrderSelect = {
 
 export type TelegramOrder = Prisma.OrderGetPayload<{ select: typeof telegramOrderSelect }>;
 
-function clip(value: string, limit: number) {
+export function clip(value: string, limit: number) {
   // eslint-disable-next-line no-control-regex -- Strip control characters from untrusted notification text.
   const text = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
   return text.length <= limit ? text
     : text.slice(0, limit - 1).replace(/[\uD800-\uDBFF]$/u, '') + '…';
 }
 
-function money(value: number) {
+export function money(value: number) {
   return (value / 100).toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ₽';
 }
 
-function quantity(qty: number, unit: Unit) {
+export function quantity(qty: number, unit: Unit) {
   if (unit === 'GRAM') return qty >= 1000
     ? (qty / 1000).toLocaleString('ru-RU', { maximumFractionDigits: 3 }) + ' кг'
     : qty + ' г';

@@ -1,3 +1,58 @@
+# Telegram STAFF Bot v3 — seller workflow
+
+This section supersedes the historical v1/v2 STAFF callback notes below. CUSTOMER Telegram/OIDC and
+`POST /api/telegram/customer/webhook` remain separate and unchanged.
+
+## Local architecture
+
+`POST /api/telegram/webhook` → existing staff webhook secret guard →
+`TelegramUpdateService` → `StaffBotService`. Only private chats with
+`message.chat.id === from.id` and an ID in `TELEGRAM_ADMIN_CHAT_IDS` are accepted.
+A write also requires a `StaffTelegramIdentity` linked to a current SELLER/ADMIN User.
+Existing group recipients may still receive read-only order notifications, without action buttons.
+The link is separate from CUSTOMER `TelegramIdentity`; Telegram username is never authorization.
+Every operation re-reads the order and calls `StaffService`. The existing callback identifiers
+`order:<id>:confirm|assembly|refresh|cancel_request|cancel_confirm|cancel_back`
+remain recognized, but writes now require the linked audit actor.
+
+An authenticated SELLER/ADMIN can call `POST /api/staff/telegram/link-code` with the normal SID
+cookie. It returns a 10-minute code once; the database stores only SHA-256 of the code.
+In a private, allowlisted STAFF bot chat, send `/link CODE`. The code is consumed atomically;
+one Telegram account links to one User, and one User links to one staff Telegram account.
+Never paste the code into logs or tickets. Role downgrades take effect on the next update.
+
+`/start` records bot activation; `/orders` shows at most 12 recent active orders. Opening an
+order shows the current dashboard. During assembly: process items by entering integer grams or
+integer counts, mark missing/reset, add/edit/cancel OrderExtra, and finish through StaffService.
+READY exposes payment confirmation and paid pickup completion. OTHER delivery supports courier
+details, price, handoff and completion; YANDEX stays with the existing integration/site fallback.
+Cancellation requires a text reason and a second confirmation, using the linked User.id/role.
+Normal item price cannot be edited in Telegram. Input sessions are stored in PostgreSQL, tied
+to the exact ForceReply prompt and staff identity, expire after 15 minutes, and can be cancelled
+with `/cancel`. Telegram API failures do not roll back completed domain writes.
+
+The migration `20260923120000_staff_telegram_v3` creates only
+`StaffTelegramIdentity`, `StaffTelegramLinkCode`, and `StaffTelegramSession`.
+The additive migration `20260923150000_order_staff_audit` creates `OrderStaffAudit` with
+foreign keys to the real Order and User. StaffService writes action, User.id and the current
+SELLER/ADMIN role in the same transaction as each staff mutation. No raw Telegram payload,
+phone, token or link code is stored in audit rows. Repeated no-op transitions do not add rows.
+All STAFF Telegram and website StaffCtrl mutations pass an actor; the actor is rechecked
+against the database role before the transaction commits. Automatic Yandex provider sync has
+no staff actor and is not represented as a seller action.
+Neither migration modifies existing User, Order, or CUSTOMER identity rows.
+Before applying any production Prisma migration, back up and verify the production DB.
+No migration, webhook registration or deploy is performed by this local implementation.
+
+After a separate reviewed deployment, the STAFF bot webhook must be re-registered with
+`allowed_updates=["message","callback_query"]` at
+`https://korzinamarket.ru/api/telegram/webhook`. Keep the existing STAFF token/secret
+selection and `TELEGRAM_ADMIN_CHAT_IDS`; no new bot credential is required for v3.
+The app never calls `setWebhook` at startup. CUSTOMER webhook registration is independent.
+The legacy example below uses only `["callback_query"]` and is historical for v2.
+
+---
+
 # Telegram Bot v1/v2 — KorzinaMarket
 
 ## Two-bot migration note

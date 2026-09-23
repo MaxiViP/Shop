@@ -28,6 +28,7 @@ describe('Auth HTTP behind a trusted reverse proxy', () => {
             login: () => {
               throw new UnauthorizedException();
             },
+            me: () => null,
           },
         },
       ],

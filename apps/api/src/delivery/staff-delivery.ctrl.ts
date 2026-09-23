@@ -14,6 +14,7 @@ import { StaffGuard } from '../auth/staff.guard.js';
 import { DeliveryService } from './delivery.service.js';
 import type { AuthRequest } from '../auth/auth.guard.js';
 import { StaffService } from '../staff/staff.service.js';
+import { staffActor } from '../staff/audit.js';
 
 const idSchema = z.coerce.number().int().positive();
 
@@ -31,7 +32,7 @@ export class StaffDeliveryCtrl {
     @Req() request: AuthRequest,
   ) {
     // Record receipt of real money first. Provider failure must never undo PAID.
-    await this.staff.confirmPayment(id, request.user.id, 'DELIVERY');
+    await this.staff.confirmPayment(id, request.user.id, 'DELIVERY', staffActor(request.user));
     try {
       return await this.delivery.order(id);
     } catch (error) {

@@ -99,15 +99,18 @@ model User {
   verifiedAt     DateTime?
   role           UserRole            @default(USER)
 
-  orders            Order[]
-  addresses         Address[]
-  telegramIdentity  TelegramIdentity?
-  sessions          Session[]
-  favorites         Favorite[]
-  settingsUpdates   ShopSettings[]
-  confirmedPayments OrderPayment[]
-  issues            OrderIssue[]
-  messages          OrderChatMessage[]
+  orders                Order[]
+  addresses             Address[]
+  telegramIdentity      TelegramIdentity?
+  staffTelegramIdentity StaffTelegramIdentity?
+  staffTelegramLinkCode StaffTelegramLinkCode?
+  sessions              Session[]
+  favorites             Favorite[]
+  settingsUpdates       ShopSettings[]
+  confirmedPayments     OrderPayment[]
+  issues                OrderIssue[]
+  messages              OrderChatMessage[]
+  staffAudits           OrderStaffAudit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -235,6 +238,7 @@ model Order {
   issues                OrderIssue[]
   messages              OrderChatMessage[]
   notifications         OrderNotification[]
+  staffAudits           OrderStaffAudit[]
   customerReadMessageId Int                 @default(0)
   staffReadMessageId    Int                 @default(0)
   customerUnread        Int                 @default(0)
@@ -592,4 +596,62 @@ model TelegramAuthReplay {
   expiresAt DateTime
 
   @@index([expiresAt])
+}
+
+model StaffTelegramIdentity {
+  id             Int                   @id @default(autoincrement())
+  telegramUserId BigInt                @unique
+  userId         Int                   @unique
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedAt       DateTime              @default(now())
+  botStartedAt   DateTime?
+  blockedAt      DateTime?
+  session        StaffTelegramSession?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+}
+
+model StaffTelegramLinkCode {
+  codeHash  String   @id
+  userId    Int      @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+model StaffTelegramSession {
+  identityId         Int                   @id
+  identity           StaffTelegramIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  action             String                @db.VarChar(32)
+  step               String                @db.VarChar(32)
+  orderId            Int
+  itemId             Int?
+  promptMessageId    Int?
+  dashboardMessageId Int?
+  confirmationCode   String?               @db.VarChar(16)
+  payload            Json?
+  expiresAt          DateTime
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([expiresAt])
+}
+
+// Append-only staff actions. Actor role is captured when the order mutation commits.
+model OrderStaffAudit {
+  id         Int      @id @default(autoincrement())
+  orderId    Int
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role       UserRole
+  action     String   @db.VarChar(40)
+  entityType String?  @db.VarChar(20)
+  entityId   Int?
+  createdAt  DateTime @default(now())
+
+  @@index([orderId, createdAt])
+  @@index([userId, createdAt])
 }

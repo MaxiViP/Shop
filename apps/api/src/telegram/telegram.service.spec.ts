@@ -64,6 +64,7 @@ describe('TelegramService', () => {
       expect(body.text).toContain('154');
       expect(body.reply_markup.inline_keyboard.flat()).toEqual([
         { text: '✅ Подтвердить', callback_data: 'order:154:confirm' },
+        { text: 'Открыть в боте', callback_data: 's:154:o' },
         { text: 'Открыть заказ', url: 'https://shop.example/staff/orders/154' },
       ]);
     }
@@ -82,6 +83,19 @@ describe('TelegramService', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it('keeps group notifications read-only while private recipients get seller buttons', async () => {
+    vi.stubEnv('TELEGRAM_WEBHOOK_SECRET', randomUUID());
+    vi.stubEnv('TELEGRAM_ADMIN_CHAT_IDS', '123,-100456');
+    await new TelegramService(database() as unknown as DbService).notifyNewOrder(154);
+    const bodies = fetcher.mock.calls.map(([, options]) => JSON.parse(String(options?.body)));
+    const privateBody = bodies.find(body => body.chat_id === '123');
+    const groupBody = bodies.find(body => body.chat_id === '-100456');
+    expect(privateBody.reply_markup.inline_keyboard.flat()).toContainEqual({
+      text: 'Открыть в боте', callback_data: 's:154:o',
+    });
+    expect(groupBody.reply_markup.inline_keyboard.flat().every(
+      (button: { url?: string }) => Boolean(button.url))).toBe(true);
+  });
   it('prefers separate STAFF token over legacy token for notifications', async () => {
     const staffToken = randomUUID();
     vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', staffToken);
