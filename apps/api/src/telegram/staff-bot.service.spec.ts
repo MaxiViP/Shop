@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import type { DbService } from '../db/db.service.js';
 import type { StaffService } from '../staff/staff.service.js';
 import type { TelegramService } from './telegram.service.js';
@@ -56,7 +56,7 @@ function setup(role: 'SELLER' | 'ADMIN' | 'USER' = 'SELLER') {
   const links = { link: vi.fn(async () => true) };
   const flows = {
     start: vi.fn(async () => true), input: vi.fn(async () => null),
-    finish: vi.fn(async () => true), cancel: vi.fn(async () => {}),
+    finish: vi.fn(async () => true), cancel: vi.fn(async () => true), resume: vi.fn(async () => {}),
   };
   const handler = new StaffBotService(db, staff as unknown as StaffService,
     telegram as unknown as TelegramService, links as unknown as StaffLinkService,
@@ -140,6 +140,8 @@ describe('STAFF Telegram authorization and legacy callbacks', () => {
       .mockImplementation(() => {});
     s.staff.get.mockRejectedValueOnce(new Error('SECRET +79990000000'));
     await expect(s.handler.handle(callback('s:6:o'))).rejects.toThrow('Staff Telegram update failed');
+    expect(s.telegram.answerCallbackQuery).toHaveBeenCalledWith('cb',
+      'Результат действия не подтверждён. Проверьте заказ через /orders. Не повторяйте действие до проверки.');
     expect(logger).toHaveBeenCalledWith('Staff Telegram update failed');
     expect(JSON.stringify(logger.mock.calls)).not.toContain('SECRET');
     expect(JSON.stringify(logger.mock.calls)).not.toContain('+79990000000');
@@ -158,13 +160,11 @@ describe('STAFF seller domain operations use linked audit actor', () => {
     const s = setup();
     s.order.status = 'ASSEMBLING';
     await s.handler.handle(callback('s:6:w:8'));
-    expect(s.flows.start).toHaveBeenCalledWith(3, 123, 44, 6, 8, 'ITEM', 'qty',
-      expect.stringContaining('граммов'));
+    expect(s.flows.start).toHaveBeenCalledWith(3, 123, 44, 6, 8, 'ITEM', 'qty');
     expect(s.staff.item).not.toHaveBeenCalled();
     s.order.items[0]!.unit = 'PIECE';
     await s.handler.handle(callback('s:6:q:8'));
-    expect(s.flows.start).toHaveBeenLastCalledWith(3, 123, 44, 6, 8, 'ITEM', 'qty',
-      expect.stringContaining('количество'));
+    expect(s.flows.start).toHaveBeenLastCalledWith(3, 123, 44, 6, 8, 'ITEM', 'qty');
   });
   it('marks missing and resets to pending through StaffService.item with User.id', async () => {
     const s = setup();
@@ -210,7 +210,7 @@ describe('STAFF seller domain operations use linked audit actor', () => {
     s.order.payment = { status: 'PAID' };
     await s.handler.handle(callback('s:6:d'));
     expect(s.flows.start).toHaveBeenCalledWith(3, 123, 44, 6, null, 'DELIVERY',
-      'courierName', expect.any(String));
+      'courierName');
     s.order.delivery = { provider: 'OTHER', status: 'ASSIGNED' };
     await s.handler.handle(callback('s:6:h'));
     expect(s.staff.handoff).toHaveBeenCalledWith(6, { userId: 7, role: 'SELLER' });
@@ -231,7 +231,7 @@ describe('STAFF seller domain operations use linked audit actor', () => {
     const s = setup('ADMIN');
     await s.handler.handle(callback('order:6:cancel_request'));
     expect(s.flows.start).toHaveBeenCalledWith(3, 123, 44, 6, null,
-      'CANCEL', 'reason', expect.any(String));
+      'CANCEL', 'reason');
     await s.handler.handle(callback('s:6:zy:0123456789abcdef'));
     expect(s.flows.finish).toHaveBeenCalledWith(3, { userId: 7, role: 'ADMIN' }, 6, 'CANCEL', '0123456789abcdef');
   });
@@ -240,8 +240,77 @@ describe('STAFF seller domain operations use linked audit actor', () => {
     s.order.status = 'ASSEMBLING';
     await s.handler.handle(callback('s:6:x'));
     expect(s.flows.start).toHaveBeenCalledWith(3, 123, 44, 6, null,
-      'EXTRA', 'title', expect.any(String), {});
+      'EXTRA', 'title', {});
     await s.handler.handle(callback('s:6:xs:0123456789abcdef'));
     expect(s.flows.finish).toHaveBeenCalledWith(3, { userId: 7, role: 'SELLER' }, 6, 'EXTRA', '0123456789abcdef');
+  });
+});
+
+describe('STAFF recovery command authorization and business error UX', () => {
+  it.each(['SELLER', 'ADMIN'] as const)('allows /resume only for linked %s', async role => {
+    const s = setup(role);
+    await s.handler.handle(message('/resume'));
+    expect(s.flows.resume).toHaveBeenCalledExactlyOnceWith(3, 123);
+  });
+  it.each(['group', 'supergroup', 'channel'])('ignores /resume in %s', async type => {
+    const s = setup();
+    await s.handler.handle(message('/resume', type));
+    expect(s.flows.resume).not.toHaveBeenCalled();
+    expect(s.findIdentity).not.toHaveBeenCalled();
+  });
+  it('rejects /resume on chat mismatch, allowlist denial, or linked USER', async () => {
+    const s = setup();
+    const wrong = message('/resume');
+    wrong.message.chat.id = 999;
+    await s.handler.handle(wrong);
+    s.telegram.canManagePrivate.mockReturnValue(false);
+    await s.handler.handle(message('/resume'));
+    expect(s.flows.resume).not.toHaveBeenCalled();
+    const customer = setup('USER');
+    await customer.handler.handle(message('/resume'));
+    expect(customer.flows.resume).not.toHaveBeenCalled();
+  });
+  it('points to /resume when the first prompt is unbound', async () => {
+    const s = setup();
+    s.order.status = 'ASSEMBLING';
+    s.flows.start.mockResolvedValueOnce(false);
+    await s.handler.handle(callback('s:6:x'));
+    expect(s.telegram.answerCallbackQuery).toHaveBeenLastCalledWith('cb', expect.stringContaining('/resume'));
+  });
+  it('does not claim a COMMITTING flow was canceled', async () => {
+    const s = setup();
+    s.flows.cancel.mockResolvedValue(false);
+    await s.handler.handle(message('/cancel'));
+    expect(s.telegram.sendStaff).toHaveBeenLastCalledWith(123, expect.stringContaining('не подтверждён'));
+    await s.handler.handle(callback('s:6:zb'));
+    expect(s.telegram.answerCallbackQuery).toHaveBeenLastCalledWith('cb', expect.stringContaining('не подтверждён'));
+  });
+  it.each(['Максимальная цена услуги — 5000 ₽.', 'Максимальная сумма услуг — 10000 ₽.'])(
+    'shows a safe domain limit with recovery instructions: %s', async text => {
+      const s = setup();
+      s.flows.finish.mockRejectedValueOnce(new BadRequestException(text));
+      await s.handler.handle(callback('s:6:xs:0123456789abcdef'));
+      expect(s.telegram.answerCallbackQuery).toHaveBeenLastCalledWith('cb',
+        text + ' Данные сохранены. /resume — продолжить, /cancel — отменить.');
+      expect(s.staff.extra).not.toHaveBeenCalled();
+    });
+  it('does not expose arbitrary 400 details in the callback ACK', async () => {
+    const s = setup();
+    s.flows.finish.mockRejectedValueOnce(new BadRequestException('PRIVATE_PROVIDER_DETAILS'));
+    await s.handler.handle(callback('s:6:xs:0123456789abcdef'));
+    expect(JSON.stringify(s.telegram.answerCallbackQuery.mock.calls)).not.toContain('PRIVATE_PROVIDER_DETAILS');
+    expect(s.telegram.answerCallbackQuery).toHaveBeenLastCalledWith('cb', expect.stringContaining('/resume'));
+  });
+  it('acknowledges business success even if dashboard rendering throws', async () => {
+    const s = setup();
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+    try {
+      s.telegram.editStaff.mockRejectedValueOnce(new Error('PRIVATE_PROVIDER_DETAILS'));
+      await s.handler.handle(callback('s:6:xs:0123456789abcdef'));
+      expect(s.flows.finish).toHaveBeenCalledTimes(1);
+      expect(s.telegram.answerCallbackQuery).toHaveBeenLastCalledWith('cb', 'Заказ обновлён. /orders — открыть заказ.');
+      expect(warn).toHaveBeenCalledWith('Staff Telegram saved order refresh failed');
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('PRIVATE_PROVIDER_DETAILS');
+    } finally { warn.mockRestore(); }
   });
 });

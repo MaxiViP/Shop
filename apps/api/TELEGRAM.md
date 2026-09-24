@@ -33,6 +33,38 @@ Normal item price cannot be edited in Telegram. Input sessions are stored in Pos
 to the exact ForceReply prompt and staff identity, expire after 15 minutes, and can be cancelled
 with `/cancel`. Telegram API failures do not roll back completed domain writes.
 
+### Recovering a STAFF input flow
+
+Every step/payload is saved **before** sending its prompt. A null
+`promptMessageId` means delivery was not acknowledged; ordinary text and replies
+to possibly delivered, unacknowledged prompts are ignored. There are no automatic
+sendMessage retries. Send `/resume` in the linked, allowlisted private chat to
+reissue the current step (or the confirmation card). Only the newly acknowledged
+ForceReply is valid. The previous prompt/confirmation is invalidated first.
+`/cancel` removes an input or confirmation flow; expired input is rejected.
+
+The existing `confirmationCode` also acts as a random revision for compare-and-set
+updates. Delayed responses, duplicate replies, concurrent resume/cancel/new-flow
+requests cannot attach a stale prompt or advance the same step twice.
+No schema migration or new credentials are required.
+
+ITEM mutation and EXTRA/CANCEL/DELIVERY confirmation first claim `COMMITTING`.
+Only the winner calls StaffService. Success removes that exact claimed session;
+dashboard transport failure does not change the result. A known transactional
+400/403/404/409 refusal preserves the original step/payload with a fresh revision:
+use `/resume` to review it, or `/cancel` and re-enter corrected values. Old
+confirmation buttons cannot retry the failed attempt. ShopSettings and snapshot
+item prices remain authoritative in StaffService.
+
+A process crash or unknown database commit outcome leaves `COMMITTING` fenced.
+Neither `/resume`, `/cancel`, expiry nor starting another flow replays/erases it.
+The seller can use `/orders` and refresh to inspect authoritative order state.
+An operator must reconcile the order/audit and ensure the original worker has
+stopped before clearing a stranded claim. This is intentionally conservative:
+session claim and business transaction are separate, so an unknown result is
+not evidence that the mutation rolled back. There is no automatic recovery that
+could create another EXTRA. Cleanup failure after known success is also fenced.
+
 The migration `20260923120000_staff_telegram_v3` creates only
 `StaffTelegramIdentity`, `StaffTelegramLinkCode`, and `StaffTelegramSession`.
 The additive migration `20260923150000_order_staff_audit` creates `OrderStaffAudit` with

@@ -6,6 +6,7 @@ import { staffActor } from '../staff/audit.js';
 import { callbackIdSchema, parseAction } from './callback.js';
 import { StaffLinkService } from './staff-link.service.js';
 import { StaffBotFlowService } from './staff-bot-flow.service.js';
+import { flowError, knownFlowError, uncertainMutation } from './staff-flow.js';
 import { parseStaffAction, staffData, staffUpdate, clean,
   type StaffCallback, type StaffMessage } from './staff-bot.js';
 import { activeStatuses, dashboard, extraPage, itemPage, itemView, statusText,
@@ -66,7 +67,7 @@ export class StaffBotService {
           'Заказ изменился. Обновите его и повторите действие.';
         if (message) await this.telegram.sendStaff(chat.id, answer);
       } else {
-        answer = 'Не удалось выполнить действие';
+        answer = uncertainMutation;
         this.logger.error('Staff Telegram update failed');
         if (message) await this.telegram.sendStaff(chat.id, answer);
         // Let Telegram retry unexpected DB/programming failures; never expose provider details.
@@ -89,10 +90,11 @@ export class StaffBotService {
     const chatId = message.chat.id;
     const text = message.text?.trim() ?? '';
     if (text === '/cancel') {
-      await this.flows.cancel(identity.id);
-      await this.telegram.sendStaff(chatId, 'Ввод отменён. Отправьте /orders.');
+      const canceled = await this.flows.cancel(identity.id);
+      await this.telegram.sendStaff(chatId, canceled ? 'Ввод отменён. Отправьте /orders.' : uncertainMutation);
       return;
     }
+    if (text === '/resume') return this.flows.resume(identity.id, chatId);
     if (text === '/start') {
       await this.db.staffTelegramIdentity.update({
         where: { id: identity.id }, data: { botStartedAt: new Date(), blockedAt: null },
@@ -108,7 +110,12 @@ export class StaffBotService {
     }
     if (text.startsWith('/')) return;
     const result = await this.flows.input(message, identity.id, staffActor({ id: identity.userId, role: identity.user.role }));
-    if (result) await this.order(chatId, result.dashboardMessageId, result.orderId);
+    if (result) await this.refreshSaved(chatId, result.dashboardMessageId, result.orderId);
+  }
+
+  private async refreshSaved(chatId: number, messageId: number | null, orderId: number): Promise<void> {
+    try { await this.order(chatId, messageId, orderId); }
+    catch { this.logger.warn('Staff Telegram saved order refresh failed'); }
   }
 
   private async orders(chatId: number, messageId?: number): Promise<void> {
@@ -152,18 +159,22 @@ export class StaffBotService {
     const messageId = callback.message.message_id;
 
     if (action === 'cancel_back' || action === 'zb') {
-      await this.flows.cancel(identity.id, orderId);
+      if (!await this.flows.cancel(identity.id, orderId)) return uncertainMutation;
       await this.order(chatId, messageId, orderId);
       return 'Ввод отменён';
     }
     if (action === 'cancel_confirm' || action === 'zy' || action === 'xs' || action === 'ds') {
       const kind = action === 'cancel_confirm' || action === 'zy' ? 'CANCEL' :
         action === 'xs' ? 'EXTRA' : 'DELIVERY';
-      const done = await this.flows.finish(identity.id, actor, orderId,
-        kind, parsed?.code);
-      if (!done) return 'Ввод устарел. Откройте заказ заново.';
-      await this.order(chatId, messageId, orderId);
-      return 'Заказ обновлён';
+      try {
+        const done = await this.flows.finish(identity.id, actor, orderId, kind, parsed?.code);
+        if (!done) return 'Ввод уже изменился. /resume — проверить ввод, /orders — проверить заказ.';
+      } catch (error) {
+        if (knownFlowError(error)) return flowError(error);
+        throw error;
+      }
+      await this.refreshSaved(chatId, messageId, orderId);
+      return 'Заказ обновлён. /orders — открыть заказ.';
     }
 
     const order = await this.staff.get(orderId);
@@ -205,17 +216,16 @@ export class StaffBotService {
     } else if (action === 'cancel_request' || action === 'z') {
       if (['COMPLETED', 'CANCELED'].includes(order.status)) return 'Заказ уже завершён';
       const started = await this.flows.start(identity.id, chatId, messageId, orderId, null,
-        'CANCEL', 'reason', 'Причина отмены (1–1000 символов). Ответьте на это сообщение.');
-      return started ? 'Введите причину' : 'Не удалось начать ввод';
+        'CANCEL', 'reason');
+      return started ? 'Введите причину' : 'Запрос не привязан. /resume — продолжить ввод.';
     } else if (action === 'w' || action === 'q') {
       const item = order.items.find(value => value.id === parsed?.arg);
       if (order.status !== 'ASSEMBLING' || !item || item.status !== 'PENDING' ||
         (action === 'w' ? item.unit !== 'GRAM' : item.unit === 'GRAM'))
         return 'Позиция изменилась. Обновите заказ.';
       const started = await this.flows.start(identity.id, chatId, messageId, orderId, item.id,
-        'ITEM', 'qty', action === 'w' ? 'Введите фактический вес целым числом граммов.' :
-          'Введите фактическое количество целым числом.');
-      return started ? 'Введите количество' : 'Не удалось начать ввод';
+        'ITEM', 'qty');
+      return started ? 'Введите количество' : 'Запрос не привязан. /resume — продолжить ввод.';
     } else if (action === 'm' || action === 'r') {
       const item = order.items.find(value => value.id === parsed?.arg);
       if (order.status !== 'ASSEMBLING' || !item ||
@@ -230,9 +240,9 @@ export class StaffBotService {
         value.id === parsed?.arg && value.status === 'ACTIVE') : undefined;
       if (action === 'xe' && !extra) return 'Дополнительная позиция изменилась';
       const started = await this.flows.start(identity.id, chatId, messageId, orderId, null,
-        'EXTRA', 'title', 'Название дополнительной позиции или услуги (до 120 символов).',
+        'EXTRA', 'title',
         extra ? { extraId: extra.id, version: extra.version } : {});
-      return started ? 'Введите название' : 'Не удалось начать ввод';
+      return started ? 'Введите название' : 'Запрос не привязан. /resume — продолжить ввод.';
     } else if (action === 'xd') {
       const extra = order.extras.find(value => value.id === parsed?.arg && value.status === 'ACTIVE');
       if (order.status !== 'ASSEMBLING' || !extra) return 'Дополнительная позиция изменилась';
@@ -241,8 +251,8 @@ export class StaffBotService {
       if (order.status !== 'READY' || order.type !== 'DELIVERY' || order.payment?.status !== 'PAID' ||
         order.delivery?.provider === 'YANDEX') return 'Доставка сейчас недоступна';
       const started = await this.flows.start(identity.id, chatId, messageId, orderId, null,
-        'DELIVERY', 'courierName', 'Имя курьера (до 100 символов).');
-      return started ? 'Введите данные курьера' : 'Не удалось начать ввод';
+        'DELIVERY', 'courierName');
+      return started ? 'Введите данные курьера' : 'Запрос не привязан. /resume — продолжить ввод.';
     } else if (action === 'i') {
       if (order.status !== 'ASSEMBLING') return 'Сборка уже завершена';
       const view = itemPage(order, parsed?.arg ?? 0);
