@@ -1,5 +1,7 @@
 # Telegram STAFF Bot v3 — seller workflow
 
+CUSTOMER cabinet, coordination, chat and channel-specific notifications: [CUSTOMER Bot v2](./CUSTOMER-TELEGRAM.md).
+
 This section supersedes the historical v1/v2 STAFF callback notes below. CUSTOMER Telegram/OIDC and
 `POST /api/telegram/customer/webhook` remain separate and unchanged.
 

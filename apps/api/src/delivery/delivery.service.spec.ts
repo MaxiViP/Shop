@@ -63,6 +63,8 @@ function syncSetup(
   const client = {
     $queryRaw: vi.fn().mockResolvedValue([{ id: 20 }]),
     orderPayment: { updateMany: vi.fn() },
+    orderChatMessage: { create: vi.fn().mockResolvedValue({ id: 1, orderId: 1 }) },
+    orderNotification: { upsert: vi.fn() },
     delivery: {
       findUnique: vi.fn().mockResolvedValue(current),
       update: vi.fn().mockImplementation(({ data }) => ({

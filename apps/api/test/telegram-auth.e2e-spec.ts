@@ -15,6 +15,11 @@ import { AuthModule } from '../src/auth/auth.module.js';
 import { AuthService } from '../src/auth/auth.service.js';
 import { TelegramAuthService } from '../src/auth/telegram-auth.service.js';
 import { TelegramOidcService } from '../src/auth/telegram-oidc.service.js';
+import { OrderService } from '../src/order/order.service.js';
+import { CoordinationService } from '../src/order/coordination.service.js';
+import type { NotificationService } from '../src/order/notification.service.js';
+import type { TelegramService } from '../src/telegram/telegram.service.js';
+import { customerView } from '../src/telegram/customer-callback.js';
 import { CustomerUpdateService } from '../src/telegram/customer-update.service.js';
 import { configureProxy } from '../src/auth/proxy.js';
 import { guestTokenHash } from '../src/common/guest.js';
@@ -237,21 +242,24 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const calls: string[] = [];
       vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init: RequestInit) => {
         calls.push(String(init.body));
-        return Response.json({ ok: true });
+        return Response.json({ ok: true, result: { message_id: calls.length } });
       }));
       try {
-        const bot = new CustomerUpdateService(db as unknown as DbService);
+        const typed = db as unknown as DbService;
+        const domainOrders = new OrderService(typed, { notifyNewOrder: async () => {} } as unknown as TelegramService);
+        const coordination = new CoordinationService(typed, domainOrders, { dispatch: async () => {} } as unknown as NotificationService);
+        const bot = new CustomerUpdateService(typed, coordination, domainOrders);
         const actor = { id: 999000, is_bot: false };
         const chat = { id: 999000, type: 'private' };
-        await bot.handle({ message: { from: actor, chat, text: '/start' } });
+        await bot.handle({ message: { message_id: 1, from: actor, chat, text: '/start' } });
         expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: preservedIdentity } }))
           .toMatchObject({ customerBotStartedAt: expect.any(Date), customerBotBlockedAt: null });
-        await bot.handle({ message: { from: actor, chat, text: '/orders' } });
-        expect(calls.join(' ')).toContain(owned.publicId);
-        expect(calls.join(' ')).not.toContain(foreign.publicId);
+        await bot.handle({ message: { message_id: 2, from: actor, chat, text: '/orders' } });
+        expect(calls.join(' ')).toContain(customerView('o', owned.publicId));
+        expect(calls.join(' ')).not.toContain(customerView('o', foreign.publicId));
         const before = calls.length;
         await bot.handle({ callback_query: {
-          id: 'foreign', from: actor, message: { chat }, data: 'order:' + foreign.publicId,
+          id: 'foreign', from: actor, message: { message_id: 3, chat }, data: 'order:' + foreign.publicId,
         } });
         expect(calls.slice(before)).toHaveLength(1);
         expect(calls[before]).toContain('Заказ недоступен');

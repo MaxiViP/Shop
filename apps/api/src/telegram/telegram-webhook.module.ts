@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { OrderModule } from '../order/order.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { StaffLinkController } from './staff-link.controller.js';
 import { StaffLinkService } from './staff-link.service.js';
@@ -15,7 +16,7 @@ import { CustomerWebhookGuard } from './customer-webhook.guard.js';
 import { CustomerUpdateService } from './customer-update.service.js';
 
 @Module({
-  imports: [AuthModule, DbModule, StaffModule, TelegramModule],
+  imports: [AuthModule, DbModule, StaffModule, TelegramModule, OrderModule],
   controllers: [TelegramController, CustomerTelegramController, StaffLinkController],
   providers: [TelegramUpdateService, TelegramWebhookGuard, CustomerWebhookGuard, CustomerUpdateService,
     StaffLinkService, StaffBotFlowService, StaffBotService],

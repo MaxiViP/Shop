@@ -1,6 +1,17 @@
 import { ConflictException } from '@nestjs/common';
-import type { OrderItem, Prisma, MessageAuthor } from '../db/gen/client.js';
+import type { OrderItem, Prisma, MessageAuthor, NotificationType, OrderIssue, IssueResolution } from '../db/gen/client.js';
 import { outsideTolerance, approvedWeight } from './assembly.js';
+
+import { telegramEvent } from './outbox.js';
+
+export function customerIssueActions(issue: Pick<OrderIssue, 'status' | 'type' | 'proposedName' | 'proposedSlug' | 'proposedUnit' | 'proposedPrice' | 'proposedPriceQty' | 'proposedQty'>): IssueResolution[] {
+  if (issue.status !== 'WAITING_CUSTOMER') return [];
+  const actions: IssueResolution[] = ['REMOVE_ITEM', 'CANCEL_ORDER'];
+  if (issue.type === 'WEIGHT_DEVIATION') actions.unshift('ACCEPT_ACTUAL', 'REQUEST_REDUCE');
+  if (issue.type === 'REPLACEMENT' && issue.proposedName && issue.proposedSlug && issue.proposedUnit &&
+    issue.proposedPrice && issue.proposedPriceQty && issue.proposedQty) actions.unshift('ACCEPT_REPLACEMENT');
+  return actions;
+}
 
 export const issueSummary = {
   where: { status: { in: ['WAITING_CUSTOMER', 'WAITING_SELLER'] } },
@@ -15,6 +26,7 @@ export async function message(
   authorUserId: number | null = null,
   issueId: number | null = null,
   recipient: 'customer' | 'staff' | 'both' = 'both',
+  notification?: NotificationType,
 ) {
   const saved = await db.orderChatMessage.create({
     data: { orderId, text, authorType, authorUserId, issueId, recipient },
@@ -26,6 +38,10 @@ export async function message(
       ...(recipient !== 'customer' ? { staffUnread: { increment: 1 } } : {}),
     },
   });
+  const type = notification ?? (authorType === 'SELLER' || authorType === 'ADMIN' ? 'CHAT_MESSAGE' : undefined);
+  if (type && (notification || recipient !== 'staff')) await telegramEvent(db, {
+    orderId, type, messageId: saved.id, dedupeKey: `message:${saved.id}`,
+  });
   return saved;
 }
 
@@ -34,7 +50,7 @@ export async function actionNotification(
   issue: { id: number; orderId: number; version: number },
 ) {
   await db.orderNotification.upsert({
-    where: { dedupeKey: `issue:${issue.id}:${issue.version}` },
+    where: { channel_dedupeKey: { channel: 'SMS', dedupeKey: `issue:${issue.id}:${issue.version}` } },
     create: {
       orderId: issue.orderId,
       issueId: issue.id,
@@ -43,6 +59,10 @@ export async function actionNotification(
       dedupeKey: `issue:${issue.id}:${issue.version}`,
     },
     update: {},
+  });
+  await telegramEvent(db, {
+    orderId: issue.orderId, issueId: issue.id, issueVersion: issue.version,
+    type: 'ACTION_REQUIRED', dedupeKey: `issue:${issue.id}:${issue.version}`,
   });
 }
 

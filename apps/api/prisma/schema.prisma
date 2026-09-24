@@ -234,15 +234,16 @@ model Order {
   guestSessionId String?
   guestSession   GuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
 
-  items                 OrderItem[]
-  issues                OrderIssue[]
-  messages              OrderChatMessage[]
-  notifications         OrderNotification[]
-  staffAudits           OrderStaffAudit[]
-  customerReadMessageId Int                 @default(0)
-  staffReadMessageId    Int                 @default(0)
-  customerUnread        Int                 @default(0)
-  staffUnread           Int                 @default(0)
+  items                    OrderItem[]
+  issues                   OrderIssue[]
+  messages                 OrderChatMessage[]
+  notifications            OrderNotification[]
+  customerTelegramSessions CustomerTelegramSession[]
+  staffAudits              OrderStaffAudit[]
+  customerReadMessageId    Int                       @default(0)
+  staffReadMessageId       Int                       @default(0)
+  customerUnread           Int                       @default(0)
+  staffUnread              Int                       @default(0)
 
   delivery        Delivery?
   deliveryAttempt DeliveryAttempt?
@@ -525,17 +526,18 @@ enum MessageAuthor {
 }
 
 model OrderChatMessage {
-  id           Int           @id @default(autoincrement())
-  orderId      Int
-  order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  issueId      Int?
-  issue        OrderIssue?   @relation(fields: [issueId], references: [id], onDelete: SetNull)
-  authorType   MessageAuthor
-  recipient    String        @default("both")
-  authorUserId Int?
-  authorUser   User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
-  text         String        @db.VarChar(2000)
-  createdAt    DateTime      @default(now())
+  notifications OrderNotification[]
+  id            Int                 @id @default(autoincrement())
+  orderId       Int
+  order         Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  issueId       Int?
+  issue         OrderIssue?         @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  authorType    MessageAuthor
+  recipient     String              @default("both")
+  authorUserId  Int?
+  authorUser    User?               @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  text          String              @db.VarChar(2000)
+  createdAt     DateTime            @default(now())
 
   @@index([orderId, id])
 }
@@ -543,6 +545,18 @@ model OrderChatMessage {
 enum NotificationType {
   ACTION_REQUIRED
   PAYMENT_READY
+  ORDER_CONFIRMED
+  ASSEMBLY_STARTED
+  PAYMENT_RECEIVED
+  DELIVERY_CHANGED
+  ORDER_COMPLETED
+  ORDER_CANCELED
+  CHAT_MESSAGE
+}
+
+enum NotificationChannel {
+  SMS
+  TELEGRAM
 }
 
 enum NotificationStatus {
@@ -555,39 +569,62 @@ enum NotificationStatus {
 }
 
 model OrderNotification {
-  id           Int                @id @default(autoincrement())
+  channel      NotificationChannel @default(SMS)
+  messageId    Int?
+  message      OrderChatMessage?   @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  id           Int                 @id @default(autoincrement())
   orderId      Int
-  order        Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order        Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   issueId      Int?
-  issue        OrderIssue?        @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  issue        OrderIssue?         @relation(fields: [issueId], references: [id], onDelete: SetNull)
   issueVersion Int?
   type         NotificationType
-  status       NotificationStatus @default(PENDING)
-  dedupeKey    String             @unique
-  attempts     Int                @default(0)
+  status       NotificationStatus  @default(PENDING)
+  dedupeKey    String
+  attempts     Int                 @default(0)
   error        String?
   sentAt       DateTime?
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
+  @@unique([channel, dedupeKey])
   @@index([orderId, status])
+  @@index([channel, status, id])
 }
 
 model TelegramIdentity {
-  id                   Int       @id @default(autoincrement())
-  telegramUserId       BigInt    @unique
+  customerSession      CustomerTelegramSession?
+  id                   Int                      @id @default(autoincrement())
+  telegramUserId       BigInt                   @unique
   username             String?
   firstName            String?
   lastName             String?
   photoUrl             String?
   phoneNumber          String?
-  phoneVerified        Boolean   @default(false)
+  phoneVerified        Boolean                  @default(false)
   customerBotStartedAt DateTime?
   customerBotBlockedAt DateTime?
-  userId               Int       @unique
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  userId               Int                      @unique
+  user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+}
+
+model CustomerTelegramSession {
+  id              String           @id @default(uuid()) @db.Uuid
+  identityId      Int              @unique
+  identity        TelegramIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  orderId         Int
+  order           Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  action          String           @db.VarChar(16)
+  step            String           @db.VarChar(16)
+  promptMessageId Int?
+  expiresAt       DateTime
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([expiresAt])
+  @@index([orderId])
 }
 
 // Short-lived consumed authentication proofs; never store raw Telegram payloads.

@@ -17,6 +17,7 @@ import {
 } from '../order/pricing.js';
 import { checkIssues, syncIssue, issueSummary } from '../order/coordination.js';
 import { cancelOrder, restoreOrder, restoreProblem, cancellationHistory } from '../order/cancel.js';
+import { telegramEvent } from '../order/outbox.js';
 import { NotificationService } from '../order/notification.service.js';
 import { paymentSelect, requirePaid } from '../order/payment.js';
 import { message } from '../order/coordination.js';
@@ -349,6 +350,7 @@ export class StaffService {
       });
 
       await db.orderNotification.create({ data: { orderId: id, type: 'PAYMENT_READY', dedupeKey: `payment:${payment.id}:${payment.updatedAt.toISOString()}` } });
+      await telegramEvent(db, { orderId: id, type: 'PAYMENT_READY', dedupeKey: `payment:${payment.id}:${payment.updatedAt.toISOString()}` });
       const saved = await db.order.update({
         where: { id },
 
@@ -371,7 +373,7 @@ export class StaffService {
   }
 
   async reopen(id: number, actor?: StaffActor) {
-    return this.db.$transaction(async (db) => {
+    const result = await this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, id);
       if (
         order.status !== 'READY' ||
@@ -396,14 +398,18 @@ export class StaffService {
           finalTotal: null,
         },
       });
+      await db.orderNotification.updateMany({ where: { orderId: id, channel: 'TELEGRAM', type: 'PAYMENT_READY', status: 'PENDING' }, data: { status: 'CANCELED' } });
+      await message(db, id, 'Заказ возвращён к сборке.', 'SYSTEM', actor?.userId ?? null, null, 'customer', 'ASSEMBLY_STARTED');
       await recordStaffAudit(db, id, actor, 'REOPEN');
       return saved;
     });
+    await this.notifications.dispatch(id);
+    return result;
   }
 
   async confirmPayment(id: number, userId: number, type?: OrderType, actor?: StaffActor) {
     assertStaffActor(actor, userId);
-    return this.db.$transaction(async (db) => {
+    const result = await this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, id);
       if (type && order.type !== type) throw new ConflictException('Неверный способ получения заказа');
       if (order.payment?.status === 'PAID') return order.payment;
@@ -425,10 +431,12 @@ export class StaffService {
         },
         select: paymentSelect,
       });
-      await message(db, id, order.type === 'DELIVERY' ? 'Оплата получена. Оформляем доставку.' : 'Оплата получена.', 'SYSTEM', userId, null, 'customer');
+      await message(db, id, order.type === 'DELIVERY' ? 'Оплата получена. Оформляем доставку.' : 'Оплата получена.', 'SYSTEM', userId, null, 'customer', 'PAYMENT_RECEIVED');
       await recordStaffAudit(db, id, actor, 'PAYMENT_CONFIRM');
       return payment;
     });
+    await this.notifications.dispatch(id);
+    return result;
   }
 
   async extra(orderId: number, userId: number, data: ExtraInput | null, id?: number, version?: number, actor?: StaffActor) {
@@ -463,12 +471,14 @@ export class StaffService {
 
   async cancel(id: number, userId: number | null = null, role: UserRole = 'SELLER', reason?: string, actor?: StaffActor) {
     assertStaffActor(actor, userId, role);
-    return this.db.$transaction(async db => {
+    const result = await this.db.$transaction(async db => {
       const order = await this.lockedOrder(db, id);
       const saved = await cancelOrder(db, id, userId, role, reason);
       if (order.status !== 'CANCELED') await recordStaffAudit(db, id, actor, 'CANCEL');
       return saved;
     });
+    await this.notifications.dispatch(id);
+    return result;
   }
 
   async restore(id: number, userId: number, role: UserRole, cancellationId: number, actor?: StaffActor) {
@@ -484,7 +494,7 @@ export class StaffService {
   }
 
   async delivery(id: number, data: DeliveryInput, actor?: StaffActor) {
-    return this.db.$transaction(async (db) => {
+    const result = await this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, id);
       requirePaid(order);
 
@@ -564,13 +574,16 @@ export class StaffService {
         where: { id },
         data: totals,
       });
+      await message(db, id, 'Доставка оформлена. Данные доступны в заказе.', 'SYSTEM', actor?.userId ?? null, null, 'customer', 'DELIVERY_CHANGED');
       await recordStaffAudit(db, id, actor, 'DELIVERY_UPDATE', 'DELIVERY', delivery.id);
       return delivery;
     });
+    await this.notifications.dispatch(id);
+    return result;
   }
 
   async handoff(id: number, actor?: StaffActor) {
-    return this.db.$transaction(async (db) => {
+    const result = await this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, id);
       requirePaid(order);
 
@@ -608,16 +621,19 @@ export class StaffService {
           ...totals,
         },
       });
+      await message(db, id, 'Заказ передан курьеру.', 'SYSTEM', actor?.userId ?? null, null, 'customer', 'DELIVERY_CHANGED');
       await recordStaffAudit(db, id, actor, 'DELIVERY_HANDOFF', 'DELIVERY', delivery.id);
       return {
         order: updatedOrder,
         delivery,
       };
     });
+    await this.notifications.dispatch(id);
+    return result;
   }
 
   async completeDelivery(id: number, actor?: StaffActor) {
-    return this.db.$transaction(async (db) => {
+    const result = await this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, id);
 
       if (order.type !== 'DELIVERY' || order.status !== 'DELIVERING') {
@@ -649,12 +665,15 @@ export class StaffService {
           status: 'COMPLETED',
         },
       });
+      await message(db, id, 'Заказ доставлен. Спасибо за покупку!', 'SYSTEM', actor?.userId ?? null, null, 'customer', 'ORDER_COMPLETED');
       await recordStaffAudit(db, id, actor, 'DELIVERY_COMPLETE', 'DELIVERY', delivery.id);
       return {
         order: updatedOrder,
         delivery,
       };
     });
+    await this.notifications.dispatch(id);
+    return result;
   }
 
   private async transition(
@@ -664,7 +683,7 @@ export class StaffService {
     type?: OrderType,
     actor?: StaffActor,
   ) {
-    return this.db.$transaction(async (db) => {
+    const result = await this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, id);
 
       if (current === 'NEW' && next === 'CONFIRMED' && order.status === 'CONFIRMED') return order;
@@ -678,10 +697,14 @@ export class StaffService {
         where: { id },
         data: { status: next },
       });
+      await message(db, id, next === 'CONFIRMED' ? 'Заказ подтверждён.' : next === 'ASSEMBLING' ? 'Началась сборка заказа.' : 'Заказ выдан. Спасибо за покупку!',
+        'SYSTEM', actor?.userId ?? null, null, 'customer', next === 'CONFIRMED' ? 'ORDER_CONFIRMED' : next === 'ASSEMBLING' ? 'ASSEMBLY_STARTED' : 'ORDER_COMPLETED');
       await recordStaffAudit(db, id, actor, next === 'CONFIRMED' ? 'CONFIRM' :
         next === 'ASSEMBLING' ? 'START_ASSEMBLY' : 'PICKUP_COMPLETE');
       return saved;
     });
+    await this.notifications.dispatch(id);
+    return result;
   }
 
   private async lockedOrder(db: Prisma.TransactionClient, id: number) {

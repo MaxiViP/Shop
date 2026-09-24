@@ -10,9 +10,10 @@ import type { z } from 'zod';
 import { DbService } from '../db/db.service.js';
 import { OrderService } from './order.service.js';
 import { NotificationService } from './notification.service.js';
-import { actionNotification, message } from './coordination.js';
+import { actionNotification, message, customerIssueActions } from './coordination.js';
 import { cancelOrder } from './cancel.js';
 import { goodsLine } from './pricing.js';
+import { chatSchema } from './coordination.schema.js';
 import type {
   cursorSchema,
   decisionSchema,
@@ -103,6 +104,7 @@ export class CoordinationService {
       const order = await db.order.findUniqueOrThrow({
         where: { id },
         select: {
+          status: true, assemblyFinalizedAt: true, payment: { select: { status: true } },
           customerUnread: true,
           staffUnread: true,
           customerReadMessageId: true,
@@ -112,7 +114,7 @@ export class CoordinationService {
       const events =
         'orderId' in actor
           ? await db.orderNotification.findMany({
-              where: { orderId: id },
+              where: { orderId: id, channel: 'SMS' },
               orderBy: { id: 'desc' },
               take: 20,
               select: {
@@ -127,7 +129,8 @@ export class CoordinationService {
             })
           : [];
       return {
-        issues,
+        issues: issues.map(issue => ({ ...issue, actions: order.status === 'ASSEMBLING' &&
+          !order.assemblyFinalizedAt && !['PAID', 'REPORTED'].includes(order.payment?.status ?? '') ? customerIssueActions(issue) : [] })),
         responseMinutes: settings.customerResponseMinutes,
         unread: 'orderId' in actor ? order.staffUnread : order.customerUnread,
         readThrough:
@@ -159,7 +162,7 @@ export class CoordinationService {
       )
         return issue;
       await this.assembling(db, id);
-      if (issue.status !== 'WAITING_CUSTOMER') throw stale();
+      if (!customerIssueActions(issue).includes(data.action)) throw stale();
       if (data.action === 'CANCEL_ORDER') {
         await cancelOrder(db, id, actor.userId, 'USER');
         return db.orderIssue.findUniqueOrThrow({ where: { id: issue.id } });
@@ -242,6 +245,7 @@ export class CoordinationService {
       });
       return updated;
     });
+    await this.notifications.dispatch(result.orderId);
     return result;
   }
 
@@ -344,8 +348,32 @@ export class CoordinationService {
     });
   }
 
-  post(actor: OrderActor, text: string) {
+  // A reservation ID prevents delayed prompt delivery from reviving a canceled flow.
+  reserveReply(actor: Extract<OrderActor, { publicId: string }>, identityId: number) {
     return this.locked(actor, async (db, id) => {
+      if (!actor.userId) throw new NotFoundException('Заказ не найден');
+      const rows = await db.$queryRaw<{ id: number }[]>`SELECT id FROM "TelegramIdentity" WHERE id = ${identityId} AND "userId" = ${actor.userId} FOR UPDATE`;
+      if (!rows.length) throw new NotFoundException('Аккаунт недоступен');
+      await db.customerTelegramSession.deleteMany({ where: { identityId } });
+      return db.customerTelegramSession.create({ data: {
+        identityId, orderId: id, action: 'CHAT', step: 'PROMPT',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      } });
+    });
+  }
+
+  async post(actor: OrderActor, text: string, reply?: { sessionId: string; identityId: number; promptMessageId: number }) {
+    text = chatSchema.parse({ text }).text;
+    const saved = await this.locked(actor, async (db, id) => {
+      if (reply) {
+        if ('orderId' in actor || !actor.userId) throw new NotFoundException('Ответ недоступен');
+        const claimed = await db.customerTelegramSession.deleteMany({ where: {
+          id: reply.sessionId, identityId: reply.identityId, identity: { userId: actor.userId },
+          orderId: id, action: 'CHAT', step: 'TEXT', promptMessageId: reply.promptMessageId,
+          expiresAt: { gt: new Date() },
+        } });
+        if (claimed.count !== 1) throw new ConflictException('Ожидание ответа завершено');
+      }
       const staff = 'orderId' in actor;
       const recent = await db.orderChatMessage.count({
         where: {
@@ -369,6 +397,8 @@ export class CoordinationService {
         staff ? 'customer' : 'staff',
       );
     });
+    if ('orderId' in actor) await this.notifications.dispatch(saved.orderId);
+    return saved;
   }
 
   read(actor: OrderActor, through: number) {
@@ -412,7 +442,7 @@ export class CoordinationService {
       });
       if (!issue) throw stale();
       const event = await db.orderNotification.findUnique({
-        where: { dedupeKey: `issue:${issue.id}:${issue.version}` },
+        where: { channel_dedupeKey: { channel: 'SMS', dedupeKey: `issue:${issue.id}:${issue.version}` } },
       });
       if (!event || event.status === 'SENDING')
         throw new ConflictException(

@@ -1,177 +1,231 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { DbService } from '../db/db.service.js';
-import type { OrderStatus } from '../db/gen/client.js';
-import { botRequest } from './bot-api.js';
+import { CoordinationService } from '../order/coordination.service.js';
+import { OrderService } from '../order/order.service.js';
+import { chatSchema } from '../order/coordination.schema.js';
+import { botMessage, botRequest, botSendMessageId } from './bot-api.js';
 import { customerBotToken } from './bot-config.js';
-import { customerAction, customerUpdate } from './customer-callback.js';
+import { customerAction, customerUpdate, customerView, type CustomerAction } from './customer-callback.js';
+import {
+  activeStatuses, amount, date, displayId, issueCard, orderCard, orderStatus, short, siteUrl,
+  type Button, type Screen,
+} from './customer-view.js';
 
-type Button = { text: string; callback_data: string } | { text: string; url: string };
-type Keyboard = { inline_keyboard: Button[][] };
-type Identity = { userId: number; firstName: string | null; user: { name: string | null } };
-type OrderView = {
-  publicId: string; status: OrderStatus; total: number | null; finalTotal: number | null;
-  createdAt: Date;
-};
-
-const statusText: Record<OrderStatus, string> = {
-  NEW: 'Новый', CONFIRMED: 'Подтверждён', ASSEMBLING: 'Собирается',
-  READY: 'Готов', DELIVERING: 'Доставляется', COMPLETED: 'Завершён',
-  CANCELED: 'Отменён',
-};
-const activeStatuses: OrderStatus[] = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY', 'DELIVERING'];
-const amount = (cents: number | null) =>
-  cents === null ? 'уточняется' : new Intl.NumberFormat('ru-RU', {
-    style: 'currency', currency: 'RUB', maximumFractionDigits: 2,
-  }).format(cents / 100);
-const date = (value: Date) => new Intl.DateTimeFormat('ru-RU', {
-  day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Moscow',
-}).format(value);
+type Identity = { id: number; userId: number; firstName: string | null; user: { name: string | null } };
+type Target = { chatId: number; messageId?: number };
 
 @Injectable()
 export class CustomerUpdateService {
   private readonly logger = new Logger(CustomerUpdateService.name);
-  private readonly token = customerBotToken();
+  constructor(
+    private readonly db: DbService,
+    private readonly coordination: CoordinationService,
+    private readonly orders: OrderService,
+  ) {}
 
-  constructor(private readonly db: DbService) {}
-
-  private siteUrl(path: string): string | undefined {
-    try {
-      const origin = new URL(process.env.ORDER_SITE_URL ?? '');
-      if (origin.protocol !== 'https:' || origin.username || origin.password || origin.search || origin.hash)
-        return undefined;
-      return new URL(path, origin).href;
-    } catch {
-      return undefined;
-    }
+  private async show(target: Target, screen: Screen) {
+    const ok = await botMessage(customerBotToken(), target.messageId ? 'editMessageText' : 'sendMessage', {
+      chat_id: target.chatId, ...(target.messageId ? { message_id: target.messageId } : {}),
+      text: screen.text, reply_markup: screen.keyboard, link_preview_options: { is_disabled: true },
+    });
+    if (!ok) this.logger.warn('Customer Telegram display failed');
+    return ok;
   }
-
-  private menu(): Keyboard {
-    const rows: Button[][] = [
-      [{ text: 'Мои заказы', callback_data: 'orders' }],
-      [{ text: 'Текущий заказ', callback_data: 'current' }],
+  private async answer(id: string, text: string) {
+    if (!await botRequest(customerBotToken(), 'answerCallbackQuery', {
+      callback_query_id: id, text, cache_time: 0,
+    }, 3000)) this.logger.warn('Customer Telegram answer failed');
+  }
+  private async menu(target: Target, identity: Identity) {
+    const attention = await this.db.order.findFirst({
+      where: { userId: identity.userId, OR: [
+        { customerUnread: { gt: 0 } },
+        { issues: { some: { status: 'WAITING_CUSTOMER' } } },
+      ] }, select: { id: true },
+    });
+    const profile = siteUrl('/profile'), shop = siteUrl('/');
+    const links: Button[] = [
+      ...(profile ? [{ text: 'Профиль', url: profile }] : []),
+      ...(shop ? [{ text: 'Открыть магазин', url: shop }] : []),
     ];
-    const links: Button[] = [];
-    const profile = this.siteUrl('/profile');
-    const store = this.siteUrl('/');
-    if (profile) links.push({ text: 'Профиль', url: profile });
-    if (store) links.push({ text: 'Магазин', url: store });
-    if (links.length) rows.push(links);
-    return { inline_keyboard: rows };
-  }
-
-  private async send(chatId: number, text: string, keyboard?: Keyboard): Promise<void> {
-    const ok = await botRequest(this.token, 'sendMessage', {
-      chat_id: chatId, text,
-      link_preview_options: { is_disabled: true },
-      ...(keyboard ? { reply_markup: keyboard } : {}),
-    });
-    if (!ok) this.logger.warn('Customer Telegram send failed');
-  }
-
-  private async answer(id: string, text: string): Promise<void> {
-    const ok = await botRequest(this.token, 'answerCallbackQuery',
-      { callback_query_id: id, text, cache_time: 0 }, 3000);
-    if (!ok) this.logger.warn('Customer Telegram callback answer failed');
-  }
-
-  private async identity(telegramUserId: number): Promise<Identity | null> {
-    return this.db.telegramIdentity.findUnique({
-      where: { telegramUserId: BigInt(telegramUserId) },
-      select: { userId: true, firstName: true, user: { select: { name: true } } },
+    return this.show(target, {
+      text: 'Привет, ' + short(identity.user.name || identity.firstName || 'покупатель', 80) +
+        '!\nВы вошли в KorzinaMarket через Telegram.\nЗдесь можно следить за заказом, отвечать на вопросы и писать продавцу.',
+      keyboard: { inline_keyboard: [
+        [{ text: '🛒 Текущий заказ', callback_data: 'current' }],
+        [{ text: '📦 Мои заказы', callback_data: 'orders' }],
+        ...(attention ? [[{ text: '💬 Сообщения / Вопросы', callback_data: 'attention' }]] : []),
+        ...(links.length ? [links] : []),
+      ] },
     });
   }
-
-  private orderLine(order: OrderView): string {
-    return '#' + order.publicId.slice(0, 8) + ' · ' + statusText[order.status] +
-      ' · ' + amount(order.finalTotal ?? order.total) + ' · ' + date(order.createdAt);
-  }
-
-  private async orders(chatId: number, userId: number): Promise<void> {
-    const orders = await this.db.order.findMany({
-      where: { userId }, orderBy: { createdAt: 'desc' }, take: 5,
-      select: { publicId: true, status: true, total: true, finalTotal: true, createdAt: true },
+  private async list(target: Target, identity: Identity, page = 0, attention = false) {
+    const rows = await this.db.order.findMany({
+      where: { userId: identity.userId, ...(attention ? { OR: [
+        { customerUnread: { gt: 0 } }, { issues: { some: { status: 'WAITING_CUSTOMER' as const } } },
+      ] } : {}) },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: page * 5, take: 6,
+      select: {
+        publicId: true, status: true, total: true, finalTotal: true, createdAt: true,
+        customerUnread: true, issues: { where: { status: 'WAITING_CUSTOMER' }, select: { id: true } },
+      },
     });
-    if (!orders.length) {
-      await this.send(chatId, 'У вас пока нет заказов.', this.menu());
-      return;
+    const visible = rows.slice(0, 5);
+    const buttons: Button[][] = visible.map(order => [{
+      text: '#' + displayId(order.publicId) + (order.issues.length ? ' · Требуется решение' :
+        order.customerUnread ? ' · Есть сообщения' : ' · ' + orderStatus[order.status]),
+      callback_data: customerView(attention ? order.issues.length ? 'q' : 'm' : 'o', order.publicId),
+    }]);
+    if (!attention) buttons.push([
+      ...(page ? [{ text: '← Новее', callback_data: 'c:l:' + (page - 1).toString(36) }] : []),
+      ...(rows.length > 5 && page < 10000 ? [{ text: 'Ранее →', callback_data: 'c:l:' + (page + 1).toString(36) }] : []),
+    ].filter(Boolean));
+    buttons.push([{ text: 'Меню', callback_data: 'menu' }]);
+    return this.show(target, {
+      text: (attention ? 'Сообщения и вопросы по заказам' : 'Ваши заказы') + '\n\n' +
+        (visible.map(order => '#' + displayId(order.publicId) + ' · ' + orderStatus[order.status] + '\n' +
+          amount(order.finalTotal ?? order.total) + ' · ' + date(order.createdAt)).join('\n\n') ||
+          (attention ? 'Новых вопросов и сообщений нет.' : 'Здесь пока нет заказов.')),
+      keyboard: { inline_keyboard: buttons.filter(row => row.length) },
+    });
+  }
+  private async card(target: Target, identity: Identity, publicId: string, page = 0, issue = false) {
+    const order = await this.orders.get(publicId, identity.userId);
+    const coordination = await this.coordination.view({ publicId, userId: identity.userId });
+    return this.show(target, issue ? issueCard(publicId, coordination.issues, page) : orderCard(order, coordination.issues, page));
+  }
+  private async messages(target: Target, identity: Identity, publicId: string, before = 0) {
+    const actor = { publicId, userId: identity.userId };
+    // One complete domain message fits even at the 2,000-character chat limit.
+    const result = await this.coordination.messages(actor, { limit: 1, ...(before ? { before } : {}) });
+    const last = result.messages[0];
+    const authors = { CUSTOMER: 'Вы', SELLER: 'Продавец', ADMIN: 'Продавец', SYSTEM: 'Заказ' };
+    const ok = await this.show(target, {
+      text: 'Заказ #' + displayId(publicId) + ' · Сообщения\n\n' +
+        (last ? authors[last.authorType] + ' · ' + date(last.createdAt) + '\n' + last.text : 'Сообщений пока нет.'),
+      keyboard: { inline_keyboard: [
+        ...(last && result.hasMore ? [[{ text: '← Предыдущее', callback_data: customerView('m', publicId, last.id) }]] : []),
+        [{ text: 'Последнее / Обновить', callback_data: customerView('m', publicId) }],
+        [{ text: 'Написать продавцу', callback_data: customerView('w', publicId) }],
+        [{ text: '← К заказу', callback_data: customerView('o', publicId) }],
+      ] },
+    });
+    if (ok && last) await this.coordination.read(actor, last.id);
+  }
+  private async prompt(target: Target, identity: Identity, publicId: string) {
+    const session = await this.coordination.reserveReply({ publicId, userId: identity.userId }, identity.id);
+    const promptMessageId = await botSendMessageId(customerBotToken(), {
+      chat_id: target.chatId,
+      text: 'Сообщение продавцу по заказу #' + displayId(publicId) +
+        '.\nОтветьте именно на это сообщение (до 2000 символов).\nОтмена: /cancel. Ответ принимается в течение 10 минут.',
+      reply_markup: { force_reply: true, selective: true, input_field_placeholder: 'Ваше сообщение продавцу' },
+    });
+    if (!promptMessageId) {
+      await this.db.customerTelegramSession.deleteMany({ where: { id: session.id } });
+      return this.show(target, { text: 'Не удалось открыть ввод сообщения. Попробуйте позже.',
+        keyboard: { inline_keyboard: [[{ text: '← К заказу', callback_data: customerView('o', publicId) }]] } });
     }
-    const rows: Button[][] = orders.map(order => {
-      const row: Button[] = [{
-        text: 'Заказ #' + order.publicId.slice(0, 8),
-        callback_data: 'order:' + order.publicId,
-      }];
-      const url = this.siteUrl('/order/' + order.publicId);
-      if (url) row.push({ text: 'Открыть заказ', url });
-      return row;
+    await this.db.customerTelegramSession.updateMany({
+      where: { id: session.id, identityId: identity.id, step: 'PROMPT', expiresAt: { gt: new Date() } },
+      data: { step: 'TEXT', promptMessageId },
     });
-    rows.push([{ text: 'Меню', callback_data: 'menu' }]);
-    await this.send(chatId, 'Последние заказы:\n' + orders.map(order => this.orderLine(order)).join('\n'),
-      { inline_keyboard: rows });
+  }
+  private async cancel(identity: Identity) {
+    await this.db.$transaction(async db => {
+      await db.$queryRaw`SELECT id FROM "TelegramIdentity" WHERE id = ${identity.id} FOR UPDATE`;
+      await db.customerTelegramSession.deleteMany({ where: { identityId: identity.id } });
+    });
+  }
+  private async reply(target: Target, identity: Identity, text: string, promptMessageId?: number) {
+    const session = await this.db.customerTelegramSession.findUnique({
+      where: { identityId: identity.id }, include: { order: { select: { publicId: true, userId: true } } },
+    });
+    const notice = (message: string) => this.show(target, { text: message,
+      keyboard: { inline_keyboard: [[{ text: '📦 Мои заказы', callback_data: 'orders' }]] } });
+    if (!session || session.expiresAt <= new Date()) {
+      if (session) await this.db.customerTelegramSession.deleteMany({ where: { id: session.id } });
+      return notice('Сейчас нет открытого ввода сообщения. Откройте заказ и нажмите «Написать продавцу».');
+    }
+    if (session.order.userId !== identity.userId || !promptMessageId ||
+      session.promptMessageId !== promptMessageId || session.step !== 'TEXT')
+      return notice('Ответьте на последнее приглашение «Сообщение продавцу» для нужного заказа.');
+    const parsed = chatSchema.safeParse({ text });
+    if (!parsed.success) return notice('Сообщение должно содержать от 1 до 2000 символов. /cancel — отмена.');
+    await this.coordination.post({ publicId: session.order.publicId, userId: identity.userId }, parsed.data.text, {
+      sessionId: session.id, identityId: identity.id, promptMessageId,
+    });
+    await this.messages(target, identity, session.order.publicId);
   }
 
-  private async order(chatId: number, userId: number, publicId?: string): Promise<boolean> {
-    const where = publicId ? { userId, publicId } : { userId, status: { in: activeStatuses } };
-    const order = await this.db.order.findFirst({
-      where, orderBy: { createdAt: 'desc' },
-      select: { publicId: true, status: true, total: true, finalTotal: true, createdAt: true },
-    });
-    if (!order) return false;
-    const rows: Button[][] = [];
-    const url = this.siteUrl('/order/' + order.publicId);
-    if (url) rows.push([{ text: 'Открыть заказ', url }]);
-    rows.push([{ text: 'Мои заказы', callback_data: 'orders' }]);
-    await this.send(chatId, 'Заказ ' + this.orderLine(order), { inline_keyboard: rows });
-    return true;
+  private async action(target: Target, identity: Identity, action: CustomerAction) {
+    switch (action.kind) {
+      case 'menu': return this.menu(target, identity);
+      case 'orders': return this.list(target, identity, action.page);
+      case 'attention': return this.list(target, identity, 0, true);
+      case 'cancel':
+        await this.cancel(identity);
+        return this.show(target, { text: 'Ввод сообщения отменён.', keyboard: { inline_keyboard: [[{ text: 'Меню', callback_data: 'menu' }]] } });
+      case 'current': {
+        const order = await this.db.order.findFirst({
+          where: { userId: identity.userId, status: { in: activeStatuses } },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { publicId: true },
+        });
+        return order ? this.card(target, identity, order.publicId) :
+          this.show(target, { text: 'У вас пока нет текущих заказов.', keyboard: { inline_keyboard: [[{ text: 'Меню', callback_data: 'menu' }]] } });
+      }
+      case 'o': return this.card(target, identity, action.publicId, action.page);
+      case 'q': return this.card(target, identity, action.publicId, action.page, true);
+      case 'm': return this.messages(target, identity, action.publicId, action.page);
+      case 'w': return this.prompt(target, identity, action.publicId);
+      case 'd':
+        await this.coordination.decide({ publicId: action.publicId, userId: identity.userId }, action.issueId, {
+          version: action.version, action: action.action,
+        });
+        return this.card(target, identity, action.publicId);
+    }
   }
 
-  async handle(body: unknown): Promise<void> {
+  async handle(body: unknown) {
     const parsed = customerUpdate.safeParse(body);
     if (!parsed.success) return;
     const { message, callback_query: callback } = parsed.data;
-    const actor = callback?.from ?? message?.from;
+    const sender = callback?.from ?? message?.from;
     const chat = callback?.message?.chat ?? message?.chat;
-    // Customer operations are private-chat only, bound to the verified update sender.
-    if (!actor || !chat || chat.type !== 'private' || chat.id !== actor.id) return;
-    const action = callback ? customerAction(callback.data) :
-      message?.text?.split(' ')[0];
-    if (!action || (typeof action === 'string' &&
-      !['/start', '/menu', '/orders', 'menu', 'orders', 'current'].includes(action))) {
-      if (callback) await this.answer(callback.id, 'Некорректная кнопка');
-      return;
-    }
+    if (!sender || !chat || chat.type !== 'private' || chat.id !== sender.id) return;
+    const target: Target = { chatId: chat.id, ...(callback?.message ? { messageId: callback.message.message_id } : {}) };
     let ack = 'Готово';
     try {
-      const identity = await this.identity(actor.id);
+      const command = message?.text?.trim().split(/\s+/)[0];
+      const action = callback ? customerAction(callback.data ?? '') :
+        command === '/start' || command === '/menu' ? { kind: 'menu' as const } :
+        command === '/orders' ? { kind: 'orders' as const, page: 0 } :
+        command === '/cancel' ? { kind: 'cancel' as const } : null;
+      if (callback && !action) { ack = 'Некорректная кнопка'; return; }
+      const identity = await this.db.telegramIdentity.findUnique({
+        where: { telegramUserId: BigInt(sender.id) },
+        select: { id: true, userId: true, firstName: true, user: { select: { name: true } } },
+      });
       if (!identity) {
-        const store = this.siteUrl('/');
-        await this.send(chat.id,
-          'Чтобы пользоваться ботом, войдите через Telegram на сайте KorzinaMarket.',
-          store ? { inline_keyboard: [[{ text: 'Открыть магазин', url: store }]] } : undefined);
-        ack = 'Сначала войдите через Telegram на сайте';
-      } else if (action === '/start') {
-        await this.db.telegramIdentity.update({
-          where: { telegramUserId: BigInt(actor.id) },
-          data: { customerBotStartedAt: new Date(), customerBotBlockedAt: null },
-        });
-        const name = (identity.user.name || identity.firstName || 'покупатель').slice(0, 80);
-        await this.send(chat.id, 'Привет, ' + name + '!\nВы вошли в KorzinaMarket через Telegram.', this.menu());
-      } else if (action === '/menu' || action === 'menu') {
-        const name = (identity.user.name || identity.firstName || 'покупатель').slice(0, 80);
-        await this.send(chat.id, 'Привет, ' + name + '!\nВы вошли в KorzinaMarket через Telegram.', this.menu());
-      } else if (action === '/orders' || action === 'orders') {
-        await this.orders(chat.id, identity.userId);
-      } else if (action === 'current') {
-        if (!await this.order(chat.id, identity.userId)) {
-          await this.send(chat.id, 'Текущих заказов нет.', this.menu());
-        }
-      } else if (typeof action === 'object') {
-        if (!await this.order(chat.id, identity.userId, action.publicId)) {
-          ack = 'Заказ недоступен';
-        }
+        const url = siteUrl('/');
+        await this.show(target, { text: 'Чтобы увидеть свои заказы, откройте KorzinaMarket и войдите через Telegram. Затем вернитесь сюда и нажмите /start.',
+          keyboard: { inline_keyboard: url ? [[{ text: 'Открыть магазин', url }]] : [] } });
+        return;
       }
-    } catch {
-      this.logger.error('Customer Telegram update failed');
-      ack = 'Не удалось выполнить действие';
+      if (command === '/start') await this.db.telegramIdentity.update({
+        where: { id: identity.id },
+        data: { customerBotStartedAt: new Date(), customerBotBlockedAt: null },
+      });
+      if (action) await this.action(target, identity, action);
+      else if (message?.text && !message.text.startsWith('/'))
+        await this.reply({ chatId: chat.id }, identity, message.text, message.reply_to_message?.message_id);
+    } catch (error) {
+      const status = error instanceof HttpException ? error.getStatus() : 500;
+      ack = status === 404 ? 'Заказ недоступен' :
+        status === 409 ? 'Ситуация по заказу уже изменилась. Обновите заказ.' :
+        status === 429 ? 'Слишком много сообщений. Подождите минуту.' : 'Не удалось выполнить действие';
+      if (status >= 500) this.logger.warn('Customer Telegram update failed');
+      if (!callback) await this.show({ chatId: chat.id }, { text: ack,
+        keyboard: { inline_keyboard: [[{ text: '📦 Мои заказы', callback_data: 'orders' }]] } });
     } finally {
       if (callback) await this.answer(callback.id, ack);
     }

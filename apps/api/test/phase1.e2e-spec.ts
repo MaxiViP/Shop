@@ -625,7 +625,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       await decision(order, issue, 'REMOVE_ITEM').expect(409);
       expect(
         await db.orderNotification.count({
-          where: { orderId: order.id, type: 'PAYMENT_READY' },
+          where: { orderId: order.id, channel: 'SMS', type: 'PAYMENT_READY' },
         }),
       ).toBe(1);
     },
@@ -825,13 +825,13 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     const order = await phase2Order(1200);
     const path = `/staff/orders/${order.id}/items/${order.itemId}`;
     expect(
-      await db.orderNotification.findFirst({ where: { orderId: order.id } }),
+      await db.orderNotification.findFirst({ where: { orderId: order.id, channel: 'SMS' } }),
     ).toMatchObject({ type: 'ACTION_REQUIRED', status: 'UNCONFIGURED' });
     await call(seller)
       .patch(path, { status: 'PICKED', actualQty: 1200 })
       .expect(200);
     expect(
-      await db.orderNotification.count({ where: { orderId: order.id } }),
+      await db.orderNotification.count({ where: { orderId: order.id, channel: 'SMS' } }),
     ).toBe(1);
     sms.available = true;
     vi.stubEnv('ORDER_SMS_ENABLED', 'true');
@@ -843,11 +843,11 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       .patch(path, { status: 'PICKED', actualQty: 1250 })
       .expect(200);
     expect(
-      await db.orderNotification.count({ where: { orderId: order.id } }),
+      await db.orderNotification.count({ where: { orderId: order.id, channel: 'SMS' } }),
     ).toBe(2);
     expect(
       await db.orderNotification.findFirst({
-        where: { orderId: order.id },
+        where: { orderId: order.id, channel: 'SMS' },
         orderBy: { id: 'desc' },
       }),
     ).toMatchObject({ status: 'FAILED', error: 'SMS_SEND_FAILED' });
@@ -981,6 +981,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       const order = await phase2Order(1000, cookie);
       const customer = call(order.cookie);
       const before = (await customer.get('/orders/unread').expect(200)).body.count;
+      const previousOrderUnread = (await customer.get(`/orders/${order.publicId}/coordination`).expect(200)).body.unread;
       const staffBeforeOwn = (await call(seller).get('/staff/orders/unread').expect(200)).body.count;
       const entry = (await call(seller).post(`/staff/orders/${order.id}/messages`, { text: 'Здравствуйте' }).expect(201)).body;
       expect((await call(seller).get('/staff/orders/unread')).body.count).toBe(staffBeforeOwn);
@@ -988,10 +989,10 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       expect(summary.count).toBe(before + 1);
       expect(summary.latestOrderId).toBe(order.publicId);
       await customer.post(`/orders/${order.publicId}/messages/read`, { through: entry.id }).expect(201);
-      expect((await customer.get('/orders/unread')).body.count).toBe(before);
+      expect((await customer.get('/orders/unread')).body.count).toBe(before - previousOrderUnread);
       const staffBefore = (await call(seller).get('/staff/orders/unread')).body.count;
       const reply = (await customer.post(`/orders/${order.publicId}/messages`, { text: 'Спасибо' }).expect(201)).body;
-      expect((await customer.get('/orders/unread')).body.count).toBe(before);
+      expect((await customer.get('/orders/unread')).body.count).toBe(before - previousOrderUnread);
       const staffSummary = (await call(seller).get('/staff/orders/unread').expect(200)).body;
       expect(staffSummary.count).toBe(staffBefore + 1);
       expect(staffSummary.latestOrderId).toBe(order.id);

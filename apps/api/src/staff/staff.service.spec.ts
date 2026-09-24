@@ -87,7 +87,7 @@ function setup(order: LockedOrder) {
     orderStaffAudit: { create: vi.fn().mockResolvedValue({ id: 1 }) },
     orderIssue: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), upsert: vi.fn().mockResolvedValue({ id: 1, orderId: order.id, version: 1 }), updateMany: vi.fn() },
     orderNotification: { create: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
-    orderChatMessage: { create: vi.fn() },
+    orderChatMessage: { create: vi.fn().mockResolvedValue({ id: 1, orderId: order.id }) },
     orderCancellation: { create: vi.fn() },
   };
 
@@ -223,7 +223,7 @@ describe('StaffService', () => {
           update: expect.objectContaining({ price }),
         }),
       );
-      expect(client.order.update).toHaveBeenLastCalledWith({
+      expect(client.order.update).toHaveBeenCalledWith({
         where: { id: 1 },
         data: {
           deliveryPrice: price,

@@ -6,6 +6,7 @@ import type {
   UserRole,
   Prisma,
 } from '../db/gen/client.js';
+import { telegramEvent } from './outbox.js';
 import { message, actionNotification } from './coordination.js';
 
 export const cancellationHistory = {
@@ -168,6 +169,7 @@ export async function cancelOrder(
     userId,
     null,
     role === 'USER' ? 'staff' : 'customer',
+    'ORDER_CANCELED',
   );
   return saved;
 }
@@ -234,7 +236,8 @@ export async function restoreOrder(
     where: { id },
     data: { status: previous.fromStatus },
   });
-  if (previous.fromStatus === 'READY')
+  if (previous.fromStatus === 'READY') {
+    await telegramEvent(db, { orderId: id, type: 'PAYMENT_READY', dedupeKey: `restored:${restored.id}` });
     await db.orderNotification.create({
       data: {
         orderId: id,
@@ -242,6 +245,7 @@ export async function restoreOrder(
         dedupeKey: `restored:${restored.id}`,
       },
     });
+  }
   await message(
     db,
     id,

@@ -7,6 +7,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { message } from '../order/coordination.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { DeliveryStatus, Prisma } from '../db/gen/client.js';
@@ -386,6 +387,8 @@ export class DeliveryService {
           lastError: null,
         },
       });
+      await message(db, orderId, status === 'DELIVERED' ? 'Заказ доставлен.' : 'Статус доставки обновлён.', 'SYSTEM', null, null, 'customer',
+        status === 'DELIVERED' ? 'ORDER_COMPLETED' : 'DELIVERY_CHANGED');
       return { order: updatedOrder, delivery };
     });
   }
@@ -674,6 +677,11 @@ export class DeliveryService {
         },
       });
 
+      if (status !== current.status || price !== current.price || orderStatus !== current.order.status)
+        await message(db, current.order.id, orderStatus === 'COMPLETED' ? 'Заказ доставлен.' :
+          orderStatus === 'CANCELED' ? 'Заказ отменён.' : 'Статус доставки обновлён.', 'SYSTEM', null, null, 'customer',
+          orderStatus === 'COMPLETED' && current.order.status !== 'COMPLETED' ? 'ORDER_COMPLETED' :
+            orderStatus === 'CANCELED' && current.order.status !== 'CANCELED' ? 'ORDER_CANCELED' : 'DELIVERY_CHANGED');
       return { delivery, order, stale: false };
     });
   }
