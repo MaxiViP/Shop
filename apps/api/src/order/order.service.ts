@@ -15,8 +15,8 @@ import {
 import type { OrderInput } from './schema.js';
 import { totalWithDelivery } from './pricing.js';
 import { paymentSelect, paymentDetails } from './payment.js';
-import type { PaymentMethod } from '../db/gen/client.js';
-import { issueSummary } from './coordination.js';
+import type { PaymentMethod, Prisma } from '../db/gen/client.js';
+import { issueSummary, message } from './coordination.js';
 import { checkoutLimits } from './limits.js';
 import {
   cartProductSelect,
@@ -32,9 +32,9 @@ export class OrderService {
     private readonly telegram: TelegramService,
   ) {}
 
-  async quote(data: QuoteInput) {
+  async quote(data: QuoteInput, db: Prisma.TransactionClient = this.db) {
     const quantities = cartQuantities(data.items);
-    const products = await this.db.product.findMany({
+    const products = await db.product.findMany({
       where: { id: { in: [...quantities.keys()] }, active: true },
       select: cartProductSelect,
     });
@@ -46,7 +46,22 @@ export class OrderService {
     guestToken: string | undefined,
     data: OrderInput,
   ) {
-    const quote = await this.quote(data);
+    const result = await this.save(this.db, userId, guestToken, data);
+    this.created(result.order.id);
+    return result;
+  }
+
+  // The caller owns the transaction and MUST call created() only after commit.
+  createIn(db: Prisma.TransactionClient, userId: number, data: OrderInput) {
+    if (!Number.isSafeInteger(userId) || userId <= 0) throw new BadRequestException();
+    return this.save(db, userId, undefined, data);
+  }
+
+  created(orderId: number) { void this.telegram.notifyNewOrder(orderId); }
+
+  private async save(db: Prisma.TransactionClient, userId: number | null,
+    guestToken: string | undefined, data: OrderInput) {
+    const quote = await this.quote(data, db);
     if (data.quoteToken && data.quoteToken !== quote.token)
       throw new ConflictException({
         code: 'CART_CHANGED',
@@ -72,7 +87,7 @@ export class OrderService {
     });
 
     const subtotal = quote.subtotal!;
-    const settings = await this.db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
+    const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
     checkoutLimits(data.type, subtotal, settings);
 
     const deliveryPrice = data.type === 'PICKUP' ? 0 : null;
@@ -90,7 +105,7 @@ export class OrderService {
       newGuestToken = guest.token;
     }
 
-    const order = await this.db.order.create({
+    const order = await db.order.create({
       data: {
         weightToleranceBps: settings.weightToleranceBps,
         type: data.type,
@@ -142,9 +157,6 @@ export class OrderService {
         },
       },
     });
-
-    // Nested order/items write has committed; Telegram failure cannot fail checkout.
-    void this.telegram.notifyNewOrder(order.id);
 
     return {
       order,
@@ -308,6 +320,7 @@ export class OrderService {
         finalTotal: true,
         assemblyFinalizedAt: true,
         weightToleranceBps: true,
+        customerUnread: true,
         payment: { select: paymentSelect },
 
         createdAt: true,
@@ -370,10 +383,17 @@ export class OrderService {
     guestToken: string | undefined,
     method: PaymentMethod,
   ) {
-    return this.db.$transaction(async (db) => {
+    // Resolve/expire guest access before acquiring the Order lock.
+    const access = await this.access(publicId, userId, guestToken);
+    let changedId: number | undefined;
+    const result = await this.db.$transaction(async (db) => {
       await db.$queryRaw`SELECT id FROM "Order" WHERE "publicId" = ${publicId}::uuid FOR UPDATE`;
       // Use the existing owner/guest authorization, while the order is locked.
-      const order = await this.get(publicId, userId, guestToken);
+      const order = await db.order.findFirst({
+        where: access, select: {id:true, status:true, assemblyFinalizedAt:true,
+          finalSubtotal:true, payment:{select:paymentSelect}},
+      });
+      if (!order) throw new NotFoundException('Заказ не найден');
       if (
         order.status === 'CANCELED' ||
         !order.assemblyFinalizedAt ||
@@ -391,12 +411,20 @@ export class OrderService {
         throw new ConflictException('Оплата заказа сейчас недоступна');
       if (!paymentDetails().methods.includes(method))
         throw new BadRequestException('Способ оплаты не настроен');
-      return db.orderPayment.update({
+      const payment = await db.orderPayment.update({
         where: { orderId: order.id },
         data: { status: 'REPORTED', method, reportedAt: new Date() },
         select: paymentSelect,
       });
+      const methods = { SBP: 'СБП', CARD_TRANSFER: 'перевод на карту', QR: 'QR' };
+      await message(db, order.id, 'Покупатель сообщил об оплате через ' + methods[method] +
+        '. Проверьте поступление денег.', 'SYSTEM', userId, null, 'staff');
+      changedId = order.id;
+      return payment;
     });
+    // Only the first committed report signals staff; never retry on display failure.
+    if (changedId !== undefined) void this.telegram.notifyPaymentReported(changedId);
+    return result;
   }
 
   private async findGuest(token?: string) {

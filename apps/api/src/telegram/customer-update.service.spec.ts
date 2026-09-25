@@ -3,6 +3,8 @@ import { ConflictException, Logger, NotFoundException } from '@nestjs/common';
 import type { DbService } from '../db/db.service.js';
 import type { CoordinationService } from '../order/coordination.service.js';
 import type { OrderService } from '../order/order.service.js';
+import type { CustomerShopService } from './customer-shop.service.js';
+import type { CustomerCheckoutService } from './customer-checkout.service.js';
 import { CustomerUpdateService } from './customer-update.service.js';
 import { customerDecision, customerView } from './customer-callback.js';
 
@@ -49,9 +51,12 @@ function setup(linked = true) {
     messages: vi.fn().mockResolvedValue({ messages: [], hasMore: false }), read: vi.fn().mockResolvedValue({ unread: 0 }),
     post: vi.fn().mockResolvedValue({ id: 80 }), reserveReply: vi.fn().mockResolvedValue({ id: 'reservation' }),
   };
+  const shop = {handle: vi.fn(), present: vi.fn()};
+  const checkout = {resume: vi.fn().mockResolvedValue(null)};
   const service = new CustomerUpdateService(db as unknown as DbService,
-    coordination as unknown as CoordinationService, orders as unknown as OrderService);
-  return { db, service, coordination, orders };
+    coordination as unknown as CoordinationService, orders as unknown as OrderService,
+    shop as unknown as CustomerShopService, checkout as unknown as CustomerCheckoutService);
+  return { db, service, coordination, orders, shop, checkout };
 }
 type TelegramBody = { text?: string; callback_query_id?: string; message_id?: number;
   reply_markup?: { inline_keyboard?: Array<Array<{ text: string; callback_data?: string; url?: string }>>; force_reply?: boolean } };
@@ -194,14 +199,14 @@ describe('customer cabinet', () => {
     expect(coordination.reserveReply).toHaveBeenCalledWith({ publicId, userId: 7 }, 3);
     expect(sent()[0]?.reply_markup?.force_reply).toBe(true);
     expect(db.customerTelegramSession.updateMany).toHaveBeenCalledWith({
-      where: { id: 'reservation', identityId: 3, step: 'PROMPT', expiresAt: { gt: expect.any(Date) } },
+      where: { id: 'reservation', identityId: 3, action: 'CHAT', step: 'PROMPT', promptMessageId: null, expiresAt: { gt: expect.any(Date) } },
       data: { step: 'TEXT', promptMessageId: 99 },
     });
   });
   it('only forwards matching persisted replies to the atomic domain claim', async () => {
     const { service, coordination, db } = setup();
     db.customerTelegramSession.findUnique.mockResolvedValue({
-      id: 'saved', step: 'TEXT', promptMessageId: 99, expiresAt: new Date(Date.now() + 60000),
+      id: 'saved', action: 'CHAT', step: 'TEXT', promptMessageId: 99, expiresAt: new Date(Date.now() + 60000),
       order: { publicId, userId: 7 },
     });
     await service.handle(message('Сообщение', telegramId, 'private', 98));
@@ -237,5 +242,33 @@ describe('customer cabinet', () => {
     await service.handle(message('/menu'));
     const logs = JSON.stringify(vi.mocked(Logger.prototype.warn).mock.calls);
     for (const secret of [token, publicId, 'Maksim', String(telegramId), 'provider body']) expect(logs).not.toContain(secret);
+  });
+});
+
+describe('shopping command routing and unknown chat delivery', () => {
+  it.each(['catalog','cart','help'])('routes /%s only after server identity lookup',async kind=>{
+    const {service,shop}=setup();
+    await service.handle(message('/'+kind));
+    expect(shop.handle).toHaveBeenCalledWith({chatId:telegramId},
+      expect.objectContaining({id:3,userId:7}),{kind});
+  });
+  it('unlinked shopper never reaches shopping/cart services',async()=>{
+    const {service,shop}=setup(false);
+    await service.handle(message('/cart'));
+    expect(shop.handle).not.toHaveBeenCalled();
+  });
+  it('/resume with no session shows an actionable state',async()=>{
+    const {service,checkout}=setup();
+    await service.handle(message('/resume'));
+    expect(checkout.resume).toHaveBeenCalledWith(expect.objectContaining({id:3,userId:7}));
+    expect(sent()[0]?.text).toContain('Нет незавершённого');
+  });
+  it.each(['throw','malformed','missing-id'])('unknown chat prompt %s never deletes the reservation',async mode=>{
+    const {service,db}=setup();
+    if(mode==='throw') fetcher.mockRejectedValueOnce(new Error('transport fixture'));
+    else fetcher.mockResolvedValueOnce(mode==='malformed'?new Response('invalid'):Response.json({ok:true,result:{}}));
+    await service.handle(callback(customerView('w',publicId)));
+    expect(db.customerTelegramSession.deleteMany).not.toHaveBeenCalled();
+    expect(db.customerTelegramSession.updateMany).not.toHaveBeenCalled();
   });
 });

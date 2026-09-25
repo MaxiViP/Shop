@@ -1,6 +1,7 @@
 import type { OrderService } from '../order/order.service.js';
 import type { CoordinationService } from '../order/coordination.service.js';
 import type { OrderStatus, Unit, DeliveryStatus, PaymentStatus } from '../db/gen/client.js';
+import { shoppingData } from './shopping-callback.js';
 import { goodsLine } from '../order/pricing.js';
 import { customerView, customerDecision, decisionCodes, type DecisionCode } from './customer-callback.js';
 
@@ -73,14 +74,29 @@ export function orderCard(order: CustomerOrder, issues: CustomerIssue[], page = 
   const header = [
     'Заказ #' + displayId(order.publicId) + ' · ' + orderStatus[order.status],
     (order.type === 'PICKUP' ? 'Самовывоз' : 'Доставка') + ' · ' + date(order.createdAt),
+    ...(order.deliveryAt ? ['Получение: ' + date(order.deliveryAt)] : []),
     'При заказе: ' + amount(order.total),
     ...(order.total === null ? ['Товары при заказе: ' + amount(order.subtotal), 'Стоимость доставки уточняется'] : []),
     ...(order.finalSubtotal !== null ? ['Итог за товары: ' + amount(order.finalSubtotal), 'Итого: ' + amount(order.finalTotal)] : []),
+    ...(order.customerUnread ? ['Новых сообщений: ' + order.customerUnread] : []),
     'Оплата: ' + (order.payment ? paymentStatus[order.payment.status] : 'после сборки'),
-    ...(order.delivery ? ['Доставка: ' + deliveryStatus[order.delivery.status]] : []),
+    ...(order.payment ? ['Сумма оплаты товаров: ' + amount(order.payment.amount)] : []),
+    ...(order.type === 'DELIVERY' ? ['Доставка: ' + amount(order.deliveryPrice)] : []),
+    ...(order.delivery ? ['Доставка: ' + deliveryStatus[order.delivery.status],
+      ...(order.delivery.courierName ? ['Курьер: ' + short(order.delivery.courierName,100)] : []),
+      ...(order.delivery.courierPhone ? ['Телефон курьера: ' + short(order.delivery.courierPhone,40)] : [])] : []),
   ];
   const waiting = issues.filter(issue => issue.actions.length);
   const keyboard: Button[][] = [];
+  if (order.assemblyFinalizedAt && order.payment && order.payment.status !== 'CANCELED' && order.status !== 'CANCELED')
+    keyboard.push([{text:'💳 Оплата',callback_data:shoppingData('p',order.publicId,'SBP')}]);
+  if (order.delivery?.trackingUrl) {
+    try { const url = new URL(order.delivery.trackingUrl);
+      const orderUrl = siteUrl('/order/' + order.publicId);
+      if (url.protocol === 'https:' && !url.username && !url.password && orderUrl)
+        keyboard.push([{text:'Отследить доставку',url:orderUrl}]);
+    } catch { /* Invalid provider URLs are never rendered. */ }
+  }
   if (pages > 1) keyboard.push([
     ...(page ? [{ text: '← Товары', callback_data: customerView('o', order.publicId, page - 1) }] : []),
     ...(page + 1 < pages ? [{ text: 'Товары →', callback_data: customerView('o', order.publicId, page + 1) }] : []),

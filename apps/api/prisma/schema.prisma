@@ -64,6 +64,7 @@ model Product {
   orderItems OrderItem[]
   proposals  OrderIssue[]
   favorites  Favorite[]
+  cartItems  CartItem[]
 
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id])
@@ -111,6 +112,7 @@ model User {
   issues                OrderIssue[]
   messages              OrderChatMessage[]
   staffAudits           OrderStaffAudit[]
+  cart                  Cart?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -610,15 +612,17 @@ model TelegramIdentity {
   updatedAt            DateTime                 @updatedAt
 }
 
+// SQL state CHECK keeps CHAT/order and CHECKOUT/draft shapes distinct; domain validates ownership/payload.
 model CustomerTelegramSession {
   id              String           @id @default(uuid()) @db.Uuid
   identityId      Int              @unique
   identity        TelegramIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
-  orderId         Int
-  order           Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId         Int?
+  order           Order?           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   action          String           @db.VarChar(16)
   step            String           @db.VarChar(16)
   promptMessageId Int?
+  payload         Json?
   expiresAt       DateTime
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
@@ -691,4 +695,28 @@ model OrderStaffAudit {
 
   @@index([orderId, createdAt])
   @@index([userId, createdAt])
+}
+
+// No price snapshots: every display/checkout uses the current product quote.
+model Cart {
+  id        Int        @id @default(autoincrement())
+  userId    Int        @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revision  String     @default(uuid()) @db.Uuid
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  cartId    Int
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  qty       Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([cartId, productId])
+  @@index([productId])
 }

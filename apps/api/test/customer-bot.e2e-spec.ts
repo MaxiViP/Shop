@@ -13,6 +13,9 @@ import { NotificationService } from '../src/order/notification.service.js';
 import { telegramEvent } from '../src/order/outbox.js';
 import { StaffService } from '../src/staff/staff.service.js';
 import type { TelegramService } from '../src/telegram/telegram.service.js';
+import { CartService } from '../src/cart/cart.service.js';
+import { CustomerCheckoutService } from '../src/telegram/customer-checkout.service.js';
+import { CustomerShopService } from '../src/telegram/customer-shop.service.js';
 import { CustomerUpdateService } from '../src/telegram/customer-update.service.js';
 import { CustomerNotificationService } from '../src/telegram/customer-notification.service.js';
 import type { BotDelivery } from '../src/telegram/bot-api.js';
@@ -32,7 +35,13 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
   const fetcher = vi.fn<typeof fetch>();
   let notices: NotificationService, orders: OrderService, coordination: CoordinationService, staff: StaffService;
   let messageSequence = 100;
-  const makeBot = () => new CustomerUpdateService(db as unknown as DbService, coordination, orders);
+  const makeBot = () => {
+    const typed = db as unknown as DbService;
+    const cart = new CartService(typed, orders);
+    const checkout = new CustomerCheckoutService(typed, cart, orders);
+    return new CustomerUpdateService(typed, coordination, orders,
+      new CustomerShopService(typed, cart, checkout, orders), checkout);
+  };
   const callback = (actorId: number, data: string) => ({
     callback_query: { id: 'callback-fixture', data, from: { id: actorId, is_bot: false },
       message: { message_id: 10, chat: { id: actorId, type: 'private' } } },

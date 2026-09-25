@@ -5,7 +5,7 @@ const text = (max: number) => z.string().trim().min(1).max(max);
 
 const optional = (max: number) => z.string().trim().max(max).optional();
 
-const addressSchema = z.object({
+export const addressSchema = z.object({
   city: text(100),
   street: text(150),
   house: text(30),

@@ -3,7 +3,13 @@ import { DbService } from '../db/db.service.js';
 import { CoordinationService } from '../order/coordination.service.js';
 import { OrderService } from '../order/order.service.js';
 import { chatSchema } from '../order/coordination.schema.js';
-import { botMessage, botRequest, botSendMessageId } from './bot-api.js';
+import { botRequest } from './bot-api.js';
+import type { CustomerTelegramSession } from '../db/gen/client.js';
+import { customerShow, customerPrompt } from './customer-send.js';
+import { CustomerShopService } from './customer-shop.service.js';
+import { CustomerCheckoutService } from './customer-checkout.service.js';
+import { customerError } from './customer-error.js';
+import { shoppingAction } from './shopping-callback.js';
 import { customerBotToken } from './bot-config.js';
 import { customerAction, customerUpdate, customerView, type CustomerAction } from './customer-callback.js';
 import {
@@ -21,16 +27,11 @@ export class CustomerUpdateService {
     private readonly db: DbService,
     private readonly coordination: CoordinationService,
     private readonly orders: OrderService,
+    private readonly shop: CustomerShopService,
+    private readonly checkout: CustomerCheckoutService,
   ) {}
 
-  private async show(target: Target, screen: Screen) {
-    const ok = await botMessage(customerBotToken(), target.messageId ? 'editMessageText' : 'sendMessage', {
-      chat_id: target.chatId, ...(target.messageId ? { message_id: target.messageId } : {}),
-      text: screen.text, reply_markup: screen.keyboard, link_preview_options: { is_disabled: true },
-    });
-    if (!ok) this.logger.warn('Customer Telegram display failed');
-    return ok;
-  }
+  private show(target: Target, screen: Screen) { return customerShow(target, screen); }
   private async answer(id: string, text: string) {
     if (!await botRequest(customerBotToken(), 'answerCallbackQuery', {
       callback_query_id: id, text, cache_time: 0,
@@ -43,6 +44,7 @@ export class CustomerUpdateService {
         { issues: { some: { status: 'WAITING_CUSTOMER' } } },
       ] }, select: { id: true },
     });
+    const current = await this.db.order.findFirst({where:{userId:identity.userId,status:{in:activeStatuses}},select:{id:true}});
     const profile = siteUrl('/profile'), shop = siteUrl('/');
     const links: Button[] = [
       ...(profile ? [{ text: 'Профиль', url: profile }] : []),
@@ -50,12 +52,14 @@ export class CustomerUpdateService {
     ];
     return this.show(target, {
       text: 'Привет, ' + short(identity.user.name || identity.firstName || 'покупатель', 80) +
-        '!\nВы вошли в KorzinaMarket через Telegram.\nЗдесь можно следить за заказом, отвечать на вопросы и писать продавцу.',
+        '!\nВы вошли в KorzinaMarket через Telegram.\nВыбирайте продукты, оформляйте заказ и общайтесь с продавцом.',
       keyboard: { inline_keyboard: [
-        [{ text: '🛒 Текущий заказ', callback_data: 'current' }],
+        [{ text: '🛍 Каталог', callback_data: 'catalog' }, { text: '🛒 Корзина', callback_data: 'cart' }],
+        ...(current ? [[{ text: 'Текущий заказ', callback_data: 'current' }]] : []),
         [{ text: '📦 Мои заказы', callback_data: 'orders' }],
         ...(attention ? [[{ text: '💬 Сообщения / Вопросы', callback_data: 'attention' }]] : []),
         ...(links.length ? [links] : []),
+        [{ text: 'ℹ️ Помощь', callback_data: 'help' }],
       ] },
     });
   }
@@ -114,21 +118,26 @@ export class CustomerUpdateService {
   }
   private async prompt(target: Target, identity: Identity, publicId: string) {
     const session = await this.coordination.reserveReply({ publicId, userId: identity.userId }, identity.id);
-    const promptMessageId = await botSendMessageId(customerBotToken(), {
-      chat_id: target.chatId,
-      text: 'Сообщение продавцу по заказу #' + displayId(publicId) +
-        '.\nОтветьте именно на это сообщение (до 2000 символов).\nОтмена: /cancel. Ответ принимается в течение 10 минут.',
-      reply_markup: { force_reply: true, selective: true, input_field_placeholder: 'Ваше сообщение продавцу' },
-    });
-    if (!promptMessageId) {
-      await this.db.customerTelegramSession.deleteMany({ where: { id: session.id } });
-      return this.show(target, { text: 'Не удалось открыть ввод сообщения. Попробуйте позже.',
-        keyboard: { inline_keyboard: [[{ text: '← К заказу', callback_data: customerView('o', publicId) }]] } });
-    }
+    return this.presentChat(target, identity, session, publicId);
+  }
+  private async presentChat(target: Target, identity: Identity, session: CustomerTelegramSession, publicId: string) {
+    const promptMessageId = await customerPrompt(target.chatId, 'Сообщение продавцу по заказу #' + displayId(publicId) +
+      '.\nОтветьте именно на это сообщение (до 2000 символов).\n/resume — продолжить; /cancel — отмена. Ответ принимается в течение 10 минут.');
+    // UNKNOWN must retain the durable, unbound reservation.
+    if (!promptMessageId) return;
     await this.db.customerTelegramSession.updateMany({
-      where: { id: session.id, identityId: identity.id, step: 'PROMPT', expiresAt: { gt: new Date() } },
+      where: { id: session.id, identityId: identity.id, action: 'CHAT', step: 'PROMPT', promptMessageId: null, expiresAt: { gt: new Date() } },
       data: { step: 'TEXT', promptMessageId },
     });
+  }
+  private async resume(target: Target, identity: Identity) {
+    const session = await this.checkout.resume(identity);
+    if (!session) return this.show(target, {text:'Нет незавершённого ввода. Откройте /cart или нужный заказ.',
+      keyboard:{inline_keyboard:[[{text:'Корзина',callback_data:'cart'},{text:'Мои заказы',callback_data:'orders'}]]}});
+    if (session.action === 'CHECKOUT') return this.shop.present(target, identity, session);
+    if (session.action !== 'CHAT' || session.orderId === null) return;
+    const order = await this.db.order.findFirst({where:{id:session.orderId,userId:identity.userId},select:{publicId:true}});
+    if (order) return this.presentChat(target,identity,session,order.publicId);
   }
   private async cancel(identity: Identity) {
     await this.db.$transaction(async db => {
@@ -146,7 +155,11 @@ export class CustomerUpdateService {
       if (session) await this.db.customerTelegramSession.deleteMany({ where: { id: session.id } });
       return notice('Сейчас нет открытого ввода сообщения. Откройте заказ и нажмите «Написать продавцу».');
     }
-    if (session.order.userId !== identity.userId || !promptMessageId ||
+    if (session.action === 'CHECKOUT') {
+      if (!promptMessageId) return notice('Ответьте на последнее приглашение. /resume — восстановить ввод.');
+      return this.shop.present(target, identity, await this.checkout.reply(identity, text, promptMessageId));
+    }
+    if (session.action !== 'CHAT' || session.order?.userId !== identity.userId || !promptMessageId ||
       session.promptMessageId !== promptMessageId || session.step !== 'TEXT')
       return notice('Ответьте на последнее приглашение «Сообщение продавцу» для нужного заказа.');
     const parsed = chatSchema.safeParse({ text });
@@ -164,7 +177,7 @@ export class CustomerUpdateService {
       case 'attention': return this.list(target, identity, 0, true);
       case 'cancel':
         await this.cancel(identity);
-        return this.show(target, { text: 'Ввод сообщения отменён.', keyboard: { inline_keyboard: [[{ text: 'Меню', callback_data: 'menu' }]] } });
+        return this.show(target, { text: 'Ввод отменён.', keyboard: { inline_keyboard: [[{ text: 'Меню', callback_data: 'menu' }]] } });
       case 'current': {
         const order = await this.db.order.findFirst({
           where: { userId: identity.userId, status: { in: activeStatuses } },
@@ -194,13 +207,18 @@ export class CustomerUpdateService {
     if (!sender || !chat || chat.type !== 'private' || chat.id !== sender.id) return;
     const target: Target = { chatId: chat.id, ...(callback?.message ? { messageId: callback.message.message_id } : {}) };
     let ack = 'Готово';
+    let shoppingRequest = false;
     try {
       const command = message?.text?.trim().split(/\s+/)[0];
       const action = callback ? customerAction(callback.data ?? '') :
         command === '/start' || command === '/menu' ? { kind: 'menu' as const } :
         command === '/orders' ? { kind: 'orders' as const, page: 0 } :
         command === '/cancel' ? { kind: 'cancel' as const } : null;
-      if (callback && !action) { ack = 'Некорректная кнопка'; return; }
+      const shopping = shoppingAction(callback?.data ?? command?.slice(1) ?? '');
+      shoppingRequest = Boolean(shopping);
+      const extra = command === '/current' ? {kind:'current' as const} :
+        command === '/messages' ? {kind:'attention' as const} : null;
+      if (callback && !action && !shopping) { ack = 'Некорректная кнопка'; return; }
       const identity = await this.db.telegramIdentity.findUnique({
         where: { telegramUserId: BigInt(sender.id) },
         select: { id: true, userId: true, firstName: true, user: { select: { name: true } } },
@@ -215,7 +233,10 @@ export class CustomerUpdateService {
         where: { id: identity.id },
         data: { customerBotStartedAt: new Date(), customerBotBlockedAt: null },
       });
-      if (action) await this.action(target, identity, action);
+      if (shopping?.kind === 'resume') await this.resume(target, identity);
+      else if (shopping) await this.shop.handle(target, identity, shopping);
+      else if (extra) await this.action(target, identity, extra);
+      else if (action) await this.action(target, identity, action);
       else if (message?.text && !message.text.startsWith('/'))
         await this.reply({ chatId: chat.id }, identity, message.text, message.reply_to_message?.message_id);
     } catch (error) {
@@ -223,6 +244,7 @@ export class CustomerUpdateService {
       ack = status === 404 ? 'Заказ недоступен' :
         status === 409 ? 'Ситуация по заказу уже изменилась. Обновите заказ.' :
         status === 429 ? 'Слишком много сообщений. Подождите минуту.' : 'Не удалось выполнить действие';
+      ack = customerError(error, shoppingRequest) ?? ack;
       if (status >= 500) this.logger.warn('Customer Telegram update failed');
       if (!callback) await this.show({ chatId: chat.id }, { text: ack,
         keyboard: { inline_keyboard: [[{ text: '📦 Мои заказы', callback_data: 'orders' }]] } });

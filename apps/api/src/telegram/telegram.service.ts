@@ -81,6 +81,25 @@ export class TelegramService {
     }
   }
 
+  async notifyPaymentReported(orderId: number): Promise<void> {
+    if (!this.available) return;
+    try {
+      const payment = await this.db.orderPayment.findUnique({ where: { orderId } });
+      if (payment?.status !== 'REPORTED') return;
+      const methods = { SBP: 'СБП', CARD_TRANSFER: 'перевод на карту', QR: 'QR' };
+      const amount = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2 }).format(payment.amount / 100);
+      const text = '⚠️ Покупатель сообщил об оплате\nЗаказ #' + orderId +
+        '\nСумма: ' + amount + ' ₽\nСпособ: ' + (payment.method ? methods[payment.method] : 'не указан') +
+        '\nПроверьте поступление денег.';
+      await Promise.all(this.chatIds.map(chatId => this.request('sendMessage', {
+        chat_id: chatId, text,
+        reply_markup: { inline_keyboard: Number(chatId) > 0 && this.callbacksAvailable ?
+          [[{ text: 'Открыть заказ', callback_data: 'order:' + orderId + ':refresh' }]] :
+          this.orderUrl(orderId) ? [[{ text: 'Открыть заказ', url: this.orderUrl(orderId) }]] : [] },
+      }, 'Telegram staff payment notice failed')));
+    } catch { this.logger.warn('Telegram staff payment notice failed'); }
+  }
+
   async answerCallbackQuery(id: string, text: string): Promise<void> {
     await this.request('answerCallbackQuery', { callback_query_id: id, text, cache_time: 0 },
       'Telegram callback answer failed', 3000);
