@@ -12,7 +12,6 @@ import {
   quantity,
   short,
   date,
-  displayId,
   siteUrl,
   type CustomerOrder,
   type Screen,
@@ -138,7 +137,7 @@ export function paymentScreen(
   const payment = order.payment,
     details = order.paymentDetails;
   const buttons: Button[][] = [];
-  const lines = ['💳 Оплата заказа #' + displayId(publicId)];
+  const lines = ['💳 Оплата заказа №' + order.id];
   if (!payment || !details || payment.status === 'CANCELED')
     lines.push('Оплата пока недоступна.');
   else {

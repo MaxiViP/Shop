@@ -3,11 +3,11 @@ import type { OrderNotification, OrderIssue, DeliveryStatus } from '../db/gen/cl
 import { botDelivery } from './bot-api.js';
 import { customerBotToken, customerWebhookReady } from './bot-config.js';
 import { customerView } from './customer-callback.js';
-import { amount, displayId, short, siteUrl, deliveryStatus, type Button } from './customer-view.js';
+import { amount, short, siteUrl, deliveryStatus, type Button } from './customer-view.js';
 
 export type CustomerNotice = {
   event: Pick<OrderNotification, 'type'>;
-  order: { publicId: string; finalSubtotal: number | null; finalTotal: number | null; delivery: { status: DeliveryStatus } | null };
+  order: { id: number; publicId: string; finalSubtotal: number | null; finalTotal: number | null; delivery: { status: DeliveryStatus } | null };
   issue: Pick<OrderIssue, 'type'> | null;
   message: { text: string } | null;
 };
@@ -28,7 +28,7 @@ export class CustomerNotificationService {
       ORDER_CANCELED: 'Заказ отменён',
       CHAT_MESSAGE: 'Новое сообщение от продавца',
     };
-    const text = 'Заказ #' + displayId(order.publicId) + '\n' + headings[event.type] +
+    const text = 'Заказ №' + order.id + '\n' + headings[event.type] +
       (event.type === 'PAYMENT_READY' ? '\nТовары: ' + amount(order.finalSubtotal) + '\nИтого: ' + amount(order.finalTotal) : '') +
       (event.type === 'CHAT_MESSAGE' && message ? '\n\n' + message.text :
         event.type === 'ACTION_REQUIRED' ? '\nОткройте вопрос, чтобы проверить товар и выбрать действие.' : '');

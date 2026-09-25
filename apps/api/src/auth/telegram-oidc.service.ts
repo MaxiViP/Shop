@@ -23,11 +23,16 @@ import {
 } from './telegram-init-data.js';
 
 const issuer = 'https://oauth.telegram.org';
+// Only an exact local order path may be carried through the authenticated flow.
+export const orderReturnTo = (value: unknown): string | undefined =>
+  typeof value === 'string' && /^\/order\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    ? value : undefined;
 const flowSchema = z.object({
   state: z.string().length(43),
   nonce: z.string().length(43),
   verifier: z.string().length(43),
   expiresAt: z.number().int(),
+  returnTo: z.string().refine(value => orderReturnTo(value) === value).optional(),
 });
 const jwkSchema = z.object({
   kty: z.literal('RSA'),
@@ -120,13 +125,15 @@ export class TelegramOidcService {
     return config;
   }
 
-  start() {
+  start(returnTo?: unknown) {
     const config = this.requiredConfig();
+    const target = orderReturnTo(returnTo);
     const flow: Flow = {
       state: randomBytes(32).toString('base64url'),
       nonce: randomBytes(32).toString('base64url'),
       verifier: randomBytes(32).toString('base64url'),
       expiresAt: Date.now() + PROOF_TTL * 1000,
+      ...(target ? { returnTo: target } : {}),
     };
     const url = new URL(issuer + '/auth');
     url.search = new URLSearchParams({
@@ -191,7 +198,7 @@ export class TelegramOidcService {
     code: string,
     state: string,
     cookie: string,
-  ): Promise<TelegramProof> {
+  ): Promise<TelegramProof & { returnTo?: string }> {
     let stage = 'OIDC_CONFIG_INVALID';
     try {
       const config = this.requiredConfig();
@@ -364,6 +371,7 @@ export class TelegramOidcService {
       });
       return {
         profile,
+        ...(flow.returnTo ? { returnTo: flow.returnTo } : {}),
         ...(phoneNumber != null ? {
           phone: {
             number: phoneNumber.startsWith('+') ? phoneNumber : '+' + phoneNumber,
@@ -388,10 +396,10 @@ export class TelegramOidcService {
     }
   }
 
-  destination(failed = false) {
+  destination(failed = false, returnTo?: string) {
     return (
       this.requiredConfig().site +
-      (failed ? '/telegram?error=login' : '/profile')
+      (failed ? '/telegram?error=login' : orderReturnTo(returnTo) ?? '/profile')
     );
   }
 

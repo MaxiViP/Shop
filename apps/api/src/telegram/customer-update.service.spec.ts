@@ -48,8 +48,8 @@ function setup(linked = true) {
   const orders = { get: vi.fn(async (id: string) => { if (id === foreignId) throw new NotFoundException(); return order; }) };
   const coordination = {
     view: vi.fn().mockResolvedValue({ issues: [] }), decide: vi.fn().mockResolvedValue({}),
-    messages: vi.fn().mockResolvedValue({ messages: [], hasMore: false }), read: vi.fn().mockResolvedValue({ unread: 0 }),
-    post: vi.fn().mockResolvedValue({ id: 80 }), reserveReply: vi.fn().mockResolvedValue({ id: 'reservation' }),
+    messages: vi.fn().mockResolvedValue({ messages: [], hasMore: false, orderId: 1 }), read: vi.fn().mockResolvedValue({ unread: 0 }),
+    post: vi.fn().mockResolvedValue({ id: 80 }), reserveReply: vi.fn().mockResolvedValue({ id: 'reservation', orderId: 1 }),
   };
   const shop = {handle: vi.fn(), present: vi.fn()};
   const checkout = {resume: vi.fn().mockResolvedValue(null)};
@@ -102,7 +102,7 @@ describe('customer cabinet', () => {
     await service.handle(message('/orders'));
     expect(db.order.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 7 }, take: 6, skip: 0 }));
     expect(sent()[0]?.text).toContain('123,45');
-    expect(sent()[0]?.text).toContain('#11111111');
+    expect(sent()[0]?.text).toContain('№1');
     expect(sent()[0]?.reply_markup?.inline_keyboard?.[0]?.[0]?.callback_data).toBe(customerView('o', publicId));
   });
   it('paginates order lists without unbounded queries', async () => {
@@ -132,6 +132,7 @@ describe('customer cabinet', () => {
     expect(coordination.view).toHaveBeenCalledWith({ publicId, userId: 7 });
     expect(sent()[0]?.message_id).toBe(55);
     expect(JSON.stringify(sent())).toContain('https://shop.example/order/' + publicId);
+    expect(sent()[0]?.text).toContain('Заказ №1');
   });
   it('foreign order reveals no order data', async () => {
     const { service, coordination } = setup();
@@ -176,10 +177,11 @@ describe('customer cabinet', () => {
   });
   it('chat pages reuse messages/read and read only after a successful display', async () => {
     const { service, coordination } = setup();
-    coordination.messages.mockResolvedValue({ messages: [{ id: 20, text: 'Добрый день', authorType: 'SELLER', createdAt: new Date() }], hasMore: true });
+    coordination.messages.mockResolvedValue({ messages: [{ id: 20, text: 'Добрый день', authorType: 'SELLER', createdAt: new Date() }], hasMore: true, orderId: 1 });
     await service.handle(callback(customerView('m', publicId)));
     expect(coordination.messages).toHaveBeenCalledWith({ publicId, userId: 7 }, { limit: 1 });
     expect(coordination.read).toHaveBeenCalledWith({ publicId, userId: 7 }, 20);
+    expect(sent()[0]?.text).toContain('Заказ №1 · Сообщения');
     coordination.read.mockClear();
     fetcher.mockRejectedValueOnce(new Error('unavailable'));
     await service.handle(callback(customerView('m', publicId)));
@@ -187,7 +189,7 @@ describe('customer cabinet', () => {
   });
   it('a malformed successful display response cannot acknowledge unread chat messages', async () => {
     const { service, coordination } = setup();
-    coordination.messages.mockResolvedValue({ messages: [{ id: 20, text: 'Fixture', authorType: 'SELLER', createdAt: new Date() }], hasMore: false });
+    coordination.messages.mockResolvedValue({ messages: [{ id: 20, text: 'Fixture', authorType: 'SELLER', createdAt: new Date() }], hasMore: false, orderId: 1 });
     fetcher.mockResolvedValueOnce(Response.json({ ok: true }));
     await service.handle(callback(customerView('m', publicId)));
     expect(coordination.read).not.toHaveBeenCalled();
@@ -198,6 +200,7 @@ describe('customer cabinet', () => {
     await service.handle(callback(customerView('w', publicId)));
     expect(coordination.reserveReply).toHaveBeenCalledWith({ publicId, userId: 7 }, 3);
     expect(sent()[0]?.reply_markup?.force_reply).toBe(true);
+    expect(sent()[0]?.text).toContain('заказу №1');
     expect(db.customerTelegramSession.updateMany).toHaveBeenCalledWith({
       where: { id: 'reservation', identityId: 3, action: 'CHAT', step: 'PROMPT', promptMessageId: null, expiresAt: { gt: expect.any(Date) } },
       data: { step: 'TEXT', promptMessageId: 99 },

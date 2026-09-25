@@ -122,6 +122,7 @@ const auth = useAuthStore();
 const api = useApiClient();
 const adminLogin = useAdminLogin();
 const toast = useToast();
+const route = useRoute();
 const phone = ref("");
 const password = ref("");
 const code = ref("");
@@ -147,7 +148,10 @@ async function telegramLogin() {
   telegramLoading.value = true;
   error.value = "";
   try {
-    const result = await api<{ url: string }>("/auth/telegram/start", { method: "POST" });
+    const returnTo = /^\/order\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(route.path) ? route.path : undefined;
+    const result = await api<{ url: string }>("/auth/telegram/start", {
+      method: "POST", ...(returnTo ? { body: { returnTo } } : {}),
+    });
     window.location.assign(result.url);
   } catch {
     error.value = "Не удалось начать вход через Telegram. Попробуйте ещё раз.";

@@ -9,6 +9,7 @@ import { PrismaClient, type OrderStatus, type NotificationType } from '../src/db
 import { DbService } from '../src/db/db.service.js';
 import { OrderService } from '../src/order/order.service.js';
 import { CoordinationService } from '../src/order/coordination.service.js';
+import { message as appendMessage } from '../src/order/coordination.js';
 import { NotificationService } from '../src/order/notification.service.js';
 import { telegramEvent } from '../src/order/outbox.js';
 import { StaffService } from '../src/staff/staff.service.js';
@@ -372,6 +373,47 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     await Promise.all([makeBot().handle(data), makeBot().handle(data)]);
     expect(await db.orderChatMessage.count({ where: { orderId: f.order.id, text: { startsWith: 'Покупатель согласился' } } })).toBe(1);
   });
+  it('immediately dispatches a staff chat only after message, unread count and outbox commit', async () => {
+    const f = await fixture();
+    const original = notices.dispatchTelegram.bind(notices);
+    const dispatch = vi.spyOn(notices, 'dispatchTelegram').mockImplementation(async id => {
+      expect(await db.orderChatMessage.count({ where: { orderId: id } })).toBe(1);
+      expect((await events(id, 'CHAT_MESSAGE')).filter(row => row.channel === 'TELEGRAM')).toHaveLength(1);
+      expect((await db.order.findUniqueOrThrow({ where: { id } })).customerUnread).toBe(1);
+      return original(id);
+    });
+    const saved = await coordination.post({ orderId: f.order.id, ...seller }, 'Immediate customer fixture');
+    await vi.waitFor(() => expect(telegram.send).toHaveBeenCalledTimes(1));
+    expect(dispatch).toHaveBeenCalledWith(f.order.id);
+    await vi.waitFor(async () => expect((await events(f.order.id, 'CHAT_MESSAGE'))[0]).toMatchObject({
+      messageId: saved.id, channel: 'TELEGRAM', status: 'SENT', attempts: 1,
+    }));
+    expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).customerUnread).toBe(1);
+  });
+  it('immediate dispatch and sweep race claim once; UNKNOWN is never resent and seller post is non-blocking', async () => {
+    const f = await fixture();
+    let release!: (outcome: BotDelivery) => void;
+    telegram.send.mockImplementationOnce(() => new Promise<BotDelivery>(resolve => { release = resolve; }));
+    const saved = await coordination.post({ orderId: f.order.id, ...seller }, 'Unknown transport fixture');
+    await vi.waitFor(() => expect(telegram.send).toHaveBeenCalledTimes(1));
+    await Promise.all([notices.dispatchTelegram(f.order.id), notices.dispatchTelegram(f.order.id)]);
+    expect(telegram.send).toHaveBeenCalledTimes(1);
+    release('unknown');
+    await vi.waitFor(async () => expect((await events(f.order.id, 'CHAT_MESSAGE'))[0]).toMatchObject({
+      messageId: saved.id, status: 'SENDING', error: 'TELEGRAM_OUTCOME_UNKNOWN', attempts: 1,
+    }));
+    await notices.dispatchTelegram(f.order.id);
+    expect(telegram.send).toHaveBeenCalledTimes(1);
+    expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).customerUnread).toBe(1);
+  });
+  it('customer and staff-only chat do not echo through the CUSTOMER outbox', async () => {
+    const f = await fixture();
+    await coordination.post(f.actor, 'Customer to staff fixture');
+    await db.$transaction(tx => appendMessage(tx, f.order.id, 'Staff only fixture', 'SELLER', seller.userId, null, 'staff'));
+    expect(await events(f.order.id, 'CHAT_MESSAGE')).toHaveLength(0);
+    expect(telegram.send).not.toHaveBeenCalled();
+    expect(await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).toMatchObject({ customerUnread: 0, staffUnread: 2 });
+  });
   it('new staff chat creates one exact message notification and customer read state is shared', async () => {
     const f = await fixture();
     const message = await coordination.post({ orderId: f.order.id, ...seller }, 'Уточните удобное время');
@@ -494,6 +536,8 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
   });
   it.each(['read', 'deleted-identity', 'foreign-message'] as const)('pending chat delivery is safe after %s', async mode => {
     const f = await fixture();
+    // Hold only the immediate dispatcher so this test can exercise the sweep's stale-row rules.
+    const immediate = vi.spyOn(notices, 'dispatchTelegram').mockResolvedValue(undefined);
     const saved = await coordination.post({ orderId: f.order.id, ...seller }, 'Exact message fixture');
     if (mode === 'read') await coordination.read(f.actor, saved.id);
     if (mode === 'deleted-identity') await db.telegramIdentity.delete({ where: { id: f.identity!.id } });
@@ -502,6 +546,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
       const unrelated = await coordination.post({ orderId: other.order.id, ...seller }, 'Foreign private message');
       await db.orderNotification.updateMany({ where: { orderId: f.order.id }, data: { messageId: unrelated.id } });
     }
+    immediate.mockRestore();
     await notices.dispatchTelegram(f.order.id);
     expect(telegram.send).not.toHaveBeenCalled();
     expect((await events(f.order.id, 'CHAT_MESSAGE'))[0]?.status).toBe(mode === 'deleted-identity' ? 'UNCONFIGURED' : 'CANCELED');

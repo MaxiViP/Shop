@@ -2,6 +2,8 @@
   <UContainer class="order">
     <AppBackButton fallback="/orders" label="К заказам" />
 
+    <template v-if="order">
+
     <header class="order__head">
       <div>
         <p class="order__number">
@@ -166,6 +168,14 @@
     >
       Статус обновляется автоматически.
     </p>
+    </template>
+
+    <section v-else class="order__sign-in">
+      <h1 class="order__title">{{ loadingAfterLogin ? "Загружаем заказ…" : "Войдите, чтобы открыть заказ" }}</h1>
+      <p v-if="!loadingAfterLogin" class="card__muted">Войдите через Telegram или подтвердите телефон. После входа заказ откроется здесь.</p>
+      <UButton v-if="!loadingAfterLogin" size="lg" @click="loginOpen = true">Войти</UButton>
+    </section>
+    <AuthModal v-model:open="loginOpen" />
   </UContainer>
 </template>
 
@@ -186,6 +196,9 @@ import { qtyText } from '~/utils/qty'
 import { pickupTime } from '~/utils/pickup'
 
 const route = useRoute()
+const auth = useAuthStore()
+const loginOpen = ref(false)
+const loadingAfterLogin = ref(false)
 const id = String(route.params.id)
 
 const {
@@ -196,12 +209,29 @@ const {
   `/orders/${id}`,
 )
 
-if (error.value || !data.value) {
+const missing = error.value?.statusCode === 404 || error.value?.statusCode === 403
+const signIn = !auth.user && (missing || error.value?.statusCode === 401)
+if ((error.value && !signIn) || (!data.value && !error.value)) {
   throw createError({
-    statusCode: 404,
-    statusMessage: 'Заказ не найден',
+    statusCode: missing ? 404 : 503,
+    statusMessage: missing ? 'Заказ не найден' : 'Не удалось загрузить заказ',
   })
 }
+
+watch(() => auth.user?.id, async userId => {
+  if (!userId || data.value) return
+  loadingAfterLogin.value = true
+  try {
+    await refresh()
+    if (error.value || !data.value) {
+      const notFound = error.value?.statusCode === 404 || error.value?.statusCode === 403
+      showError(createError({
+        statusCode: notFound ? 404 : 503,
+        statusMessage: notFound ? 'Заказ не найден' : 'Не удалось загрузить заказ',
+      }))
+    }
+  } finally { loadingAfterLogin.value = false }
+})
 
 const order = computed(
   () => data.value!,
@@ -247,8 +277,9 @@ let timer: ReturnType<
 > | undefined
 
 onMounted(() => {
+  if (signIn) loginOpen.value = true
   timer = setInterval(() => {
-    if (document.visibilityState === 'visible' && (active.value || order.value.status === 'CANCELED')) {
+    if (order.value && document.visibilityState === 'visible' && (active.value || order.value.status === 'CANCELED')) {
       void refresh()
     }
   }, 15000)
@@ -262,7 +293,7 @@ onBeforeUnmount(() => {
 
 useSeoMeta({
   title: () =>
-    `Заказ №${order.value.id}`,
+    `Заказ №${order.value?.id ?? ""}`,
 })
 </script>
 
@@ -271,6 +302,13 @@ useSeoMeta({
   max-width: 60rem;
   min-width: 0;
   padding-block: var(--page-start) var(--page-end);
+}
+
+.order__sign-in {
+  display: grid;
+  justify-items: start;
+  gap: 1rem;
+  margin-top: var(--card-padding);
 }
 
 .order__head {

@@ -8,6 +8,7 @@ import { customerError } from './customer-error.js';
 const publicId = '12345678-1234-4234-8234-123456789abc';
 function order(status = 'AWAITING') {
   return {
+    id: 7,
     publicId,
     status: 'READY',
     type: 'DELIVERY',
@@ -35,6 +36,7 @@ describe('customer payment display', () => {
     'shows configured %s and reports that exact method',
     (method) => {
       const screen = paymentScreen(order(), method);
+      expect(screen.text).toContain('Оплата заказа №7');
       expect(screen.text).toContain('123,45');
       expect(callbacks(screen).map(shoppingAction)).toContainEqual({
         kind: 'paid',

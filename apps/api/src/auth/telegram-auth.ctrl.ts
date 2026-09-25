@@ -65,8 +65,8 @@ export class TelegramAuthCtrl {
 
   @Post('start')
   @Header('Cache-Control', 'no-store')
-  start(@Res({ passthrough: true }) response: Response) {
-    const result = this.oidc.start();
+  start(@Res({ passthrough: true }) response: Response, @Body() body?: { returnTo?: unknown }) {
+    const result = this.oidc.start(body?.returnTo);
     response.cookie(FLOW, result.cookie, flowCookie);
     return { url: result.url };
   }
@@ -82,6 +82,7 @@ export class TelegramAuthCtrl {
     response.clearCookie(FLOW, { ...flowCookie, maxAge: undefined });
     let stage: 'OIDC_FLOW_INVALID' | 'TELEGRAM_IDENTITY_LOGIN_FAILED' | null =
       'OIDC_FLOW_INVALID';
+    let returnTo: string | undefined;
     try {
       const data = z
         .object({ code: z.string().max(4096), state: z.string().max(128) })
@@ -92,16 +93,17 @@ export class TelegramAuthCtrl {
         data.state,
         request.cookies?.[FLOW] ?? '',
       );
+      returnTo = proof.returnTo;
       stage = 'TELEGRAM_IDENTITY_LOGIN_FAILED';
       const result = await this.telegram.login(proof, request.cookies?.[SID]);
       response.cookie(SID, result.token, sessionCookie);
     } catch {
       if (stage) this.logger.warn('Telegram OIDC failed: ' + stage);
-      // Only a server-configured origin is ever used; no client return URL.
+      // Callback query parameters never select the return path.
       if (!this.oidc.available)
         return response.status(503).send('TELEGRAM_LOGIN_UNAVAILABLE');
       return response.redirect(303, this.oidc.destination(true));
     }
-    return response.redirect(303, this.oidc.destination());
+    return response.redirect(303, this.oidc.destination(false, returnTo));
   }
 }

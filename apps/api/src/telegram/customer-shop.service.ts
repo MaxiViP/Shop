@@ -24,7 +24,6 @@ import {
   amount,
   quantity,
   short,
-  displayId,
   type Button,
 } from './customer-view.js';
 
@@ -369,8 +368,8 @@ export class CustomerShopService {
           const order = await this.checkout.confirm(identity, action.revision);
           return customerShow(target, {
             text:
-              '✅ Заказ создан\nЗаказ #' +
-              displayId(order.publicId) +
+              '✅ Заказ создан\nЗаказ №' +
+              order.id +
               '\nПредварительная сумма товаров: ≈ ' +
               amount(order.subtotal),
             keyboard: {

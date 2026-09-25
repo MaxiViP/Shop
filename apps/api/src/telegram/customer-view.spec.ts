@@ -4,7 +4,7 @@ import { orderCard, issueCard, amount, quantity, siteUrl, type CustomerOrder, ty
 const id = '12345678-1234-4234-8234-123456789abc';
 const item = { id: 1, productName: 'Помидоры', qty: 1000, actualQty: 1200, unit: 'GRAM', total: 10000, actualTotal: 12000, status: 'PICKED' };
 const order = {
-  publicId: id, status: 'READY', type: 'DELIVERY', subtotal: 10000, total: null, finalSubtotal: 12000,
+  id: 7, publicId: id, status: 'READY', type: 'DELIVERY', subtotal: 10000, total: null, finalSubtotal: 12000,
   finalTotal: 16000, payment: { status: 'PAID' }, delivery: { status: 'ASSIGNED' },
   createdAt: new Date(), items: [item], extras: [],
 } as unknown as CustomerOrder;
@@ -16,9 +16,12 @@ const issue = {
 
 afterEach(() => vi.unstubAllEnvs());
 it('renders requested/actual quantity, final totals, payment and delivery without technical IDs', () => {
+  vi.stubEnv('ORDER_SITE_URL', 'https://shop.example');
   const card = orderCard(order, [issue]);
-  for (const text of ['1,2 кг', '120 ₽', '160 ₽', 'Получена', 'Курьер назначен', '#12345678']) expect(card.text).toContain(text);
+  for (const text of ['1,2 кг', '120 ₽', '160 ₽', 'Получена', 'Курьер назначен', 'Заказ №7']) expect(card.text).toContain(text);
   expect(card.text).not.toContain(id);
+  expect(JSON.stringify(card.keyboard)).toContain(id.replaceAll('-', ''));
+  expect(JSON.stringify(card.keyboard)).toContain('https://shop.example/order/' + id);
 });
 it('renders missing items and finalized extras', () => {
   const card = orderCard({ ...order, items: [{ ...order.items[0]!, status: 'MISSING' }],
@@ -39,16 +42,17 @@ it('paginates a large order and bounds text and every callback', () => {
   }
 });
 it('uses authoritative allowed actions and renders replacement snapshot', () => {
-  const card = issueCard(id, [{ ...issue, type: 'REPLACEMENT', proposedName: 'Огурцы', proposedSlug: 'cucumber',
+  const card = issueCard(order, [{ ...issue, type: 'REPLACEMENT', proposedName: 'Огурцы', proposedSlug: 'cucumber',
     proposedUnit: 'GRAM', proposedQty: 500, proposedPrice: 20000, proposedPriceQty: 1000,
     actions: ['ACCEPT_REPLACEMENT', 'REMOVE_ITEM'] }]);
+  expect(card.text).toContain('Заказ №7');
   expect(card.text).toContain('Огурцы');
   expect(card.text).toContain('500 г');
   expect(card.text).toContain('100 ₽');
   expect(card.keyboard.inline_keyboard.flat().some(b => b.text.includes('Принять фактический'))).toBe(false);
 });
 it('shows no decisions when there is no pending issue', () => {
-  const card = issueCard(id, [{ ...issue, actions: [] }]);
+  const card = issueCard(order, [{ ...issue, actions: [] }]);
   expect(card.text).toContain('нет вопросов');
   expect(card.keyboard.inline_keyboard).toHaveLength(1);
 });

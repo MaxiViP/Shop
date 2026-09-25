@@ -155,6 +155,40 @@ describe('Telegram website OIDC', () => {
     expect(service.destination()).toBe('https://shop.example/profile');
     expect(logs).toEqual([]);
   });
+  it('carries only a valid order return path in the encrypted flow and preserves normal login', async () => {
+    const target = '/order/12345678-1234-4234-8234-123456789abc';
+    start = service.start(target);
+    url = new URL(start.url);
+    claims.nonce = url.searchParams.get('nonce');
+    const proof = await callback();
+    expect(proof.returnTo).toBe(target);
+    expect(service.destination(false, proof.returnTo)).toBe('https://shop.example' + target);
+    expect(service.destination()).toBe('https://shop.example/profile');
+    expect(start.url).not.toContain(target);
+    expect(logs).toEqual([]);
+  });
+  it('accepts an uppercase UUID spelling without changing the exact destination', async () => {
+    const target = '/order/ABCDEF12-1234-4234-8234-ABCDEF123456';
+    start = service.start(target);
+    url = new URL(start.url);
+    claims.nonce = url.searchParams.get('nonce');
+    expect((await callback()).returnTo).toBe(target);
+    expect(service.destination(false, target)).toBe('https://shop.example' + target);
+  });
+  it.each([
+    'https://evil.example/order/12345678-1234-4234-8234-123456789abc',
+    '//evil.example', 'javascript:alert(1)',
+    '/\\\\evil.example/order/12345678-1234-4234-8234-123456789abc',
+    '/order/%2f%2fevil.example',
+    '/order/12345678-1234-4234-8234-123456789abc?next=//evil.example',
+    '/order/not-a-uuid',
+  ])('rejects untrusted returnTo %s and keeps the profile destination', async target => {
+    start = service.start(target);
+    url = new URL(start.url);
+    claims.nonce = url.searchParams.get('nonce');
+    expect((await callback()).returnTo).toBeUndefined();
+    expect(service.destination(false, target)).toBe('https://shop.example/profile');
+  });
   it('maps consented OIDC avatar and verified phone as separate metadata', async () => {
     claims.picture = 'https://cdn4.telesco.pe/avatar.webp';
     claims.phone_number = '79991234567';

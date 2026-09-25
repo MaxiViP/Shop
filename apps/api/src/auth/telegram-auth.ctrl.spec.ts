@@ -22,10 +22,11 @@ describe('Telegram callback safe stage diagnostics', () => {
     const oidc = {
       available: true,
       callback: vi.fn().mockResolvedValue(proof),
-      destination: (failed: boolean) =>
+      destination: vi.fn((failed: boolean, returnTo?: string) =>
         failed
           ? 'https://shop.example/telegram?error=login'
-          : 'https://shop.example/profile',
+          : 'https://shop.example' + (returnTo ?? '/profile')),
+      start: vi.fn().mockReturnValue({ cookie: 'private-flow', url: 'https://oauth.telegram.org/auth' }),
     };
     const response = {
       clearCookie: vi.fn(),
@@ -53,6 +54,15 @@ describe('Telegram callback safe stage diagnostics', () => {
     return { warn, oidc, telegram, response, run };
   }
 
+  it('passes optional returnTo to the server flow and never reads it from callback query', async () => {
+    const s = setup();
+    const target = '/order/12345678-1234-4234-8234-123456789abc';
+    s.oidc.callback.mockResolvedValueOnce({ returnTo: target });
+    await s.run({ code: 'private-code', state: 'private-state', returnTo: 'https://evil.example' });
+    expect(s.oidc.destination).toHaveBeenCalledWith(false, target);
+    expect(s.response.redirect).toHaveBeenCalledWith(303, 'https://shop.example' + target);
+    expect(JSON.stringify(s.response.redirect.mock.calls)).not.toContain('private-session');
+  });
   it('logs only FLOW_INVALID for malformed callback query', async () => {
     const s = setup();
     await s.run({ error: 'provider details containing secrets' });

@@ -41,7 +41,6 @@ export function quantity(value: number, unit: Unit) {
   }
   return n.format(value) + (unit === 'PIECE' ? ' шт.' : ' уп.');
 }
-export const displayId = (id: string) => id.slice(0, 8).toUpperCase();
 export const date = (value: Date) => new Intl.DateTimeFormat('ru-RU', {
   dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Moscow',
 }).format(value);
@@ -72,7 +71,7 @@ export function orderCard(order: CustomerOrder, issues: CustomerIssue[], page = 
   const pages = Math.max(1, Math.ceil(lines.length / size));
   page = Math.min(page, pages - 1);
   const header = [
-    'Заказ #' + displayId(order.publicId) + ' · ' + orderStatus[order.status],
+    'Заказ №' + order.id + ' · ' + orderStatus[order.status],
     (order.type === 'PICKUP' ? 'Самовывоз' : 'Доставка') + ' · ' + date(order.createdAt),
     ...(order.deliveryAt ? ['Получение: ' + date(order.deliveryAt)] : []),
     'При заказе: ' + amount(order.total),
@@ -115,14 +114,15 @@ const labels: Record<DecisionCode, string> = {
   a: '✅ Принять фактический вес', r: '⚖️ Попросить уменьшить', x: 'Убрать товар',
   p: '✅ Принять замену', c: '❌ Отменить весь заказ',
 };
-export function issueCard(publicId: string, issues: CustomerIssue[], page = 0): Screen {
+export function issueCard(order: Pick<CustomerOrder, 'id' | 'publicId'>, issues: CustomerIssue[], page = 0): Screen {
+  const publicId = order.publicId;
   const waiting = issues.filter(issue => issue.actions.length);
   const issue = waiting[Math.min(page, waiting.length - 1)];
   if (!issue) return { text: 'Сейчас нет вопросов, требующих вашего решения.', keyboard: { inline_keyboard: [[{
     text: '← К заказу', callback_data: customerView('o', publicId),
   }]] } };
   page = Math.min(page, waiting.length - 1);
-  const lines = ['Заказ #' + displayId(publicId) + ' · Требуется ваше решение', short(issue.orderItem.productName)];
+  const lines = ['Заказ №' + order.id + ' · Требуется ваше решение', short(issue.orderItem.productName)];
   if (issue.type === 'WEIGHT_DEVIATION') {
     lines.push('Заказано: ' + quantity(issue.requestedQty, issue.orderItem.unit),
       'Фактически: ' + quantity(issue.actualQty!, issue.orderItem.unit),

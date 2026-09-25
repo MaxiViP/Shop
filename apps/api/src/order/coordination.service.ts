@@ -344,7 +344,7 @@ export class CoordinationService {
       });
       const hasMore = rows.length > query.limit;
       const page = rows.slice(0, query.limit);
-      return { messages: query.after ? page : page.reverse(), hasMore };
+      return { messages: query.after ? page : page.reverse(), hasMore, orderId: id };
     });
   }
 
@@ -397,7 +397,12 @@ export class CoordinationService {
         staff ? 'customer' : 'staff',
       );
     });
-    if ('orderId' in actor) await this.notifications.dispatch(saved.orderId);
+    if ('orderId' in actor) {
+      // The chat message, unread count and TELEGRAM outbox row have committed.
+      // The dispatcher claims PENDING atomically; the sweep remains a crash fallback.
+      void this.notifications.dispatchTelegram(saved.orderId).catch(() => {});
+      await this.notifications.dispatch(saved.orderId);
+    }
     return saved;
   }
 

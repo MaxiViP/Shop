@@ -13,7 +13,7 @@ import { shoppingAction } from './shopping-callback.js';
 import { customerBotToken } from './bot-config.js';
 import { customerAction, customerUpdate, customerView, type CustomerAction } from './customer-callback.js';
 import {
-  activeStatuses, amount, date, displayId, issueCard, orderCard, orderStatus, short, siteUrl,
+  activeStatuses, amount, date, issueCard, orderCard, orderStatus, short, siteUrl,
   type Button, type Screen,
 } from './customer-view.js';
 
@@ -70,13 +70,13 @@ export class CustomerUpdateService {
       ] } : {}) },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: page * 5, take: 6,
       select: {
-        publicId: true, status: true, total: true, finalTotal: true, createdAt: true,
+        id: true, publicId: true, status: true, total: true, finalTotal: true, createdAt: true,
         customerUnread: true, issues: { where: { status: 'WAITING_CUSTOMER' }, select: { id: true } },
       },
     });
     const visible = rows.slice(0, 5);
     const buttons: Button[][] = visible.map(order => [{
-      text: '#' + displayId(order.publicId) + (order.issues.length ? ' · Требуется решение' :
+      text: '№' + order.id + (order.issues.length ? ' · Требуется решение' :
         order.customerUnread ? ' · Есть сообщения' : ' · ' + orderStatus[order.status]),
       callback_data: customerView(attention ? order.issues.length ? 'q' : 'm' : 'o', order.publicId),
     }]);
@@ -87,7 +87,7 @@ export class CustomerUpdateService {
     buttons.push([{ text: 'Меню', callback_data: 'menu' }]);
     return this.show(target, {
       text: (attention ? 'Сообщения и вопросы по заказам' : 'Ваши заказы') + '\n\n' +
-        (visible.map(order => '#' + displayId(order.publicId) + ' · ' + orderStatus[order.status] + '\n' +
+        (visible.map(order => '№' + order.id + ' · ' + orderStatus[order.status] + '\n' +
           amount(order.finalTotal ?? order.total) + ' · ' + date(order.createdAt)).join('\n\n') ||
           (attention ? 'Новых вопросов и сообщений нет.' : 'Здесь пока нет заказов.')),
       keyboard: { inline_keyboard: buttons.filter(row => row.length) },
@@ -96,7 +96,7 @@ export class CustomerUpdateService {
   private async card(target: Target, identity: Identity, publicId: string, page = 0, issue = false) {
     const order = await this.orders.get(publicId, identity.userId);
     const coordination = await this.coordination.view({ publicId, userId: identity.userId });
-    return this.show(target, issue ? issueCard(publicId, coordination.issues, page) : orderCard(order, coordination.issues, page));
+    return this.show(target, issue ? issueCard(order, coordination.issues, page) : orderCard(order, coordination.issues, page));
   }
   private async messages(target: Target, identity: Identity, publicId: string, before = 0) {
     const actor = { publicId, userId: identity.userId };
@@ -105,7 +105,7 @@ export class CustomerUpdateService {
     const last = result.messages[0];
     const authors = { CUSTOMER: 'Вы', SELLER: 'Продавец', ADMIN: 'Продавец', SYSTEM: 'Заказ' };
     const ok = await this.show(target, {
-      text: 'Заказ #' + displayId(publicId) + ' · Сообщения\n\n' +
+      text: 'Заказ №' + result.orderId + ' · Сообщения\n\n' +
         (last ? authors[last.authorType] + ' · ' + date(last.createdAt) + '\n' + last.text : 'Сообщений пока нет.'),
       keyboard: { inline_keyboard: [
         ...(last && result.hasMore ? [[{ text: '← Предыдущее', callback_data: customerView('m', publicId, last.id) }]] : []),
@@ -118,10 +118,11 @@ export class CustomerUpdateService {
   }
   private async prompt(target: Target, identity: Identity, publicId: string) {
     const session = await this.coordination.reserveReply({ publicId, userId: identity.userId }, identity.id);
-    return this.presentChat(target, identity, session, publicId);
+    return this.presentChat(target, identity, session);
   }
-  private async presentChat(target: Target, identity: Identity, session: CustomerTelegramSession, publicId: string) {
-    const promptMessageId = await customerPrompt(target.chatId, 'Сообщение продавцу по заказу #' + displayId(publicId) +
+  private async presentChat(target: Target, identity: Identity, session: CustomerTelegramSession) {
+    if (session.orderId === null) return;
+    const promptMessageId = await customerPrompt(target.chatId, 'Сообщение продавцу по заказу №' + session.orderId +
       '.\nОтветьте именно на это сообщение (до 2000 символов).\n/resume — продолжить; /cancel — отмена. Ответ принимается в течение 10 минут.');
     // UNKNOWN must retain the durable, unbound reservation.
     if (!promptMessageId) return;
@@ -137,7 +138,7 @@ export class CustomerUpdateService {
     if (session.action === 'CHECKOUT') return this.shop.present(target, identity, session);
     if (session.action !== 'CHAT' || session.orderId === null) return;
     const order = await this.db.order.findFirst({where:{id:session.orderId,userId:identity.userId},select:{publicId:true}});
-    if (order) return this.presentChat(target,identity,session,order.publicId);
+    if (order) return this.presentChat(target,identity,session);
   }
   private async cancel(identity: Identity) {
     await this.db.$transaction(async db => {
