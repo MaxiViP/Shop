@@ -160,7 +160,13 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     const f = await fixture();
     await db.orderNotification.create({ data: { orderId: f.order.id, type: 'ACTION_REQUIRED', dedupeKey: 'same-logical-key' } });
     const data = { orderId: f.order.id, type: 'ACTION_REQUIRED' as const, dedupeKey: 'same-logical-key' };
-    await Promise.all([telegramEvent(db, data), telegramEvent(db, data)]);
+    // Domain writers enqueue on their transaction after locking the parent order.
+    // Exercise that contract instead of racing an unlocked Prisma read/create upsert.
+    const enqueue = () => db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${f.order.id} FOR UPDATE`;
+      await telegramEvent(tx, data);
+    });
+    await Promise.all([enqueue(), enqueue()]);
     const saved = await db.orderNotification.findMany({ where: { dedupeKey: data.dedupeKey } });
     expect(saved).toHaveLength(2);
     expect(saved.map(e => e.channel).sort()).toEqual(['SMS', 'TELEGRAM']);
@@ -533,4 +539,62 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     await staff.cancel(f.order.id, seller.userId, seller.role, 'Fixture', seller);
     expect((await events(f.order.id)).map(e => e.type)).toEqual(['ORDER_CANCELED']);
   });
+  it.each(['sent', 'blocked', 'rejected', 'server', 'timeout', 'malformed'] as const)(
+    'real CUSTOMER provider through gateway preserves durable outbox outcome %s', async mode => {
+      const gateway = 'http://127.0.0.1:19001';
+      vi.stubEnv('TELEGRAM_CUSTOMER_GATEWAY_URL', gateway);
+      vi.stubEnv('TELEGRAM_STAFF_GATEWAY_URL', '');
+      vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', randomUUID());
+      vi.stubEnv('TELEGRAM_CUSTOMER_WEBHOOK_SECRET', randomUUID());
+      vi.stubEnv('TELEGRAM_STAFF_WEBHOOK_SECRET', randomUUID());
+      const provider = new CustomerNotificationService();
+      expect(provider.available).toBe(true);
+      const dispatcher = new NotificationService(db as unknown as DbService, sms, provider);
+      const f = await fixture();
+      await staff.item(f.order.id, f.order.items[0]!.id, { status: 'MISSING' }, seller.userId, seller);
+      if (mode === 'timeout') fetcher.mockRejectedValueOnce(new DOMException('private provider fixture', 'TimeoutError'));
+      else if (mode === 'malformed') fetcher.mockResolvedValueOnce(Response.json({ ok: true, result: {} }));
+      else if (mode !== 'sent') fetcher.mockResolvedValueOnce(new Response('{}', {
+        status: mode === 'blocked' ? 403 : mode === 'rejected' ? 400 : 502,
+      }));
+      await Promise.all([dispatcher.dispatchTelegram(f.order.id), dispatcher.dispatchTelegram(f.order.id)]);
+      await dispatcher.dispatchTelegram(f.order.id);
+      const rows = await events(f.order.id, 'ACTION_REQUIRED');
+      const status = mode === 'sent' ? 'SENT' : mode === 'blocked' || mode === 'rejected' ? 'FAILED' : 'SENDING';
+      expect(rows.find(row => row.channel === 'TELEGRAM')).toMatchObject({ status, attempts: 1 });
+      expect(rows.find(row => row.channel === 'SMS')?.status).toBe('SENT');
+      expect((await db.telegramIdentity.findUniqueOrThrow({ where: { id: f.identity!.id } })).customerBotBlockedAt !== null).toBe(mode === 'blocked');
+      expect((await db.orderItem.findUniqueOrThrow({ where: { id: f.order.items[0]!.id } })).status).toBe('MISSING');
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(fetcher.mock.calls[0]![0]).toBe(gateway + '/v1/customer/sendMessage');
+      expect(JSON.stringify(fetcher.mock.calls).includes(process.env.TELEGRAM_CUSTOMER_BOT_TOKEN!)).toBe(false);
+      expect(JSON.stringify(vi.mocked(Logger.prototype.warn).mock.calls)).not.toContain('private provider fixture');
+    },
+  );
+  it.each(['timeout', 'malformed', 'missing-id'] as const)(
+    'gateway UNKNOWN %s preserves unbound CHAT and explicit /resume binds a single reply after restart', async mode => {
+      const gateway = 'http://127.0.0.1:19001';
+      vi.stubEnv('TELEGRAM_CUSTOMER_GATEWAY_URL', gateway);
+      vi.stubEnv('TELEGRAM_STAFF_GATEWAY_URL', '');
+      vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', randomUUID());
+      const f = await fixture();
+      if (mode === 'timeout') fetcher.mockRejectedValueOnce(new DOMException('fixture', 'TimeoutError'));
+      else fetcher.mockResolvedValueOnce(mode === 'malformed' ? new Response('invalid') : Response.json({ ok: true }));
+      await makeBot().handle(callback(f.telegramId, customerView('w', f.order.publicId)));
+      const pending = await db.customerTelegramSession.findUniqueOrThrow({ where: { identityId: f.identity!.id } });
+      expect(pending).toMatchObject({ action: 'CHAT', step: 'PROMPT', promptMessageId: null });
+      await makeBot().handle(text(f.telegramId, 'Unbound input', 999));
+      expect(await db.orderChatMessage.count({ where: { orderId: f.order.id, authorType: 'CUSTOMER' } })).toBe(0);
+      await makeBot().handle(text(f.telegramId, '/resume'));
+      const resumed = await db.customerTelegramSession.findUniqueOrThrow({ where: { identityId: f.identity!.id } });
+      expect(resumed.id).not.toBe(pending.id);
+      expect(resumed.promptMessageId).not.toBeNull();
+      const update = text(f.telegramId, 'Bound fixture', resumed.promptMessageId!);
+      await Promise.all([makeBot().handle(update), makeBot().handle(update)]);
+      expect(await db.orderChatMessage.count({ where: { orderId: f.order.id, authorType: 'CUSTOMER' } })).toBe(1);
+      expect(await db.customerTelegramSession.count({ where: { identityId: f.identity!.id } })).toBe(0);
+      expect(fetcher.mock.calls.every(([url]) => String(url).startsWith(gateway + '/v1/customer/'))).toBe(true);
+    },
+  );
+
 });

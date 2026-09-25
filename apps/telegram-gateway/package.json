@@ -1,0 +1,23 @@
+{
+  "name": "telegram-gateway",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start": "node dist/main.js",
+    "dev": "node --watch dist/main.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src/ test/",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "oxlint": "^1.58.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}

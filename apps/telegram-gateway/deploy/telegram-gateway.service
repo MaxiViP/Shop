@@ -1,0 +1,36 @@
+[Unit]
+Description=KorzinaMarket Telegram transport gateway
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=telegram-gateway
+Group=telegram-gateway
+WorkingDirectory=/opt/korzinamarket-gateway
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/korzinamarket-gateway/gateway.env
+ExecStart=/usr/bin/node /opt/korzinamarket-gateway/dist/main.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

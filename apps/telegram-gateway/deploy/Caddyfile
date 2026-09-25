@@ -1,0 +1,42 @@
+# Future Amsterdam template only. Merge this into the existing global block at rollout.
+# Never expose /v1/* or port 18080. Drop request details from error logs too.
+{
+    log {
+        format filter {
+            wrap json
+            fields {
+                request delete
+            }
+        }
+    }
+}
+
+tg.korzinamarket.ru {
+    @health {
+        method GET
+        path /health
+    }
+    handle @health {
+        respond "ok" 200
+    }
+
+    @customer {
+        method POST
+        path /api/telegram/customer/webhook
+    }
+    handle @customer {
+        reverse_proxy 127.0.0.1:19002
+    }
+
+    @staff {
+        method POST
+        path /api/telegram/webhook
+    }
+    handle @staff {
+        reverse_proxy 127.0.0.1:19002
+    }
+
+    handle {
+        respond "not found" 404
+    }
+}
