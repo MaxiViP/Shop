@@ -50,6 +50,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           text: string;
           callback_data?: string;
           url?: string;
+          web_app?: { url: string };
         }[][];
       };
     };
@@ -832,6 +833,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
       );
       const screen = sent().find((x) => x.text?.includes('Выбрано:'));
       expect(screen?.text).toContain('500 г');
+      expect(screen?.reply_markup?.inline_keyboard?.flat().find(button => button.text === 'Фото и описание')?.web_app?.url)
+        .toBe('https://shop.example/telegram?returnTo=' + encodeURIComponent('/product/' + f.product.slug));
       expect(
         screen?.reply_markup?.inline_keyboard
           ?.flat()

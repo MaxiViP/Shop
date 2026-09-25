@@ -22,10 +22,11 @@ export class TelegramAuthService {
     return this.login(
       verifyInitData(initData, customerBotToken()),
       previousToken,
+      true,
     );
   }
 
-  async login(proof: TelegramProof, previousToken?: string) {
+  async login(proof: TelegramProof, previousToken?: string, miniAppSwitch = false) {
     const current = await this.auth.me(previousToken);
     // All registration writers serialize by Telegram ID. Unique constraints are
     // the final DB guard; an interrupted transaction never leaves an orphan User.
@@ -52,7 +53,7 @@ export class TelegramAuthService {
             where: { telegramUserId },
             include: { user: { select } },
           });
-          if (current && current.id !== identity?.userId)
+          if (current && current.id !== identity?.userId && !miniAppSwitch)
             throw new ConflictException('ACCOUNT_LINK_REQUIRED');
           const data = {
             username: profile.username ?? null,

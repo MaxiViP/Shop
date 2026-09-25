@@ -3,7 +3,7 @@ import type { OrderNotification, OrderIssue, DeliveryStatus } from '../db/gen/cl
 import { botDelivery } from './bot-api.js';
 import { customerBotToken, customerWebhookReady } from './bot-config.js';
 import { customerView } from './customer-callback.js';
-import { amount, short, siteUrl, deliveryStatus, type Button } from './customer-view.js';
+import { amount, short, webAppUrl, deliveryStatus, type Button } from './customer-view.js';
 
 export type CustomerNotice = {
   event: Pick<OrderNotification, 'type'>;
@@ -32,12 +32,12 @@ export class CustomerNotificationService {
       (event.type === 'PAYMENT_READY' ? '\nТовары: ' + amount(order.finalSubtotal) + '\nИтого: ' + amount(order.finalTotal) : '') +
       (event.type === 'CHAT_MESSAGE' && message ? '\n\n' + message.text :
         event.type === 'ACTION_REQUIRED' ? '\nОткройте вопрос, чтобы проверить товар и выбрать действие.' : '');
-    const url = siteUrl('/order/' + order.publicId);
+    const url = webAppUrl('/order/' + order.publicId);
     const rows: Button[][] = [
       [{ text: event.type === 'ACTION_REQUIRED' ? '❗ Ответить на вопрос' :
         event.type === 'CHAT_MESSAGE' ? '💬 Открыть сообщения' : 'Посмотреть заказ',
         callback_data: customerView(event.type === 'ACTION_REQUIRED' ? 'q' : event.type === 'CHAT_MESSAGE' ? 'm' : 'o', order.publicId) }],
-      ...(url ? [[{ text: 'Открыть заказ на сайте', url }]] : []),
+      ...(url ? [[{ text: 'Открыть заказ на сайте', web_app: { url } }]] : []),
     ];
     return botDelivery(customerBotToken(), {
       chat_id: chatId, text: short(text, 3900).replaceAll('  ', ' '),

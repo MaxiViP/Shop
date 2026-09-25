@@ -91,6 +91,7 @@ export default defineNuxtConfig({
     public: {
       apiBase: "http://127.0.0.1:4001/api",
       siteUrl: "https://korzinamarket.ru",
+      telegramCustomerBotUrl: "",
       pickupName: "ТЦ «Багратионовский»",
       pickupAddress: "ул. Барклая, 10, Москва",
     },

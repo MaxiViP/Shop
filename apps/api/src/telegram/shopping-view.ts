@@ -12,7 +12,7 @@ import {
   quantity,
   short,
   date,
-  siteUrl,
+  webAppUrl,
   type CustomerOrder,
   type Screen,
   type Button,
@@ -167,8 +167,8 @@ export function paymentScreen(
         if (selected === 'CARD_TRANSFER' && details.cardNumber)
           lines.push('Карта: ' + short(details.cardNumber, 80));
         if (selected === 'QR' || (selected === 'SBP' && !details.phone)) {
-          const url = siteUrl('/order/' + publicId);
-          if (url) buttons.push([{ text: 'Открыть оплату на сайте', url }]);
+          const url = webAppUrl('/order/' + publicId);
+          if (url) buttons.push([{ text: 'Открыть оплату на сайте', web_app: { url } }]);
         }
         for (const m of ['SBP', 'CARD_TRANSFER', 'QR'] as const)
           if (details.methods.includes(m))

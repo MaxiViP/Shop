@@ -1,5 +1,5 @@
 import { customerAction, customerDecision, customerView } from './customer-callback.js';
-import { orderCard, issueCard, amount, quantity, siteUrl, type CustomerOrder, type CustomerIssue } from './customer-view.js';
+import { orderCard, issueCard, amount, quantity, siteUrl, webAppUrl, type CustomerOrder, type CustomerIssue } from './customer-view.js';
 
 const id = '12345678-1234-4234-8234-123456789abc';
 const item = { id: 1, productName: 'Помидоры', qty: 1000, actualQty: 1200, unit: 'GRAM', total: 10000, actualTotal: 12000, status: 'PICKED' };
@@ -21,7 +21,10 @@ it('renders requested/actual quantity, final totals, payment and delivery withou
   for (const text of ['1,2 кг', '120 ₽', '160 ₽', 'Получена', 'Курьер назначен', 'Заказ №7']) expect(card.text).toContain(text);
   expect(card.text).not.toContain(id);
   expect(JSON.stringify(card.keyboard)).toContain(id.replaceAll('-', ''));
-  expect(JSON.stringify(card.keyboard)).toContain('https://shop.example/order/' + id);
+  expect(card.keyboard.inline_keyboard.flat().find(b => b.text === 'Открыть заказ на сайте'))
+    .toEqual({ text: 'Открыть заказ на сайте', web_app: {
+      url: 'https://shop.example/telegram?returnTo=' + encodeURIComponent('/order/' + id),
+    } });
 });
 it('renders missing items and finalized extras', () => {
   const card = orderCard({ ...order, items: [{ ...order.items[0]!, status: 'MISSING' }],
@@ -64,6 +67,14 @@ it.each([
   vi.stubEnv('ORDER_SITE_URL', origin);
   expect(siteUrl('/profile') ?? null).toBe(expected);
   expect(siteUrl('//evil.example')).toBeUndefined();
+});
+it('WebApp URLs allow only canonical local order/product paths', () => {
+  vi.stubEnv('ORDER_SITE_URL', 'https://shop.example');
+  expect(webAppUrl('/order/' + id)).toBe('https://shop.example/telegram?returnTo=' + encodeURIComponent('/order/' + id));
+  expect(webAppUrl('/product/green-grapes')).toBe('https://shop.example/telegram?returnTo=%2Fproduct%2Fgreen-grapes');
+  for (const path of ['//evil.example', 'https://evil.example', '/product/../admin',
+    '/product/a%2Fb', '/product/a?x=1', '/product/a\\b', '/order/not-a-uuid'])
+    expect(webAppUrl(path)).toBeUndefined();
 });
 it('formats integer kopecks and distinct product units', () => {
   expect(amount(12345)).toBe('123,45 ₽');

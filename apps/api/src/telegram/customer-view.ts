@@ -5,7 +5,8 @@ import { shoppingData } from './shopping-callback.js';
 import { goodsLine } from '../order/pricing.js';
 import { customerView, customerDecision, decisionCodes, type DecisionCode } from './customer-callback.js';
 
-export type Button = { text: string; callback_data: string } | { text: string; url: string };
+export type Button = { text: string; callback_data: string } | { text: string; url: string } |
+  { text: string; web_app: { url: string } };
 export type Keyboard = { inline_keyboard: Button[][] };
 export type Screen = { text: string; keyboard: Keyboard };
 export type CustomerOrder = Awaited<ReturnType<OrderService['get']>>;
@@ -53,10 +54,15 @@ export function siteUrl(path: string) {
     return url.origin === origin.origin ? url.href : undefined;
   } catch { return undefined; }
 }
+export function webAppUrl(path: string): string | undefined {
+  const order = /^\/order\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path);
+  const product = path.length <= 189 && /^\/product\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path);
+  return order || product ? siteUrl('/telegram?returnTo=' + encodeURIComponent(path)) : undefined;
+}
 export function orderLinks(publicId: string): Button[][] {
-  const url = siteUrl('/order/' + publicId);
+  const url = webAppUrl('/order/' + publicId);
   return [
-    ...(url ? [[{ text: 'Открыть заказ на сайте', url }]] : []),
+    ...(url ? [[{ text: 'Открыть заказ на сайте', web_app: { url } }]] : []),
     [{ text: '📦 Мои заказы', callback_data: 'orders' }, { text: 'Меню', callback_data: 'menu' }],
   ];
 }

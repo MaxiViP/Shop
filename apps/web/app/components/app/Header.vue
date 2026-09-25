@@ -121,6 +121,17 @@
               <span>Доставка</span>
             </NuxtLink>
 
+            <a
+              v-if="customerTelegramUrl"
+              :href="customerTelegramUrl"
+              class="mobile-nav__link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <UIcon name="i-lucide-send" />
+              <span>Покупать в Telegram</span>
+            </a>
+
             <NuxtLink to="/favorites" class="mobile-nav__link">
               <UIcon name="i-lucide-heart" />
               <span>Избранное</span>
@@ -247,8 +258,12 @@ import { useCartStore } from "~/stores/cart";
 import { useFavoritesStore } from "~/stores/favorites";
 import { headerAccount } from "~/utils/header-account";
 import { money } from "~/utils/money";
+import { customerBotUrl } from "~/utils/customer-bot-url";
 
 const route = useRoute();
+const customerTelegramUrl = computed(() =>
+  customerBotUrl(useRuntimeConfig().public.telegramCustomerBotUrl),
+);
 const auth = useAuthStore();
 const orders = useOrdersAction();
 const cart = useCartStore();

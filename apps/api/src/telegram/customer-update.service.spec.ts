@@ -59,7 +59,7 @@ function setup(linked = true) {
   return { db, service, coordination, orders, shop, checkout };
 }
 type TelegramBody = { text?: string; callback_query_id?: string; message_id?: number;
-  reply_markup?: { inline_keyboard?: Array<Array<{ text: string; callback_data?: string; url?: string }>>; force_reply?: boolean } };
+  reply_markup?: { inline_keyboard?: Array<Array<{ text: string; callback_data?: string; url?: string; web_app?: { url: string } }>>; force_reply?: boolean } };
 const sent = () => fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as TelegramBody);
 
 beforeEach(() => {
@@ -131,7 +131,8 @@ describe('customer cabinet', () => {
     expect(orders.get).toHaveBeenCalledWith(publicId, 7);
     expect(coordination.view).toHaveBeenCalledWith({ publicId, userId: 7 });
     expect(sent()[0]?.message_id).toBe(55);
-    expect(JSON.stringify(sent())).toContain('https://shop.example/order/' + publicId);
+    expect(sent()[0]?.reply_markup?.inline_keyboard?.flat().find(button => button.text === 'Открыть заказ на сайте')?.web_app?.url)
+      .toBe('https://shop.example/telegram?returnTo=' + encodeURIComponent('/order/' + publicId));
     expect(sent()[0]?.text).toContain('Заказ №1');
   });
   it('foreign order reveals no order data', async () => {

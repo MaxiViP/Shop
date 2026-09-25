@@ -24,6 +24,7 @@ import {
   amount,
   quantity,
   short,
+  webAppUrl,
   type Button,
 } from './customer-view.js';
 
@@ -146,6 +147,7 @@ export class CustomerShopService {
     if (!cartQuantityValid(qty, p.min, p.step))
       throw new BadRequestException('Проверьте количество товара');
     const basket = await this.cart.get(identity.userId);
+    const productUrl = webAppUrl('/product/' + encodeURIComponent(p.slug));
     const down = manualQuantity(qty, p, -1),
       up = manualQuantity(qty, p, 1);
     const controls: Button[] = [];
@@ -184,6 +186,7 @@ export class CustomerShopService {
               callback_data: shoppingData('a', basket.revision, p.id, qty),
             },
           ],
+          ...(productUrl ? [[{ text: 'Фото и описание', web_app: { url: productUrl } }]] : []),
           [
             {
               text: '← К товарам',

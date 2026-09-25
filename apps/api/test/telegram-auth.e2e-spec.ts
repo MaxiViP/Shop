@@ -310,6 +310,46 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const me = await request(app.getHttpServer()).get('/api/auth/me').set('Cookie', 'sid=' + token).expect(200);
       expect(me.body).toMatchObject({ id: user.id, phone: '+79918888888', telegram: null });
     });
+    it('verified Mini App switches a different USER or ADMIN SID without merging accounts', async () => {
+      const former = await db.user.create({ data: { role: 'USER', name: 'Former' } });
+      const formerToken = await auth.createSession(db, former.id);
+      const telegramId = ++id;
+      const first = await post('telegram/mini-app', { initData: raw(telegramId) }, 'sid=' + formerToken).expect(201);
+      expect(first.body).toMatchObject({ role: 'USER', phone: null });
+      expect(first.body.id).not.toBe(former.id);
+      expect(await auth.me(formerToken)).toBeNull();
+      expect((await auth.me(sid(first).slice(4)))?.id).toBe(first.body.id);
+      expect(await db.user.findUnique({ where: { id: former.id } })).toMatchObject({ role: 'USER', name: 'Former' });
+      expect(await db.telegramIdentity.findUnique({ where: { telegramUserId: BigInt(telegramId) } }))
+        .toMatchObject({ userId: first.body.id });
+
+      const admin = await db.user.upsert({ where: { phone: '+79990000001' },
+        create: { role: 'ADMIN', phone: '+79990000001' }, update: { role: 'ADMIN' } });
+      const same = await post('telegram/mini-app', { initData: raw(telegramId) }, sid(first)).expect(201);
+      expect(same.body.id).toBe(first.body.id);
+      expect(await auth.me(sid(first).slice(4))).toBeNull();
+      const adminToken = await auth.createSession(db, admin.id);
+      await post('telegram/mini-app', { initData: 'user={"id":123}' }, 'sid=' + adminToken).expect(401);
+      expect((await auth.me(adminToken))?.id).toBe(admin.id);
+      const second = await post('telegram/mini-app', { initData: raw(telegramId) }, 'sid=' + adminToken).expect(201);
+      expect(second.body.id).toBe(first.body.id);
+      expect(await auth.me(adminToken)).toBeNull();
+      expect((await auth.me(sid(second).slice(4)))?.id).toBe(first.body.id);
+      expect(await db.user.findUnique({ where: { id: admin.id } })).toMatchObject({ role: 'ADMIN' });
+      expect(await db.telegramIdentity.count({ where: { telegramUserId: BigInt(telegramId) } })).toBe(1);
+      await db.user.delete({ where: { id: admin.id } });
+    });
+    it('normal OIDC identity login still requires explicit linking for another SID', async () => {
+      const telegramId = ++id;
+      const linked = await telegram.miniApp(raw(telegramId));
+      const other = await db.user.create({ data: { role: 'USER' } });
+      const token = await auth.createSession(db, other.id);
+      await expect(telegram.login({ profile: { id: telegramId }, tokenHash: randomUUID(),
+        expiresAt: new Date(Date.now() + 300_000) }, token)).rejects.toThrow('ACCOUNT_LINK_REQUIRED');
+      expect((await auth.me(token))?.id).toBe(other.id);
+      expect(await db.telegramIdentity.findUnique({ where: { telegramUserId: BigInt(telegramId) } }))
+        .toMatchObject({ userId: linked.user.id });
+    });
     it('serializes two free phone attachments to the same account', async () => {
       const user = await telegram.miniApp(raw());
       const before = await db.user.count();
@@ -456,15 +496,15 @@ describe.skipIf(!process.env.DATABASE_URL)(
         .send({ initData: raw() })
         .expect(403);
     });
-    it('does not link a different existing session by identity/name', async () => {
-      const first = await post('telegram/mini-app', { initData: raw() }).expect(
-        201,
-      );
+    it('switches to another verified Telegram USER without linking by identity/name', async () => {
+      const first = await post('telegram/mini-app', { initData: raw() }).expect(201);
+      const oldToken = sid(first).slice(4);
       const count = await db.user.count();
-      await post('telegram/mini-app', { initData: raw() }, sid(first)).expect(
-        409,
-      );
-      expect(await db.user.count()).toBe(count);
+      const next = await post('telegram/mini-app', { initData: raw() }, sid(first)).expect(201);
+      expect(next.body.id).not.toBe(first.body.id);
+      expect(await db.user.count()).toBe(count + 1);
+      expect(await auth.me(oldToken)).toBeNull();
+      expect((await auth.me(sid(next).slice(4)))?.id).toBe(next.body.id);
     });
     it('attaches a free OTP-verified phone to the SAME Telegram User', async () => {
       const first = await post('telegram/mini-app', { initData: raw() }).expect(

@@ -45,11 +45,13 @@ it('customer provider uses the customer token and bounded plain-text message', a
   await service.send('12345', notice);
   const [url, options] = fetcher.mock.calls[0]!;
   expect(url).toBe('https://api.telegram.org/bot' + process.env.TELEGRAM_CUSTOMER_BOT_TOKEN + '/sendMessage');
-  const body = JSON.parse(String(options?.body)) as { text: string; parse_mode?: string };
+  const body = JSON.parse(String(options?.body)) as { text: string; parse_mode?: string;
+    reply_markup: { inline_keyboard: { text: string; web_app?: { url: string } }[][] } };
   expect(body.parse_mode).toBeUndefined();
   expect(body.text).toContain('Заказ №7\nНовое сообщение от продавца');
   expect(body.text).toContain(notice.message!.text);
-  expect(String(options?.body)).toContain('https://shop.example/order/' + notice.order.publicId);
+  expect(body.reply_markup.inline_keyboard.flat().find(button => button.text === 'Открыть заказ на сайте')?.web_app?.url)
+    .toBe('https://shop.example/telegram?returnTo=' + encodeURIComponent('/order/' + notice.order.publicId));
   expect(String(options?.body)).toContain(notice.order.publicId.replaceAll('-', ''));
   expect(body.text.length).toBeLessThan(4096);
 });
