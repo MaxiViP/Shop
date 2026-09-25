@@ -893,7 +893,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       .expect(400);
   });
 
-  it('PHASE 2.1 extras are staff-only, versioned, hidden until finalized and included in the one payment', async () => {
+  it('PHASE 2.1 extras are versioned, customer-visible during assembly and included in the one payment', async () => {
     const order = await phase2Order(1000);
     const path = `/staff/orders/${order.id}/extras`;
     const input = { title: 'Нарезка', comment: 'Помыть и нарезать', quantity: 1, unitPrice: 50000 };
@@ -902,7 +902,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     const extra = (await call(seller).post(path, input).expect(201)).body;
     expect(extra.amount).toBe(50000);
     expect(await db.orderIssue.count({ where: { orderId: order.id } })).toBe(0);
-    expect((await call(owner).get(`/orders/${order.publicId}`)).body.extras).toEqual([]);
+    expect((await call(owner).get(`/orders/${order.publicId}`)).body.extras).toMatchObject([{ title: 'Нарезка', amount: 50000 }]);
     await call(seller).post(path, { ...input, quantity: 10000, unitPrice: 2147483647 }).expect(400);
     const other = await phase2Order(1000);
     await call(seller).patch(`/staff/orders/${other.id}/extras/${extra.id}`, { ...input, version: extra.version }).expect(404);

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { UnauthorizedException } from '@nestjs/common';
 import { signedInitData } from '../../test/telegram.fixture.js';
-import { verifyInitData } from './telegram-init-data.js';
+import { verifyInitData, type MiniAppFailureStage } from './telegram-init-data.js';
 
 describe('Telegram Mini App signature', () => {
   const token = randomBytes(32).toString('hex');
@@ -91,4 +91,32 @@ describe('Telegram Mini App signature', () => {
       );
     expect(() => verifyInitData(raw, '')).toThrow(UnauthorizedException);
   });
+  it('classifies Mini App failures with static stage codes only', () => {
+    const valid = signedInitData(token, { id: 123, first_name: 'PrivateName' });
+    const changed = new URLSearchParams(valid);
+    changed.set('hash', '0'.repeat(64));
+    const expired = signedInitData(token, { id: 123 }, {
+      auth_date: String(Math.floor(Date.now() / 1000) - 301),
+    });
+    const cases: Array<[string, string, MiniAppFailureStage]> = [
+      ['', token, 'INIT_DATA_MISSING'],
+      [valid, '', 'BOT_TOKEN_UNAVAILABLE'],
+      ['x'.repeat(16385), token, 'INIT_DATA_INVALID'],
+      [changed.toString(), token, 'HASH_INVALID'],
+      [expired, token, 'AUTH_DATE_INVALID_OR_EXPIRED'],
+      [signedInitData(token, { id: '123' }), token, 'PROFILE_INVALID'],
+    ];
+    for (const [initData, bot, expected] of cases) {
+      const stages: MiniAppFailureStage[] = [];
+      expect(() => verifyInitData(initData, bot, Date.now(), stage => stages.push(stage)))
+        .toThrow('TELEGRAM_AUTH_INVALID');
+      expect(stages).toEqual([expected]);
+      expect(JSON.stringify(stages)).not.toContain('PrivateName');
+      expect(JSON.stringify(stages)).not.toContain(token);
+    }
+    const stages: MiniAppFailureStage[] = [];
+    verifyInitData(valid, token, Date.now(), stage => stages.push(stage));
+    expect(stages).toEqual([]);
+  });
+
 });

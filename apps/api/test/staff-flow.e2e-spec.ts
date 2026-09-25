@@ -21,7 +21,7 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
   let connection: pg.Client, db: PrismaClient, staff: StaffService;
   let created = false, sequence = 100;
   const fetcher = vi.fn<typeof fetch>();
-  const notices = { dispatch: vi.fn(async () => {}) };
+  const notices = { dispatch: vi.fn(async () => {}), dispatchTelegram: vi.fn(async () => {}) };
   beforeAll(async () => {
     const target = new URL(process.env.DATABASE_URL!);
     if (!['localhost', '127.0.0.1', '[::1]'].includes(target.hostname))
@@ -235,6 +235,76 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
     });
     expect(await audits(f, 'ITEM_PICKED')).toMatchObject([{ userId: f.actor.userId, role: 'SELLER' }]);
     expect(await pending(f)).toBeNull();
+  });
+
+  it.each(['PIECE', 'PACK', 'BUNCH'] as const)(
+    'one-tap %s picks requested quantity once at snapshot price with linked audit', async unit => {
+      const f = await fixture('SELLER', unit), item = f.order.items[0]!;
+      await db.orderItem.update({ where: { id: item.id }, data: { qty: 3, total: 180000 } });
+      const action = callback(f, staffData(f.order.id, 'a', item.id));
+      await Promise.all([f.bot.handle(action), services().bot.handle(action)]);
+      await f.bot.handle(action);
+      expect(await db.orderItem.findUniqueOrThrow({ where: { id: item.id } })).toMatchObject({
+        status: 'PICKED', actualQty: 3, actualTotal: 180000, price: 60000,
+      });
+      expect(await audits(f, 'ITEM_PICKED')).toMatchObject([{ userId: f.actor.userId, role: 'SELLER', entityId: item.id }]);
+      expect(await audits(f, 'ITEM_PICKED')).toHaveLength(1);
+      expect(await pending(f)).toBeNull();
+    });
+
+  it('bulk picks only pending discrete positions and preserves GRAM, processed and issue-linked items', async () => {
+    const f = await fixture(), weighted = f.order.items[0]!;
+    const add = (name: string, unit: 'PIECE' | 'PACK' | 'BUNCH', qty: number) =>
+      db.orderItem.create({ data: { orderId: f.order.id, productName: name, productSlug: name,
+        unit, qty, price: 10000, priceQty: 1, total: qty * 10000 } });
+    const piece = await add('piece', 'PIECE', 3);
+    const pack = await add('pack', 'PACK', 1);
+    const bunch = await add('bunch', 'BUNCH', 2);
+    const picked = await add('picked', 'PIECE', 1);
+    await staff.item(f.order.id, picked.id, { status: 'PICKED', actualQty: 1 }, f.actor.userId, f.actor);
+    const missing = await add('missing', 'PACK', 1);
+    await staff.item(f.order.id, missing.id, { status: 'MISSING' }, f.actor.userId, f.actor);
+    const issue = await add('issue', 'BUNCH', 1);
+    await staff.item(f.order.id, issue.id, { status: 'MISSING' }, f.actor.userId, f.actor);
+    await staff.item(f.order.id, issue.id, { status: 'PENDING' }, f.actor.userId, f.actor);
+    const before = (await audits(f, 'ITEM_PICKED')).length;
+    const action = callback(f, staffData(f.order.id, 'k'));
+    await Promise.all([f.bot.handle(action), services().bot.handle(action)]);
+    await f.bot.handle(action);
+    for (const [id, qty] of [[piece.id, 3], [pack.id, 1], [bunch.id, 2]])
+      expect(await db.orderItem.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: 'PICKED', actualQty: qty });
+    expect(await db.orderItem.findUniqueOrThrow({ where: { id: weighted.id } })).toMatchObject({ status: 'PENDING' });
+    expect(await db.orderItem.findUniqueOrThrow({ where: { id: picked.id } })).toMatchObject({ status: 'PICKED', actualQty: 1 });
+    expect(await db.orderItem.findUniqueOrThrow({ where: { id: missing.id } })).toMatchObject({ status: 'MISSING' });
+    expect(await db.orderItem.findUniqueOrThrow({ where: { id: issue.id } })).toMatchObject({ status: 'PENDING' });
+    const rows = await audits(f, 'ITEM_PICKED');
+    expect(rows).toHaveLength(before + 3);
+    expect(rows.slice(before)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ userId: f.actor.userId, role: 'SELLER', entityId: piece.id }),
+      expect.objectContaining({ userId: f.actor.userId, role: 'SELLER', entityId: pack.id }),
+      expect.objectContaining({ userId: f.actor.userId, role: 'SELLER', entityId: bunch.id }),
+    ]));
+  });
+
+  it('bulk is all-or-nothing when one pending discrete quantity is invalid', async () => {
+    const f = await fixture('ADMIN', 'PIECE'), first = f.order.items[0]!;
+    const invalid = await db.orderItem.create({ data: { orderId: f.order.id, productName: 'invalid',
+      productSlug: 'invalid', unit: 'PACK', qty: 0, price: 10000, priceQty: 1, total: 0 } });
+    await f.bot.handle(callback(f, staffData(f.order.id, 'k')));
+    expect(await db.orderItem.findUniqueOrThrow({ where: { id: first.id } })).toMatchObject({ status: 'PENDING' });
+    expect(await db.orderItem.findUniqueOrThrow({ where: { id: invalid.id } })).toMatchObject({ status: 'PENDING' });
+    expect(await audits(f, 'ITEM_PICKED')).toHaveLength(0);
+  });
+
+  it('one-tap cannot pick GRAM and normal finish rules still apply after discrete confirmation', async () => {
+    const f = await fixture('SELLER', 'PIECE'), item = f.order.items[0]!;
+    await f.bot.handle(callback(f, staffData(f.order.id, 'a', item.id)));
+    await staff.finishAssembly(f.order.id, f.actor);
+    expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).status).toBe('READY');
+    const weighted = await fixture('SELLER', 'GRAM'), gram = weighted.order.items[0]!;
+    await weighted.bot.handle(callback(weighted, staffData(weighted.order.id, 'a', gram.id)));
+    expect(await db.orderItem.findUniqueOrThrow({ where: { id: gram.id } })).toMatchObject({ status: 'PENDING' });
+    expect(await audits(weighted, 'ITEM_PICKED')).toHaveLength(0);
   });
 
   it('recovers CANCEL confirmation and records the linked ADMIN once', async () => {

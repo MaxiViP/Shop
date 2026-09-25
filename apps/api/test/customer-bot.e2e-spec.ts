@@ -344,6 +344,81 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     if (code === 'c') expect((await orders.get(f.order.publicId, f.user.id)).status).toBe('CANCELED');
     expect(item.price).toBe(10000);
   });
+  it('commits item composition, unread and one durable customer notice per real change', async () => {
+    const f = await fixture();
+    const itemId = f.order.items[0]!.id;
+    await staff.item(f.order.id, itemId, { status: 'PICKED', actualQty: 1050 }, seller.userId, seller);
+    await vi.waitFor(async () => expect((await events(f.order.id, 'CHAT_MESSAGE'))[0]?.status).toBe('SENT'));
+    expect((await orders.get(f.order.publicId, f.user.id)).items[0]).toMatchObject({ status: 'PICKED', actualQty: 1050, actualTotal: 10500 });
+    await staff.item(f.order.id, itemId, { status: 'PICKED', actualQty: 1050 }, seller.userId, seller);
+    expect(await events(f.order.id, 'CHAT_MESSAGE')).toHaveLength(1);
+    await staff.item(f.order.id, itemId, { status: 'PENDING' }, seller.userId, seller);
+    expect((await orders.get(f.order.publicId, f.user.id)).items[0]).toMatchObject({ status: 'PENDING', actualQty: null });
+    expect(await events(f.order.id, 'CHAT_MESSAGE')).toHaveLength(2);
+    await staff.item(f.order.id, itemId, { status: 'MISSING' }, seller.userId, seller);
+    expect((await orders.get(f.order.publicId, f.user.id)).items[0]).toMatchObject({ status: 'MISSING', actualQty: 0 });
+    expect((await events(f.order.id, 'ACTION_REQUIRED')).filter(row => row.channel === 'TELEGRAM')).toHaveLength(1);
+    expect(await events(f.order.id, 'CHAT_MESSAGE')).toHaveLength(2);
+    expect(await db.orderChatMessage.count({ where: { orderId: f.order.id, recipient: 'customer' } })).toBe(3);
+    expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).customerUnread).toBe(3);
+    for (const action of ['ITEM_PICKED', 'ITEM_RESET', 'ITEM_MISSING'])
+      expect(await db.orderStaffAudit.count({ where: { orderId: f.order.id, action } })).toBe(1);
+  });
+  it('makes active extras visible immediately and notifies once after each committed add/edit/cancel', async () => {
+    const f = await fixture();
+    const original = notices.dispatchTelegram.bind(notices);
+    const observed: number[] = [];
+    vi.spyOn(notices, 'dispatchTelegram').mockImplementation(async id => {
+      observed.push(await db.orderChatMessage.count({ where: { orderId: id } }));
+      expect(await db.orderExtra.count({ where: { orderId: id, status: 'ACTIVE' } })).toBe(observed.length === 3 ? 0 : 1);
+      return original(id);
+    });
+    const input = { title: 'Упаковка', quantity: 1, unitPrice: 30000 };
+    const added = await staff.extra(f.order.id, seller.userId, input, undefined, undefined, seller);
+    await vi.waitFor(() => expect(observed).toEqual([1]));
+    expect((await orders.get(f.order.publicId, f.user.id))).toMatchObject({ subtotal: 10000, finalSubtotal: null, extras: [{ title: 'Упаковка', amount: 30000 }] });
+    expect((await events(f.order.id, 'CHAT_MESSAGE'))).toHaveLength(1);
+    const edited = await staff.extra(f.order.id, seller.userId, { ...input, quantity: 2 }, added.id, added.version, seller);
+    await vi.waitFor(() => expect(observed).toEqual([1, 2]));
+    expect((await orders.get(f.order.publicId, f.user.id)).extras).toMatchObject([{ quantity: 2, amount: 60000 }]);
+    await staff.extra(f.order.id, seller.userId, { ...input, quantity: 2 }, edited.id, edited.version, seller);
+    await expect(staff.extra(f.order.id, seller.userId, { ...input, quantity: 3 }, edited.id, added.version, seller)).rejects.toThrow();
+    expect(await events(f.order.id, 'CHAT_MESSAGE')).toHaveLength(2);
+    await staff.extra(f.order.id, seller.userId, null, edited.id, edited.version, seller);
+    await vi.waitFor(() => expect(observed).toEqual([1, 2, 3]));
+    expect((await orders.get(f.order.publicId, f.user.id)).extras).toEqual([]);
+    expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).customerUnread).toBe(3);
+    expect(await events(f.order.id, 'CHAT_MESSAGE')).toHaveLength(3);
+    for (const action of ['EXTRA_ADD', 'EXTRA_EDIT', 'EXTRA_CANCEL'])
+      expect(await db.orderStaffAudit.count({ where: { orderId: f.order.id, action } })).toBe(1);
+  });
+  it('bulk discrete assembly creates one customer update for all picked positions', async () => {
+    const f = await fixture();
+    const products = ['Киви', 'Упаковка'];
+    for (const [index, name] of products.entries()) await db.orderItem.create({ data: {
+      orderId: f.order.id, productName: name, productSlug: 'bulk-' + index,
+      unit: index ? 'PACK' : 'PIECE', qty: index + 1, price: 10000, priceQty: 1, total: (index + 1) * 10000,
+    } });
+    expect(await staff.confirmDiscrete(f.order.id, seller)).toBe(2);
+    expect((await orders.get(f.order.publicId, f.user.id)).items.filter(item => item.status === 'PICKED')).toHaveLength(2);
+    expect(await db.orderChatMessage.count({ where: { orderId: f.order.id, recipient: 'customer' } })).toBe(1);
+    expect(await events(f.order.id, 'CHAT_MESSAGE')).toHaveLength(1);
+    await vi.waitFor(async () => expect((await events(f.order.id, 'CHAT_MESSAGE'))[0]?.status).toBe('SENT'));
+    expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).customerUnread).toBe(1);
+    expect(await db.orderStaffAudit.count({ where: { orderId: f.order.id, action: 'ITEM_PICKED' } })).toBe(2);
+  });
+  it('unknown Telegram result for an extra stays SENDING and never replays the committed mutation', async () => {
+    const f = await fixture();
+    telegram.send.mockResolvedValueOnce('unknown');
+    await staff.extra(f.order.id, seller.userId, { title: 'Пакет', quantity: 1, unitPrice: 30000 }, undefined, undefined, seller);
+    await vi.waitFor(async () => expect((await events(f.order.id, 'CHAT_MESSAGE'))[0]).toMatchObject({
+      status: 'SENDING', error: 'TELEGRAM_OUTCOME_UNKNOWN', attempts: 1,
+    }));
+    await notices.dispatchTelegram(f.order.id);
+    expect(telegram.send).toHaveBeenCalledTimes(1);
+    expect(await db.orderExtra.count({ where: { orderId: f.order.id, status: 'ACTIVE' } })).toBe(1);
+    expect(await db.orderStaffAudit.count({ where: { orderId: f.order.id, action: 'EXTRA_ADD' } })).toBe(1);
+  });
   it('seller replacement proposal and customer acceptance use the same issue version and price snapshot', async () => {
     const f = await fixture();
     await staff.item(f.order.id, f.order.items[0]!.id, { status: 'MISSING' }, seller.userId, seller);
@@ -357,10 +432,15 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     });
     expect(proposed.version).toBe(issue.version + 1);
     expect((await events(f.order.id, 'ACTION_REQUIRED')).filter(e => e.channel === 'TELEGRAM')).toHaveLength(2);
+    expect(await events(f.order.id, 'CHAT_MESSAGE')).toHaveLength(0);
+    expect((await orders.get(f.order.publicId, f.user.id)).issues).toMatchObject([{
+      type: 'REPLACEMENT', status: 'WAITING_CUSTOMER', proposedName: 'Огурцы', proposedQty: 500,
+    }]);
     await makeBot().handle(callback(f.telegramId, customerDecision(f.order.publicId, issue.id, proposed.version, 'p')));
     const detail = await orders.get(f.order.publicId, f.user.id);
     expect(detail.items).toHaveLength(2);
     expect(detail.items.find(item => item.productSlug === product.slug)).toMatchObject({ qty: 500, price: 20000, total: 10000 });
+    expect(detail.issues).toMatchObject([{ resolution: 'ACCEPT_REPLACEMENT', status: 'RESOLVED', replacementItemId: expect.any(Number) }]);
   });
   it('stale version rejects and duplicate identical decisions do not create another chat event', async () => {
     const f = await waiting();
@@ -453,7 +533,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     await staff.completePickup(f.order.id, seller);
     await notices.dispatchTelegram(f.order.id);
     const rows = (await events(f.order.id)).filter(e => e.channel === 'TELEGRAM');
-    expect(rows.map(e => e.type)).toEqual(['ORDER_CONFIRMED', 'ASSEMBLY_STARTED', 'PAYMENT_READY', 'PAYMENT_RECEIVED', 'ORDER_COMPLETED']);
+    expect(rows.map(e => e.type)).toEqual(['ORDER_CONFIRMED', 'ASSEMBLY_STARTED', 'CHAT_MESSAGE', 'PAYMENT_READY', 'PAYMENT_RECEIVED', 'ORDER_COMPLETED']);
     expect(rows.every(e => e.status === 'SENT')).toBe(true);
   });
   it('OTHER delivery mutations publish customer status changes without any Telegram business writes', async () => {
@@ -466,7 +546,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     await staff.handoff(f.order.id, seller);
     await staff.completeDelivery(f.order.id, seller);
     expect((await events(f.order.id)).filter(e => e.channel === 'TELEGRAM').map(e => e.type))
-      .toEqual(['PAYMENT_READY', 'PAYMENT_RECEIVED', 'DELIVERY_CHANGED', 'DELIVERY_CHANGED', 'ORDER_COMPLETED']);
+      .toEqual(['CHAT_MESSAGE', 'PAYMENT_READY', 'PAYMENT_RECEIVED', 'DELIVERY_CHANGED', 'DELIVERY_CHANGED', 'ORDER_COMPLETED']);
   });
   it('does not deliver an earlier assembly-start event after the order is reopened', async () => {
     vi.spyOn(notices, 'dispatch').mockResolvedValue(undefined);
@@ -478,7 +558,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     await staff.reopen(f.order.id, seller);
     await notices.dispatchTelegram(f.order.id);
     expect((await events(f.order.id, 'ASSEMBLY_STARTED')).map(row => row.status)).toEqual(['CANCELED', 'SENT']);
-    expect(telegram.send).toHaveBeenCalledTimes(1);
+    expect(telegram.send.mock.calls.filter(call => call[1].event.type === 'ASSEMBLY_STARTED')).toHaveLength(1);
   });
   it.each(['SELLER', 'USER'] as const)('cancellation preserves the %s initiator unread counter', async role => {
     const f = await waiting();
@@ -596,7 +676,10 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
       expect(provider.available).toBe(true);
       const dispatcher = new NotificationService(db as unknown as DbService, sms, provider);
       const f = await fixture();
+      // Hold only the new immediate trigger to exercise the unchanged PENDING sweep/claim path.
+      const immediate = vi.spyOn(notices, 'dispatchTelegram').mockResolvedValue(undefined);
       await staff.item(f.order.id, f.order.items[0]!.id, { status: 'MISSING' }, seller.userId, seller);
+      immediate.mockRestore();
       if (mode === 'timeout') fetcher.mockRejectedValueOnce(new DOMException('private provider fixture', 'TimeoutError'));
       else if (mode === 'malformed') fetcher.mockResolvedValueOnce(Response.json({ ok: true, result: {} }));
       else if (mode !== 'sent') fetcher.mockResolvedValueOnce(new Response('{}', {

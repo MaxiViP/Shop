@@ -26,6 +26,7 @@ function setup(role: 'SELLER' | 'ADMIN' | 'USER' = 'SELLER') {
     delivery: null as null | { provider: string; status: string; externalOrderId?: string },
     items: [{ id: 8, productName: 'Картофель', unit: 'GRAM', qty: 700, price: 60000,
       priceQty: 1000, total: 42000, actualQty: null, actualTotal: null, status: 'PENDING' }],
+    issues: [] as { orderItemId: number; replacementItemId: number | null }[],
     extras: [] as { id: number; title: string; status: string; version: number }[],
   };
   const findIdentity = vi.fn(async () => ({ id: 3, userId: 7, user: { role } }));
@@ -38,6 +39,7 @@ function setup(role: 'SELLER' | 'ADMIN' | 'USER' = 'SELLER') {
     confirm: vi.fn(async () => { order.status = 'CONFIRMED'; }),
     startAssembly: vi.fn(async () => { order.status = 'ASSEMBLING'; }),
     item: vi.fn(async () => ({})),
+    confirmDiscrete: vi.fn(async () => 1),
     finishAssembly: vi.fn(async () => { order.status = 'READY'; }),
     confirmPayment: vi.fn(async () => ({})),
     completePickup: vi.fn(async () => { order.status = 'COMPLETED'; }),
@@ -165,6 +167,31 @@ describe('STAFF seller domain operations use linked audit actor', () => {
     s.order.items[0]!.unit = 'PIECE';
     await s.handler.handle(callback('s:6:q:8'));
     expect(s.flows.start).toHaveBeenLastCalledWith(3, 123, 44, 6, 8, 'ITEM', 'qty');
+  });
+  it.each(['PIECE', 'PACK', 'BUNCH'] as const)('one-tap %s uses the audited domain method', async unit => {
+    const s = setup();
+    s.order.status = 'ASSEMBLING';
+    s.order.items[0]!.unit = unit;
+    await s.handler.handle(callback('s:6:a:8'));
+    expect(s.staff.confirmDiscrete).toHaveBeenCalledWith(6, { userId: 7, role: 'SELLER' }, 8);
+    expect(s.flows.start).not.toHaveBeenCalled();
+    expect(s.telegram.editStaff).toHaveBeenCalled();
+  });
+  it('rejects quick and bulk actions for a linked USER', async () => {
+    const s = setup('USER');
+    s.order.status = 'ASSEMBLING';
+    s.order.items[0]!.unit = 'PIECE';
+    await s.handler.handle(callback('s:6:a:8'));
+    await s.handler.handle(callback('s:6:k'));
+    expect(s.staff.confirmDiscrete).not.toHaveBeenCalled();
+  });
+  it('bulk confirmation uses a single domain operation and GRAM has no instant action', async () => {
+    const s = setup();
+    s.order.status = 'ASSEMBLING';
+    await s.handler.handle(callback('s:6:a:8'));
+    expect(s.staff.confirmDiscrete).not.toHaveBeenCalled();
+    await s.handler.handle(callback('s:6:k'));
+    expect(s.staff.confirmDiscrete).toHaveBeenCalledWith(6, { userId: 7, role: 'SELLER' }, undefined);
   });
   it('marks missing and resets to pending through StaffService.item with User.id', async () => {
     const s = setup();

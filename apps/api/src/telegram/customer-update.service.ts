@@ -13,7 +13,7 @@ import { shoppingAction } from './shopping-callback.js';
 import { customerBotToken } from './bot-config.js';
 import { customerAction, customerUpdate, customerView, type CustomerAction } from './customer-callback.js';
 import {
-  activeStatuses, amount, date, issueCard, orderCard, orderStatus, short, siteUrl,
+  activeStatuses, amount, date, issueCard, orderCard, orderStatus, short, webAppUrl,
   type Button, type Screen,
 } from './customer-view.js';
 
@@ -45,10 +45,10 @@ export class CustomerUpdateService {
       ] }, select: { id: true },
     });
     const current = await this.db.order.findFirst({where:{userId:identity.userId,status:{in:activeStatuses}},select:{id:true}});
-    const profile = siteUrl('/profile'), shop = siteUrl('/');
+    const profile = webAppUrl('/profile'), catalog = webAppUrl('/catalog');
     const links: Button[] = [
-      ...(profile ? [{ text: 'Профиль', url: profile }] : []),
-      ...(shop ? [{ text: 'Открыть магазин', url: shop }] : []),
+      ...(profile ? [{ text: 'Профиль', web_app: { url: profile } }] : []),
+      ...(catalog ? [{ text: 'Каталог на сайте', web_app: { url: catalog } }] : []),
     ];
     return this.show(target, {
       text: 'Привет, ' + short(identity.user.name || identity.firstName || 'покупатель', 80) +
@@ -95,8 +95,9 @@ export class CustomerUpdateService {
   }
   private async card(target: Target, identity: Identity, publicId: string, page = 0, issue = false) {
     const order = await this.orders.get(publicId, identity.userId);
+    if (!issue) return this.show(target, orderCard(order, page));
     const coordination = await this.coordination.view({ publicId, userId: identity.userId });
-    return this.show(target, issue ? issueCard(order, coordination.issues, page) : orderCard(order, coordination.issues, page));
+    return this.show(target, issueCard(order, coordination.issues, page));
   }
   private async messages(target: Target, identity: Identity, publicId: string, before = 0) {
     const actor = { publicId, userId: identity.userId };
@@ -225,9 +226,9 @@ export class CustomerUpdateService {
         select: { id: true, userId: true, firstName: true, user: { select: { name: true } } },
       });
       if (!identity) {
-        const url = siteUrl('/');
+        const url = webAppUrl('/catalog');
         await this.show(target, { text: 'Чтобы увидеть свои заказы, откройте KorzinaMarket и войдите через Telegram. Затем вернитесь сюда и нажмите /start.',
-          keyboard: { inline_keyboard: url ? [[{ text: 'Открыть магазин', url }]] : [] } });
+          keyboard: { inline_keyboard: url ? [[{ text: 'Каталог на сайте', web_app: { url } }]] : [] } });
         return;
       }
       if (command === '/start') await this.db.telegramIdentity.update({

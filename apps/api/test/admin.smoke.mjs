@@ -461,7 +461,7 @@ try {
   assert.ok(issueHtml.includes('Согласен на'));
   assert.ok(issueHtml.includes('Чат по заказу'));
   assert.ok(!issueHtml.includes('Я оплатил'));
-  assert.ok(!issueHtml.includes('Нарезка — smoke'));
+  assert.ok(issueHtml.includes('Нарезка — smoke'));
   const issueStaffHtml = await (await fetch(`${webBase}/staff/orders/${phaseOrder.id}`, { headers: { Cookie: cookie } })).text();
   assert.ok(issueStaffHtml.includes('Позвонить покупателю'));
   await api(`/orders/${phaseOrder.publicId}/issues/${issue.id}/decision`, 'POST', { version: issue.version, action: 'ACCEPT_ACTUAL' }, 201, userCookie);
@@ -472,14 +472,14 @@ try {
   assert.ok(paymentHtml.includes('После перевода ничего подтверждать не нужно'));
   assert.ok(paymentHtml.includes('Открыть СБП'));
   assert.ok(paymentHtml.includes('Нарезка — smoke'));
-  assert.ok(paymentHtml.includes('Дополнительные услуги'));
+  assert.ok(paymentHtml.includes('Дополнительные позиции и услуги'));
   assert.ok(paymentHtml.includes('aria-label="Мои заказы"'));
   const staffHtml = await (await fetch(`${webBase}/staff/orders/${phaseOrder.id}`, { headers: { Cookie: cookie } })).text();
   assert.ok(staffHtml.includes('Оплата заказа'));
   assert.ok(staffHtml.includes('Допуск:'));
   console.log('PASS PHASE 1 settings, finalized customer payment and staff weight/payment SSR');
   console.log('PASS PHASE 2 customer issue SSR, exact approval, staff phone fallback and chat shell');
-  console.log('PASS PHASE 2.1 extras hidden before finalization, explicit final bill, no customer report action, Header messages SSR');
+  console.log('PASS PHASE 2.1 extras visible during assembly, explicit final bill, no customer report action, Header messages SSR');
   assert.ok(staffHtml.includes('aria-label="Заказы"'));
   assert.ok(staffHtml.includes('Максимум за единицу:'));
   const settingsHtml = await (await fetch(`${webBase}/admin/settings`, { headers: { Cookie: cookie } })).text();

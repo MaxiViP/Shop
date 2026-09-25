@@ -82,7 +82,9 @@ describe('customer cabinet', () => {
     expect(sent()[0]?.text).toContain('Привет, Maksim!');
     const buttons = sent()[0]?.reply_markup?.inline_keyboard?.flat();
     expect(buttons?.map(button => button.callback_data)).toEqual(expect.arrayContaining(['current', 'orders', 'attention']));
-    expect(buttons?.map(button => button.url)).toContain('https://shop.example/profile');
+    expect(buttons?.map(button => button.web_app?.url)).toContain('https://shop.example/telegram?returnTo=%2Fprofile');
+    expect(buttons?.map(button => button.web_app?.url)).toContain('https://shop.example/telegram?returnTo=%2Fcatalog');
+    expect(buttons?.map(button => button.url).filter(Boolean)).toEqual([]);
   });
   it('/menu does not alter activation and hides irrelevant attention button', async () => {
     const { db, service } = setup();
@@ -96,6 +98,8 @@ describe('customer cabinet', () => {
     await service.handle(message('/start'));
     expect(db.telegramIdentity.update).not.toHaveBeenCalled();
     expect(sent()[0]?.text).toContain('войдите через Telegram');
+    expect(sent()[0]?.reply_markup?.inline_keyboard?.[0]?.[0]?.web_app?.url)
+      .toBe('https://shop.example/telegram?returnTo=%2Fcatalog');
   });
   it('/orders uses a bounded owned query and public display labels', async () => {
     const { db, service } = setup();
@@ -129,11 +133,16 @@ describe('customer cabinet', () => {
     const { service, coordination, orders } = setup();
     await service.handle(callback('order:' + publicId));
     expect(orders.get).toHaveBeenCalledWith(publicId, 7);
-    expect(coordination.view).toHaveBeenCalledWith({ publicId, userId: 7 });
+    expect(coordination.view).not.toHaveBeenCalled();
     expect(sent()[0]?.message_id).toBe(55);
     expect(sent()[0]?.reply_markup?.inline_keyboard?.flat().find(button => button.text === 'Открыть заказ на сайте')?.web_app?.url)
       .toBe('https://shop.example/telegram?returnTo=' + encodeURIComponent('/order/' + publicId));
     expect(sent()[0]?.text).toContain('Заказ №1');
+  });
+  it('uses CoordinationService only for the versioned issue screen', async () => {
+    const { service, coordination } = setup();
+    await service.handle(callback(customerView('q', publicId)));
+    expect(coordination.view).toHaveBeenCalledWith({ publicId, userId: 7 });
   });
   it('foreign order reveals no order data', async () => {
     const { service, coordination } = setup();

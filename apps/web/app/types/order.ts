@@ -126,7 +126,20 @@ export interface OrderSummary {
 
 export interface OrderDetail {
   extras?: OrderExtra[]
-  issues?: import('./coordination').OrderIssue[]
+  issues: {
+    orderItemId: number
+    replacementItemId: number | null
+    type: 'WEIGHT_DEVIATION' | 'MISSING_ITEM' | 'REPLACEMENT'
+    status: 'WAITING_CUSTOMER' | 'WAITING_SELLER' | 'RESOLVED' | 'CANCELED'
+    resolution: string | null
+    actualQty: number | null
+    approvedActualQty: number | null
+    proposedName: string | null
+    proposedQty: number | null
+    proposedUnit: Unit | null
+    proposedPrice: number | null
+    proposedPriceQty: number | null
+  }[]
   weightToleranceBps: number
   assemblyFinalizedAt: string | null
   payment: OrderPayment | null

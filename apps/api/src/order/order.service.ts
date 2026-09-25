@@ -294,6 +294,12 @@ export class OrderService {
 
       select: {
         extras: { where: { status: 'ACTIVE' }, orderBy: { id: 'asc' }, select: { id: true, title: true, comment: true, quantity: true, unitPrice: true, amount: true } },
+        issues: { orderBy: { id: 'asc' }, select: {
+          orderItemId: true, replacementItemId: true, type: true, status: true, resolution: true,
+          actualQty: true, approvedActualQty: true,
+          proposedName: true, proposedQty: true, proposedUnit: true,
+          proposedPrice: true, proposedPriceQty: true,
+        } },
         id: true,
         publicId: true,
         type: true,
@@ -341,6 +347,7 @@ export class OrderService {
         },
 
         items: {
+          orderBy: { id: 'asc' },
           select: {
             id: true,
             productName: true,
@@ -369,7 +376,7 @@ export class OrderService {
 
     return {
       ...order,
-      extras: order.assemblyFinalizedAt ? order.extras : [],
+      extras: order.extras,
       paymentDetails:
         order.assemblyFinalizedAt && order.status !== 'CANCELED'
           ? paymentDetails()

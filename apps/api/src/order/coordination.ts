@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import type { OrderItem, Prisma, MessageAuthor, NotificationType, OrderIssue, IssueResolution } from '../db/gen/client.js';
+import type { OrderItem, Prisma, MessageAuthor, NotificationType, OrderIssue, IssueResolution, Unit } from '../db/gen/client.js';
 import { outsideTolerance, approvedWeight } from './assembly.js';
 
 import { telegramEvent } from './outbox.js';
@@ -11,6 +11,16 @@ export function customerIssueActions(issue: Pick<OrderIssue, 'status' | 'type' |
   if (issue.type === 'REPLACEMENT' && issue.proposedName && issue.proposedSlug && issue.proposedUnit &&
     issue.proposedPrice && issue.proposedPriceQty && issue.proposedQty) actions.unshift('ACCEPT_REPLACEMENT');
   return actions;
+}
+
+export function compositionQty(qty: number, unit: Unit) {
+  return new Intl.NumberFormat('ru-RU').format(qty) + ' ' +
+    ({ GRAM: 'г', PIECE: 'шт.', PACK: 'уп.', BUNCH: 'пуч.' } satisfies Record<Unit, string>)[unit];
+}
+
+export function compositionMoney(kopecks: number) {
+  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: kopecks % 100 ? 2 : 0,
+    maximumFractionDigits: 2 }).format(kopecks / 100) + ' ₽';
 }
 
 export const issueSummary = {
@@ -48,6 +58,7 @@ export async function message(
 export async function actionNotification(
   db: Prisma.TransactionClient,
   issue: { id: number; orderId: number; version: number },
+  messageId?: number,
 ) {
   await db.orderNotification.upsert({
     where: { channel_dedupeKey: { channel: 'SMS', dedupeKey: `issue:${issue.id}:${issue.version}` } },
@@ -62,7 +73,7 @@ export async function actionNotification(
   });
   await telegramEvent(db, {
     orderId: issue.orderId, issueId: issue.id, issueVersion: issue.version,
-    type: 'ACTION_REQUIRED', dedupeKey: `issue:${issue.id}:${issue.version}`,
+    type: 'ACTION_REQUIRED', dedupeKey: `issue:${issue.id}:${issue.version}`, messageId,
   });
 }
 
@@ -84,7 +95,7 @@ export async function syncIssue(
       item.actualQty!,
       order.weightToleranceBps,
     );
-  if (!previous && item.status !== 'MISSING' && !outside) return;
+  if (!previous && item.status !== 'MISSING' && !outside) return false;
   if (previous?.replacementItemId)
     throw new ConflictException('Исходный товар уже заменён');
   const waiting = outside || item.status === 'MISSING';
@@ -129,22 +140,24 @@ export async function syncIssue(
     },
     data: { status: 'CANCELED' },
   });
-  await message(
+  const notice = await message(
     db,
     order.id,
     item.status === 'MISSING'
-      ? `Продавец сообщил: ${item.productName} нет в наличии.`
+      ? `${item.productName} — нет в наличии.`
       : outside
-        ? `${item.productName}: заказано ${item.qty} г, собрано ${item.actualQty} г. Требуется ваше решение.`
+        ? `${item.productName}: заказано ${compositionQty(item.qty, item.unit)}, собрано ${compositionQty(item.actualQty!, item.unit)}. Требуется ваше решение.`
         : status === 'RESOLVED'
-          ? `${item.productName}: вес скорректирован в пределах допуска.`
+          ? `${item.productName}: фактическое количество скорректировано.`
           : `${item.productName}: возвращён в сборку; прежнее предложение недействительно.`,
     'SYSTEM',
     userId,
     issue.id,
     'customer',
+    waiting ? undefined : 'CHAT_MESSAGE',
   );
-  if (waiting) await actionNotification(db, issue);
+  if (waiting) await actionNotification(db, issue, notice.id);
+  return true;
 }
 
 export async function checkIssues(

@@ -10,7 +10,7 @@ import type { z } from 'zod';
 import { DbService } from '../db/db.service.js';
 import { OrderService } from './order.service.js';
 import { NotificationService } from './notification.service.js';
-import { actionNotification, message, customerIssueActions } from './coordination.js';
+import { actionNotification, message, customerIssueActions, compositionQty, compositionMoney } from './coordination.js';
 import { cancelOrder } from './cancel.js';
 import { goodsLine } from './pricing.js';
 import { chatSchema } from './coordination.schema.js';
@@ -305,18 +305,19 @@ export class CoordinationService {
           proposedImageUrl: product.images[0]?.url ?? null,
         },
       });
-      await message(
+      const notice = await message(
         db,
         id,
-        `Предложена замена: ${product.name}, количество ${data.qty} (${product.unit}), стоимость ${total} коп.`,
+        `Для товара «${issue.orderItem.productName}» предложена замена: ${product.name}, ${compositionQty(data.qty, product.unit)}, ${compositionMoney(total)}.`,
         'SYSTEM',
         actor.userId,
         issue.id,
         'customer',
       );
-      await actionNotification(db, updated);
+      await actionNotification(db, updated, notice.id);
       return updated;
     });
+    void this.notifications.dispatchTelegram(result.orderId).catch(() => {});
     await this.notifications.dispatch(result.orderId);
     return result;
   }

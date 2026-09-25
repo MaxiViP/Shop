@@ -20,7 +20,7 @@ export type StaffMessage = z.infer<typeof message>;
 export type StaffCallback = z.infer<typeof callback>;
 
 const actions = [
-  'o', 'i', 'v', 'w', 'q', 'm', 'r', 'f', 'p', 'u', 'd', 'h', 'c',
+  'o', 'i', 'v', 'w', 'q', 'a', 'm', 'r', 'f', 'p', 'u', 'd', 'h', 'c', 'k',
   'x', 'xl', 'xe', 'xd', 'xs', 'ds', 'z', 'zy', 'zb', 'b',
 ] as const;
 type Action = typeof actions[number];
@@ -34,8 +34,8 @@ export function parseStaffAction(data: string): { orderId: number; action: Actio
   const arg = match[3] === undefined ? undefined : Number(match[3]);
   if (arg !== undefined && (!Number.isSafeInteger(arg) || arg > 2147483647)) return null;
   const action = match[2] as Action;
-  if (['v','w','q','m','r','xe','xd'].includes(action) && (!arg || arg < 1)) return null;
-  if (!['v','w','q','m','r','xe','xd','i'].includes(action) && arg !== undefined) return null;
+  if (['v','w','q','a','m','r','xe','xd'].includes(action) && (!arg || arg < 1)) return null;
+  if (!['v','w','q','a','m','r','xe','xd','i'].includes(action) && arg !== undefined) return null;
   if (['xs','ds','zy'].includes(action)) return null;
   return { orderId: Number(match[1]), action, ...(arg !== undefined ? { arg } : {}) };
 }

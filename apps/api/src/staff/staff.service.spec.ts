@@ -100,7 +100,7 @@ function setup(order: LockedOrder) {
 
   return {
     client,
-    service: new StaffService(db, { dispatch: vi.fn() } as unknown as NotificationService),
+    service: new StaffService(db, { dispatch: vi.fn(), dispatchTelegram: vi.fn().mockResolvedValue(undefined) } as unknown as NotificationService),
   };
 }
 
@@ -367,7 +367,9 @@ describe('StaffService', () => {
     await expect(service.finishAssembly(1)).rejects.toBeInstanceOf(
       BadRequestException,
     );
-    expect(client.order.update).not.toHaveBeenCalled();
+    expect(client.order.update).not.toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'READY' }),
+    }));
   });
 
   it('does not finish assembly with pending items', async () => {

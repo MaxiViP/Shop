@@ -2,6 +2,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { DbService } from '../db/db.service.js';
@@ -13,6 +14,7 @@ import { customerBotToken } from '../telegram/bot-config.js';
 
 @Injectable()
 export class TelegramAuthService {
+  private readonly logger = new Logger(TelegramAuthService.name);
   constructor(
     @Inject(DbService) private readonly db: DbService,
     @Inject(AuthService) private readonly auth: AuthService,
@@ -20,7 +22,8 @@ export class TelegramAuthService {
 
   miniApp(initData: string, previousToken?: string) {
     return this.login(
-      verifyInitData(initData, customerBotToken()),
+      verifyInitData(initData, customerBotToken(), Date.now(), (stage) =>
+        this.logger.warn('Telegram Mini App failed: ' + stage)),
       previousToken,
       true,
     );
@@ -37,17 +40,21 @@ export class TelegramAuthService {
           await db.$executeRaw`SELECT pg_advisory_xact_lock(704003, hashtext(${String(profile.id)}))`;
           if (proof.expiresAt.getTime() <= Date.now())
             throw new UnauthorizedException('TELEGRAM_AUTH_INVALID');
-          // Bounded indexed cleanup. SKIP LOCKED avoids unrelated login contention.
-          await db.$executeRaw`DELETE FROM "TelegramAuthReplay" WHERE "tokenHash" IN
-            (SELECT "tokenHash" FROM "TelegramAuthReplay" WHERE "expiresAt" < NOW()
-             ORDER BY "expiresAt" LIMIT 100 FOR UPDATE SKIP LOCKED)`;
-          const replay = await db.telegramAuthReplay.findUnique({
-            where: { tokenHash: proof.tokenHash },
-          });
-          if (replay) throw new UnauthorizedException('TELEGRAM_AUTH_REPLAY');
-          await db.telegramAuthReplay.create({
-            data: { tokenHash: proof.tokenHash, expiresAt: proof.expiresAt },
-          });
+          // OIDC stays one-time. Mini App initData is reverified on every launch
+          // and remains usable only within its signed, bounded auth_date window.
+          if (!miniAppSwitch) {
+            // Bounded indexed cleanup. SKIP LOCKED avoids unrelated login contention.
+            await db.$executeRaw`DELETE FROM "TelegramAuthReplay" WHERE "tokenHash" IN
+              (SELECT "tokenHash" FROM "TelegramAuthReplay" WHERE "expiresAt" < NOW()
+               ORDER BY "expiresAt" LIMIT 100 FOR UPDATE SKIP LOCKED)`;
+            const replay = await db.telegramAuthReplay.findUnique({
+              where: { tokenHash: proof.tokenHash },
+            });
+            if (replay) throw new UnauthorizedException('TELEGRAM_AUTH_REPLAY');
+            await db.telegramAuthReplay.create({
+              data: { tokenHash: proof.tokenHash, expiresAt: proof.expiresAt },
+            });
+          }
           const telegramUserId = BigInt(profile.id);
           const identity = await db.telegramIdentity.findUnique({
             where: { telegramUserId },

@@ -35,15 +35,19 @@
             <strong>
               {{ item.productName }}
             </strong>
-
-            <p class="item__qty">
-              Заказано: {{ qtyText(item.unit, item.qty) }}
-              <span v-if="item.actualQty !== null"> · Собрано: {{ qty(item) }}</span>
+            <p v-if="replacementIds.has(item.id)" class="item__state">🔁 Замена исходного товара</p>
+            <p class="item__qty">Заказано: {{ qtyText(item.unit, item.qty) }}</p>
+            <p v-if="item.status === 'MISSING'" class="item__state">❌ Нет в наличии</p>
+            <p v-else-if="item.status === 'PICKED' && item.actualQty !== null" class="item__state">
+              Собрано: {{ qtyText(item.unit, item.actualQty) }}
+            </p>
+            <p v-if="proposal(item.id)" class="item__state">
+              {{ proposal(item.id) }}
             </p>
           </div>
 
-          <strong>
-            {{ money(item.actualTotal ?? item.total) }}
+          <strong v-if="item.status !== 'MISSING'">
+            {{ item.status === 'PICKED' && item.actualTotal !== null ? money(item.actualTotal) : `≈ ${money(item.total)}` }}
           </strong>
         </div>
 
@@ -156,11 +160,12 @@
       </section>
     </div>
 
-    <p v-if="!order.assemblyFinalizedAt && order.status !== 'CANCELED'" class="my-4 text-muted">Мы соберём и взвесим товары. После сборки здесь появится точная сумма для оплаты.</p>
+    <p v-if="order.status === 'ASSEMBLING'" class="my-4 text-muted">Дополнительные позиции и фактический вес будут учтены в итоговой сумме после сборки.</p>
+    <p v-else-if="!order.assemblyFinalizedAt && order.status !== 'CANCELED'" class="my-4 text-muted">Мы соберём и взвесим товары. После сборки здесь появится точная сумма для оплаты.</p>
     <p v-if="order.type === 'DELIVERY'" class="my-4 text-muted">Доставка оплачивается отдельно и не входит в перевод магазину за товары.</p>
-    <OrderExtras v-if="order.assemblyFinalizedAt" :extras="order.extras ?? []" />
+    <OrderExtras :extras="order.extras ?? []" />
     <OrderPayment :order="order" />
-    <OrderCoordination :key="order.publicId" :base="`/orders/${order.publicId}`" :bps="order.weightToleranceBps" :assembling="order.status === 'ASSEMBLING'" @refresh="refresh" />
+    <OrderCoordination :key="order.publicId" :base="`/orders/${order.publicId}`" :bps="order.weightToleranceBps" :assembling="order.status === 'ASSEMBLING'" :poll="active" @refresh="refreshOrder" />
 
     <p
       v-if="active"
@@ -192,6 +197,7 @@ import {
   deliveryStatus,
 } from '~/utils/delivery'
 import { knownMoney, money } from '~/utils/money'
+import { lineAmount } from '~/utils/assembly'
 import { qtyText } from '~/utils/qty'
 import { pickupTime } from '~/utils/pickup'
 
@@ -263,32 +269,37 @@ const address = computed(() =>
     .join(', '),
 )
 
-function qty(
-  item: OrderDetail['items'][number],
-) {
-  const value =
-    item.actualQty ?? item.qty
-
-  return qtyText(item.unit, value)
+const replacementIds = computed(() => new Set(order.value.issues.map(issue => issue.replacementItemId).filter(id => id !== null)))
+const issueByItem = computed(() => new Map(order.value.issues.map(issue => [issue.orderItemId, issue])))
+function proposal(itemId: number) {
+  const issue = issueByItem.value.get(itemId)
+  if (issue?.type !== 'REPLACEMENT' ||
+    (issue.status !== 'WAITING_CUSTOMER' && issue.resolution !== 'ACCEPT_REPLACEMENT') ||
+    !issue.proposedName || !issue.proposedQty || !issue.proposedUnit) return ''
+  return (issue.resolution === 'ACCEPT_REPLACEMENT' ? '✅ Замена принята: ' : 'Предложена замена: ') +
+    issue.proposedName + ' · ' + qtyText(issue.proposedUnit, issue.proposedQty) +
+    (issue.proposedPrice && issue.proposedPriceQty
+      ? ' · ' + money(lineAmount(issue.proposedPrice, issue.proposedQty, issue.proposedPriceQty)) : '')
 }
 
-let timer: ReturnType<
-  typeof setInterval
-> | undefined
-
+let timer: ReturnType<typeof setInterval> | undefined
+let refreshing = false
+async function refreshOrder() {
+  if (refreshing) return
+  refreshing = true
+  try { await refresh() } finally { refreshing = false }
+}
+function visible() {
+  if (document.visibilityState === 'visible' && data.value && active.value) void refreshOrder()
+}
 onMounted(() => {
   if (signIn) loginOpen.value = true
-  timer = setInterval(() => {
-    if (order.value && document.visibilityState === 'visible' && (active.value || order.value.status === 'CANCELED')) {
-      void refresh()
-    }
-  }, 15000)
+  document.addEventListener('visibilitychange', visible)
+  timer = setInterval(visible, 5000)
 })
-
 onBeforeUnmount(() => {
-  if (timer) {
-    clearInterval(timer)
-  }
+  document.removeEventListener('visibilitychange', visible)
+  if (timer) clearInterval(timer)
 })
 
 useSeoMeta({
@@ -409,7 +420,8 @@ useSeoMeta({
   overflow-wrap: anywhere;
 }
 
-.item__qty {
+.item__qty,
+.item__state {
   margin-top: 0.25rem;
   font-size: 0.875rem;
 }

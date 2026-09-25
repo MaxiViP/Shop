@@ -23,6 +23,17 @@
       <nav class="header__nav" aria-label="Основная навигация">
         <NuxtLink to="/catalog">Каталог</NuxtLink>
         <NuxtLink to="/delivery">Доставка</NuxtLink>
+        <a
+          v-if="customerTelegramUrl"
+          :href="customerTelegramUrl"
+          class="header__telegram"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Покупать в Telegram"
+          title="Покупать в Telegram"
+        >
+          <UIcon name="i-lucide-send" aria-hidden="true" />
+        </a>
       </nav>
 
       <div class="header__actions">
@@ -726,6 +737,23 @@ function login() {
     display: inline-flex;
     align-items: center;
     min-height: var(--touch-target);
+  }
+
+  .header__telegram {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    justify-content: center;
+    border-radius: 0.5rem;
+  }
+
+  .header__telegram:hover {
+    background: var(--ui-bg-elevated);
+  }
+
+  .header__telegram:focus-visible {
+    outline: 2px solid var(--ui-primary);
+    outline-offset: 2px;
   }
 
   .header__actions {

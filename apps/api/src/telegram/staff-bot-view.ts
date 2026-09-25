@@ -15,6 +15,12 @@ const deliveryText = { PENDING: 'ожидается', ASSIGNED: 'назначе�
   PICKED_UP: 'у курьера', DELIVERED: 'доставлена', CANCELED: 'отменена' } as const;
 const itemStatusText = { PENDING: 'в сборке', PICKED: 'собран', MISSING: 'нет в наличии' } as const;
 
+export function canQuickConfirm(order: OrderView, item: OrderView['items'][number]): boolean {
+  return order.status === 'ASSEMBLING' && item.status === 'PENDING' &&
+    (item.unit === 'PIECE' || item.unit === 'PACK' || item.unit === 'BUNCH') &&
+    !order.issues.some(issue => issue.orderItemId === item.id || issue.replacementItemId === item.id);
+}
+
 export function dashboard(order: OrderView, url?: string): { text: string; keyboard: Keyboard } {
   const id = order.id;
   const lines = [
@@ -51,6 +57,8 @@ export function dashboard(order: OrderView, url?: string): { text: string; keybo
     rows.push([{ text: '▶️ Начать сборку', callback_data: 'order:' + id + ':assembly' }]);
   if (order.status === 'ASSEMBLING') {
     add('🧺 Позиции', 'i');
+    if (order.items.some(item => canQuickConfirm(order, item)))
+      add('✅ Подтвердить все штучные', 'k');
     add('➕ Доп. позиция / услуга', 'x');
     if (order.extras.some(extra => extra.status === 'ACTIVE')) add('📋 Доп. позиции', 'xl');
     if (order.items.length && order.items.every(item => item.status !== 'PENDING'))
@@ -78,15 +86,25 @@ export function dashboard(order: OrderView, url?: string): { text: string; keybo
 
 export function itemPage(order: OrderView, offset: number): { text: string; keyboard: Keyboard } {
   const page = order.items.slice(offset, offset + 8);
-  const rows: Button[][] = page.map(item => [{
-    text: (item.status === 'PICKED' ? '✅ ' : item.status === 'MISSING' ? '❌ ' : '▫️ ') +
-      clean(item.productName, 35), callback_data: staffData(order.id, 'v', item.id),
-  }]);
+  const rows: Button[][] = page.map(item => {
+    const state = item.status === 'PENDING' && item.unit === 'GRAM' ? 'нужен вес' : itemStatusText[item.status];
+    const row: Button[] = [{
+      text: (item.status === 'PICKED' ? '✅ ' : item.status === 'MISSING' ? '❌ ' :
+        item.unit === 'GRAM' ? '⚖️ ' : '⬜ ') + clean(item.productName, 28) +
+        ' — ' + quantity(item.qty, item.unit) + ' · ' + state,
+      callback_data: staffData(order.id, 'v', item.id),
+    }];
+    if (canQuickConfirm(order, item))
+      row.push({ text: '✅ По заказу', callback_data: staffData(order.id, 'a', item.id) });
+    return row;
+  });
   const nav: Button[] = [];
   if (offset > 0) nav.push({ text: '⬅️', callback_data: staffData(order.id, 'i', Math.max(0, offset - 8)) });
   if (offset + 8 < order.items.length)
     nav.push({ text: '➡️', callback_data: staffData(order.id, 'i', offset + 8) });
   if (nav.length) rows.push(nav);
+  if (order.items.some(item => canQuickConfirm(order, item)))
+    rows.push([{ text: '✅ Подтвердить все штучные', callback_data: staffData(order.id, 'k') }]);
   rows.push([{ text: '⬅️ Назад к заказу', callback_data: staffData(order.id, 'o') }]);
   return {
     text: 'Заказ #' + order.id + ' · позиции ' + (offset + 1) + '–' + (offset + page.length) +
@@ -109,7 +127,9 @@ export function itemView(order: OrderView, item: OrderView['items'][number]):
   const rows: Button[][] = [];
   if (order.status === 'ASSEMBLING') {
     if (item.status === 'PENDING') {
-      rows.push([{ text: item.unit === 'GRAM' ? '⚖️ Ввести вес' : 'Ввести количество',
+      if (canQuickConfirm(order, item))
+        rows.push([{ text: '✅ По заказу', callback_data: staffData(order.id, 'a', item.id) }]);
+      rows.push([{ text: item.unit === 'GRAM' ? '⚖️ Ввести вес' : '✏️ Изменить количество',
         callback_data: staffData(order.id, item.unit === 'GRAM' ? 'w' : 'q', item.id) }]);
       rows.push([{ text: '❌ Нет в наличии', callback_data: staffData(order.id, 'm', item.id) }]);
     } else rows.push([{ text: '↩️ Вернуть в сборку', callback_data: staffData(order.id, 'r', item.id) }]);

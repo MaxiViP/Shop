@@ -146,7 +146,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
             case 'ORDER_COMPLETED': valid = order.status === 'COMPLETED'; break;
             case 'ORDER_CANCELED': valid = order.status === 'CANCELED'; break;
             case 'CHAT_MESSAGE':
-              valid = Boolean(message && ['SELLER', 'ADMIN'].includes(message.authorType) &&
+              valid = Boolean(message && ['SELLER', 'ADMIN', 'SYSTEM'].includes(message.authorType) &&
                 message.id > order.customerReadMessageId);
               break;
             case 'DELIVERY_CHANGED':

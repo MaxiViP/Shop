@@ -1,7 +1,7 @@
 <template>
   <UCard v-if="staff || extras.length" class="my-6">
     <template #header
-      ><h2 class="text-xl font-semibold">Дополнительные услуги</h2></template
+      ><h2 class="text-xl font-semibold">Дополнительные позиции и услуги</h2></template
     >
     <div class="extras">
       <p v-if="staff && limits" class="text-muted">Максимум за единицу: {{ money(limits.maxOrderExtraUnitPrice) }}. Активных услуг: {{ money(activeTotal) }} / {{ money(limits.maxOrderExtrasTotal) }}.</p>

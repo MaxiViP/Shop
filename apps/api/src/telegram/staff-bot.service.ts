@@ -9,7 +9,7 @@ import { StaffBotFlowService } from './staff-bot-flow.service.js';
 import { flowError, knownFlowError, uncertainMutation } from './staff-flow.js';
 import { parseStaffAction, staffData, staffUpdate, clean,
   type StaffCallback, type StaffMessage } from './staff-bot.js';
-import { activeStatuses, dashboard, extraPage, itemPage, itemView, statusText,
+import { activeStatuses, canQuickConfirm, dashboard, extraPage, itemPage, itemView, statusText,
   type Keyboard } from './staff-bot-view.js';
 import { TelegramService } from './telegram.service.js';
 
@@ -226,6 +226,17 @@ export class StaffBotService {
       const started = await this.flows.start(identity.id, chatId, messageId, orderId, item.id,
         'ITEM', 'qty');
       return started ? 'Введите количество' : 'Запрос не привязан. /resume — продолжить ввод.';
+    } else if (action === 'a' || action === 'k') {
+      if (order.status !== 'ASSEMBLING') return 'Сборка уже завершена';
+      const index = action === 'a' ? order.items.findIndex(item => item.id === parsed?.arg) : 0;
+      if (action === 'a' && (index < 0 || !canQuickConfirm(order, order.items[index]!)))
+        return 'Позиция изменилась. Обновите заказ.';
+      const count = await this.staff.confirmDiscrete(orderId, actor,
+        action === 'a' ? parsed?.arg : undefined);
+      const updated = await this.staff.get(orderId);
+      const view = itemPage(updated, Math.floor(index / 8) * 8);
+      await this.render(chatId, messageId, view.text, view.keyboard);
+      return count ? 'Позиции обновлены' : 'Позиции уже изменились';
     } else if (action === 'm' || action === 'r') {
       const item = order.items.find(value => value.id === parsed?.arg);
       if (order.status !== 'ASSEMBLING' || !item ||

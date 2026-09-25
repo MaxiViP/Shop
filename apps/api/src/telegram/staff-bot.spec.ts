@@ -2,9 +2,9 @@ import { parseStaffAction, rublesToKopecks, positiveQty, quantity, staffConfirmD
 
 describe('STAFF callback and human input validation', () => {
   it('accepts compact whitelisted callbacks and keeps them under Telegram 64-byte limit', () => {
-    for (const action of ['o', 'i', 'v', 'w', 'q', 'm', 'r', 'f', 'p', 'u', 'd',
+    for (const action of ['o', 'i', 'v', 'w', 'q', 'a', 'm', 'r', 'f', 'p', 'u', 'd', 'k',
       'h', 'c', 'x', 'xl', 'xe', 'xd', 'z', 'zb', 'b'] as const) {
-      const data = staffData(2147483647, action, ['v', 'w', 'q', 'm', 'r', 'xe', 'xd'].includes(action) ? 2147483647 : undefined);
+      const data = staffData(2147483647, action, ['v', 'w', 'q', 'a', 'm', 'r', 'xe', 'xd'].includes(action) ? 2147483647 : undefined);
       expect(Buffer.byteLength(data)).toBeLessThanOrEqual(64);
       expect(parseStaffAction(data)?.orderId).toBe(2147483647);
     }
@@ -16,7 +16,7 @@ describe('STAFF callback and human input validation', () => {
     expect(parseStaffAction('s:6:xs')).toBeNull();
   });
   it.each(['s:0:o', 's:-1:o', 's:2147483648:o', 's:01:o', 's:1:delete',
-    's:1:o:4', 's:1:w', 's:1:v:0', 's:1:v:-1', 's:1:i:2147483648',
+    's:1:o:4', 's:1:w', 's:1:a', 's:1:k:1', 's:1:v:0', 's:1:v:-1', 's:1:i:2147483648',
     's:1:o\n', 'x'.repeat(65)])('rejects malformed callback %s', value => {
     expect(parseStaffAction(value)).toBeNull();
   });

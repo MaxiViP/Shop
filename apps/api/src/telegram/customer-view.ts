@@ -55,9 +55,13 @@ export function siteUrl(path: string) {
   } catch { return undefined; }
 }
 export function webAppUrl(path: string): string | undefined {
+  // Matches the customer-only returnTo allowlist on the WebApp entry page.
+  const customerPage = ['/', '/catalog', '/orders', '/profile', '/cart', '/favorites', '/delivery'].includes(path);
   const order = /^\/order\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path);
-  const product = path.length <= 189 && /^\/product\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path);
-  return order || product ? siteUrl('/telegram?returnTo=' + encodeURIComponent(path)) : undefined;
+  const slug = /^\/(?:catalog|product)\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path);
+  return path.length <= 189 && (customerPage || order || slug)
+    ? siteUrl('/telegram?returnTo=' + encodeURIComponent(path))
+    : undefined;
 }
 export function orderLinks(publicId: string): Button[][] {
   const url = webAppUrl('/order/' + publicId);
@@ -66,14 +70,28 @@ export function orderLinks(publicId: string): Button[][] {
     [{ text: '📦 Мои заказы', callback_data: 'orders' }, { text: 'Меню', callback_data: 'menu' }],
   ];
 }
-export function orderCard(order: CustomerOrder, issues: CustomerIssue[], page = 0): Screen {
-  const size = 5, lines: string[] = order.items.map(item => [
-    short(item.productName),
-    'Заказано: ' + quantity(item.qty, item.unit) + ' · ' + amount(item.total),
-    ...(item.status === 'MISSING' ? ['❌ Нет в составе заказа'] :
-      item.actualQty != null ? ['Собрано: ' + quantity(item.actualQty, item.unit) + ' · ' + amount(item.actualTotal)] : []),
-  ].join('\n'));
-  lines.push(...order.extras.map(extra => '➕ ' + short(extra.title) + '\n' + extra.quantity + ' × ' + amount(extra.unitPrice) + ' = ' + amount(extra.amount)));
+export function orderCard(order: CustomerOrder, page = 0): Screen {
+  const size = 5;
+  const issueByItem = new Map(order.issues.map(issue => [issue.orderItemId, issue]));
+  const replacementIds = new Set(order.issues.map(issue => issue.replacementItemId).filter(id => id !== null));
+  const lines: string[] = order.items.map(item => {
+    const issue = issueByItem.get(item.id);
+    return [
+      (replacementIds.has(item.id) ? '🔁 Замена: ' : '') + short(item.productName),
+      'Заказано: ' + quantity(item.qty, item.unit),
+      ...(item.status === 'MISSING' ? ['❌ Нет в наличии'] : item.status === 'PICKED' && item.actualQty !== null
+        ? [(item.unit === 'GRAM' ? '⚖️ ' : '✅ ') + 'Собрано: ' + quantity(item.actualQty, item.unit) +
+          (item.actualTotal !== null ? ' · ' + amount(item.actualTotal) : '')] : []),
+      ...(issue?.type === 'REPLACEMENT' && (issue.status === 'WAITING_CUSTOMER' || issue.resolution === 'ACCEPT_REPLACEMENT') &&
+        issue.proposedName && issue.proposedQty && issue.proposedUnit
+        ? [(issue.resolution === 'ACCEPT_REPLACEMENT' ? '✅ Замена принята: ' : 'Предложена замена: ') +
+          short(issue.proposedName) + ' · ' + quantity(issue.proposedQty, issue.proposedUnit) +
+          (issue.proposedPrice && issue.proposedPriceQty
+            ? ' · ' + amount(goodsLine(issue.proposedPrice, issue.proposedQty, issue.proposedPriceQty)) : '')] : []),
+    ].join('\n');
+  });
+  lines.push(...order.extras.map(extra => '➕ ' + short(extra.title) + '\n' + extra.quantity + ' × ' + amount(extra.unitPrice) + ' = ' + amount(extra.amount) +
+    (extra.comment ? '\n' + short(extra.comment, 140) : '')));
   const pages = Math.max(1, Math.ceil(lines.length / size));
   page = Math.min(page, pages - 1);
   const header = [
@@ -82,7 +100,8 @@ export function orderCard(order: CustomerOrder, issues: CustomerIssue[], page = 
     ...(order.deliveryAt ? ['Получение: ' + date(order.deliveryAt)] : []),
     'При заказе: ' + amount(order.total),
     ...(order.total === null ? ['Товары при заказе: ' + amount(order.subtotal), 'Стоимость доставки уточняется'] : []),
-    ...(order.finalSubtotal !== null ? ['Итог за товары: ' + amount(order.finalSubtotal), 'Итого: ' + amount(order.finalTotal)] : []),
+    ...(order.finalSubtotal !== null ? ['Итог за товары: ' + amount(order.finalSubtotal), 'Итого: ' + amount(order.finalTotal)] :
+      order.status === 'ASSEMBLING' && order.extras.length ? ['Доп. позиции: ' + amount(order.extras.reduce((sum, extra) => sum + extra.amount, 0))] : []),
     ...(order.customerUnread ? ['Новых сообщений: ' + order.customerUnread] : []),
     'Оплата: ' + (order.payment ? paymentStatus[order.payment.status] : 'после сборки'),
     ...(order.payment ? ['Сумма оплаты товаров: ' + amount(order.payment.amount)] : []),
@@ -91,15 +110,17 @@ export function orderCard(order: CustomerOrder, issues: CustomerIssue[], page = 
       ...(order.delivery.courierName ? ['Курьер: ' + short(order.delivery.courierName,100)] : []),
       ...(order.delivery.courierPhone ? ['Телефон курьера: ' + short(order.delivery.courierPhone,40)] : [])] : []),
   ];
-  const waiting = issues.filter(issue => issue.actions.length);
+  const waiting = order.status === 'ASSEMBLING' && !order.assemblyFinalizedAt &&
+    !['PAID', 'REPORTED'].includes(order.payment?.status ?? '')
+    ? order.issues.filter(issue => issue.status === 'WAITING_CUSTOMER') : [];
   const keyboard: Button[][] = [];
   if (order.assemblyFinalizedAt && order.payment && order.payment.status !== 'CANCELED' && order.status !== 'CANCELED')
     keyboard.push([{text:'💳 Оплата',callback_data:shoppingData('p',order.publicId,'SBP')}]);
   if (order.delivery?.trackingUrl) {
     try { const url = new URL(order.delivery.trackingUrl);
-      const orderUrl = siteUrl('/order/' + order.publicId);
+      const orderUrl = webAppUrl('/order/' + order.publicId);
       if (url.protocol === 'https:' && !url.username && !url.password && orderUrl)
-        keyboard.push([{text:'Отследить доставку',url:orderUrl}]);
+        keyboard.push([{text:'Отследить доставку',web_app:{url:orderUrl}}]);
     } catch { /* Invalid provider URLs are never rendered. */ }
   }
   if (pages > 1) keyboard.push([
@@ -113,6 +134,7 @@ export function orderCard(order: CustomerOrder, issues: CustomerIssue[], page = 
     ...orderLinks(order.publicId),
   );
   return { text: header.join('\n') + '\n\n' + lines.slice(page * size, (page + 1) * size).join('\n\n') +
+    (order.status === 'ASSEMBLING' ? '\n\nФактический вес и доп. позиции войдут в итоговую сумму после сборки.' : '') +
     (pages > 1 ? '\n\nТовары: страница ' + (page + 1) + ' из ' + pages : ''),
     keyboard: { inline_keyboard: keyboard } };
 }

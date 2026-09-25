@@ -6,7 +6,7 @@ import pg from 'pg';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
 import { Test } from '@nestjs/testing';
-import { StandardSchemaValidationPipe } from '@nestjs/common';
+import { Logger, StandardSchemaValidationPipe } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/db/gen/client.js';
@@ -314,7 +314,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const former = await db.user.create({ data: { role: 'USER', name: 'Former' } });
       const formerToken = await auth.createSession(db, former.id);
       const telegramId = ++id;
-      const first = await post('telegram/mini-app', { initData: raw(telegramId) }, 'sid=' + formerToken).expect(201);
+      const initData = raw(telegramId);
+      const first = await post('telegram/mini-app', { initData }, 'sid=' + formerToken).expect(201);
       expect(first.body).toMatchObject({ role: 'USER', phone: null });
       expect(first.body.id).not.toBe(former.id);
       expect(await auth.me(formerToken)).toBeNull();
@@ -325,13 +326,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
       const admin = await db.user.upsert({ where: { phone: '+79990000001' },
         create: { role: 'ADMIN', phone: '+79990000001' }, update: { role: 'ADMIN' } });
-      const same = await post('telegram/mini-app', { initData: raw(telegramId) }, sid(first)).expect(201);
+      const same = await post('telegram/mini-app', { initData }, sid(first)).expect(201);
       expect(same.body.id).toBe(first.body.id);
       expect(await auth.me(sid(first).slice(4))).toBeNull();
       const adminToken = await auth.createSession(db, admin.id);
       await post('telegram/mini-app', { initData: 'user={"id":123}' }, 'sid=' + adminToken).expect(401);
       expect((await auth.me(adminToken))?.id).toBe(admin.id);
-      const second = await post('telegram/mini-app', { initData: raw(telegramId) }, 'sid=' + adminToken).expect(201);
+      const second = await post('telegram/mini-app', { initData }, 'sid=' + adminToken).expect(201);
       expect(second.body.id).toBe(first.body.id);
       expect(await auth.me(adminToken)).toBeNull();
       expect((await auth.me(sid(second).slice(4)))?.id).toBe(first.body.id);
@@ -454,30 +455,46 @@ describe.skipIf(!process.env.DATABASE_URL)(
         }),
       ).rejects.toMatchObject({ code: 'P2002' });
     });
-    it('consumes proofs atomically, rejects reordered replay, bounded cleanup removes expired rows', async () => {
+    it('accepts repeated signed Mini App launches while keeping OIDC proofs one-time', async () => {
       const initData = raw();
-      const results = await Promise.allSettled([
+      const results = await Promise.all([
         telegram.miniApp(initData),
         telegram.miniApp(initData),
       ]);
-      expect(
-        results.filter((result) => result.status === 'fulfilled'),
-      ).toHaveLength(1);
+      expect(results[0]!.user.id).toBe(results[1]!.user.id);
       const reordered = new URLSearchParams(
         [...new URLSearchParams(initData)].reverse(),
       ).toString();
-      await expect(telegram.miniApp(reordered)).rejects.toThrow(
-        'TELEGRAM_AUTH_REPLAY',
-      );
+      expect((await telegram.miniApp(reordered)).user.id).toBe(results[0]!.user.id);
+      const hash = new URLSearchParams(initData).get('hash')!;
+      const tokenHash = createHash('sha256').update('mini:' + hash).digest('hex');
+      expect(await db.telegramAuthReplay.findUnique({ where: { tokenHash } })).toBeNull();
+
       await db.telegramAuthReplay.create({
         data: { tokenHash: 'expired', expiresAt: new Date(0) },
       });
-      await telegram.miniApp(raw());
-      expect(
-        await db.telegramAuthReplay.findUnique({
-          where: { tokenHash: 'expired' },
-        }),
-      ).toBeNull();
+      const oidcProof = {
+        profile: { id: ++id },
+        tokenHash: createHash('sha256').update(randomUUID()).digest('hex'),
+        expiresAt: new Date(Date.now() + 300_000),
+      };
+      await telegram.login(oidcProof);
+      await expect(telegram.login(oidcProof)).rejects.toThrow('TELEGRAM_AUTH_REPLAY');
+      expect(await db.telegramAuthReplay.findUnique({
+        where: { tokenHash: 'expired' },
+      })).toBeNull();
+    });
+    it('logs only a static Mini App verification stage', async () => {
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+      const initData = new URLSearchParams(raw(++id, { first_name: 'PrivateMarker' }));
+      initData.set('hash', '0'.repeat(64));
+      expect(() => telegram.miniApp(initData.toString())).toThrow('TELEGRAM_AUTH_INVALID');
+      expect(warn).toHaveBeenCalledWith('Telegram Mini App failed: HASH_INVALID');
+      const logged = JSON.stringify(warn.mock.calls);
+      expect(logged).not.toContain('PrivateMarker');
+      expect(logged).not.toContain(botToken);
+      expect(logged).not.toContain(initData.toString());
+      warn.mockRestore();
     });
     it('rejects arbitrary ID, separate user, unsigned data and foreign/missing origins', async () => {
       await post('telegram/mini-app', { telegramUserId: 123 }).expect(400);

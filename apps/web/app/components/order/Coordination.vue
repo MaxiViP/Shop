@@ -45,6 +45,7 @@
       <OrderChat
         :base="base"
         :staff="staff"
+        :poll="poll"
         :unread="data.unread"
         :read-through="data.readThrough"
         @read="reload"
@@ -62,6 +63,7 @@ const props = withDefaults(
     staff?: boolean;
     phone?: string;
     assembling: boolean;
+    poll?: boolean;
   }>(),
   { staff: false, phone: undefined },
 );
@@ -112,7 +114,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   active = false;
 });
-useOrderPolling(reload);
+useOrderPolling(reload, () => props.poll === false ? 30000 : 4000);
 </script>
 
 <style scoped>

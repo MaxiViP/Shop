@@ -90,6 +90,7 @@ const props = defineProps<{
   staff: boolean;
   unread: number;
   readThrough: number;
+  poll?: boolean;
 }>();
 const emit = defineEmits<{ read: [] }>();
 const api = useApiClient();
@@ -237,7 +238,7 @@ onBeforeUnmount(() => {
   active = false;
   observer?.disconnect();
 });
-useOrderPolling(load);
+useOrderPolling(load, () => props.poll === false ? 30000 : 4000);
 </script>
 
 <style scoped>

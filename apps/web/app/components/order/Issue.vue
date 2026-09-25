@@ -33,7 +33,8 @@
     </template>
     <p v-else>Исходного товара нет в наличии. Он останется в истории заказа.</p>
     <div
-      v-if="issue.type === 'REPLACEMENT' && issue.proposedName"
+      v-if="issue.type === 'REPLACEMENT' && issue.proposedName &&
+        (issue.status === 'WAITING_CUSTOMER' || issue.resolution === 'ACCEPT_REPLACEMENT')"
       class="issue__proposal"
     >
       <img
@@ -44,7 +45,7 @@
         loading="lazy"
       >
       <div>
-        <p class="font-semibold">Предлагаем замену: {{ issue.proposedName }}</p>
+        <p class="font-semibold">{{ issue.resolution === "ACCEPT_REPLACEMENT" ? "Замена принята" : "Предлагаем замену" }}: {{ issue.proposedName }}</p>
         <p v-if="issue.proposedUnit && issue.proposedQty">
           {{ qtyText(issue.proposedUnit, issue.proposedQty) }}
         </p>

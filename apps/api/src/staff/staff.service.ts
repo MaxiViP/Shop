@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import type { OrderStatus, OrderType, UserRole, Prisma } from '../db/gen/client.js';
+import type { OrderItem, OrderStatus, OrderType, UserRole, Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import type { DeliveryInput, ItemInput } from './schema.js';
 import {
@@ -15,7 +15,7 @@ import {
   goodsLine,
   goodsSum,
 } from '../order/pricing.js';
-import { checkIssues, syncIssue, issueSummary } from '../order/coordination.js';
+import { checkIssues, syncIssue, issueSummary, compositionQty, compositionMoney } from '../order/coordination.js';
 import { cancelOrder, restoreOrder, restoreProblem, cancellationHistory } from '../order/cancel.js';
 import { telegramEvent } from '../order/outbox.js';
 import { NotificationService } from '../order/notification.service.js';
@@ -193,6 +193,7 @@ export class StaffService {
 
   async item(orderId: number, itemId: number, data: ItemInput, userId: number | null = null, actor?: StaffActor) {
     assertStaffActor(actor, userId);
+    let changed = false;
     const saved = await this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, orderId);
 
@@ -236,8 +237,11 @@ export class StaffService {
             actualTotal: null,
           },
         });
-        await syncIssue(db, order, updated, userId);
+        const issueMessage = await syncIssue(db, order, updated, userId);
+        if (!issueMessage) await message(db, orderId, `${item.productName}: возвращён в сборку.`,
+          'SYSTEM', userId, null, 'customer', 'CHAT_MESSAGE');
         await recordStaffAudit(db, orderId, actor, 'ITEM_RESET', 'ITEM', itemId);
+        changed = true;
         return updated;
       }
 
@@ -259,28 +263,76 @@ export class StaffService {
         });
         await syncIssue(db, order, updated, userId);
         await recordStaffAudit(db, orderId, actor, 'ITEM_MISSING', 'ITEM', itemId);
+        changed = true;
         return updated;
       }
 
-      const actualTotal = goodsLine(item.price, data.actualQty, item.priceQty);
-
-      const updated = await db.orderItem.update({
-        where: {
-          id: item.id,
-        },
-
-        data: {
-          status: 'PICKED',
-          actualQty: data.actualQty,
-          actualTotal,
-        },
-      });
-      await syncIssue(db, order, updated, userId);
-      await recordStaffAudit(db, orderId, actor, 'ITEM_PICKED', 'ITEM', itemId);
+      const updated = await this.pickItem(db, order, item, data.actualQty, userId, actor);
+      changed = true;
       return updated;
     });
+    if (changed) void this.notifications.dispatchTelegram(orderId).catch(() => {});
     await this.notifications.dispatch(orderId);
     return saved;
+  }
+
+  // The same snapshot-price and audit path serves manual, one-tap and bulk picking.
+  private async pickItem(db: Prisma.TransactionClient,
+    order: { id: number; weightToleranceBps: number }, item: OrderItem, actualQty: number,
+    userId: number | null, actor?: StaffActor, notify = true) {
+    const actualTotal = goodsLine(item.price, actualQty, item.priceQty);
+    const updated = await db.orderItem.update({
+      where: { id: item.id }, data: { status: 'PICKED', actualQty, actualTotal },
+    });
+    const issueMessage = await syncIssue(db, order, updated, userId);
+    if (!issueMessage && notify) await message(db, order.id,
+      `${item.productName}: заказано ${compositionQty(item.qty, item.unit)}, собрано ${compositionQty(actualQty, item.unit)}.`,
+      'SYSTEM', userId, null, 'customer', 'CHAT_MESSAGE');
+    await recordStaffAudit(db, order.id, actor, 'ITEM_PICKED', 'ITEM', item.id);
+    return updated;
+  }
+
+  async confirmDiscrete(orderId: number, actor: StaffActor, itemId?: number): Promise<number> {
+    assertStaffActor(actor, actor.userId);
+    const count = await this.db.$transaction(async db => {
+      const order = await this.lockedOrder(db, orderId);
+      if (order.status !== 'ASSEMBLING' || order.assemblyFinalizedAt ||
+        ['REPORTED', 'PAID'].includes(order.payment?.status ?? ''))
+        throw new BadRequestException('Заказ сейчас не собирается');
+      const items = await db.orderItem.findMany({
+        where: { orderId, ...(itemId === undefined ? {} : { id: itemId }), status: 'PENDING',
+          unit: { in: ['PIECE', 'PACK', 'BUNCH'] } },
+        include: { issue: true, replacementFor: true }, orderBy: { id: 'asc' },
+      });
+      if (itemId !== undefined && !items.length) {
+        const existing = await db.orderItem.findFirst({
+          where: { orderId, id: itemId }, select: { unit: true, status: true },
+        });
+        if (!existing) throw new NotFoundException('Позиция не найдена');
+        if (existing.unit === 'GRAM') throw new BadRequestException('Для весового товара укажите фактический вес');
+        return 0; // Duplicate/stale button: no second mutation or audit.
+      }
+      const eligible = items.filter(item => !item.issue && !item.replacementFor);
+      if (itemId !== undefined && !eligible.length)
+        throw new ConflictException('Позиция требует отдельного решения');
+      // Validate the complete set before the first write; the transaction also rolls back on any later failure.
+      for (const item of eligible) {
+        if (!Number.isSafeInteger(item.qty) || item.qty <= 0 || item.qty > 1_000_000)
+          throw new BadRequestException('Некорректное количество позиции');
+        goodsLine(item.price, item.qty, item.priceQty);
+      }
+      for (const item of eligible)
+        await this.pickItem(db, order, item, item.qty, actor.userId, actor, false);
+      if (eligible.length) await message(db, orderId,
+        `Продавец собрал ${eligible.length} штучных позиций по заказу. Фактическое количество видно в составе заказа.`,
+        'SYSTEM', actor.userId, null, 'customer', 'CHAT_MESSAGE');
+      return eligible.length;
+    });
+    if (count) {
+      void this.notifications.dispatchTelegram(orderId).catch(() => {});
+      await this.notifications.dispatch(orderId);
+    }
+    return count;
   }
 
   confirm(id: number, actor?: StaffActor) {
@@ -441,7 +493,8 @@ export class StaffService {
 
   async extra(orderId: number, userId: number, data: ExtraInput | null, id?: number, version?: number, actor?: StaffActor) {
     assertStaffActor(actor, userId);
-    return this.db.$transaction(async db => {
+    let changed = false;
+    const result = await this.db.$transaction(async db => {
       const order = await this.lockedOrder(db, orderId);
       if (order.status !== 'ASSEMBLING' || order.assemblyFinalizedAt || ['PAID', 'REPORTED'].includes(order.payment?.status ?? ''))
         throw new ConflictException('Услуги можно менять только во время сборки до оплаты');
@@ -452,6 +505,9 @@ export class StaffService {
         if (!current) throw new NotFoundException('Услуга не найдена');
         const saved = await db.orderExtra.update({ where: { id: current.id }, data: { status: 'CANCELED', canceledAt: new Date(), version: { increment: 1 } } });
         await recordStaffAudit(db, orderId, actor, 'EXTRA_CANCEL', 'EXTRA', saved.id);
+        await message(db, orderId, `Продавец удалил позицию:\n${current.title}`,
+          'SYSTEM', userId, null, 'customer', 'CHAT_MESSAGE');
+        changed = true;
         return saved;
       }
       const amount = goodsLine(data.unitPrice, data.quantity, 1);
@@ -465,8 +521,14 @@ export class StaffService {
         ? await db.orderExtra.update({ where: { id: current.id }, data: { ...values, version: { increment: 1 } } })
         : await db.orderExtra.create({ data: { ...values, orderId, createdById: userId } });
       await recordStaffAudit(db, orderId, actor, current ? 'EXTRA_EDIT' : 'EXTRA_ADD', 'EXTRA', saved.id);
+      await message(db, orderId,
+        `Продавец ${current ? 'изменил' : 'добавил'} позицию:\n${saved.title}\n${saved.quantity} × ${compositionMoney(saved.unitPrice)} = ${compositionMoney(saved.amount)}`,
+        'SYSTEM', userId, null, 'customer', 'CHAT_MESSAGE');
+      changed = true;
       return saved;
     });
+    if (changed) void this.notifications.dispatchTelegram(orderId).catch(() => {});
+    return result;
   }
 
   async cancel(id: number, userId: number | null = null, role: UserRole = 'SELLER', reason?: string, actor?: StaffActor) {

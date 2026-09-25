@@ -35,6 +35,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     let seller: { userId: number; role: 'SELLER' };
     const notices = {
       dispatch: vi.fn().mockResolvedValue(undefined),
+      dispatchTelegram: vi.fn().mockResolvedValue(undefined),
     } as unknown as NotificationService;
     const telegram = {
       notifyNewOrder: vi.fn().mockResolvedValue(undefined),

@@ -1,8 +1,8 @@
 <template>
   <UContainer class="telegram-auth">
-    <h1 class="text-2xl font-semibold">Вход через Telegram</h1>
+    <h1 class="text-2xl font-semibold">Открываем KorzinaMarket…</h1>
     <p role="status">{{ message }}</p>
-    <UButton to="/catalog">Продолжить без регистрации</UButton>
+    <UButton v-if="showFallback" to="/catalog">Открыть каталог</UButton>
   </UContainer>
 </template>
 
@@ -15,22 +15,11 @@ useSeoMeta({ title: "Вход через Telegram", robots: "noindex, follow" })
 const route = useRoute();
 const api = useApiClient();
 const auth = useAuthStore();
-const message = ref("Проверяем вход…");
+const message = ref("Открываем…");
+const showFallback = ref(false);
 const destination = telegramReturnTo(route.query.returnTo);
 const fromWebAppButton = route.query.returnTo !== undefined;
-const proofKey = "korzinamarket:telegram-mini-app-proof";
 
-async function proofFingerprint(initData: string): Promise<string | null> {
-  if (!window.crypto?.subtle) return null;
-  const digest = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(initData));
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
-}
-function savedProof(): string | null {
-  try { return window.sessionStorage.getItem(proofKey); } catch { return null; }
-}
-function rememberProof(value: string) {
-  try { window.sessionStorage.setItem(proofKey, value); } catch { /* Storage may be unavailable. */ }
-}
 type TelegramWindow = Window & {
   Telegram?: { WebApp?: { initData: string; ready: () => void } };
 };
@@ -44,16 +33,20 @@ onBeforeUnmount(() => {
 
 onMounted(async () => {
   try {
-    // Refresh the regular SID session before consuming a one-time Telegram proof.
-    const currentUser = await api<User | null>("/auth/me");
-    if (stopped) return;
-    auth.set(currentUser);
-    if (currentUser && !fromWebAppButton) {
-      await navigateTo(destination, { replace: true });
-      return;
+    // A bot WebApp launch sends its signed proof immediately. The normal entry
+    // keeps the existing SID shortcut for visitors without a returnTo.
+    if (!fromWebAppButton) {
+      const currentUser = await api<User | null>("/auth/me");
+      if (stopped) return;
+      auth.set(currentUser);
+      if (currentUser) {
+        await navigateTo(destination, { replace: true });
+        return;
+      }
     }
     if (route.query.error) {
-      message.value = "Вход не завершён. Повторите вход через Telegram. Для объединения разных аккаунтов потребуется отдельная привязка.";
+      message.value = "Вход не завершён. Откройте страницу заново из Telegram.";
+      showFallback.value = true;
       return;
     }
     if (!(window as TelegramWindow).Telegram?.WebApp) {
@@ -80,25 +73,22 @@ onMounted(async () => {
     if (stopped) return;
     const app = (window as TelegramWindow).Telegram?.WebApp;
     if (!app?.initData) {
-      message.value = "Откройте мини-приложение из Telegram или воспользуйтесь кнопкой входа на сайте.";
+      message.value = "Откройте эту страницу кнопкой в Telegram, чтобы войти автоматически.";
+      showFallback.value = true;
       return;
     }
     app.ready();
-    const fingerprint = await proofFingerprint(app.initData);
-    if (stopped) return;
-    if (currentUser && fingerprint && savedProof() === currentUser.id + ":" + fingerprint) {
-      await navigateTo(destination, { replace: true });
-      return;
-    }
     const user = await api<User>("/auth/telegram/mini-app", {
       method: "POST", body: { initData: app.initData },
     });
-    if (fingerprint) rememberProof(user.id + ":" + fingerprint);
     if (stopped) return;
     auth.set(user);
     await navigateTo(destination, { replace: true });
   } catch (cause) {
-    if (!stopped) message.value = apiError(cause);
+    if (!stopped) {
+      message.value = apiError(cause);
+      showFallback.value = true;
+    }
   }
 });
 </script>
