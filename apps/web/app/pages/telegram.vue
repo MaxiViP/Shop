@@ -11,6 +11,15 @@ import type { User } from "~/types/user";
 import { useAuthStore } from "~/stores/auth";
 import { telegramReturnTo } from "~/utils/telegram-return";
 
+useHead({
+  script: [{
+    key: "telegram-web-app-sdk",
+    src: "https://telegram.org/js/telegram-web-app.js?63",
+    tagPosition: "head",
+    tagPriority: "critical",
+  }],
+});
+
 useSeoMeta({ title: "Вход через Telegram", robots: "noindex, follow" });
 const route = useRoute();
 const api = useApiClient();
@@ -24,11 +33,9 @@ type TelegramWindow = Window & {
   Telegram?: { WebApp?: { initData: string; ready: () => void } };
 };
 let stopped = false;
-let cancelLoad: (() => void) | undefined;
 
 onBeforeUnmount(() => {
   stopped = true;
-  cancelLoad?.();
 });
 
 onMounted(async () => {
@@ -49,37 +56,17 @@ onMounted(async () => {
       showFallback.value = true;
       return;
     }
-    if (!(window as TelegramWindow).Telegram?.WebApp) {
-      await new Promise<void>((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = "https://telegram.org/js/telegram-web-app.js";
-        script.async = true;
-        const timer = setTimeout(() => finish(false), 8000);
-        function finish(ok: boolean) {
-          clearTimeout(timer);
-          script.onload = null;
-          script.onerror = null;
-          cancelLoad = undefined;
-          if (!ok) script.remove();
-          if (ok) resolve();
-          else reject(new Error("SDK_UNAVAILABLE"));
-        }
-        script.onload = () => finish(true);
-        script.onerror = () => finish(false);
-        cancelLoad = () => finish(false);
-        document.head.append(script);
-      });
-    }
-    if (stopped) return;
     const app = (window as TelegramWindow).Telegram?.WebApp;
-    if (!app?.initData) {
+    app?.ready();
+    const initData = app?.initData ?? "";
+    const fields = new URLSearchParams(initData);
+    if (!["auth_date", "hash", "user"].every((name) => Boolean(fields.get(name)))) {
       message.value = "Откройте эту страницу кнопкой в Telegram, чтобы войти автоматически.";
       showFallback.value = true;
       return;
     }
-    app.ready();
     const user = await api<User>("/auth/telegram/mini-app", {
-      method: "POST", body: { initData: app.initData },
+      method: "POST", body: { initData },
     });
     if (stopped) return;
     auth.set(user);

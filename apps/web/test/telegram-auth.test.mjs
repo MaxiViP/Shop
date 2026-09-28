@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHmac } from "node:crypto";
 import { telegramReturnTo } from "../app/utils/telegram-return.ts";
 import { apiError } from "../app/utils/api-error.ts";
 
@@ -36,16 +37,32 @@ executable = ts.transpileModule(executable, {
 }).outputText;
 
 const user = { id: 7, phone: null, name: "Test", role: "USER", verifiedAt: null };
+const fullInitData = (() => {
+  const botToken = "123456:fake-test-token";
+  const params = new URLSearchParams({
+    auth_date: String(Math.floor(Date.now() / 1000)),
+    query_id: "test-query",
+    user: JSON.stringify({ id: 7, first_name: "Test" }),
+    signature: "optional-signature",
+  });
+  params.sort();
+  const secret = createHmac("sha256", "WebAppData").update(botToken).digest();
+  const check = [...params].map(([key, value]) => key + "=" + value).join("\n");
+  params.set("hash", createHmac("sha256", secret).update(check).digest("hex"));
+  return params.toString();
+})();
 
 function miniAppPage(options = {}) {
   const requests = [];
   const navigation = [];
+  const head = [];
   let mounted;
   let unmount;
   let readyCalls = 0;
   const auth = { user: options.cachedUser ?? null, set(value) { this.user = value; } };
   const context = {
     ref, apiError, telegramReturnTo,
+    useHead: entry => { head.push(entry); },
     useSeoMeta: () => {},
     useRoute: () => ({ query: options.query ?? {} }),
     useAuthStore: () => auth,
@@ -66,7 +83,8 @@ function miniAppPage(options = {}) {
       get Telegram() {
         if (options.sdkMissing) return undefined;
         return { WebApp: {
-          initData: options.initData ?? "signed-test-proof",
+          initData: options.initData ?? fullInitData,
+          initDataUnsafe: options.initDataUnsafe,
           ready() { readyCalls++; },
         } };
       },
@@ -75,9 +93,22 @@ function miniAppPage(options = {}) {
   };
   const setup = new Function(...Object.keys(context), executable + "\nreturn { message, showFallback };");
   const result = setup(...Object.values(context));
-  return { ...result, auth, requests, navigation,
+  return { ...result, auth, requests, navigation, head,
     mount: () => mounted(), unmount: () => unmount(), readyCalls: () => readyCalls };
 }
+
+test("the page registers one early synchronous SDK head script and no dynamic loader", () => {
+  const instance = miniAppPage();
+  assert.deepEqual(instance.head, [{
+    script: [{
+      key: "telegram-web-app-sdk",
+      src: "https://telegram.org/js/telegram-web-app.js?63",
+      tagPosition: "head",
+      tagPriority: "critical",
+    }],
+  }]);
+  assert.doesNotMatch(page, /document\.createElement|document\.head\.append|initDataUnsafe|console\.(?:log|warn|error)/);
+});
 
 test("normal entry retains the existing SID shortcut", async () => {
   const instance = miniAppPage({ session: user });
@@ -104,7 +135,7 @@ test("WebApp returnTo posts proof before any /auth/me for every customer destina
     await instance.mount();
     assert.deepEqual(instance.requests, [{
       path: "/auth/telegram/mini-app",
-      input: { method: "POST", body: { initData: "signed-test-proof" } },
+      input: { method: "POST", body: { initData: fullInitData } },
     }]);
     assert.equal(instance.readyCalls(), 1);
     assert.equal(instance.auth.user, user);
@@ -154,6 +185,28 @@ test("repeated launches submit the same signed initData without a browser replay
     await instance.mount();
     assert.deepEqual(instance.requests.map(x => x.path), ["/auth/telegram/mini-app"]);
     assert.deepEqual(instance.navigation, [[target, { replace: true }]]);
+  }
+});
+
+test("incomplete initData never posts even when initDataUnsafe looks complete", async () => {
+  const order = "/order/11111111-1111-4111-8111-111111111111";
+  const incomplete = ["query_id=test-query"];
+  for (const missing of ["auth_date", "hash", "user"]) {
+    const params = new URLSearchParams(fullInitData);
+    params.delete(missing);
+    incomplete.push(params.toString());
+  }
+  for (const initData of incomplete) {
+    const instance = miniAppPage({
+      initData,
+      initDataUnsafe: { user: { id: 7 }, auth_date: Date.now(), hash: "untrusted" },
+      query: { returnTo: order },
+    });
+    await instance.mount();
+    assert.deepEqual(instance.requests, []);
+    assert.deepEqual(instance.navigation, []);
+    assert.equal(instance.showFallback.value, true);
+    assert.equal(instance.readyCalls(), 1);
   }
 });
 
