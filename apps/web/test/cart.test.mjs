@@ -89,6 +89,20 @@ test("restore never treats saved prices as a current quote", () => {
   assert.equal(cart.total, 275000);
   assert.equal(cart.priceChanged, true);
 });
+test("saved guest cart survives the first add after restoration", () => {
+  const savedProduct = { ...product, id: 2, name: "Груши", slug: "pears" };
+  const cart = store();
+  assert.equal(cart.restored, false);
+  const saved = decodeCart(
+    JSON.stringify({ version: 1, items: [{ product: savedProduct, qty: 500 }] }),
+  );
+  cart.restore(saved.items, saved.warning);
+  assert.equal(cart.restored, true);
+  assert.equal(cart.qty(savedProduct.id), 500);
+  assert.equal(cart.add(product), true);
+  assert.deepEqual(cart.items.map((item) => item.product.id), [2, 1]);
+  assert.equal(cart.quoteReady, false);
+});
 for (const unit of ["GRAM", "PIECE", "PACK", "BUNCH"]) {
   test(`${unit}: quick add uses a portion, independent of manual step`, () => {
     const cart = store();

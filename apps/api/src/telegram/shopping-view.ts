@@ -108,7 +108,7 @@ export function checkoutScreen(
   } else {
     if (session.promptMessageId)
       return {
-        text: 'Ответьте на последнее приглашение. /resume — показать его заново.',
+        text: 'Нажмите «Ответить» на последнем приглашении. /resume — показать его заново.',
         keyboard: {
           inline_keyboard: [
             [
@@ -123,7 +123,7 @@ export function checkoutScreen(
     return {
       prompt:
         prompt +
-        '\nОтветьте именно на это сообщение. /resume — восстановить, /cancel — отмена.',
+        '\nНажмите «Ответить» на этом сообщении и введите ответ. /resume — восстановить, /cancel — отмена.',
     };
   }
   return screen;

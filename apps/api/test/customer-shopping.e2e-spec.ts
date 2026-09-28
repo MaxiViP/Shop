@@ -661,6 +661,49 @@ describe.skipIf(!process.env.DATABASE_URL)(
       );
       expect((await session(f)).step).toBe('TIME');
     });
+    it('/menu cancels abandoned CHECKOUT input before displaying the inline home menu', async () => {
+      const f = await fixture(), c = await add(f);
+      await bot().handle(cb(f.telegramId, shoppingData('b', c.revision)));
+      const type = await session(f);
+      await bot().handle(cb(f.telegramId, shoppingData('f', type.id, 'pickup')));
+      const pending = await session(f);
+      expect(pending.step).toBe('PHONE');
+      expect(pending.promptMessageId).not.toBeNull();
+      const prompt = sent().find(message => message.text?.includes('Нажмите «Ответить»'));
+      expect(prompt?.reply_markup?.force_reply).toBeUndefined();
+      expect(JSON.stringify(sent())).not.toContain('"keyboard"');
+      expect(prompt?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
+        .toEqual(['menu']);
+      await bot().handle(text(f.telegramId, '/menu'));
+      expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity.id } })).toBeNull();
+      const menu = sent().findLast(message => message.text?.startsWith('Привет,'));
+      expect(menu?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
+        .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
+      await bot().handle(text(f.telegramId, '+79990000002', pending.promptMessageId!));
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+      expect((await cart.get(f.user.id)).items).toHaveLength(1);
+      expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity.id } })).toBeNull();
+    });
+    it.each(['/catalog', '/cart', '/orders'])('%s supersedes abandoned CHECKOUT text input', async command => {
+      const f = await fixture(), c = await add(f);
+      await bot().handle(cb(f.telegramId, shoppingData('b', c.revision)));
+      const type = await session(f);
+      await bot().handle(cb(f.telegramId, shoppingData('f', type.id, 'pickup')));
+      const pending = await session(f);
+      await bot().handle(text(f.telegramId, command));
+      expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity.id } })).toBeNull();
+      await bot().handle(text(f.telegramId, '+79990000002', pending.promptMessageId!));
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+    });
+    it('completed CHECKOUT exposes menu and has no active text session', async () => {
+      const f = await fixture(), s = await ready(f);
+      await bot().handle(cb(f.telegramId, shoppingData('f', s.id, 'confirm')));
+      expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity.id } })).toBeNull();
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(1);
+      const receipt = sent().find(message => message.text?.includes('Заказ создан'));
+      expect(receipt?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
+        .toContain('menu');
+    });
     it('expired checkout/chat input cannot be consumed or resumed', async () => {
       const f = await fixture(),
         c = await add(f);

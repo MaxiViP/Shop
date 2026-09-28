@@ -6,16 +6,18 @@ const key = "cart";
 
 export default defineNuxtPlugin((app) => {
   const cart = useCartStore();
-  // Hydrate the same unknown-cart shell as SSR, then restore once at app mount.
-  app.hook("app:mounted", () => {
-    try {
-      const { items, warning } = decodeCart(localStorage.getItem(key));
-      cart.restore(items, warning);
-    } catch {
-      cart.restore(
-        [],
-        "Не удалось прочитать сохранённую корзину: хранилище браузера недоступно.",
-      );
+  // Restore after the initial page hydrates, even when root suspense is delayed.
+  app.hooks.hookOnce("page:finish", () => {
+    if (!cart.restored) {
+      try {
+        const { items, warning } = decodeCart(localStorage.getItem(key));
+        cart.restore(items, warning);
+      } catch {
+        cart.restore(
+          [],
+          "Не удалось прочитать сохранённую корзину: хранилище браузера недоступно.",
+        );
+      }
     }
     cart.$subscribe(
       (_mutation, state) => {

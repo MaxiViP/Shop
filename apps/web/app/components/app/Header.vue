@@ -64,11 +64,16 @@
         <div class="header__action">
           <UButton
             to="/favorites"
-            icon="i-lucide-heart"
+            class="header__favorites"
             variant="ghost"
             color="neutral"
             aria-label="Избранное"
-          />
+            title="Избранное"
+          >
+            <svg class="header__favorite-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676a.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" />
+            </svg>
+          </UButton>
           <span v-if="favorites.count" class="header__count">
             {{ favorites.count }}
           </span>
@@ -104,13 +109,14 @@
     <UDrawer
       v-model:open="mobileOpen"
       :should-scale-background="false"
+      :no-body-styles="true"
       direction="left"
       title="Меню"
       inset
       :handle="false"
       close
       :ui="{
-        overlay: 'bg-black/35 backdrop-blur-[2px]',
+        overlay: 'bg-black/35',
         content:
           '[--initial-transform:calc(100%_+_max(0.5rem,var(--safe-left)))] inset-y-auto top-[max(0.5rem,var(--safe-top))] left-[max(0.5rem,var(--safe-left))] h-auto max-h-[calc(100dvh_-_max(0.5rem,var(--safe-top))_-_max(0.5rem,var(--safe-bottom)))] w-[min(20rem,calc(100vw_-_max(0.5rem,var(--safe-left))_-_max(0.5rem,var(--safe-right))))] max-w-none rounded-[1.25rem] overflow-hidden border border-default bg-default shadow-xl ring-0',
         container: 'min-h-0 max-h-[inherit] gap-0 overflow-hidden p-0',
@@ -144,7 +150,9 @@
             </a>
 
             <NuxtLink to="/favorites" class="mobile-nav__link">
-              <UIcon name="i-lucide-heart" />
+              <svg class="mobile-nav__favorite-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676a.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" />
+              </svg>
               <span>Избранное</span>
               <UBadge v-if="favorites.count" class="mobile-nav__count">
                 {{ favorites.count }}
@@ -559,6 +567,32 @@ function login() {
 
 .header__action {
   position: relative;
+}
+
+.header__favorites {
+  padding: 0;
+}
+
+.header__favorites:hover {
+  background: rgb(225 29 72 / 10%);
+}
+
+.header__favorites:focus-visible {
+  outline: 2px solid #be123c;
+  outline-offset: 2px;
+}
+
+.header__favorite-icon,
+.mobile-nav__favorite-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  color: #e11d48;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .header__cart {

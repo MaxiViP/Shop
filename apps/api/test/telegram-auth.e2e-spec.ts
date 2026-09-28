@@ -21,6 +21,9 @@ import type { NotificationService } from '../src/order/notification.service.js';
 import type { TelegramService } from '../src/telegram/telegram.service.js';
 import { customerView } from '../src/telegram/customer-callback.js';
 import { CustomerUpdateService } from '../src/telegram/customer-update.service.js';
+import { CustomerShopService } from '../src/telegram/customer-shop.service.js';
+import { CustomerCheckoutService } from '../src/telegram/customer-checkout.service.js';
+import { CartService } from '../src/cart/cart.service.js';
 import { configureProxy } from '../src/auth/proxy.js';
 import { guestTokenHash } from '../src/common/guest.js';
 import { signedInitData } from './telegram.fixture.js';
@@ -54,6 +57,16 @@ describe.skipIf(!process.env.DATABASE_URL)(
         { id: userId, first_name: 'Test', username: 'old', ...fields },
         { query_id: randomUUID() },
       );
+    const makeBot = () => {
+      const typed = db as unknown as DbService;
+      const domainOrders = new OrderService(typed, { notifyNewOrder: async () => {} } as unknown as TelegramService);
+      const coordination = new CoordinationService(typed, domainOrders,
+        { dispatch: async () => {} } as unknown as NotificationService);
+      const cart = new CartService(typed, domainOrders);
+      const checkout = new CustomerCheckoutService(typed, cart, domainOrders);
+      return new CustomerUpdateService(typed, coordination, domainOrders,
+        new CustomerShopService(typed, cart, checkout, domainOrders), checkout);
+    };
     const post = (path: string, body: unknown, cookie?: string) => {
       const value = request(app.getHttpServer())
         .post('/api/auth/' + path)
@@ -200,6 +213,45 @@ describe.skipIf(!process.env.DATABASE_URL)(
       }
     });
 
+    it('first /start USER is the same Mini App website USER and receives a normal SID', async () => {
+      const customerToken = randomBytes(32).toString('hex');
+      const previousFetch = globalThis.fetch;
+      vi.stubEnv('TELEGRAM_CUSTOMER_BOT_TOKEN', customerToken);
+      vi.stubEnv('TELEGRAM_BOT_TOKEN', '');
+      vi.stubEnv('ORDER_SITE_URL', 'https://shop.example');
+      vi.stubGlobal('fetch', vi.fn(async () => Response.json({ ok: true, result: { message_id: 1 } })));
+      try {
+        const telegramId = ++id;
+        const beforeUsers = await db.user.count();
+        const beforeIdentities = await db.telegramIdentity.count();
+        await makeBot().handle({ message: {
+          message_id: 1, text: '/start',
+          from: { id: telegramId, is_bot: false, first_name: 'First' },
+          chat: { id: telegramId, type: 'private' },
+        } });
+        const identity = await db.telegramIdentity.findUniqueOrThrow({
+          where: { telegramUserId: BigInt(telegramId) },
+        });
+        expect(await db.user.findUnique({ where: { id: identity.userId } }))
+          .toMatchObject({ role: 'USER', phone: null, name: 'First' });
+        const initData = signedInitData(customerToken,
+          { id: telegramId, first_name: 'First' }, { query_id: randomUUID() });
+        const response = await post('telegram/mini-app', { initData }).expect(201);
+        expect(response.body.id).toBe(identity.userId);
+        expect(response.body).toMatchObject({ role: 'USER', phone: null });
+        expect(String(response.headers['set-cookie'])).toContain('HttpOnly');
+        expect((await auth.me(sid(response).slice(4)))?.id).toBe(identity.userId);
+        expect(await db.user.count()).toBe(beforeUsers + 1);
+        expect(await db.telegramIdentity.count()).toBe(beforeIdentities + 1);
+        expect((await db.telegramIdentity.findUniqueOrThrow({
+          where: { telegramUserId: BigInt(telegramId) },
+        })).id).toBe(identity.id);
+      } finally {
+        vi.stubGlobal('fetch', previousFetch);
+        vi.stubEnv('TELEGRAM_CUSTOMER_BOT_TOKEN', '');
+        vi.stubEnv('TELEGRAM_BOT_TOKEN', botToken);
+      }
+    });
     it('migration preserves existing phone/user/session and allows multiple null phones', async () => {
       expect(
         await db.user.findUnique({ where: { id: existingUser } }),
@@ -245,10 +297,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         return Response.json({ ok: true, result: { message_id: calls.length } });
       }));
       try {
-        const typed = db as unknown as DbService;
-        const domainOrders = new OrderService(typed, { notifyNewOrder: async () => {} } as unknown as TelegramService);
-        const coordination = new CoordinationService(typed, domainOrders, { dispatch: async () => {} } as unknown as NotificationService);
-        const bot = new CustomerUpdateService(typed, coordination, domainOrders);
+        const bot = makeBot();
         const actor = { id: 999000, is_bot: false };
         const chat = { id: 999000, type: 'private' };
         await bot.handle({ message: { message_id: 1, from: actor, chat, text: '/start' } });

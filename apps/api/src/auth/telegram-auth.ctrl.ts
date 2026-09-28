@@ -79,6 +79,7 @@ export class TelegramAuthCtrl {
     @Req() request: Request,
     @Res() response: Response,
   ) {
+    this.logger.log('Telegram OIDC callback reached');
     response.clearCookie(FLOW, { ...flowCookie, maxAge: undefined });
     let stage: 'OIDC_FLOW_INVALID' | 'TELEGRAM_IDENTITY_LOGIN_FAILED' | null =
       'OIDC_FLOW_INVALID';

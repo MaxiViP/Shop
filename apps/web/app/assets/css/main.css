@@ -26,6 +26,7 @@
 html {
   min-width: 320px;
   color-scheme: light;
+  scrollbar-gutter: stable;
 }
 
 html.dark {

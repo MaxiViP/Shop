@@ -11,6 +11,7 @@ describe('Telegram callback safe stage diagnostics', () => {
     const warn = vi
       .spyOn(Logger.prototype, 'warn')
       .mockImplementation(() => {});
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
     const proof = {
       profile: { id: 123, username: 'private-user' },
       tokenHash: 'private-proof',
@@ -51,9 +52,16 @@ describe('Telegram callback safe stage diagnostics', () => {
         request as unknown as Request,
         response as unknown as Response,
       );
-    return { warn, oidc, telegram, response, run };
+    return { warn, log, oidc, telegram, response, run };
   }
 
+  it('records callback arrival with a static marker and no query data', async () => {
+    const s = setup();
+    await s.run();
+    expect(s.log.mock.calls).toEqual([['Telegram OIDC callback reached']]);
+    expect(JSON.stringify(s.log.mock.calls)).not.toContain('private-code');
+    expect(JSON.stringify(s.log.mock.calls)).not.toContain('private-state');
+  });
   it('passes optional returnTo to the server flow and never reads it from callback query', async () => {
     const s = setup();
     const target = '/order/12345678-1234-4234-8234-123456789abc';

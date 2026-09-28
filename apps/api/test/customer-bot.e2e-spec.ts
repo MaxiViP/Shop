@@ -137,6 +137,86 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     return db.customerTelegramSession.findUniqueOrThrow({ where: { identityId: f.identity!.id } });
   }
 
+  let onboardingId = 800000;
+  it('trusted first /start creates one USER and identity, then repeats without new rows', async () => {
+    const telegramId = ++onboardingId;
+    const beforeUsers = await db.user.count();
+    const beforeIdentities = await db.telegramIdentity.count();
+    await makeBot().handle({ message: { ...text(telegramId, '/start').message,
+      from: { id: telegramId, is_bot: false, username: 'buyer',
+        first_name: 'First', last_name: 'Last' } } });
+    const identity = await db.telegramIdentity.findUniqueOrThrow({
+      where: { telegramUserId: BigInt(telegramId) },
+    });
+    const user = await db.user.findUniqueOrThrow({ where: { id: identity.userId } });
+    expect(user).toMatchObject({ role: 'USER', phone: null, name: 'First Last' });
+    expect(identity).toMatchObject({
+      username: 'buyer', firstName: 'First', lastName: 'Last',
+      customerBotStartedAt: expect.any(Date), customerBotBlockedAt: null,
+    });
+    expect(await db.user.count()).toBe(beforeUsers + 1);
+    expect(await db.telegramIdentity.count()).toBe(beforeIdentities + 1);
+    const payload = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as {
+      reply_markup?: { inline_keyboard?: { text: string; callback_data?: string; web_app?: { url: string } }[][] };
+    };
+    const buttons = payload.reply_markup?.inline_keyboard?.flat();
+    expect(buttons).toHaveLength(6);
+    expect(buttons?.map(button => button.callback_data))
+      .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
+    expect(buttons?.map(button => button.text))
+      .toEqual(expect.arrayContaining(['Профиль', 'Каталог на сайте']));
+    for (const command of ['/catalog', '/cart', '/orders'])
+      await makeBot().handle(text(telegramId, command));
+    const screens = fetcher.mock.calls.slice(1).map(([, init]) =>
+      (JSON.parse(String(init?.body)) as { text: string }).text);
+    expect(screens).toHaveLength(3);
+    expect(screens[0]).toContain('Каталог');
+    expect(screens[1]).toContain('Корзина');
+    expect(screens[2]).toContain('Ваши заказы');
+    await makeBot().handle(text(telegramId, '/start'));
+    expect(await db.user.count()).toBe(beforeUsers + 1);
+    expect(await db.telegramIdentity.count()).toBe(beforeIdentities + 1);
+    expect((await db.telegramIdentity.findUniqueOrThrow({
+      where: { telegramUserId: BigInt(telegramId) },
+    })).userId).toBe(user.id);
+  });
+  it('concurrent first /start requests leave one USER and identity', async () => {
+    const telegramId = ++onboardingId;
+    const beforeUsers = await db.user.count();
+    const beforeIdentities = await db.telegramIdentity.count();
+    await Promise.all(Array.from({ length: 4 }, () => makeBot().handle(text(telegramId, '/start'))));
+    expect(await db.user.count()).toBe(beforeUsers + 1);
+    expect(await db.telegramIdentity.count()).toBe(beforeIdentities + 1);
+    const identity = await db.telegramIdentity.findUniqueOrThrow({
+      where: { telegramUserId: BigInt(telegramId) },
+    });
+    expect(await db.user.findUnique({ where: { id: identity.userId } }))
+      .toMatchObject({ role: 'USER', phone: null });
+  });
+  it('private chat and sender checks prevent /start provisioning', async () => {
+    const telegramId = ++onboardingId;
+    const bot = makeBot();
+    await bot.handle({ message: { ...text(telegramId, '/start').message,
+      chat: { id: telegramId, type: 'group' } } });
+    await bot.handle({ message: { ...text(telegramId, '/start').message,
+      chat: { id: telegramId + 1, type: 'private' } } });
+    await bot.handle({ message: { ...text(telegramId, '/start').message,
+      from: { id: telegramId, is_bot: true } } });
+    expect(await db.telegramIdentity.count({ where: { telegramUserId: BigInt(telegramId) } })).toBe(0);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it.each(['ADMIN', 'SELLER'] as const)('existing %s identity is neither activated nor changed', async role => {
+    const telegramId = ++onboardingId;
+    const user = await db.user.create({ data: { role, name: 'Staff account' } });
+    const identity = await db.telegramIdentity.create({ data: {
+      userId: user.id, telegramUserId: BigInt(telegramId),
+    } });
+    await makeBot().handle(text(telegramId, '/start'));
+    expect(await db.user.findUniqueOrThrow({ where: { id: user.id } })).toEqual(user);
+    expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: identity.id } })).toEqual(identity);
+    expect(String(fetcher.mock.calls[0]?.[1]?.body)).toContain('недоступен');
+  });
+
   it('migrates an existing notification as SMS without changing status, key, attempts or error', async () => {
     expect(await db.orderNotification.findUniqueOrThrow({ where: { id: legacyId } })).toMatchObject({
       channel: 'SMS', dedupeKey: 'legacy-event', attempts: 2, status: 'FAILED', error: 'SMS_SEND_FAILED', messageId: null,
@@ -226,7 +306,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: f.identity!.id } })).toMatchObject({ customerBotBlockedAt: null });
     expect((await db.user.findUniqueOrThrow({ where: { id: f.user.id } })).phone).toBeNull();
   });
-  it('restart and simultaneous duplicate ForceReplies create exactly one business chat message', async () => {
+  it('restart and simultaneous duplicate replies create exactly one business chat message', async () => {
     const f = await fixture();
     const session = await prompt(f);
     expect(session.step).toBe('TEXT');
@@ -237,6 +317,11 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     const chat = await coordination.messages({ orderId: f.order.id, ...seller }, { limit: 30 });
     expect(chat.messages.some(m => m.text === 'Оставьте у двери')).toBe(true);
     expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).staffUnread).toBe(1);
+    const screens = fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as {
+      text?: string; reply_markup?: { inline_keyboard?: { callback_data?: string }[][] };
+    });
+    expect(screens.some(screen => screen.text?.includes('Сообщения') &&
+      screen.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === 'menu'))).toBe(true);
   });
   it('expired session and random or wrong-prompt messages cannot post', async () => {
     const f = await fixture();
@@ -260,9 +345,44 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     expect(await db.orderChatMessage.count({ where: { orderId: { in: [a.order.id, b.order.id] } } })).toBe(0);
     expect(await db.customerTelegramSession.count({ where: { id: session.id } })).toBe(1);
   });
+  it('/menu cancels abandoned CHAT input and an old reply cannot post', async () => {
+    const f = await fixture(), pending = await prompt(f);
+    const promptBody = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as {
+      reply_markup?: { force_reply?: boolean; keyboard?: unknown; inline_keyboard?: { callback_data?: string }[][] };
+    };
+    expect(promptBody.reply_markup?.force_reply).toBeUndefined();
+    expect(promptBody.reply_markup?.keyboard).toBeUndefined();
+    expect(promptBody.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
+      .toEqual(['menu']);
+    await makeBot().handle(text(f.telegramId, '/menu'));
+    expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity!.id } })).toBeNull();
+    const menu = JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body)) as {
+      text?: string; reply_markup?: { inline_keyboard?: { callback_data?: string }[][] };
+    };
+    expect(menu.text).toContain('Привет,');
+    expect(menu.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
+      .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
+    await makeBot().handle(text(f.telegramId, 'Старый ответ', pending.promptMessageId!));
+    expect(await db.orderChatMessage.count({ where: { orderId: f.order.id, authorType: 'CUSTOMER' } })).toBe(0);
+  });
+  it('/start returns an existing customer with pending CHAT input to the same inline menu', async () => {
+    const f = await fixture();
+    await prompt(f);
+    await makeBot().handle(text(f.telegramId, '/start'));
+    expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity!.id } })).toBeNull();
+    const menu = JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body)) as {
+      text?: string; reply_markup?: { inline_keyboard?: { callback_data?: string }[][] };
+    };
+    expect(menu.text).toContain('Привет,');
+    expect(menu.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
+      .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
+  });
   it('/cancel deletes pending input and an old reply cannot revive it', async () => {
     const f = await fixture(), session = await prompt(f);
     await makeBot().handle(text(f.telegramId, '/cancel'));
+    const menu = JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body)) as { text?: string; reply_markup?: { inline_keyboard?: unknown } };
+    expect(menu.text).toContain('Привет,');
+    expect(menu.reply_markup?.inline_keyboard).toBeDefined();
     await makeBot().handle(text(f.telegramId, 'Отменённый ответ', session.promptMessageId!));
     expect(await db.customerTelegramSession.count({ where: { id: session.id } })).toBe(0);
     expect(await db.orderChatMessage.count({ where: { orderId: f.order.id } })).toBe(0);
@@ -273,8 +393,8 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     let entered!: () => void;
     const waiting = new Promise<void>(resolve => { entered = resolve; });
     fetcher.mockImplementation(async (_url, init) => {
-      const body = JSON.parse(String(init?.body)) as { reply_markup?: { force_reply?: boolean } };
-      if (body.reply_markup?.force_reply) {
+      const body = JSON.parse(String(init?.body)) as { text?: string };
+      if (body.text?.startsWith('Сообщение продавцу')) {
         entered();
         return new Promise<Response>(resolve => { release = resolve; });
       }

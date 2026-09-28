@@ -65,6 +65,19 @@ describe('separate Telegram webhook boundaries', () => {
     expect(staffHandle).toHaveBeenCalledTimes(1);
   });
 
+  it('never passes an untrusted /start to the provisioning handler', async () => {
+    const body = { message: {
+      message_id: 1, text: '/start',
+      from: { id: 123, is_bot: false },
+      chat: { id: 123, type: 'private' },
+    } };
+    for (const secret of [undefined, staffSecret, 'wrong']) {
+      const requestBody = request(app.getHttpServer()).post('/api/telegram/customer/webhook');
+      if (secret) requestBody.set('X-Telegram-Bot-Api-Secret-Token', secret);
+      await requestBody.send(body).expect(403);
+    }
+    expect(customerHandle).not.toHaveBeenCalled();
+  });
   it('fails closed in legacy same-token mode and with same secrets', async () => {
     vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', '');
     await post(app, 'customer', customerSecret).expect(403);

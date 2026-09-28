@@ -24,6 +24,6 @@ export function customerPrompt(chatId: number, text: string) {
   return botSendMessageId(customerBotToken(), {
     chat_id: chatId,
     text,
-    reply_markup: { force_reply: true, selective: true },
+    reply_markup: { inline_keyboard: [[{ text: 'Меню', callback_data: 'menu' }]] },
   });
 }

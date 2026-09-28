@@ -1,5 +1,5 @@
 <template>
-  <UApp :locale="ru">
+  <UApp :locale="ru" :scroll-body="{ padding: 0, margin: 0 }">
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>

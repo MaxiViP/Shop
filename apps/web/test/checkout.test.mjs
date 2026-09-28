@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import ts from "typescript";
-import { computed, ref, reactive, watch, nextTick } from "vue";
+import { computed, ref, shallowRef, reactive, watch, nextTick } from "vue";
 import { createPinia } from "pinia";
 import { useCartStore } from "../app/stores/cart.ts";
 import { deliveryEligibility } from "../app/utils/shop-settings.ts";
@@ -43,7 +43,7 @@ async function fixture(t, authenticated = false) {
   const stops = [];
   t.after(() => stops.forEach(stop => stop()));
   const context = {
-    computed, ref, reactive,
+    computed, ref, shallowRef, reactive,
     watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
     useCartStore: () => cart,
     useAuthStore: () => ({ loggedIn: authenticated,

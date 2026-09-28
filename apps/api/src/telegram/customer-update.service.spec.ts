@@ -29,9 +29,14 @@ function setup(linked = true) {
   const db = {
     telegramIdentity: {
       findUnique: vi.fn().mockResolvedValue(linked ? {
-        id: 3, userId: 7, firstName: 'Maksim', user: { name: 'Maksim' },
+        id: 3, userId: 7, firstName: 'Maksim', user: { name: 'Maksim', role: 'USER' },
       } : null),
-      update: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({
+        id: 3, userId: 7, firstName: 'Maksim', user: { name: 'Maksim', role: 'USER' },
+      }),
+      create: vi.fn().mockResolvedValue({
+        id: 3, userId: 7, firstName: 'Maksim', user: { name: 'Maksim', role: 'USER' },
+      }),
     },
     order: {
       findMany: vi.fn().mockResolvedValue([order]),
@@ -42,6 +47,7 @@ function setup(linked = true) {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     $queryRaw: vi.fn().mockResolvedValue([{ id: 3 }]),
+    $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn(),
   };
   db.$transaction.mockImplementation(async (fn: (tx: typeof db) => Promise<unknown>) => fn(db));
@@ -76,9 +82,9 @@ describe('customer cabinet', () => {
     const { db, service } = setup();
     await service.handle(message('/start'));
     expect(db.telegramIdentity.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { telegramUserId: BigInt(telegramId) } }));
-    expect(db.telegramIdentity.update).toHaveBeenCalledWith({
+    expect(db.telegramIdentity.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 3 }, data: { customerBotStartedAt: expect.any(Date), customerBotBlockedAt: null },
-    });
+    }));
     expect(sent()[0]?.text).toContain('Привет, Maksim!');
     const buttons = sent()[0]?.reply_markup?.inline_keyboard?.flat();
     expect(buttons?.map(button => button.callback_data)).toEqual(expect.arrayContaining(['current', 'orders', 'attention']));
@@ -92,14 +98,51 @@ describe('customer cabinet', () => {
     await service.handle(message('/menu'));
     expect(db.telegramIdentity.update).not.toHaveBeenCalled();
     expect(JSON.stringify(sent())).not.toContain('attention');
+    expect(db.customerTelegramSession.deleteMany).toHaveBeenCalledWith({ where: { identityId: 3 } });
+    expect(db.customerTelegramSession.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(fetcher.mock.invocationCallOrder[0]!);
+    expect(sent()[0]?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data)).toContain('catalog');
   });
-  it('unlinked user is directed to website login without account creation', async () => {
+  it('inline Menu cancels input and edits the prompt into the canonical home screen', async () => {
+    const { db, service } = setup();
+    await service.handle(callback('menu'));
+    expect(db.customerTelegramSession.deleteMany).toHaveBeenCalledWith({ where: { identityId: 3 } });
+    expect(sent()[0]?.message_id).toBe(55);
+    expect(sent()[0]?.text).toContain('Привет, Maksim!');
+    expect(sent()[0]?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
+      .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
+  });
+  it('first /start creates a USER with no phone and opens the normal menu', async () => {
     const { db, service } = setup(false);
+    await service.handle({ message: { ...message('/start').message,
+      from: { id: telegramId, is_bot: false, username: 'buyer',
+        first_name: 'Maksim', last_name: 'Buyer' },
+    } });
+    expect(db.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(db.telegramIdentity.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: {
+        telegramUserId: BigInt(telegramId), username: 'buyer', firstName: 'Maksim',
+        lastName: 'Buyer', customerBotStartedAt: expect.any(Date), customerBotBlockedAt: null,
+        user: { create: { role: 'USER', phone: null, name: 'Maksim Buyer' } },
+      },
+    }));
+    const buttons = sent()[0]?.reply_markup?.inline_keyboard?.flat();
+    expect(buttons?.map(button => button.callback_data)).toEqual(
+      expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
+    expect(buttons?.map(button => button.web_app?.url)).toEqual(expect.arrayContaining([
+      'https://shop.example/telegram?returnTo=%2Fprofile',
+      'https://shop.example/telegram?returnTo=%2Fcatalog',
+    ]));
+  });
+  it.each(['ADMIN', 'SELLER'])('does not activate an existing %s account', async role => {
+    const { db, service } = setup();
+    db.telegramIdentity.findUnique.mockResolvedValue({
+      id: 3, userId: 7, firstName: 'Staff', user: { name: 'Staff', role },
+    });
     await service.handle(message('/start'));
+    expect(db.telegramIdentity.create).not.toHaveBeenCalled();
     expect(db.telegramIdentity.update).not.toHaveBeenCalled();
-    expect(sent()[0]?.text).toContain('войдите через Telegram');
-    expect(sent()[0]?.reply_markup?.inline_keyboard?.[0]?.[0]?.web_app?.url)
-      .toBe('https://shop.example/telegram?returnTo=%2Fcatalog');
+    expect(db.order.findFirst).not.toHaveBeenCalled();
+    expect(sent()[0]?.text).toContain('аккаунт недоступен');
   });
   it('/orders uses a bounded owned query and public display labels', async () => {
     const { db, service } = setup();
@@ -179,10 +222,11 @@ describe('customer cabinet', () => {
     expect(coordination.decide).toHaveBeenCalledWith({ publicId, userId: 7 }, 8, { version: 3, action });
   });
   it('stale issue gets a friendly ACK without retrying mutation', async () => {
-    const { service, coordination } = setup();
+    const { service, coordination, db } = setup();
     coordination.decide.mockRejectedValueOnce(new ConflictException());
     await service.handle(callback(customerDecision(publicId, 8, 2, 'a')));
     expect(coordination.decide).toHaveBeenCalledTimes(1);
+    expect(db.customerTelegramSession.deleteMany).not.toHaveBeenCalled();
     expect(sent().at(-1)?.text).toContain('уже изменилась');
   });
   it('chat pages reuse messages/read and read only after a successful display', async () => {
@@ -205,11 +249,13 @@ describe('customer cabinet', () => {
     expect(coordination.read).not.toHaveBeenCalled();
     expect(vi.mocked(Logger.prototype.warn)).toHaveBeenCalledWith('Customer Telegram display failed');
   });
-  it('reserves exact order before sending ForceReply and attaches returned prompt ID', async () => {
+  it('sends a regular inline prompt and binds the exact reply message ID', async () => {
     const { service, coordination, db } = setup();
     await service.handle(callback(customerView('w', publicId)));
     expect(coordination.reserveReply).toHaveBeenCalledWith({ publicId, userId: 7 }, 3);
-    expect(sent()[0]?.reply_markup?.force_reply).toBe(true);
+    expect(sent()[0]?.reply_markup?.force_reply).toBeUndefined();
+    expect(sent()[0]?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data)).toEqual(['menu']);
+    expect(JSON.stringify(sent())).not.toContain('"keyboard"');
     expect(sent()[0]?.text).toContain('заказу №1');
     expect(db.customerTelegramSession.updateMany).toHaveBeenCalledWith({
       where: { id: 'reservation', identityId: 3, action: 'CHAT', step: 'PROMPT', promptMessageId: null, expiresAt: { gt: expect.any(Date) } },
@@ -247,6 +293,8 @@ describe('customer cabinet', () => {
     expect(db.customerTelegramSession.deleteMany).toHaveBeenCalledWith({ where: { identityId: 3 } });
     expect(coordination.post).not.toHaveBeenCalled();
     expect(coordination.decide).not.toHaveBeenCalled();
+    expect(sent()[0]?.text).toContain('Привет, Maksim!');
+    expect(sent()[0]?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data)).toContain('catalog');
   });
   it('does not log provider bodies, customer data or credentials', async () => {
     const { service } = setup();

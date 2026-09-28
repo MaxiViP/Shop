@@ -2,7 +2,13 @@ import { z } from 'zod';
 
 const actorId = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const messageId = z.number().int().positive().max(2147483647);
-const from = z.object({ id: actorId, is_bot: z.literal(false) });
+const from = z.object({
+  id: actorId,
+  is_bot: z.literal(false),
+  username: z.string().max(256).optional(),
+  first_name: z.string().max(256).optional(),
+  last_name: z.string().max(256).optional(),
+});
 const chat = z.object({ id: actorId, type: z.string() });
 export const customerUpdate = z.object({
   message: z.object({

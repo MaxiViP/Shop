@@ -389,7 +389,7 @@ export class CustomerShopService {
                     callback_data: customerView('w', order.publicId),
                   },
                 ],
-                [{ text: 'В магазин', callback_data: 'catalog' }],
+                [{ text: 'В магазин', callback_data: 'catalog' }, { text: 'Меню', callback_data: 'menu' }],
               ],
             },
           });

@@ -4,7 +4,7 @@ import { CoordinationService } from '../order/coordination.service.js';
 import { OrderService } from '../order/order.service.js';
 import { chatSchema } from '../order/coordination.schema.js';
 import { botRequest } from './bot-api.js';
-import type { CustomerTelegramSession } from '../db/gen/client.js';
+import type { CustomerTelegramSession, UserRole } from '../db/gen/client.js';
 import { customerShow, customerPrompt } from './customer-send.js';
 import { CustomerShopService } from './customer-shop.service.js';
 import { CustomerCheckoutService } from './customer-checkout.service.js';
@@ -17,8 +17,10 @@ import {
   type Button, type Screen,
 } from './customer-view.js';
 
-type Identity = { id: number; userId: number; firstName: string | null; user: { name: string | null } };
+type Identity = { id: number; userId: number; firstName: string | null; user: { name: string | null; role: UserRole } };
+type Sender = { id: number; username?: string; first_name?: string; last_name?: string };
 type Target = { chatId: number; messageId?: number };
+const identitySelect = { id: true, userId: true, firstName: true, user: { select: { name: true, role: true } } } as const;
 
 @Injectable()
 export class CustomerUpdateService {
@@ -32,6 +34,43 @@ export class CustomerUpdateService {
   ) {}
 
   private show(target: Target, screen: Screen) { return customerShow(target, screen); }
+  private async start(sender: Sender): Promise<Identity> {
+    const telegramUserId = BigInt(sender.id);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await this.db.$transaction(async db => {
+          await db.$executeRaw`SELECT pg_advisory_xact_lock(704003, hashtext(${String(sender.id)}))`;
+          const identity = await db.telegramIdentity.findUnique({
+            where: { telegramUserId }, select: identitySelect,
+          });
+          if (identity && identity.user.role !== 'USER') return identity;
+          const activation = { customerBotStartedAt: new Date(), customerBotBlockedAt: null };
+          if (identity) return db.telegramIdentity.update({
+            where: { id: identity.id }, data: activation, select: identitySelect,
+          });
+          return db.telegramIdentity.create({
+            data: {
+              telegramUserId,
+              username: sender.username ?? null,
+              firstName: sender.first_name ?? null,
+              lastName: sender.last_name ?? null,
+              ...activation,
+              user: { create: {
+                role: 'USER', phone: null,
+                name: [sender.first_name, sender.last_name].filter(Boolean).join(' ') || null,
+              } },
+            },
+            select: identitySelect,
+          });
+        });
+      } catch (error) {
+        if (attempt === 0 && typeof error === 'object' && error !== null &&
+          'code' in error && error.code === 'P2002') continue;
+        throw error;
+      }
+    }
+    throw new Error('Customer Telegram start retry exhausted');
+  }
   private async answer(id: string, text: string) {
     if (!await botRequest(customerBotToken(), 'answerCallbackQuery', {
       callback_query_id: id, text, cache_time: 0,
@@ -113,6 +152,7 @@ export class CustomerUpdateService {
         [{ text: 'Последнее / Обновить', callback_data: customerView('m', publicId) }],
         [{ text: 'Написать продавцу', callback_data: customerView('w', publicId) }],
         [{ text: '← К заказу', callback_data: customerView('o', publicId) }],
+        [{ text: 'Меню', callback_data: 'menu' }],
       ] },
     });
     if (ok && last) await this.coordination.read(actor, last.id);
@@ -124,7 +164,7 @@ export class CustomerUpdateService {
   private async presentChat(target: Target, identity: Identity, session: CustomerTelegramSession) {
     if (session.orderId === null) return;
     const promptMessageId = await customerPrompt(target.chatId, 'Сообщение продавцу по заказу №' + session.orderId +
-      '.\nОтветьте именно на это сообщение (до 2000 символов).\n/resume — продолжить; /cancel — отмена. Ответ принимается в течение 10 минут.');
+      '.\nНажмите «Ответить» на этом сообщении и напишите текст (до 2000 символов).\n/resume — продолжить; /cancel — отмена. Ответ принимается в течение 10 минут.');
     // UNKNOWN must retain the durable, unbound reservation.
     if (!promptMessageId) return;
     await this.db.customerTelegramSession.updateMany({
@@ -152,7 +192,7 @@ export class CustomerUpdateService {
       where: { identityId: identity.id }, include: { order: { select: { publicId: true, userId: true } } },
     });
     const notice = (message: string) => this.show(target, { text: message,
-      keyboard: { inline_keyboard: [[{ text: '📦 Мои заказы', callback_data: 'orders' }]] } });
+      keyboard: { inline_keyboard: [[{ text: '📦 Мои заказы', callback_data: 'orders' }, { text: 'Меню', callback_data: 'menu' }]] } });
     if (!session || session.expiresAt <= new Date()) {
       if (session) await this.db.customerTelegramSession.deleteMany({ where: { id: session.id } });
       return notice('Сейчас нет открытого ввода сообщения. Откройте заказ и нажмите «Написать продавцу».');
@@ -173,13 +213,12 @@ export class CustomerUpdateService {
   }
 
   private async action(target: Target, identity: Identity, action: CustomerAction) {
+    if (action.kind !== 'w' && action.kind !== 'd') await this.cancel(identity);
     switch (action.kind) {
-      case 'menu': return this.menu(target, identity);
+      case 'menu':
+      case 'cancel': return this.menu(target, identity);
       case 'orders': return this.list(target, identity, action.page);
       case 'attention': return this.list(target, identity, 0, true);
-      case 'cancel':
-        await this.cancel(identity);
-        return this.show(target, { text: 'Ввод отменён.', keyboard: { inline_keyboard: [[{ text: 'Меню', callback_data: 'menu' }]] } });
       case 'current': {
         const order = await this.db.order.findFirst({
           where: { userId: identity.userId, status: { in: activeStatuses } },
@@ -196,6 +235,7 @@ export class CustomerUpdateService {
         await this.coordination.decide({ publicId: action.publicId, userId: identity.userId }, action.issueId, {
           version: action.version, action: action.action,
         });
+        await this.cancel(identity);
         return this.card(target, identity, action.publicId);
     }
   }
@@ -221,22 +261,24 @@ export class CustomerUpdateService {
       const extra = command === '/current' ? {kind:'current' as const} :
         command === '/messages' ? {kind:'attention' as const} : null;
       if (callback && !action && !shopping) { ack = 'Некорректная кнопка'; return; }
-      const identity = await this.db.telegramIdentity.findUnique({
-        where: { telegramUserId: BigInt(sender.id) },
-        select: { id: true, userId: true, firstName: true, user: { select: { name: true } } },
-      });
+      const identity = command === '/start' ? await this.start(sender) :
+        await this.db.telegramIdentity.findUnique({
+          where: { telegramUserId: BigInt(sender.id) }, select: identitySelect,
+        });
       if (!identity) {
-        const url = webAppUrl('/catalog');
-        await this.show(target, { text: 'Чтобы увидеть свои заказы, откройте KorzinaMarket и войдите через Telegram. Затем вернитесь сюда и нажмите /start.',
-          keyboard: { inline_keyboard: url ? [[{ text: 'Каталог на сайте', web_app: { url } }]] : [] } });
+        await this.show(target, { text: 'Нажмите /start, чтобы открыть меню и начать покупки.', keyboard: { inline_keyboard: [] } });
         return;
       }
-      if (command === '/start') await this.db.telegramIdentity.update({
-        where: { id: identity.id },
-        data: { customerBotStartedAt: new Date(), customerBotBlockedAt: null },
-      });
+      if (identity.user.role !== 'USER') {
+        this.logger.warn('Customer Telegram identity has a non-customer role');
+        await this.show(target, { text: 'Этот аккаунт недоступен в покупательском боте.', keyboard: { inline_keyboard: [] } });
+        return;
+      }
       if (shopping?.kind === 'resume') await this.resume(target, identity);
-      else if (shopping) await this.shop.handle(target, identity, shopping);
+      else if (shopping) {
+        if (shopping.kind !== 'checkout' && shopping.kind !== 'flow') await this.cancel(identity);
+        await this.shop.handle(target, identity, shopping);
+      }
       else if (extra) await this.action(target, identity, extra);
       else if (action) await this.action(target, identity, action);
       else if (message?.text && !message.text.startsWith('/'))
