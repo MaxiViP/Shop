@@ -533,16 +533,24 @@ describe.skipIf(!process.env.DATABASE_URL)(
         where: { tokenHash: 'expired' },
       })).toBeNull();
     });
-    it('logs only a static Mini App verification stage', async () => {
+    it('logs only safe Mini App HASH_INVALID categories and field names', async () => {
       const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
       const initData = new URLSearchParams(raw(++id, { first_name: 'PrivateMarker' }));
+      initData.set('PrivateMarkerKey', 'hidden');
       initData.set('hash', '0'.repeat(64));
       expect(() => telegram.miniApp(initData.toString())).toThrow('TELEGRAM_AUTH_INVALID');
       expect(warn).toHaveBeenCalledWith('Telegram Mini App failed: HASH_INVALID');
+      expect(warn).toHaveBeenCalledWith(
+        'Telegram Mini App HASH_INVALID diagnostics: ' +
+        'MINIAPP_FIELD_NAMES=["auth_date","hash","query_id","unknown","user"]' +
+        ' HAS_SIGNATURE=no HMAC_CURRENT_MATCH=no HMAC_WITHOUT_SIGNATURE_MATCH=no' +
+        ' ED25519_VALID=no AUTH_DATE_BUCKET=fresh',
+      );
       const logged = JSON.stringify(warn.mock.calls);
       expect(logged).not.toContain('PrivateMarker');
       expect(logged).not.toContain(botToken);
       expect(logged).not.toContain(initData.toString());
+      expect(logged).not.toContain('0'.repeat(64));
       warn.mockRestore();
     });
     it('rejects arbitrary ID, separate user, unsigned data and foreign/missing origins', async () => {

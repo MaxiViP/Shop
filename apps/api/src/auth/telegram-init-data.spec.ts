@@ -1,7 +1,13 @@
-import { randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes, sign } from 'node:crypto';
 import { UnauthorizedException } from '@nestjs/common';
 import { signedInitData } from '../../test/telegram.fixture.js';
-import { verifyInitData, type MiniAppFailureStage } from './telegram-init-data.js';
+import {
+  ed25519SignatureMatches,
+  miniAppHashDiagnostics,
+  verifyInitData,
+  type MiniAppFailureStage,
+  type MiniAppHashDiagnostics,
+} from './telegram-init-data.js';
 
 describe('Telegram Mini App signature', () => {
   const token = randomBytes(32).toString('hex');
@@ -119,4 +125,90 @@ describe('Telegram Mini App signature', () => {
     expect(stages).toEqual([]);
   });
 
+  it('keeps the current HMAC valid with signature included and emits no failure diagnostics', () => {
+    const raw = signedInitData(token, { id: 123 }, { signature: 'signed-extra' });
+    const params = new URLSearchParams(raw);
+    const diagnostics = miniAppHashDiagnostics(params, params.get('hash') ?? '', token, Date.now());
+    expect(diagnostics).toMatchObject({
+      fieldNames: ['auth_date', 'hash', 'signature', 'user'],
+      hasSignature: true,
+      hmacCurrentMatch: true,
+      hmacWithoutSignatureMatch: false,
+      ed25519Valid: false,
+      authDateBucket: 'fresh',
+    });
+    const onInvalid = vi.fn();
+    expect(verifyInitData(raw, token, Date.now(), onInvalid).profile.id).toBe(123);
+    expect(onInvalid).not.toHaveBeenCalled();
+  });
+
+  it('reports only a diagnostic match when the hash excludes signature, but still rejects', () => {
+    const params = new URLSearchParams(signedInitData(token, { id: 123 }));
+    params.set('signature', 'signed-extra');
+    const calls: Array<[MiniAppFailureStage, MiniAppHashDiagnostics | undefined]> = [];
+    expect(() => verifyInitData(params.toString(), token, Date.now(),
+      (stage, diagnostics) => calls.push([stage, diagnostics])))
+      .toThrow('TELEGRAM_AUTH_INVALID');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[0]).toBe('HASH_INVALID');
+    expect(calls[0]?.[1]).toMatchObject({
+      hasSignature: true,
+      hmacCurrentMatch: false,
+      hmacWithoutSignatureMatch: true,
+      ed25519Valid: false,
+      authDateBucket: 'fresh',
+    });
+  });
+
+  it('reports invalid HMAC without signature and buckets auth_date using the unchanged TTL', () => {
+    const now = Date.now();
+    const params = new URLSearchParams(signedInitData(token, { id: 123 }));
+    params.set('hash', '0'.repeat(64));
+    expect(miniAppHashDiagnostics(params, params.get('hash') ?? '', token, now))
+      .toMatchObject({
+        hasSignature: false,
+        hmacCurrentMatch: false,
+        hmacWithoutSignatureMatch: false,
+        ed25519Valid: false,
+        authDateBucket: 'fresh',
+      });
+    for (const [date, bucket] of [
+      [String(Math.floor(now / 1000) - 301), 'old'],
+      [String(Math.floor(now / 1000) + 120), 'future'],
+      ['bad', 'invalid'],
+    ] as const) {
+      params.set('auth_date', date);
+      expect(miniAppHashDiagnostics(params, params.get('hash') ?? '', token, now)
+        .authDateBucket).toBe(bucket);
+    }
+  });
+
+  it('verifies a reproducible Ed25519 third-party fixture and rejects bad or missing signatures', () => {
+    const botToken = '123456:test-token';
+    const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+    const publicKeyHex = Buffer.from(publicKey.export({ format: 'der', type: 'spki' }))
+      .subarray(-32).toString('hex');
+    const params = new URLSearchParams(signedInitData(botToken, { id: 123 }));
+    params.delete('hash');
+    params.sort();
+    const check = [...params].map(([key, value]) => key + '=' + value).join('\n');
+    const signature = sign(null, Buffer.from('123456:WebAppData\n' + check), privateKey)
+      .toString('base64url');
+    expect(ed25519SignatureMatches(params, botToken, publicKeyHex)).toBe(false);
+    params.set('signature', signature);
+    expect(ed25519SignatureMatches(params, botToken, publicKeyHex)).toBe(true);
+    params.set('signature', 'not-base64url!');
+    expect(ed25519SignatureMatches(params, botToken, publicKeyHex)).toBe(false);
+    params.set('signature', signature);
+    params.set('auth_date', '1');
+    expect(ed25519SignatureMatches(params, botToken, publicKeyHex)).toBe(false);
+  });
+
+  it('buckets unknown field names so attacker-controlled keys cannot enter logs', () => {
+    const params = new URLSearchParams(signedInitData(token, { id: 123 }));
+    params.set('PrivateMarker', 'value');
+    const diagnostics = miniAppHashDiagnostics(params, params.get('hash') ?? '', token, Date.now());
+    expect(diagnostics.fieldNames).toEqual(['auth_date', 'hash', 'unknown', 'user']);
+    expect(JSON.stringify(diagnostics)).not.toContain('PrivateMarker');
+  });
 });

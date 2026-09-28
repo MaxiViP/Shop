@@ -22,8 +22,21 @@ export class TelegramAuthService {
 
   miniApp(initData: string, previousToken?: string) {
     return this.login(
-      verifyInitData(initData, customerBotToken(), Date.now(), (stage) =>
-        this.logger.warn('Telegram Mini App failed: ' + stage)),
+      verifyInitData(initData, customerBotToken(), Date.now(), (stage, diagnostics) => {
+        this.logger.warn('Telegram Mini App failed: ' + stage);
+        if (stage === 'HASH_INVALID' && diagnostics) {
+          const yesNo = (value: boolean) => value ? 'yes' : 'no';
+          this.logger.warn(
+            'Telegram Mini App HASH_INVALID diagnostics: ' +
+            'MINIAPP_FIELD_NAMES=' + JSON.stringify(diagnostics.fieldNames) +
+            ' HAS_SIGNATURE=' + yesNo(diagnostics.hasSignature) +
+            ' HMAC_CURRENT_MATCH=' + yesNo(diagnostics.hmacCurrentMatch) +
+            ' HMAC_WITHOUT_SIGNATURE_MATCH=' + yesNo(diagnostics.hmacWithoutSignatureMatch) +
+            ' ED25519_VALID=' + yesNo(diagnostics.ed25519Valid) +
+            ' AUTH_DATE_BUCKET=' + diagnostics.authDateBucket,
+          );
+        }
+      }),
       previousToken,
       true,
     );
