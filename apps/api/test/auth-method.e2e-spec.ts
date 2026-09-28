@@ -9,19 +9,24 @@ import request from 'supertest';
 import { AuthCtrl } from '../src/auth/auth.ctrl.js';
 import { AuthService } from '../src/auth/auth.service.js';
 import { MethodGuard } from '../src/auth/method.guard.js';
+import { OtpLoginGuard } from '../src/auth/otp.guard.js';
 import type { DbService } from '../src/db/db.service.js';
 
 describe('Auth method HTTP', () => {
   let app: INestApplication<Server>;
+  let findUser: ReturnType<typeof vi.fn>;
   beforeEach(async () => {
     vi.stubEnv('AUTH_SECRET', randomBytes(32).toString('hex'));
     vi.stubEnv('ADMIN_PHONE', '+79990000001');
     vi.stubEnv('ADMIN_PASSWORD', randomBytes(32).toString('hex'));
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'false');
+    findUser = vi.fn().mockResolvedValue(null);
     const module = await Test.createTestingModule({
       controllers: [AuthCtrl],
       providers: [
         MethodGuard,
-        { provide: AuthService, useValue: new AuthService({} as DbService) },
+        OtpLoginGuard,
+        { provide: AuthService, useValue: new AuthService({ user: { findUnique: findUser } } as unknown as DbService) },
       ],
     }).compile();
     app = module.createNestApplication<INestApplication<Server>>();
@@ -40,6 +45,50 @@ describe('Auth method HTTP', () => {
       .send({ phone: '+79990000002' })
       .expect(201)
       .expect({ method: 'OTP' });
+    expect(findUser).not.toHaveBeenCalled();
+  });
+  it('enabled test mode selects TEST_PHONE but keeps admin PASSWORD', async () => {
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'true');
+    await request(app.getHttpServer())
+      .post('/api/auth/method')
+      .send({ phone: '+79990000002' })
+      .expect(201)
+      .expect({ method: 'TEST_PHONE' });
+    await request(app.getHttpServer())
+      .post('/api/auth/method')
+      .send({ phone: '8 (999) 000-00-01' })
+      .expect(201)
+      .expect({ method: 'PASSWORD' });
+    expect(findUser).toHaveBeenCalledTimes(1);
+  });
+  it('existing SELLER retains OTP and ADMIN never receives TEST_PHONE', async () => {
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'true');
+    for (const [role, method] of [['SELLER', 'OTP'], ['ADMIN', 'PASSWORD']] as const) {
+      findUser.mockResolvedValueOnce({ role });
+      await request(app.getHttpServer())
+        .post('/api/auth/method')
+        .send({ phone: '+79990000002' })
+        .expect(201)
+        .expect({ method });
+    }
+  });
+  it('test login endpoint is unavailable with the flag off', async () => {
+    await request(app.getHttpServer())
+      .post('/api/auth/test-phone-login')
+      .send({ phone: '+79990000002' })
+      .expect(404);
+  });
+  it('rate limits test login attempts before account creation', async () => {
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'true');
+    for (let i = 0; i < 30; i++)
+      await request(app.getHttpServer())
+        .post('/api/auth/test-phone-login')
+        .send({ phone: 'bad' })
+        .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/auth/test-phone-login')
+      .send({ phone: 'bad' })
+      .expect(429);
   });
   it('normalizes configured phone and returns only PASSWORD', async () => {
     const response = await request(app.getHttpServer())

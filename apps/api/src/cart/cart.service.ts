@@ -9,7 +9,7 @@ import type { Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import { OrderService } from '../order/order.service.js';
 import { orderSchema, type OrderInput } from '../order/schema.js';
-import { cartQuantityValid } from '../order/cart-quote.js';
+import { cartProductSelect, cartQuantityValid } from '../order/cart-quote.js';
 import { manualQuantity } from '../order/assembly.js';
 
 export type CartChange =
@@ -45,7 +45,12 @@ export class CartService {
     cart: Awaited<ReturnType<CartService['locked']>>,
   ) {
     const quote = await this.orders.quote({ items: cart.items }, db);
-    return { revision: cart.revision, ...quote };
+    // Inactive products remain visible to their owner so they can be removed.
+    const products = await db.product.findMany({
+      where: { id: { in: cart.items.map((item) => item.productId) } },
+      select: cartProductSelect,
+    });
+    return { revision: cart.revision, ...quote, products };
   }
   getIn(db: Prisma.TransactionClient, userId: number) {
     return this.locked(db, userId).then((cart) => this.snapshot(db, cart));
@@ -120,6 +125,56 @@ export class CartService {
       });
       return this.snapshot(db, await this.locked(db, userId));
     });
+  }
+
+  merge(userId: number, revision: string, items: { productId: number; qty: number }[]) {
+    return this.db.$transaction(async (db) => {
+      const cart = await this.locked(db, userId);
+      if (cart.revision !== revision)
+        throw new ConflictException('Корзина уже изменилась. Откройте /cart.');
+      const existing = new Set(cart.items.map((item) => item.productId));
+      const incoming = new Set<number>();
+      const additions: { productId: number; qty: number }[] = [];
+      for (const item of items) {
+        if (incoming.has(item.productId))
+          throw new BadRequestException('Повторяющийся товар в корзине');
+        incoming.add(item.productId);
+        if (!existing.has(item.productId)) additions.push(item);
+      }
+      if (cart.items.length + additions.length > 50)
+        throw new BadRequestException('В корзине не больше 50 товаров');
+      if (additions.length) {
+        const ids = additions.map((item) => item.productId).sort((a, b) => a - b);
+        await db.$queryRaw`SELECT id FROM "Product" WHERE id = ANY(${ids}::int[]) ORDER BY id FOR SHARE`;
+        const products = await db.product.findMany({
+          where: { id: { in: ids }, active: true },
+          select: { id: true, min: true, step: true },
+        });
+        for (const item of additions) {
+          const product = products.find((row) => row.id === item.productId);
+          if (!product || !cartQuantityValid(item.qty, product.min, product.step))
+            throw new BadRequestException('Проверьте доступность и количество товаров');
+        }
+        await db.cartItem.createMany({
+          data: additions.map((item) => ({ cartId: cart.id, ...item })),
+        });
+        await db.cart.update({
+          where: { id: cart.id },
+          data: { revision: randomUUID() },
+        });
+      }
+      return this.snapshot(db, await this.locked(db, userId));
+    });
+  }
+
+  async checkout(userId: number, revision: string, data: Omit<OrderInput, 'items'>) {
+    const result = await this.db.$transaction(async (db) => {
+      const order = await this.checkoutIn(db, userId, revision, data);
+      const cart = await this.getIn(db, userId);
+      return { order, cart };
+    });
+    this.orders.created(result.order.id);
+    return result;
   }
 
   // Caller also consumes the checkout session on this SAME transaction connection.

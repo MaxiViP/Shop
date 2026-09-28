@@ -2,7 +2,7 @@
   <UContainer class="checkout">
     <header class="checkout__head">
       <h1 class="checkout__title">Корзина и оформление</h1>
-      <UButton v-if="cart.restored && cart.count" variant="ghost" color="neutral" :disabled="loading" class="checkout__clear" @click="clearCart">
+      <UButton v-if="cart.restored && cart.count" variant="ghost" color="neutral" :disabled="loading || cart.serverBusy" class="checkout__clear" @click="clearCart">
         Очистить
       </UButton>
     </header>
@@ -116,11 +116,15 @@
 
         <section class="section">
           <h2 class="section__title">Получатель</h2>
+          <div v-if="auth.user?.role === 'USER'" class="recipient-tabs" role="group" aria-label="Кому заказ">
+            <button type="button" class="recipient-tabs__item" :class="{ 'recipient-tabs__item--active': recipientMode === 'self' }" :aria-pressed="recipientMode === 'self'" @click="recipientMode = 'self'">Для себя</button>
+            <button type="button" class="recipient-tabs__item" :class="{ 'recipient-tabs__item--active': recipientMode === 'other' }" :aria-pressed="recipientMode === 'other'" @click="recipientMode = 'other'">Другому человеку</button>
+          </div>
 
           <div class="form__row">
             <UFormField  label="Имя" :error="errors.name">
               <AppTextInput
-                v-model="form.name"
+                v-model="recipient.name"
                 autocomplete="name"
                 placeholder="Максим"
                 size="lg"
@@ -129,7 +133,7 @@
 
             <UFormField label="Телефон" :error="errors.phone">
               <AppTextInput
-                v-model="form.phone"
+                v-model="recipient.phone"
                 format="phone"
                 type="tel"
                 inputmode="tel"
@@ -150,12 +154,12 @@
           <div class="section__head">
             <h2 class="section__title">Адрес доставки</h2>
 
-            <NuxtLink v-if="auth.loggedIn" to="/profile" class="section__link">
+            <NuxtLink v-if="auth.loggedIn && recipientMode === 'self'" to="/profile" class="section__link">
               Мои адреса
             </NuxtLink>
           </div>
 
-          <div v-if="auth.loggedIn && addresses.length" class="addresses">
+          <div v-if="auth.loggedIn && recipientMode === 'self' && addresses.length" class="addresses">
             <button
               v-for="address in addresses"
               :key="address.id"
@@ -196,16 +200,25 @@
               <span class="addresses__text"> Ввести вручную </span>
             </button>
           </div>
+          <UButton
+            v-if="recipientMode === 'self' && selectedAddressId !== null && form.type === 'DELIVERY'"
+            type="button"
+            variant="link"
+            class="section__link"
+            @click="selectedAddressId = null"
+          >
+            Изменить адрес для этого заказа
+          </UButton>
 
           <div v-if="showAddressForm" class="address">
             <div class="form__row">
               <UFormField label="Город" :error="errors.city">
-                <AppTextInput v-model="form.city" placeholder="Москва" />
+                <AppTextInput v-model="recipient.city" placeholder="Москва" />
               </UFormField>
 
               <UFormField label="Улица" :error="errors.street">
                 <AppTextInput
-                  v-model="form.street"
+                  v-model="recipient.street"
                   placeholder="Ленинский проспект"
                 />
               </UFormField>
@@ -213,29 +226,29 @@
 
             <div class="form__grid">
               <UFormField label="Дом" :error="errors.house">
-                <UInput v-model="form.house" placeholder="53" />
+                <UInput v-model="recipient.house" placeholder="53" />
               </UFormField>
 
               <UFormField label="Квартира">
-                <UInput v-model="form.flat" placeholder="25" />
+                <UInput v-model="recipient.flat" placeholder="25" />
               </UFormField>
 
               <UFormField label="Подъезд">
-                <UInput v-model="form.entrance" placeholder="2" />
+                <UInput v-model="recipient.entrance" placeholder="2" />
               </UFormField>
 
               <UFormField label="Этаж">
-                <UInput v-model="form.floor" placeholder="7" />
+                <UInput v-model="recipient.floor" placeholder="7" />
               </UFormField>
             </div>
 
             <UFormField label="Домофон">
-              <UInput v-model="form.intercom" placeholder="25К" />
+              <UInput v-model="recipient.intercom" placeholder="25К" />
             </UFormField>
 
             <UFormField label="Комментарий курьеру">
               <UTextarea
-                v-model="form.comment"
+                v-model="recipient.comment"
                 placeholder="Позвонить за 10 минут"
                 :rows="3"
               />
@@ -343,7 +356,7 @@
           block
           size="xl"
           :loading="loading"
-          :disabled="!canSubmit"
+          :disabled="!canSubmit || cart.serverBusy"
         >
           Оформить заказ
         </UButton>
@@ -362,13 +375,14 @@
 </template>
 
 <script setup lang="ts">
-import type { CartItem } from "~/utils/cart";
+import type { CartItem, ServerCartSnapshot } from "~/utils/cart";
 import type { Address } from "~/types/address";
 import type { OrderCreated, OrderType } from "~/types/order";
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
 import { pickupDate } from "~/utils/pickup";
+import { recipientDefaults, recipientDraft } from "~/utils/checkout-recipient";
 import {
   deliveryEligibility,
   type PublicShopSettings,
@@ -381,6 +395,7 @@ const {
 
 const auth = useAuthStore();
 const cart = useCartStore();
+const actions = useCartActions();
 const {
   ready,
   pending: quotePending,
@@ -395,7 +410,7 @@ const eligibility = computed(() =>
 const api = useApiClient();
 const { name, rememberOnSuccess } = useCheckoutName();
 
-const { data: addressData } = await useApi<Address[]>("/addresses", {
+const { data: addressData, refresh: refreshAddresses } = await useApi<Address[]>("/addresses", {
   default: () => [],
   immediate: auth.loggedIn,
 });
@@ -420,22 +435,32 @@ const form = reactive({
   type: "DELIVERY" as OrderType,
   pickupTiming: "asap",
   pickupAt: "",
-  name,
-  phone: auth.user?.phone ?? "",
-
-  city: "Москва",
-  street: "",
-  house: "",
-  flat: "",
-  entrance: "",
-  floor: "",
-  intercom: "",
-  comment: "",
+});
+const recipientMode = ref<"self" | "other">("self");
+const defaults = recipientDefaults(auth.user, name.value);
+const self = reactive(recipientDraft(defaults.name, defaults.phone, "Москва"));
+const other = reactive(recipientDraft());
+const recipient = computed(() => recipientMode.value === "other" ? other : self);
+watch(name, (value) => {
+  if (!auth.loggedIn && !self.name) self.name = value;
+});
+watch(() => auth.user?.id, (userId) => {
+  if (!userId) {
+    Object.assign(self, recipientDraft("", "", "Москва"));
+    selectedAddressId.value = null;
+    return;
+  }
+  const value = recipientDefaults(auth.user);
+  self.name = value.name;
+  self.phone = value.phone;
+  void refreshAddresses();
 });
 
 const canSubmit = computed(
   () =>
     !loading.value &&
+    !cart.serverBusy &&
+    (cart.mode === "guest" || cart.serverRevision !== null) &&
     !quotePending.value &&
     ready.value &&
     cart.count > 0 &&
@@ -446,19 +471,19 @@ const canSubmit = computed(
 );
 const notice = useHeaderNotice();
 const lastRemoved = shallowRef<CartItem | null>(null);
-function undoRemoval() {
+async function undoRemoval() {
   if (!lastRemoved.value || loading.value) return;
   const { product, qty } = lastRemoved.value;
-  if (cart.put(product, qty)) {
+  if (await actions.put(product, qty)) {
     lastRemoved.value = null;
     notice.show({ target: 'cart', text: 'Товар возвращён в корзину' });
   } else {
     notice.show({ target: 'cart', text: 'Не удалось вернуть товар. Проверьте количество и лимит позиций.' });
   }
 }
-function clearCart() {
-  cart.clear();
-  notice.show({ target: 'cart', text: 'Корзина очищена' });
+async function clearCart() {
+  if (await actions.clear())
+    notice.show({ target: 'cart', text: 'Корзина очищена' });
 }
 async function retryQuote() {
   await Promise.all([refreshQuote(), refreshSettings()]);
@@ -475,7 +500,7 @@ watch(
 );
 
 watch(
-  () => [form.type, form.pickupTiming],
+  () => [form.type, form.pickupTiming, recipientMode.value],
   () => {
     clearErrors();
     error.value = "";
@@ -484,6 +509,7 @@ watch(
 
 const showAddressForm = computed(
   () =>
+    recipientMode.value === "other" ||
     !auth.loggedIn ||
     !addresses.value.length ||
     selectedAddressId.value === null,
@@ -508,49 +534,49 @@ watch(
 function selectAddress(address: Address) {
   selectedAddressId.value = address.id;
 
-  form.city = address.city;
-  form.street = address.street;
-  form.house = address.house;
-  form.flat = address.flat ?? "";
-  form.entrance = address.entrance ?? "";
-  form.floor = address.floor ?? "";
-  form.intercom = address.intercom ?? "";
-  form.comment = address.comment ?? "";
+  self.city = address.city;
+  self.street = address.street;
+  self.house = address.house;
+  self.flat = address.flat ?? "";
+  self.entrance = address.entrance ?? "";
+  self.floor = address.floor ?? "";
+  self.intercom = address.intercom ?? "";
+  self.comment = address.comment ?? "";
 }
 
 function manualAddress() {
   selectedAddressId.value = null;
 
-  form.city = "Москва";
-  form.street = "";
-  form.house = "";
-  form.flat = "";
-  form.entrance = "";
-  form.floor = "";
-  form.intercom = "";
-  form.comment = "";
+  self.city = "Москва";
+  self.street = "";
+  self.house = "";
+  self.flat = "";
+  self.entrance = "";
+  self.floor = "";
+  self.intercom = "";
+  self.comment = "";
 }
 
 function validate() {
   clearErrors();
 
-  if (!form.name.trim()) {
+  if (!recipient.value.name.trim()) {
     errors.name = "Введите имя";
   }
 
-  if (!form.phone.trim()) {
+  if (!recipient.value.phone.trim()) {
     errors.phone = "Введите телефон";
   }
 
-  if (form.type === "DELIVERY" && !form.city.trim()) {
+  if (form.type === "DELIVERY" && !recipient.value.city.trim()) {
     errors.city = "Введите город";
   }
 
-  if (form.type === "DELIVERY" && !form.street.trim()) {
+  if (form.type === "DELIVERY" && !recipient.value.street.trim()) {
     errors.street = "Введите улицу";
   }
 
-  if (form.type === "DELIVERY" && !form.house.trim()) {
+  if (form.type === "DELIVERY" && !recipient.value.house.trim()) {
     errors.house = "Введите дом";
   }
 
@@ -579,7 +605,8 @@ async function submit() {
   loading.value = true;
   error.value = "";
 
-  const rememberName = rememberOnSuccess();
+  if (recipientMode.value === "self") name.value = self.name;
+  const rememberName = recipientMode.value === "self" ? rememberOnSuccess() : () => {};
   try {
     const previousToken = cart.quote?.token;
     const requestedType = form.type;
@@ -596,49 +623,54 @@ async function submit() {
         "Условия заказа изменились. Проверьте товары, сумму и способ получения перед оформлением.";
       return;
     }
-    const order = await api<OrderCreated>("/orders", {
-      method: "POST",
-
-      body: {
-        type: form.type,
-        quoteToken: cart.quote.token,
-        deliveryAt:
-          form.type === "PICKUP" && form.pickupTiming === "scheduled"
-            ? pickupDate(form.pickupAt)?.toISOString()
-            : undefined,
-
-        customerName: form.name.trim(),
-
-        customerPhone: form.phone.trim(),
-
-        address:
-          form.type === "DELIVERY"
-            ? {
-                city: form.city.trim(),
-                street: form.street.trim(),
-                house: form.house.trim(),
-
-                flat: form.flat.trim() || undefined,
-
-                entrance: form.entrance.trim() || undefined,
-
-                floor: form.floor.trim() || undefined,
-
-                intercom: form.intercom.trim() || undefined,
-
-                comment: form.comment.trim() || undefined,
-              }
-            : undefined,
-
-        items: cart.items.map((item) => ({
-          productId: item.product.id,
-          qty: item.qty,
-        })),
-      },
-    });
-
+    const recipientData = recipient.value;
+    const body = {
+      type: form.type,
+      quoteToken: cart.quote.token ?? undefined,
+      deliveryAt:
+        form.type === "PICKUP" && form.pickupTiming === "scheduled"
+          ? pickupDate(form.pickupAt)?.toISOString()
+          : undefined,
+      customerName: recipientData.name.trim(),
+      customerPhone: recipientData.phone.trim(),
+      address: form.type === "DELIVERY"
+        ? {
+            city: recipientData.city.trim(),
+            street: recipientData.street.trim(),
+            house: recipientData.house.trim(),
+            flat: recipientData.flat.trim() || undefined,
+            entrance: recipientData.entrance.trim() || undefined,
+            floor: recipientData.floor.trim() || undefined,
+            intercom: recipientData.intercom.trim() || undefined,
+            comment: recipientData.comment.trim() || undefined,
+          }
+        : undefined,
+    };
+    let order: OrderCreated;
+    if (cart.mode === "server") {
+      const userId = auth.user?.id;
+      const revision = cart.serverRevision;
+      if (!userId || !revision) return;
+      const result = await api<{ order: OrderCreated; cart: ServerCartSnapshot }>(
+        "/cart/checkout",
+        { method: "POST", body: { ...body, revision } },
+      );
+      cart.applyServer(result.cart, userId);
+      order = result.order;
+    } else {
+      order = await api<OrderCreated>("/orders", {
+        method: "POST",
+        body: {
+          ...body,
+          items: cart.items.map((item) => ({
+            productId: item.product.id,
+            qty: item.qty,
+          })),
+        },
+      });
+      cart.clear();
+    }
     rememberName();
-    cart.clear();
 
     await navigateTo(`/order/${order.publicId}`);
   } catch (cause) {
@@ -689,6 +721,31 @@ useSeoMeta({
 </script>
 
 <style scoped>
+.recipient-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.recipient-tabs__item {
+  min-height: var(--touch-target);
+  padding: 0.5rem;
+  border: 1px solid var(--ui-border);
+  border-radius: 0.75rem;
+  text-align: center;
+}
+
+.recipient-tabs__item--active {
+  border-color: var(--ui-primary);
+  background: var(--ui-bg-elevated);
+}
+
+.recipient-tabs__item:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
 .section__items-head {
   display: flex;
   width: 100%;

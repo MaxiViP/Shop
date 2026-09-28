@@ -19,6 +19,16 @@ export interface CartQuote {
   error: "TOTAL_OVERFLOW" | null;
   token: string | null;
 }
+export interface ServerCartSnapshot extends CartQuote {
+  revision: string;
+  products: ProductListItem[];
+}
+
+export type ServerCartChange =
+  | { kind: 'add' | 'set'; productId: number; qty: number }
+  | { kind: 'remove'; productId: number }
+  | { kind: 'clear' };
+
 export function previewTotal(product: ProductListItem, qty: number): number | null {
   if (!validQuantity(qty, product)) return null;
   try {

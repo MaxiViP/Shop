@@ -31,7 +31,7 @@
             В корзине: {{ qtyText(product.unit, cartQty) }}
           </span>
 
-          <UButton size="lg" class="product__btn" :disabled="!cart.restored || total === null" @click="add">
+          <UButton size="lg" class="product__btn" :disabled="!cart.restored || cart.serverBusy || total === null" @click="add">
             {{ total === null ? 'Проверьте количество и стоимость' : `${cartQty ? 'Обновить количество' : 'В корзину'} · ${money(total)}` }}
           </UButton>
         </div>
@@ -60,12 +60,13 @@ const route = useRoute();
 const slug = String(route.params.slug);
 
 const cart = useCartStore();
+const actions = useCartActions();
 const notice = useHeaderNotice();
 
-function add() {
+async function add() {
   if (!cart.restored || !product.value || total.value === null) return;
 
-  const updated = cart.put(product.value, qty.value);
+  const updated = await actions.put(product.value, qty.value);
   notice.show({ target: 'cart', text: updated ? 'Количество в корзине сохранено' : 'Проверьте количество и лимит позиций в корзине' });
 }
 

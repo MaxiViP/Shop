@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, Res } from '@nestjs/common';
+import { Body, ConflictException, Controller, Get, Param, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService, SID } from '../auth/auth.service.js';
 import { GID, GUEST_TTL } from '../common/guest.js';
@@ -37,6 +37,11 @@ export class OrderCtrl {
     body: OrderInput,
   ) {
     const user = await this.auth.me(request.cookies?.[SID]);
+    if (user?.role === 'USER')
+      throw new ConflictException({
+        code: 'SHARED_CART_REQUIRED',
+        message: 'Обновите корзину и оформите заказ из общей корзины.',
+      });
 
     const result = await this.order.create(
       user?.id ?? null,

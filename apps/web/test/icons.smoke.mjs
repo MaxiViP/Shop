@@ -197,7 +197,9 @@ try {
     assert.deepEqual(missingCss, [], 'Missing first-response CSS: ' + route);
     assert.equal(emptySvg, 0, 'Empty SSR SVG: ' + route);
     assert.ok(svgs.length > 0, 'Product favorite SVG missing: ' + route);
-    for (const icon of ['menu', 'user', 'heart', 'shopping-bag', admin ? 'clipboard-list' : 'package'])
+    assert.match(markup, /class="header__burger"/, route + ': missing CSS menu control');
+    assert.match(markup, /<svg\b[^>]*class="header__favorite-icon"/, route + ': missing filled favorite heart');
+    for (const icon of ['user', 'shopping-basket', admin ? 'clipboard-list' : 'package'])
       assert.ok(cssIcons.some(m => m[1] === icon), route + ': missing ' + icon);
     if (admin) assert.ok(cssIcons.some(m => m[1] === 'settings'));
     assert.ok(cssIcons.some(m => m[1] === 'plus'), route + ': missing plus');

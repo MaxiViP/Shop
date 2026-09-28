@@ -42,7 +42,7 @@
           v-if="!action.added"
           class="card__add"
           :aria-label="action.ariaLabel"
-          :disabled="!cart.restored"
+          :disabled="!cart.restored || cart.serverBusy"
           @click="add"
         >
           <span class="card__add-label">{{ action.label }}</span>
@@ -64,7 +64,7 @@
             color="neutral"
             class="card__portion"
             :aria-label="'Уменьшить на ' + portion + ': ' + product.name"
-            :disabled="previousCartQty(cartQty, cartProduct) === null"
+            :disabled="cart.serverBusy || previousCartQty(cartQty, cartProduct) === null"
             @click="subtract"
           />
           <span
@@ -81,7 +81,7 @@
             color="neutral"
             class="card__portion"
             :aria-label="action.ariaLabel"
-            :disabled="nextCartQty(cartQty, cartProduct) === null"
+            :disabled="cart.serverBusy || nextCartQty(cartQty, cartProduct) === null"
             @click="add"
           />
         </div>
@@ -103,6 +103,7 @@ const { product } = defineProps<{
 }>();
 
 const cart = useCartStore();
+const actions = useCartActions();
 const asset = useAsset();
 const notice = useHeaderNotice();
 const cartQty = computed(() => cart.qty(product.id));
@@ -130,8 +131,8 @@ const totalLabel = computed(() =>
       : "Стоимость позиции рассчитывается",
 );
 
-function add() {
-  const added = cart.add(cartProduct.value);
+async function add() {
+  const added = await actions.add(cartProduct.value);
   notice.show({
     target: "cart",
     text: added
@@ -139,8 +140,8 @@ function add() {
       : "Проверьте количество и лимит позиций в корзине",
   });
 }
-function subtract() {
-  const changed = cart.subtract(cartProduct.value);
+async function subtract() {
+  const changed = await actions.subtract(cartProduct.value);
   notice.show({
     target: "cart",
     text: changed

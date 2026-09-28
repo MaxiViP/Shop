@@ -27,7 +27,23 @@ export function useCartQuote(): QuoteState {
   async function refresh() {
     controller?.abort();
     const request = ++sequence;
-    if (disposed || !cart.restored || !cart.count) {
+    if (disposed || !cart.restored) {
+      error.value = "";
+      pending.value = false;
+      return false;
+    }
+    if (cart.mode === "server") {
+      pending.value = true;
+      error.value = "";
+      try {
+        const applied = await cart.refreshServer();
+        if (!applied) error.value = "Не удалось обновить общую корзину. Повторите попытку.";
+        return applied;
+      } finally {
+        pending.value = false;
+      }
+    }
+    if (!cart.count) {
       error.value = "";
       pending.value = false;
       return false;
@@ -67,7 +83,9 @@ export function useCartQuote(): QuoteState {
     void refresh();
   });
   watch(
-    () => [cart.restored, cart.key],
+    () => cart.mode === "guest"
+      ? [cart.mode, cart.restored, cart.key]
+      : [cart.mode, cart.restored],
     () => {
       if (mounted.value) void refresh();
     },

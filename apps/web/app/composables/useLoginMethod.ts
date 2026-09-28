@@ -1,6 +1,6 @@
 import { ref } from "vue";
 
-type Method = "OTP" | "PASSWORD";
+type Method = "OTP" | "PASSWORD" | "TEST_PHONE";
 type Mode = "PHONE" | "CHECKING_METHOD" | Method;
 
 export function fullPhone(value: string): boolean {

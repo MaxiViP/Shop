@@ -4,6 +4,7 @@ import { AdminModule } from './admin/admin.module.js';
 import { AddressModule } from './address/address.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CategoryModule } from './category/category.module.js';
+import { CartModule } from './cart/cart.module.js';
 import { DeliveryModule } from './delivery/delivery.module.js';
 import { FavoriteModule } from './favorite/favorite.module.js';
 import { HealthCtrl } from './health/health.ctrl.js';
@@ -18,6 +19,7 @@ import { StaffModule } from './staff/staff.module.js';
     AddressModule,
     AuthModule,
     CategoryModule,
+    CartModule,
     DeliveryModule,
     FavoriteModule,
     OrderModule,

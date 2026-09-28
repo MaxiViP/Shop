@@ -13,7 +13,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/db/gen/client.js';
 import { DbService } from '../src/db/db.service.js';
 import { AuthModule } from '../src/auth/auth.module.js';
-import { AuthService } from '../src/auth/auth.service.js';
+import { AuthService, SID } from '../src/auth/auth.service.js';
 import { configureProxy } from '../src/auth/proxy.js';
 
 // PostgreSQL transactions and observable lock queues, not mocked race outcomes.
@@ -42,6 +42,11 @@ describe.skipIf(!process.env.DATABASE_URL)('OTP lifecycle / PostgreSQL', () => {
       .post(`/api/auth/${path}`)
       .set('X-Forwarded-For', client)
       .send(path === 'code' ? { phone: number } : { phone: number, code });
+  const testLogin = (number: string, client = ip()) =>
+    request(app.getHttpServer())
+      .post('/api/auth/test-phone-login')
+      .set('X-Forwarded-For', client)
+      .send({ phone: number });
   const sessions = (number: string) =>
     db.session.count({ where: { user: { phone: number } } });
   async function seed(
@@ -99,6 +104,7 @@ describe.skipIf(!process.env.DATABASE_URL)('OTP lifecycle / PostgreSQL', () => {
   }
   beforeAll(async () => {
     vi.stubEnv('AUTH_SECRET', secret);
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'false');
     vi.stubEnv('ADMIN_PHONE', '+79990000001');
     vi.stubEnv('TRUST_PROXY', '127.0.0.1/32,::1/128');
     await connection.connect();
@@ -143,6 +149,7 @@ describe.skipIf(!process.env.DATABASE_URL)('OTP lifecycle / PostgreSQL', () => {
     app.useGlobalPipes(new StandardSchemaValidationPipe({ transform: true }));
     await app.init();
   }, 30000);
+  afterEach(() => vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'false'));
   afterAll(async () => {
     await app?.close();
     await db?.$disconnect();
@@ -363,6 +370,99 @@ describe.skipIf(!process.env.DATABASE_URL)('OTP lifecycle / PostgreSQL', () => {
     ).toEqual(otp);
     expect(await sessions(number)).toBe(0);
     await post('login', number, '123456').expect(201);
+  });
+  it('test login is disabled by default', async () => {
+    await testLogin(phone()).expect(404);
+  });
+  it('test login creates one unverified USER and reuses the same account', async () => {
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'true');
+    const number = phone();
+    const first = await testLogin(number.replace('+7', '8')).expect(201);
+    const created = await db.user.findUniqueOrThrow({ where: { phone: number } });
+    expect(first.body).toMatchObject({
+      id: created.id, role: 'USER', phone: number, verifiedAt: null,
+    });
+    expect(created.verifiedAt).toBeNull();
+    expect(first.headers['set-cookie']).toEqual(
+      expect.arrayContaining([expect.stringMatching(new RegExp(`^${SID}=tp_[a-f0-9]{64};`))]),
+    );
+    const cookie = (first.headers['set-cookie'] as string[])[0]!.split(';')[0]!;
+    await request(app.getHttpServer()).get('/api/auth/me')
+      .set('Cookie', cookie).expect(200).expect((response) => {
+        expect(response.body.id).toBe(created.id);
+      });
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'false');
+    await request(app.getHttpServer()).get('/api/auth/me')
+      .set('Cookie', cookie).expect(200).expect('');
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'true');
+    await db.user.update({ where: { id: created.id }, data: { verifiedAt: new Date() } });
+    const second = await testLogin(number).expect(201);
+    expect(second.body.id).toBe(created.id);
+    expect(second.body.verifiedAt).toBeTruthy();
+    expect(await db.user.count({ where: { phone: number } })).toBe(1);
+    expect(await sessions(number)).toBe(2);
+  });
+  it('concurrent first test logins serialize by phone and create one USER', async () => {
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'true');
+    const number = phone();
+    const release = await block(number);
+    const first = testLogin(number).then((value) => value);
+    const second = testLogin(number).then((value) => value);
+    try {
+      await waiters(number, 2);
+    } finally {
+      await release();
+    }
+    const [a, b] = await Promise.all([first, second]);
+    expect([a.status, b.status]).toEqual([201, 201]);
+    expect(a.body.id).toBe(b.body.id);
+    expect(await db.user.count({ where: { phone: number } })).toBe(1);
+  });
+  it('test login rejects configured admin and existing privileged accounts', async () => {
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'true');
+    await testLogin('+79990000001').expect(401);
+    for (const role of ['ADMIN', 'SELLER'] as const) {
+      const number = phone();
+      const user = await db.user.create({ data: { phone: number, role } });
+      await testLogin(number).expect(401);
+      expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).role).toBe(role);
+      expect(await sessions(number)).toBe(0);
+    }
+  });
+  it('test login neither claims a Telegram phone nor reassigns a matching order', async () => {
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'true');
+    const number = phone();
+    const telegram = await db.user.create({
+      data: {
+        phone: null, role: 'USER',
+        telegramIdentity: {
+          create: {
+            telegramUserId: BigInt(Date.now()) * 1000n + BigInt(randomInt(1000)),
+            phoneNumber: number, phoneVerified: true,
+          },
+        },
+      },
+    });
+    const order = await db.order.create({
+      data: {
+        type: 'PICKUP', customerName: 'Другой', customerPhone: number,
+        subtotal: 100, total: 100,
+      },
+    });
+    const prior = await db.$transaction((tx) =>
+      app.get(AuthService).createSession(tx, telegram.id));
+    const response = await testLogin(number)
+      .set('Cookie', `${SID}=${prior}`)
+      .expect(201);
+    expect(response.body.id).not.toBe(telegram.id);
+    expect(response.body.phone).toBe(number);
+    expect((await db.user.findUniqueOrThrow({ where: { id: telegram.id } })).phone).toBeNull();
+    expect((await db.telegramIdentity.findFirstOrThrow({
+      where: { userId: telegram.id },
+    })).phoneNumber).toBe(number);
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).userId).toBeNull();
+    expect(await app.get(AuthService).me(prior)).toBeNull();
+    expect(await db.user.count({ where: { phone: number } })).toBe(1);
   });
   it('production still omits devCode; this change does not implement SMS delivery', async () => {
     const previous = process.env.NODE_ENV;

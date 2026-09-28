@@ -7,6 +7,7 @@ import { createPinia } from "pinia";
 import { useCartStore } from "../app/stores/cart.ts";
 import { deliveryEligibility } from "../app/utils/shop-settings.ts";
 import { pickupDate } from "../app/utils/pickup.ts";
+import { recipientDefaults, recipientDraft } from "../app/utils/checkout-recipient.ts";
 
 const page = await readFile(new URL("../app/pages/cart.vue", import.meta.url), "utf8");
 const script = page.match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1];
@@ -34,20 +35,36 @@ async function fixture(t, authenticated = false) {
   const settingsError = ref(null);
   const address = { id: 2, isDefault: true, label: "Home", city: "City", street: "Street",
     house: "10", flat: "2", entrance: "3", floor: "4", intercom: "5", comment: "Call" };
+  const user = authenticated
+    ? { id: 1, role: "USER", name: "User", phone: "+79990000000", telegram: null }
+    : null;
   const state = { token: "confirmed", refreshFail: false, requests: [], navigation: [],
-    remembered: false, post: async () => ({ publicId: "created-order" }), addressOptions: null };
+    remembered: false, post: async () => authenticated
+      ? { order: { publicId: "created-order" }, cart: emptySnapshot() }
+      : { publicId: "created-order" }, addressOptions: null };
   const quote = () => ({ valid: true, token: state.token, subtotal: 5000, error: null,
     items: [{ productId: 1, product, qty: cart.qty(1), lineTotal: 5000, status: "AVAILABLE" }] });
   cart.restore([{ product, qty: 500 }]);
   cart.applyQuote(quote(), cart.key);
+  const emptySnapshot = () => ({ revision: "00000000-0000-4000-8000-000000000002",
+    valid: true, token: null, subtotal: 0, error: null, items: [], products: [] });
+  if (authenticated) {
+    const initialQuote = quote();
+    cart.beginServer(user.id);
+    cart.applyServer({ ...initialQuote, revision: "00000000-0000-4000-8000-000000000001",
+      products: [product] }, user.id);
+  }
   const stops = [];
   t.after(() => stops.forEach(stop => stop()));
   const context = {
     computed, ref, shallowRef, reactive,
     watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
     useCartStore: () => cart,
-    useAuthStore: () => ({ loggedIn: authenticated,
-      user: authenticated ? { id: 1, name: "User", phone: "+79990000000" } : null }),
+    useCartActions: () => ({
+      put: async (p, qty) => cart.put(p, qty),
+      clear: async () => { cart.clear(); return true; },
+    }),
+    useAuthStore: () => ({ loggedIn: authenticated, user }),
     useApi: async (path, options) => {
       if (path === "/shop/settings") return { data: settings, error: settingsError, refresh: async () => {} };
       assert.equal(path, "/addresses");
@@ -66,8 +83,8 @@ async function fixture(t, authenticated = false) {
       },
     }),
     useApiClient: () => async (path, options) => {
-      assert.equal(path, "/orders");
-      state.requests.push(options);
+      assert.equal(path, authenticated ? "/cart/checkout" : "/orders");
+      state.requests.push({ path, ...options });
       return state.post();
     },
     useCheckoutName: () => ({ name: ref(authenticated ? "User" : ""),
@@ -75,14 +92,14 @@ async function fixture(t, authenticated = false) {
     useHeaderNotice: () => ({ show() {} }),
     useSeoMeta() {},
     navigateTo: async path => { state.navigation.push(path); },
-    deliveryEligibility, pickupDate,
+    deliveryEligibility, pickupDate, recipientDefaults, recipientDraft,
   };
   const setup = new AsyncFunction(...Object.keys(context),
-    executable + "\nreturn { form, canSubmit, submit, error, selectAddress, selectedAddressId };");
+    executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, selectAddress, selectedAddressId };");
   const result = await setup(...Object.values(context));
-  Object.assign(result.form, { name: "Recipient", phone: "+79990000000" });
-  if (!authenticated) Object.assign(result.form, { city: "City", street: "Street", house: "10", comment: "Call" });
-  return { ...result, cart, pending, state, settings, settingsError, address };
+  Object.assign(result.recipient.value, { name: "Recipient", phone: "+79990000000" });
+  if (!authenticated) Object.assign(result.recipient.value, { city: "City", street: "Street", house: "10", comment: "Call" });
+  return { ...result, cart, pending, state, settings, settingsError, address, user };
 }
 
 test("direct /checkout middleware redirects to /cart without browser globals or a loop", async () => {
@@ -139,9 +156,19 @@ for (const authenticated of [false, true]) {
     assert.equal(request.body.customerName, "Recipient");
     assert.equal(request.body.customerPhone, "+79990000000");
     assert.equal(request.body.address.comment, "Call");
-    assert.deepEqual(request.body.items, [{ productId: 1, qty: 500 }]);
+    if (authenticated) {
+      assert.equal(request.path, "/cart/checkout");
+      assert.equal(request.body.revision, "00000000-0000-4000-8000-000000000001");
+      assert.equal(Object.hasOwn(request.body, "items"), false);
+    } else {
+      assert.equal(request.path, "/orders");
+      assert.deepEqual(request.body.items, [{ productId: 1, qty: 500 }]);
+    }
     assert.equal(Object.hasOwn(request.body, "subtotal"), false);
-    accept({ publicId: "created-order" });
+    accept(authenticated
+      ? { order: { publicId: "created-order" }, cart: { revision: "00000000-0000-4000-8000-000000000002",
+          valid: true, token: null, subtotal: 0, error: null, items: [], products: [] } }
+      : { publicId: "created-order" });
     await submission;
     assert.equal(f.cart.count, 0);
     assert.equal(f.state.remembered, true);
@@ -186,4 +213,61 @@ test("delivery minimum still blocks delivery and pickup sends no delivery addres
   await f.submit();
   assert.equal(f.state.requests[0].body.type, "PICKUP");
   assert.equal(f.state.requests[0].body.address, undefined);
+});
+
+test("self recipient defaults use verified account data and never trust an unverified Telegram phone", () => {
+  const telegram = { connected: true, firstName: "Тест", lastName: "Покупатель",
+    phoneNumber: "+79990000001", phoneVerified: true };
+  assert.deepEqual(recipientDefaults({ name: "Аккаунт", phone: "+79990000002", telegram }),
+    { name: "Аккаунт", phone: "+79990000002" });
+  assert.deepEqual(recipientDefaults({ name: null, phone: null, telegram }),
+    { name: "Тест Покупатель", phone: "+79990000001" });
+  assert.deepEqual(recipientDefaults({ name: null, phone: null,
+    telegram: { ...telegram, phoneVerified: false } }),
+    { name: "Тест Покупатель", phone: "" });
+});
+
+test("recipient tabs retain independent drafts and other recipient owns no account data", async t => {
+  const f = await fixture(t, true);
+  const account = structuredClone(f.user);
+  f.self.name = "Edited self";
+  f.self.phone = "+79990000003";
+  f.recipientMode.value = "other";
+  Object.assign(f.other, { name: "Друг", phone: "+79990000004", city: "Москва",
+    street: "Новая", house: "7", flat: "3", entrance: "1", floor: "2",
+    intercom: "12", comment: "У двери" });
+  await nextTick();
+  assert.equal(f.recipient.value.name, "Друг");
+  f.recipientMode.value = "self";
+  assert.equal(f.recipient.value.name, "Edited self");
+  assert.equal(f.recipient.value.phone, "+79990000003");
+  f.recipientMode.value = "other";
+  assert.equal(f.recipient.value.street, "Новая");
+  await f.submit();
+  const request = f.state.requests[0];
+  assert.equal(request.path, "/cart/checkout");
+  assert.equal(request.body.customerName, "Друг");
+  assert.equal(request.body.customerPhone, "+79990000004");
+  assert.deepEqual(request.body.address, {
+    city: "Москва", street: "Новая", house: "7", flat: "3",
+    entrance: "1", floor: "2", intercom: "12", comment: "У двери",
+  });
+  assert.equal(Object.hasOwn(request.body, "userId"), false);
+  assert.deepEqual(f.user, account);
+});
+
+test("pickup for another recipient sends no address; self edits do not mutate profile", async t => {
+  const f = await fixture(t, true);
+  const account = structuredClone(f.user);
+  f.self.name = "Order-only name";
+  f.self.phone = "+79990000006";
+  f.form.type = "PICKUP";
+  await nextTick();
+  f.recipientMode.value = "other";
+  f.other.name = "Pickup friend";
+  f.other.phone = "+79990000007";
+  await f.submit();
+  assert.equal(f.state.requests[0].body.customerName, "Pickup friend");
+  assert.equal(f.state.requests[0].body.address, undefined);
+  assert.deepEqual(f.user, account);
 });

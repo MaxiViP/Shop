@@ -118,12 +118,13 @@ const emit = defineEmits<{ removed: [item: CartItem] }>();
 const countdowns = ref<Record<number, number>>({});
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
 const cart = useCartStore();
+const actions = useCartActions();
 const asset = useAsset();
 const notice = useHeaderNotice();
 const ready = computed(() => cart.quoteReady);
 
-function setQty(id: number, qty: number) {
-  if (cart.setQty(id, qty))
+async function setQty(id: number, qty: number) {
+  if (await actions.setQty(id, qty))
     notice.show({ target: "cart", text: "Количество обновлено" });
 }
 
@@ -144,7 +145,7 @@ function toggleRemoval(id: number) {
   }
   if (props.disabled || !cart.items.some((item) => item.product.id === id))
     return;
-  countdowns.value[id] = 5;
+  countdowns.value[id] = 3;
   function tick() {
     const remaining = countdowns.value[id];
     if (remaining === undefined) return;
@@ -158,9 +159,11 @@ function toggleRemoval(id: number) {
     const item = cart.items.find((item) => item.product.id === id);
     if (!item) return;
     const removed = { product: item.product, qty: item.qty };
-    cart.remove(id);
-    emit("removed", removed);
-    notice.show({ target: "cart", text: "Удалено из корзины" });
+    void actions.remove(id).then((success) => {
+      if (!success) return;
+      emit("removed", removed);
+      notice.show({ target: "cart", text: "Удалено из корзины" });
+    });
   }
   timers.set(id, setTimeout(tick, 1000));
 }
@@ -300,6 +303,8 @@ onBeforeUnmount(cancelAll);
 .item__remove {
   grid-area: 1 / 2;
   justify-self: end;
+  color: red;
+  border: 1px solid;
 }
 
 .item__content > .item__qty {

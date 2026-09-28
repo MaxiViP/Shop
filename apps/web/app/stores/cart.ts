@@ -9,10 +9,21 @@ import {
   reconcileCart,
   type CartItem,
   type CartQuote,
+  type ServerCartSnapshot,
+  type ServerCartChange,
 } from "../utils/cart.ts";
 
 export const useCartStore = defineStore("cart", () => {
   const items = ref<CartItem[]>([]);
+  const mode = ref<"guest" | "server">("guest");
+  const serverOwner = ref<number | null>(null);
+  const serverRevision = ref<string | null>(null);
+  const serverBusy = ref(false);
+  let serverApi: {
+    get: () => Promise<ServerCartSnapshot>;
+    change: (body: ServerCartChange & { revision: string }) => Promise<ServerCartSnapshot>;
+  } | null = null;
+  let queue: Promise<void> = Promise.resolve();
   const restored = ref(false);
   const storageWarning = ref("");
   const priceChanged = ref(false);
@@ -129,8 +140,111 @@ export const useCartStore = defineStore("cart", () => {
     return true;
   }
 
+  function bindServer(api: NonNullable<typeof serverApi>) {
+    serverApi = api;
+  }
+
+  function beginServer(userId: number) {
+    mode.value = "server";
+    serverOwner.value = userId;
+    serverRevision.value = null;
+    restored.value = false;
+    items.value = [];
+    quote.value = null;
+    quotedKey.value = null;
+    priceChanged.value = false;
+  }
+
+  function beginGuest() {
+    mode.value = "guest";
+    serverOwner.value = null;
+    serverRevision.value = null;
+    restored.value = false;
+    items.value = [];
+    quote.value = null;
+    quotedKey.value = null;
+    priceChanged.value = false;
+  }
+
+  function applyServer(snapshot: ServerCartSnapshot, userId: number) {
+    if (mode.value !== "server" || serverOwner.value !== userId) return false;
+    const next = snapshot.items.map((line) => {
+      const product = line.product ?? snapshot.products.find((p) => p.id === line.productId);
+      if (!product) throw new Error("Cart product metadata is missing");
+      return { product, qty: line.qty };
+    });
+    for (const item of next) {
+      const previous = items.value.find((row) => row.product.id === item.product.id);
+      if (previous && (previous.product.price !== item.product.price ||
+        previous.product.priceQty !== item.product.priceQty))
+        priceChanged.value = true;
+    }
+    items.value = next;
+    quote.value = snapshot;
+    quotedKey.value = cartKey(next);
+    serverRevision.value = snapshot.revision;
+    restored.value = true;
+    storageWarning.value = "";
+    return true;
+  }
+
+  function enqueue<T>(work: () => Promise<T>) {
+    const task = queue.then(work);
+    queue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
+  function refreshServer() {
+    const userId = serverOwner.value;
+    if (mode.value !== "server" || userId === null || !serverApi)
+      return Promise.resolve(false);
+    const api = serverApi;
+    return enqueue(async () => {
+      try {
+        const snapshot = await api.get();
+        return applyServer(snapshot, userId);
+      } catch {
+        return false;
+      }
+    });
+  }
+
+  function changeServer(change: ServerCartChange) {
+    const userId = serverOwner.value;
+    if (mode.value !== "server" || userId === null || !serverApi)
+      return Promise.resolve(false);
+    const api = serverApi;
+    return enqueue(async () => {
+      if (mode.value !== "server" || serverOwner.value !== userId ||
+          !restored.value || !serverRevision.value) return false;
+      serverBusy.value = true;
+      try {
+        const snapshot = await api.change({ ...change, revision: serverRevision.value });
+        return applyServer(snapshot, userId);
+      } catch (cause) {
+        if (typeof cause === "object" && cause !== null &&
+          "statusCode" in cause && cause.statusCode === 409) {
+          try { applyServer(await api.get(), userId); } catch { /* Keep last known cart. */ }
+        }
+        return false;
+      } finally {
+        serverBusy.value = false;
+      }
+    });
+  }
+
   return {
     items,
+    mode,
+    serverOwner,
+    serverRevision,
+    serverBusy,
+    bindServer,
+    beginServer,
+    beginGuest,
+    applyServer,
+    refreshServer,
+    changeServer,
     count,
     qty,
     total,

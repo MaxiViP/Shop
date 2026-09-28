@@ -14,7 +14,7 @@ test('incomplete phone never requests a method', (t) => {
   assert.equal(calls, 0); assert.equal(state.mode.value, 'PHONE');
 });
 
-for (const method of ['OTP', 'PASSWORD']) test(`${method} response selects the matching mode after debounce`, async (t) => {
+for (const method of ['OTP', 'PASSWORD', 'TEST_PHONE']) test(`${method} response selects the matching mode after debounce`, async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let calls = 0;
   const state = useLoginMethod(async () => { calls++; return { method }; });

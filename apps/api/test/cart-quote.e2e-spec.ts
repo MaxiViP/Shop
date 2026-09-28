@@ -13,6 +13,9 @@ import { PrismaClient } from '../src/db/gen/client.js';
 import { DbService } from '../src/db/db.service.js';
 import { DbModule } from '../src/db/db.module.js';
 import { OrderModule } from '../src/order/order.module.js';
+import { OrderService } from '../src/order/order.service.js';
+import { CartModule } from '../src/cart/cart.module.js';
+import { CartService } from '../src/cart/cart.service.js';
 import { PublicSettingsCtrl } from '../src/admin/settings.ctrl.js';
 import { SettingsService } from '../src/admin/settings.service.js';
 import { SID } from '../src/auth/auth.service.js';
@@ -30,6 +33,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
     let productId: number;
     let categoryId: number;
     let cookie: string;
+    let userId: number;
+    let cart: CartService;
+    let orders: OrderService;
     let legacyProducts: { id: number; min: number; step: number }[] = [];
     const items = () => [{ productId, qty: 1000 }];
     const quote = () =>
@@ -95,13 +101,15 @@ describe.skipIf(!process.env.DATABASE_URL)(
         ),
       });
       const module = await Test.createTestingModule({
-        imports: [OrderModule, DbModule],
+        imports: [OrderModule, CartModule, DbModule],
         controllers: [PublicSettingsCtrl],
         providers: [SettingsService],
       })
         .overrideProvider(DbService)
         .useValue(db)
         .compile();
+      cart = module.get(CartService);
+      orders = module.get(OrderService);
       app = module.createNestApplication<NestExpressApplication>({
         logger: false,
       });
@@ -112,9 +120,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
       categoryId = (
         await db.category.create({ data: { name: 'Фрукты', slug: 'fruit' } })
       ).id;
+    }, 30000);
+    beforeEach(async () => {
       const user = await db.user.create({
-        data: { phone: '+79990000444', role: 'USER' },
+        data: { phone: null, role: 'USER' },
       });
+      userId = user.id;
       const token = randomBytes(32).toString('hex');
       await db.session.create({
         data: {
@@ -124,8 +135,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
         },
       });
       cookie = `${SID}=${token}`;
-    }, 30000);
-    beforeEach(async () => {
       productId = (
         await db.product.create({
           data: {
@@ -159,6 +168,169 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await connection.end();
       vi.unstubAllEnvs();
     }, 30000);
+
+    it('website and bot share revisions, quantity, remove and clear without lost updates', async () => {
+      await request(app.getHttpServer()).get('/api/cart').expect(401);
+      const first = await cart.get(userId);
+      const fromBot = await cart.change(userId, first.revision, { kind: 'add', productId, qty: 1000 });
+      const seenByWeb = await request(app.getHttpServer()).get('/api/cart')
+        .set('Cookie', cookie).expect(200);
+      expect(seenByWeb.body).toMatchObject({
+        revision: fromBot.revision,
+        items: [{ productId, qty: 1000, status: 'AVAILABLE' }],
+        subtotal: 350000,
+      });
+      const fromWeb = await request(app.getHttpServer()).post('/api/cart/change')
+        .set('Cookie', cookie)
+        .send({ revision: fromBot.revision, kind: 'set', productId, qty: 1250 }).expect(201);
+      expect((await cart.get(userId)).items[0]).toMatchObject({ productId, qty: 1250 });
+      await request(app.getHttpServer()).post('/api/cart/change').set('Cookie', cookie)
+        .send({ revision: fromBot.revision, kind: 'clear' }).expect(409);
+      expect((await cart.get(userId)).items[0]!.qty).toBe(1250);
+      const removed = await request(app.getHttpServer()).post('/api/cart/change')
+        .set('Cookie', cookie)
+        .send({ revision: fromWeb.body.revision, kind: 'remove', productId }).expect(201);
+      expect((await cart.get(userId)).items).toHaveLength(0);
+      const again = await cart.change(userId, removed.body.revision as string,
+        { kind: 'add', productId, qty: 1000 });
+      expect((await request(app.getHttpServer()).get('/api/cart')
+        .set('Cookie', cookie).expect(200)).body.revision).toBe(again.revision);
+      await cart.change(userId, again.revision, { kind: 'clear' });
+      expect((await request(app.getHttpServer()).get('/api/cart')
+        .set('Cookie', cookie).expect(200)).body.items).toHaveLength(0);
+    });
+
+    it('concurrent website and bot writes accept one revision and reject the other', async () => {
+      const initial = await cart.get(userId);
+      const added = await cart.change(userId, initial.revision,
+        { kind: 'add', productId, qty: 1000 });
+      const [bot, web] = await Promise.allSettled([
+        cart.change(userId, added.revision, { kind: 'plus', productId }),
+        request(app.getHttpServer()).post('/api/cart/change').set('Cookie', cookie)
+          .send({ revision: added.revision, kind: 'set', productId, qty: 1500 }),
+      ]);
+      expect(web.status).toBe('fulfilled');
+      if (web.status !== 'fulfilled') return;
+      expect([201, 409]).toContain(web.value.status);
+      expect(bot.status === 'fulfilled' ? web.value.status : 201).toBe(
+        bot.status === 'fulfilled' ? 409 : web.value.status,
+      );
+      const final = await cart.get(userId);
+      expect([1250, 1500]).toContain(final.items[0]!.qty);
+      expect(final.revision).not.toBe(added.revision);
+    });
+
+    it('guest merge imports only missing products and keeps server quantity on duplicates', async () => {
+      const second = await db.product.create({ data: {
+        name: 'Груши', slug: randomUUID(), price: 120000, priceQty: 1000,
+        unit: 'GRAM', min: 500, step: 100, portionQty: 500, categoryId,
+      } });
+      const first = await cart.get(userId);
+      const server = await cart.change(userId, first.revision,
+        { kind: 'add', productId, qty: 1000 });
+      const merged = await request(app.getHttpServer()).post('/api/cart/merge')
+        .set('Cookie', cookie).send({
+          revision: server.revision,
+          items: [{ productId, qty: 1500 }, { productId: second.id, qty: 500 }],
+        }).expect(201);
+      expect(merged.body.items).toMatchObject([
+        { productId, qty: 1000 },
+        { productId: second.id, qty: 500 },
+      ]);
+      expect((await cart.get(userId)).items).toHaveLength(2);
+      await request(app.getHttpServer()).post('/api/cart/merge').set('Cookie', cookie)
+        .send({ revision: server.revision, items: [{ productId: second.id, qty: 500 }] })
+        .expect(409);
+      const repeated = await request(app.getHttpServer()).post('/api/cart/merge')
+        .set('Cookie', cookie).send({
+          revision: merged.body.revision,
+          items: [{ productId, qty: 1500 }, { productId: second.id, qty: 500 }],
+        }).expect(201);
+      expect(repeated.body.revision).toBe(merged.body.revision);
+      expect(repeated.body.items[0].qty).toBe(1000);
+      await request(app.getHttpServer()).post('/api/cart/merge').set('Cookie', cookie)
+        .send({ revision: repeated.body.revision, items: [
+          { productId: second.id, qty: 500 }, { productId: second.id, qty: 500 },
+        ] }).expect(400);
+      expect((await cart.get(userId)).items).toHaveLength(2);
+    });
+
+    it('authenticated website checkout owns another recipient order and empties the bot cart', async () => {
+      const first = await cart.get(userId);
+      const basket = await cart.change(userId, first.revision,
+        { kind: 'add', productId, qty: 1000 });
+      const usersBefore = await db.user.count();
+      const accountBefore = await db.user.findUniqueOrThrow({ where: { id: userId } });
+      const created = await request(app.getHttpServer()).post('/api/cart/checkout')
+        .set('Cookie', cookie).send({
+          revision: basket.revision, quoteToken: basket.token,
+          type: 'DELIVERY', customerName: 'Другой получатель',
+          customerPhone: '+79990000445',
+          address: { city: 'Москва', street: 'Другая', house: '7', flat: '3' },
+        }).expect(201);
+      expect(created.body.cart.items).toHaveLength(0);
+      const saved = await db.order.findUniqueOrThrow({
+        where: { publicId: created.body.order.publicId as string },
+      });
+      expect(saved).toMatchObject({
+        userId, customerName: 'Другой получатель',
+        customerPhone: '+79990000445', city: 'Москва', street: 'Другая',
+        house: '7', flat: '3',
+      });
+      expect(await db.user.count()).toBe(usersBefore);
+      const accountAfter = await db.user.findUniqueOrThrow({ where: { id: userId } });
+      expect(accountAfter.phone).toBe(accountBefore.phone);
+      expect(accountAfter.name).toBe(accountBefore.name);
+      expect((await cart.get(userId)).items).toHaveLength(0);
+      expect((await request(app.getHttpServer()).get('/api/cart')
+        .set('Cookie', cookie).expect(200)).body.items).toHaveLength(0);
+      const websiteOrders = await request(app.getHttpServer())
+        .get('/api/orders').set('Cookie', cookie).expect(200);
+      expect(websiteOrders.body.some((order: { publicId: string }) =>
+        order.publicId === saved.publicId)).toBe(true);
+      expect((await orders.list(userId)).some((order) =>
+        order.publicId === saved.publicId)).toBe(true);
+      await request(app.getHttpServer()).post('/api/cart/checkout')
+        .set('Cookie', cookie).send({
+          revision: basket.revision, type: 'PICKUP',
+          customerName: 'Retry', customerPhone: '+79990000445',
+        }).expect(409);
+      expect(await db.order.count({ where: { publicId: saved.publicId } })).toBe(1);
+      await order('PICKUP', undefined, cookie).expect(409);
+    });
+
+    it('bot checkoutIn clears the cart seen by the next website GET', async () => {
+      const first = await cart.get(userId);
+      const basket = await cart.change(userId, first.revision,
+        { kind: 'add', productId, qty: 1000 });
+      const order = await db.$transaction((tx) => cart.checkoutIn(tx, userId,
+        basket.revision, {
+          type: 'PICKUP', customerName: 'Bot order',
+          customerPhone: '+79990000446', quoteToken: basket.token ?? undefined,
+        }));
+      orders.created(order.id);
+      expect((await request(app.getHttpServer()).get('/api/cart')
+        .set('Cookie', cookie).expect(200)).body.items).toHaveLength(0);
+      expect((await orders.list(userId)).some((item) =>
+        item.publicId === order.publicId)).toBe(true);
+    });
+
+    it('authenticated staff cannot read or create a customer cart', async () => {
+      const staff = await db.user.create({ data: { role: 'SELLER' } });
+      const token = randomBytes(32).toString('hex');
+      await db.session.create({ data: {
+        userId: staff.id,
+        tokenHash: createHash('sha256').update(token).digest('hex'),
+        expiresAt: new Date(Date.now() + 3600000),
+      } });
+      const staffCookie = SID + '=' + token;
+      await request(app.getHttpServer()).get('/api/cart')
+        .set('Cookie', staffCookie).expect(403);
+      await request(app.getHttpServer()).post('/api/cart/change')
+        .set('Cookie', staffCookie)
+        .send({ revision: randomUUID(), kind: 'clear' }).expect(403);
+      expect(await db.cart.count({ where: { userId: staff.id } })).toBe(0);
+    });
 
     it('migration backfills every legacy product from min without changing existing columns', async () => {
       expect(legacyProducts).toHaveLength(4);
@@ -234,7 +406,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         total: 250000,
       });
     });
-    it('price increase updates quote and makes delivery eligible for a USER', async () => {
+    it('price increase updates quote and makes delivery eligible for a guest', async () => {
       await db.product.update({
         where: { id: productId },
         data: { price: 250000 },
@@ -248,7 +420,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const result = await order(
         'DELIVERY',
         current.body.token as string,
-        cookie,
       ).expect(201);
       expect(result.body).toMatchObject({
         subtotal: 350000,
@@ -261,7 +432,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             where: { publicId: result.body.publicId as string },
           })
         ).userId,
-      ).not.toBeNull();
+      ).toBeNull();
     });
     it.each(['price', 'priceQty', 'min', 'step', 'portionQty', 'active'] as const)(
       'change to %s after quote returns 409 before order creation',
@@ -326,7 +497,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         const quoted = await request(app.getHttpServer()).post('/api/orders/quote').send({ items }).expect(201);
         expect(quoted.body.subtotal).toBe(expected[index]);
         expect(quoted.body.items[0].product.portionQty).toBe(500);
-        const created = await request(app.getHttpServer()).post('/api/orders').set('Cookie', cookie).send({
+        const created = await request(app.getHttpServer()).post('/api/orders').send({
           type: 'PICKUP', customerName: 'Покупатель', customerPhone: '+79990000444',
           items, quoteToken: quoted.body.token, subtotal: 1,
         }).expect(201);
@@ -344,7 +515,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const invalid = [{ productId, qty: 501, min: 1, step: 1, portionQty: 1 }];
       const quoted = await request(app.getHttpServer()).post('/api/orders/quote').send({ items: invalid }).expect(201);
       expect(quoted.body).toMatchObject({ valid: false, items: [{ qty: 501, status: 'INVALID_QUANTITY' }] });
-      const checkout = (qty: number) => request(app.getHttpServer()).post('/api/orders').set('Cookie', cookie).send({
+      const checkout = (qty: number) => request(app.getHttpServer()).post('/api/orders').send({
         type: 'PICKUP', customerName: 'Покупатель', customerPhone: '+79990000444', items: [{ productId, qty }],
       });
       await checkout(501).expect(400);

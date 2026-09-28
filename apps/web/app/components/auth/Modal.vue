@@ -46,6 +46,10 @@ type="button" variant="ghost" color="neutral" block
           Определяем способ входа…
         </p>
 
+        <p v-if="mode === 'TEST_PHONE'" class="text-sm text-muted">
+          Тестовый режим: подтверждение номера телефона временно отключено.
+        </p>
+
         <UFormField v-if="mode === 'PASSWORD'" label="Пароль">
           <UInput
             v-model="password"
@@ -91,11 +95,13 @@ type="button" variant="ghost" color="neutral" block
           {{
             mode === "PASSWORD" || codeSent
               ? "Войти"
-              : mode === "OTP"
-                ? "Получить код"
-                : methodError
-                  ? "Повторить"
-                  : "Введите телефон"
+              : mode === "TEST_PHONE"
+                ? "Войти или зарегистрироваться"
+                : mode === "OTP"
+                  ? "Получить код"
+                  : methodError
+                    ? "Повторить"
+                    : "Введите телефон"
           }}
         </UButton>
         <UButton
@@ -164,7 +170,7 @@ const {
   change,
   reset,
 } = useLoginMethod((phone) =>
-  api<{ method: 'OTP' | 'PASSWORD' }>("/auth/method", { method: "POST", body: { phone } }),
+  api<{ method: 'OTP' | 'PASSWORD' | 'TEST_PHONE' }>("/auth/method", { method: "POST", body: { phone } }),
 );
 const message = computed(
   () => error.value || (methodError.value ? apiError(methodError.value) : ""),
@@ -228,6 +234,10 @@ async function submit() {
   try {
     if (mode.value === "PASSWORD") {
       await adminLogin(phone.value, password.value);
+    } else if (mode.value === "TEST_PHONE") {
+      auth.set(await api<User>("/auth/test-phone-login", {
+        method: "POST", body: { phone: phone.value },
+      }));
     } else if (!codeSent.value) {
       const result = await api<{ ok: boolean; devCode?: string }>(
         "/auth/code",

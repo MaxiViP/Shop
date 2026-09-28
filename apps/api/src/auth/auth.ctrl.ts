@@ -66,6 +66,21 @@ export class AuthCtrl {
     return this.auth.code(body.phone);
   }
 
+  @Post('test-phone-login')
+  @UseGuards(OtpLoginGuard)
+  async testPhoneLogin(
+    @Req() request: Request,
+    @Body({
+      schema: z.strictObject({ phone: z.string().trim().min(1).max(40) }),
+    })
+    body: { phone: string },
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.auth.testPhoneLogin(body.phone, request.cookies?.[SID]);
+    response.cookie(SID, result.token, sessionCookie);
+    return result.user;
+  }
+
   @Post('login')
   @UseGuards(OtpLoginGuard)
   async login(

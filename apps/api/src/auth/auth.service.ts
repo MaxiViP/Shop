@@ -4,6 +4,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
@@ -28,6 +29,8 @@ export const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 
 export const SID = process.env.NODE_ENV === 'production' ? '__Host-sid' : 'sid';
 
+const testPhoneAuthEnabled = () => process.env.TEST_PHONE_AUTH_ENABLED === 'true';
+
 @Injectable()
 export class AuthService {
   private readonly secret: string;
@@ -42,9 +45,44 @@ export class AuthService {
     this.secret = secret;
   }
 
-  method(value: unknown): { method: 'OTP' | 'PASSWORD' } {
+  async method(value: unknown): Promise<{ method: 'OTP' | 'PASSWORD' | 'TEST_PHONE' }> {
     const phone = normalizePhone(value);
-    return { method: phone === adminPhone() ? 'PASSWORD' : 'OTP' };
+    if (phone === adminPhone()) return { method: 'PASSWORD' };
+    if (!testPhoneAuthEnabled()) return { method: 'OTP' };
+    const existing = await this.db.user.findUnique({
+      where: { phone },
+      select: { role: true },
+    });
+    return {
+      method: existing?.role === 'ADMIN'
+        ? 'PASSWORD'
+        : existing?.role === 'SELLER'
+          ? 'OTP'
+          : 'TEST_PHONE',
+    };
+  }
+
+  async testPhoneLogin(value: unknown, previousToken?: string) {
+    if (!testPhoneAuthEnabled()) throw new NotFoundException();
+    const phone = normalizePhone(value);
+    if (phone === adminPhone())
+      throw new UnauthorizedException('Используйте вход администратора');
+
+    return this.db.$transaction(async (db) => {
+      await this.lockOtp(db, phone);
+      const existing = await db.user.findUnique({
+        where: { phone },
+        select: authUserSelect,
+      });
+      if (existing && existing.role !== 'USER')
+        throw new UnauthorizedException('Этот способ входа недоступен');
+      const user = existing ?? await db.user.create({
+        data: { phone, role: 'USER' },
+        select: authUserSelect,
+      });
+      const token = await this.createSession(db, user.id, previousToken, true);
+      return { token, user: authUser(user) };
+    });
   }
 
   async code(value: unknown) {
@@ -201,7 +239,9 @@ export class AuthService {
   }
 
   async me(token?: string) {
-    if (!token) return null;
+    // Temporary sessions stop authorizing as soon as test mode is disabled.
+    if (!token || (token.startsWith('tp_') && !testPhoneAuthEnabled()))
+      return null;
 
     const tokenHash = this.tokenHash(token);
 
@@ -316,8 +356,9 @@ export class AuthService {
     db: Prisma.TransactionClient,
     userId: number,
     previousToken?: string,
+    testPhone = false,
   ) {
-    const token = randomBytes(32).toString('hex');
+    const token = `${testPhone ? 'tp_' : ''}${randomBytes(32).toString('hex')}`;
     if (previousToken)
       await db.session.deleteMany({
         where: { tokenHash: this.tokenHash(previousToken) },
