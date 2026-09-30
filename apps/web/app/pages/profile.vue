@@ -17,7 +17,8 @@
       </UButton>
     </header>
 
-    <AuthProfileCard v-if="auth.user" :user="auth.user" />
+    <AuthProfileCard v-if="auth.user" :user="auth.user" :preferred-phone="orderPhoneData?.primaryPhone" />
+    <AuthOrderPhones v-if="auth.user?.role === 'USER'" :snapshot="orderPhoneData ?? null" @changed="updateOrderPhones" />
 
     <section class="profile__section">
       <header class="profile__section-head">
@@ -104,6 +105,7 @@
 
 <script setup lang="ts">
 import type { Address } from "~/types/address";
+import type { OrderPhoneSnapshot } from "~/types/order-phone";
 import { useAuthStore } from "~/stores/auth";
 
 const auth = useAuthStore();
@@ -121,6 +123,14 @@ const defaultLoading = ref(false);
 
 if (!auth.user) {
   await navigateTo("/");
+}
+
+const { data: orderPhoneData } = await useApi<OrderPhoneSnapshot>("/order-phones", {
+  immediate: auth.user?.role === "USER",
+});
+
+function updateOrderPhones(value: OrderPhoneSnapshot) {
+  orderPhoneData.value = value;
 }
 
 const { data: addresses, refresh: refreshAddresses } = await useApi<Address[]>(

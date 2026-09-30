@@ -31,7 +31,7 @@ type="button" variant="ghost" color="neutral" block
             type="tel"
             inputmode="tel"
             autocomplete="tel"
-            placeholder="+7 999 123 45 67"
+            placeholder="+7 (___) ___-__-__"
             size="lg"
             autofocus
             :disabled="loading || telegramLoading"

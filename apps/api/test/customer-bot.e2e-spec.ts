@@ -52,6 +52,11 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
       chat: { id: actorId, type: 'private' },
       ...(reply ? { reply_to_message: { message_id: reply } } : {}) },
   });
+  const contact = (actorId: number, number: string, userId: number | null = actorId) => ({
+    message: { message_id: 31, contact: { phone_number: number,
+      ...(userId !== null ? { user_id: userId } : {}) },
+      from: { id: actorId, is_bot: false }, chat: { id: actorId, type: 'private' } },
+  });
 
   beforeAll(async () => {
     const target = new URL(process.env.DATABASE_URL!);
@@ -114,6 +119,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     const telegramId = 400000 + user.id;
     const identity = linked ? await db.telegramIdentity.create({ data: {
       userId: user.id, telegramUserId: BigInt(telegramId), customerBotStartedAt: new Date(),
+      phoneNumber: '+79990000003', phoneVerified: true,
     } }) : null;
     const order = await db.order.create({ data: {
       userId: user.id, customerName: 'Customer fixture', customerPhone: '+79990000002',
@@ -156,7 +162,19 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     });
     expect(await db.user.count()).toBe(beforeUsers + 1);
     expect(await db.telegramIdentity.count()).toBe(beforeIdentities + 1);
-    const payload = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as {
+    const request = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as {
+      text?: string; reply_markup?: { keyboard?: { request_contact?: boolean }[][] };
+    };
+    expect(request.text).toContain('Для доставки нужен ваш номер телефона');
+    expect(request.reply_markup?.keyboard?.[0]?.[0]?.request_contact).toBe(true);
+    await makeBot().handle(contact(telegramId, '8 (999) 123-45-67'));
+    expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: identity.id } }))
+      .toMatchObject({ phoneNumber: '+79991234567', phoneVerified: true, userId: user.id });
+    const removal = JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body)) as {
+      reply_markup?: { remove_keyboard?: boolean };
+    };
+    expect(removal.reply_markup?.remove_keyboard).toBe(true);
+    const payload = JSON.parse(String(fetcher.mock.calls[2]?.[1]?.body)) as {
       reply_markup?: { inline_keyboard?: { text: string; callback_data?: string; web_app?: { url: string } }[][] };
     };
     const buttons = payload.reply_markup?.inline_keyboard?.flat();
@@ -165,9 +183,10 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
       .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
     expect(buttons?.map(button => button.text))
       .toEqual(expect.arrayContaining(['Профиль', 'Каталог на сайте']));
+    const beforeShopping = fetcher.mock.calls.length;
     for (const command of ['/catalog', '/cart', '/orders'])
       await makeBot().handle(text(telegramId, command));
-    const screens = fetcher.mock.calls.slice(1).map(([, init]) =>
+    const screens = fetcher.mock.calls.slice(beforeShopping).map(([, init]) =>
       (JSON.parse(String(init?.body)) as { text: string }).text);
     expect(screens).toHaveLength(3);
     expect(screens[0]).toContain('Каталог');
@@ -179,6 +198,31 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     expect((await db.telegramIdentity.findUniqueOrThrow({
       where: { telegramUserId: BigInt(telegramId) },
     })).userId).toBe(user.id);
+  });
+  it('existing no-phone USER is gated and only self-contact verifies without account merging', async () => {
+    const telegramId = ++onboardingId;
+    const other = await db.user.create({ data: { phone: '+79995554433', role: 'USER' } });
+    const purchaser = await db.user.create({ data: { phone: null, role: 'USER' } });
+    const identity = await db.telegramIdentity.create({ data: {
+      userId: purchaser.id, telegramUserId: BigInt(telegramId),
+      customerBotStartedAt: new Date(),
+    } });
+    await makeBot().handle(text(telegramId, '/cart'));
+    expect(JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body)).reply_markup.keyboard[0][0])
+      .toMatchObject({ request_contact: true });
+    await makeBot().handle(contact(telegramId, '+79995554433', telegramId + 1));
+    await makeBot().handle(contact(telegramId, '+79995554433', null));
+    expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: identity.id } }))
+      .toMatchObject({ phoneNumber: null, phoneVerified: false });
+    await makeBot().handle(contact(telegramId, '8 (999) 555-44-33'));
+    expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: identity.id } }))
+      .toMatchObject({ phoneNumber: '+79995554433', phoneVerified: true, userId: purchaser.id });
+    expect(await db.user.findUniqueOrThrow({ where: { id: purchaser.id } }))
+      .toMatchObject({ phone: null, role: 'USER' });
+    expect(await db.user.findUniqueOrThrow({ where: { id: other.id } }))
+      .toMatchObject({ phone: '+79995554433', role: 'USER' });
+    await makeBot().handle(text(telegramId, '/cart'));
+    expect(JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body)).text).toContain('Корзина');
   });
   it('concurrent first /start requests leave one USER and identity', async () => {
     const telegramId = ++onboardingId;

@@ -6,6 +6,7 @@ import { parse, compileScript } from "vue/compiler-sfc";
 import { createSSRApp, defineComponent, h } from "vue";
 import { renderToString } from "vue/server-renderer";
 import ts from "typescript";
+import { effectiveOrderPhone } from "../app/utils/checkout-recipient.ts";
 
 const source = await readFile(new URL("../app/components/auth/ProfileCard.vue", import.meta.url), "utf8");
 const { descriptor } = parse(source, { filename: "ProfileCard.vue" });
@@ -14,7 +15,10 @@ const code = ts.transpileModule(compiled.content, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText;
 const module = { exports: {} };
-new Function("require", "exports", "module", code)(createRequire(import.meta.url), module.exports, module);
+const nodeRequire = createRequire(import.meta.url);
+const testRequire = (id) => id === "~/utils/checkout-recipient"
+  ? { effectiveOrderPhone } : nodeRequire(id);
+new Function("require", "exports", "module", code)(testRequire, module.exports, module);
 const ProfileCard = module.exports.default;
 const telegram = {
   connected: true, username: "max", firstName: "Максим", lastName: null,
@@ -36,11 +40,13 @@ async function render(changes = {}) {
   return renderToString(app);
 }
 
-test("Telegram profile renders avatar, username and verified metadata without a fake order phone", async () => {
+test("Telegram profile uses verified Telegram phone as the effective order phone", async () => {
   const html = await render();
-  for (const value of ["Максим", "@max", "Telegram подключен", "Телефон Telegram", "+79991234567", "Подтверждено Telegram", "Телефон для заказов не указан"])
+  for (const value of ["Максим", "@max", "Telegram подключен", "Телефон Telegram", "+79991234567", "Подтверждено Telegram"])
     assert.ok(html.includes(value), value);
   assert.match(html, /src="https:\/\/example\.test\/avatar\.webp"/);
+  assert.match(html, /Телефон для заказов<\/span><strong>\+79991234567<\/strong>/);
+  assert.ok(!html.includes("Телефон для заказов не указан"));
   assert.ok(!html.includes("telegramUserId"));
 });
 
@@ -59,6 +65,7 @@ test("absent optional metadata has readable avatar and phone fallbacks", async (
   assert.ok(html.includes("Номер Telegram не предоставлен"));
   assert.ok(!html.includes("@"));
   assert.ok(!html.includes("Подтверждено Telegram"));
+  assert.ok(html.includes("Телефон для заказов не указан"));
   assert.ok(!html.includes("null"));
 });
 

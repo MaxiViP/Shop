@@ -303,7 +303,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await bot.handle({ message: { message_id: 1, from: actor, chat, text: '/start' } });
         expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: preservedIdentity } }))
           .toMatchObject({ customerBotStartedAt: expect.any(Date), customerBotBlockedAt: null });
-        await bot.handle({ message: { message_id: 2, from: actor, chat, text: '/orders' } });
+        expect(calls[0]).toContain('request_contact');
+        await bot.handle({ message: { message_id: 2, from: actor, chat,
+          contact: { phone_number: '8 (999) 123-45-67', user_id: actor.id } } });
+        expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: preservedIdentity } }))
+          .toMatchObject({ phoneNumber: '+79991234567', phoneVerified: true, userId: existingUser });
+        await bot.handle({ message: { message_id: 3, from: actor, chat, text: '/orders' } });
         expect(calls.join(' ')).toContain(customerView('o', owned.publicId));
         expect(calls.join(' ')).not.toContain(customerView('o', foreign.publicId));
         const before = calls.length;
@@ -345,13 +350,30 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(updated.user.telegram).toMatchObject({ photoUrl: 'https://example.test/new.webp', phoneNumber: '+79991234567', phoneVerified: true });
       expect(await db.telegramIdentity.count({ where: { telegramUserId: BigInt(telegramId) } })).toBe(1);
     });
-    it('does not carry verified=true over to a different unverified Telegram phone', async () => {
+    it('only a verified Telegram OIDC phone is stored; unverified claims cannot replace it', async () => {
       const telegramId = ++id;
       const base = { profile: { id: telegramId }, expiresAt: new Date(Date.now() + 300_000) };
-      await telegram.login({ ...base, tokenHash: randomUUID(), phone: { number: '+79991234567', verified: true } });
-      const next = await telegram.login({ ...base, tokenHash: randomUUID(), phone: { number: '+79997654321', verified: false } });
-      expect(next.user.telegram).toMatchObject({ phoneNumber: '+79997654321', phoneVerified: false });
+      const first = await telegram.login({ ...base, tokenHash: randomUUID(),
+        phone: { number: '8 (999) 123-45-67', verified: true } });
+      expect(first.user.telegram).toMatchObject({ phoneNumber: '+79991234567', phoneVerified: true });
+      const next = await telegram.login({ ...base, tokenHash: randomUUID(),
+        phone: { number: '+79997654321', verified: false } });
+      expect(next.user.telegram).toMatchObject({ phoneNumber: '+79991234567', phoneVerified: true });
       expect(next.user.phone).toBeNull();
+      const noPhone = await telegram.login({ ...base, profile: { id: ++id },
+        tokenHash: randomUUID(), phone: { number: '+79997654321', verified: false } });
+      expect(noPhone.user.telegram).toMatchObject({ phoneNumber: null, phoneVerified: false });
+      expect(noPhone.user.phone).toBeNull();
+    });
+    it('unsupported verified OIDC phone does not break login or become a delivery phone', async () => {
+      const result = await telegram.login({
+        profile: { id: ++id }, tokenHash: randomUUID(),
+        phone: { number: '+14155550123', verified: true },
+        expiresAt: new Date(Date.now() + 300_000),
+      });
+      expect(result.token).toBeTruthy();
+      expect(result.user.telegram).toMatchObject({ phoneNumber: null, phoneVerified: false });
+      expect(result.user.phone).toBeNull();
     });
     it('/auth/me keeps a normal phone account compatible with telegram=null', async () => {
       const user = await db.user.create({ data: { phone: '+79918888888' } });

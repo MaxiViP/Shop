@@ -1,11 +1,9 @@
 <template>
   <div
     class="header-notice"
-    :style="{ '--notice-duration': `${NOTICE_DURATION}ms` }"
+    :class="{ 'header-notice--floating': floating }"
+    :style="{ '--notice-start': startWidth, '--notice-remaining': remaining }"
   >
-    <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{
-      message
-    }}</span>
     <Transition name="header-notice">
       <div v-if="notice" class="header-notice__panel" aria-hidden="true">
         <p class="header-notice__text">{{ notice.text }}</p>
@@ -24,19 +22,27 @@
 <script setup lang="ts">
 import { NOTICE_DURATION, type NoticeTarget } from "~/utils/header-notice";
 import { createHeaderProgress } from "~/utils/header-progress";
-const props = defineProps<{ target: NoticeTarget }>();
+const props = defineProps<{ target: NoticeTarget; floating?: boolean }>();
 const state = useHeaderNotice();
 const notice = computed(() =>
   state.current?.target === props.target ? state.current : null,
 );
-// Repeated identical actions restart only the visual timer, not the live text.
-const message = computed(() => notice.value?.text ?? "");
+const startWidth = ref("0%");
+const remaining = ref(`${NOTICE_DURATION}ms`);
 const { running, start, reset } = createHeaderProgress();
 watch(
   () => notice.value?.id,
   (id) => {
-    if (id !== undefined) start();
-    else reset();
+    const active = notice.value;
+    if (id !== undefined && active) {
+      const elapsed = Math.min(
+        NOTICE_DURATION,
+        Math.max(0, Date.now() - active.shownAt),
+      );
+      startWidth.value = `${(elapsed / NOTICE_DURATION) * 100}%`;
+      remaining.value = `${NOTICE_DURATION - elapsed}ms`;
+      start();
+    } else reset();
   },
   { flush: "pre", immediate: true },
 );
@@ -51,6 +57,15 @@ onBeforeUnmount(reset);
   width: min(12rem, calc(100vw - 5rem));
   pointer-events: none;
   z-index: 1;
+}
+.header-notice--floating {
+  width: min(
+    12rem,
+    calc(
+      100vw - max(0.5rem, env(safe-area-inset-left, 0px)) -
+        max(0.5rem, env(safe-area-inset-right, 0px)) - 50% + 1rem
+    )
+  );
 }
 .header-notice__panel {
   position: relative;
@@ -88,14 +103,14 @@ onBeforeUnmount(reset);
 }
 .header-notice__progress-fill {
   display: block;
-  width: 0%;
+  width: var(--notice-start);
   height: 100%;
   background: var(--ui-primary);
   transition: none;
 }
 .header-notice__progress-fill--run {
   width: 100%;
-  transition: width var(--notice-duration) linear;
+  transition: width var(--notice-remaining) linear;
 }
 .header-notice-enter-active,
 .header-notice-leave-active {

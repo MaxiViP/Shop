@@ -43,7 +43,7 @@
     </div>
     <div class="account__row">
       <span>Телефон для заказов</span>
-      <strong v-if="user.phone">{{ user.phone }}</strong>
+      <strong v-if="orderPhone">{{ orderPhone }}</strong>
       <span v-else class="account__muted">Телефон для заказов не указан</span>
     </div>
   </section>
@@ -52,8 +52,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { User } from "~/types/user";
+import { effectiveOrderPhone } from "~/utils/checkout-recipient";
 
-const props = defineProps<{ user: User }>();
+const props = defineProps<{ user: User; preferredPhone?: string | null }>();
+const orderPhone = computed(() => props.preferredPhone || effectiveOrderPhone(props.user));
 const displayName = computed(() =>
   props.user.name?.trim()
   || [props.user.telegram?.firstName, props.user.telegram?.lastName].filter(Boolean).join(" ")

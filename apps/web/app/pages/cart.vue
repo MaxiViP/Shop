@@ -43,7 +43,7 @@
       <p>Добавьте свежие продукты из каталога.</p>
       <UButton to="/catalog" size="lg">Перейти в каталог</UButton>
     </div>
-    <form v-else class="checkout__layout" @submit.prevent="submit">
+    <form v-else class="checkout__layout" novalidate @submit.prevent="submit">
       <fieldset class="checkout__main" :disabled="loading">
         <legend class="sr-only">Товары и данные заказа</legend>
         <section class="section">
@@ -121,25 +121,41 @@
             <button type="button" class="recipient-tabs__item" :class="{ 'recipient-tabs__item--active': recipientMode === 'other' }" :aria-pressed="recipientMode === 'other'" @click="recipientMode = 'other'">Другому человеку</button>
           </div>
 
+          <div
+            v-if="auth.user?.role === 'USER' && recipientMode === 'self' && availablePhones.length"
+            class="saved-phone"
+          >
+            <label class="saved-phone__label" for="checkout-saved-phone">Сохранённый номер</label>
+            <select id="checkout-saved-phone" v-model="selectedPhone" class="saved-phone__select" @change="choosePhone">
+              <option v-for="item in availablePhones" :key="item.phone" :value="item.phone">
+                {{ item.phone }} — {{ phoneSource(item.source) }}
+              </option>
+              <option value="manual">Ввести другой номер для этого заказа</option>
+            </select>
+          </div>
+
           <div class="form__row">
-            <UFormField  label="Имя" :error="errors.name">
+            <UFormField class="form__field" label="Имя" :error="errors.name" data-checkout-field="name" :class="fieldClass('name')">
               <AppTextInput
                 v-model="recipient.name"
                 autocomplete="name"
-                placeholder="Максим"
+                placeholder="Введите имя"
+                :aria-invalid="Boolean(errors.name)"
                 size="lg"
               />
             </UFormField>
 
-            <UFormField label="Телефон" :error="errors.phone">
+            <UFormField class="form__field" label="Телефон" :error="errors.phone" data-checkout-field="phone" :class="fieldClass('phone')">
               <AppTextInput
                 v-model="recipient.phone"
                 format="phone"
                 type="tel"
                 inputmode="tel"
                 autocomplete="tel"
-                placeholder="+7 999 123-45-67"
+                placeholder="+7 (___) ___-__-__"
+                :aria-invalid="Boolean(errors.phone)"
                 size="lg"
+                @update:model-value="onPhoneInput"
               />
             </UFormField>
           </div>
@@ -212,44 +228,45 @@
 
           <div v-if="showAddressForm" class="address">
             <div class="form__row">
-              <UFormField label="Город" :error="errors.city">
-                <AppTextInput v-model="recipient.city" placeholder="Москва" />
+              <UFormField class="form__field" label="Город" :error="errors.city" data-checkout-field="city" :class="fieldClass('city')">
+                <AppTextInput v-model="recipient.city" placeholder="Название города" :aria-invalid="Boolean(errors.city)" />
               </UFormField>
 
-              <UFormField label="Улица" :error="errors.street">
+              <UFormField class="form__field" label="Улица" :error="errors.street" data-checkout-field="street" :class="fieldClass('street')">
                 <AppTextInput
                   v-model="recipient.street"
-                  placeholder="Ленинский проспект"
+                  placeholder="Название улицы"
+                  :aria-invalid="Boolean(errors.street)"
                 />
               </UFormField>
             </div>
 
             <div class="form__grid">
-              <UFormField label="Дом" :error="errors.house">
-                <UInput v-model="recipient.house" placeholder="53" />
+              <UFormField class="form__field" label="Дом" :error="errors.house" data-checkout-field="house" :class="fieldClass('house')">
+                <UInput v-model="recipient.house" placeholder="Номер дома" :aria-invalid="Boolean(errors.house)" />
               </UFormField>
 
               <UFormField label="Квартира">
-                <UInput v-model="recipient.flat" placeholder="25" />
+                <UInput v-model="recipient.flat" placeholder="Номер квартиры" />
               </UFormField>
 
               <UFormField label="Подъезд">
-                <UInput v-model="recipient.entrance" placeholder="2" />
+                <UInput v-model="recipient.entrance" placeholder="Номер подъезда" />
               </UFormField>
 
               <UFormField label="Этаж">
-                <UInput v-model="recipient.floor" placeholder="7" />
+                <UInput v-model="recipient.floor" placeholder="Номер этажа" />
               </UFormField>
             </div>
 
             <UFormField label="Домофон">
-              <UInput v-model="recipient.intercom" placeholder="25К" />
+              <UInput v-model="recipient.intercom" placeholder="Код домофона" />
             </UFormField>
 
             <UFormField label="Комментарий курьеру">
               <UTextarea
                 v-model="recipient.comment"
-                placeholder="Позвонить за 10 минут"
+                placeholder="Комментарий для курьера"
                 :rows="3"
               />
             </UFormField>
@@ -297,12 +314,15 @@
               v-if="form.pickupTiming === 'scheduled'"
               label="Дата и время (Москва)"
               :error="errors.deliveryAt"
+              class="form__field"
+              data-checkout-field="deliveryAt"
+              :class="fieldClass('deliveryAt')"
               required
             >
               <UInput
                 v-model="form.pickupAt"
                 type="datetime-local"
-                required
+                :aria-invalid="Boolean(errors.deliveryAt)"
                 size="lg"
               />
             </UFormField>
@@ -383,6 +403,8 @@ import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
 import { pickupDate } from "~/utils/pickup";
 import { recipientDefaults, recipientDraft } from "~/utils/checkout-recipient";
+import { checkoutErrors, checkoutFieldOrder, type CheckoutField } from "~/utils/checkout-validation";
+import type { OrderPhone, OrderPhoneSnapshot } from "~/types/order-phone";
 import {
   deliveryEligibility,
   type PublicShopSettings,
@@ -415,6 +437,27 @@ const { data: addressData, refresh: refreshAddresses } = await useApi<Address[]>
   immediate: auth.loggedIn,
 });
 
+const { data: phoneData, refresh: refreshPhones } = await useApi<OrderPhoneSnapshot>("/order-phones", {
+  immediate: auth.user?.role === "USER",
+});
+const availablePhones = computed(() => phoneData.value?.phones ?? []);
+const selectedPhone = ref("");
+const phoneEdited = ref(false);
+function phoneSource(source: OrderPhone["source"]) {
+  if (source === "ACCOUNT") return "телефон аккаунта";
+  if (source === "TELEGRAM") return "подтверждённый Telegram";
+  return "добавлен вручную";
+}
+function choosePhone() {
+  phoneEdited.value = true;
+  self.phone = selectedPhone.value === "manual" ? "" : selectedPhone.value;
+}
+function onPhoneInput() {
+  if (recipientMode.value !== "self") return;
+  phoneEdited.value = true;
+  selectedPhone.value = "manual";
+}
+
 const addresses = computed(() => addressData.value ?? []);
 
 const selectedAddressId = ref<number | null>(null);
@@ -441,6 +484,14 @@ const defaults = recipientDefaults(auth.user, name.value);
 const self = reactive(recipientDraft(defaults.name, defaults.phone, "Москва"));
 const other = reactive(recipientDraft());
 const recipient = computed(() => recipientMode.value === "other" ? other : self);
+watch(phoneData, (value) => {
+  if (!auth.user || auth.user.role !== "USER" || !value || phoneEdited.value) return;
+  self.phone = value.primaryPhone ?? recipientDefaults(auth.user).phone;
+  selectedPhone.value = availablePhones.value.some((item) => item.phone === self.phone)
+    ? self.phone : "manual";
+}, { immediate: true });
+
+
 watch(name, (value) => {
   if (!auth.loggedIn && !self.name) self.name = value;
 });
@@ -448,12 +499,17 @@ watch(() => auth.user?.id, (userId) => {
   if (!userId) {
     Object.assign(self, recipientDraft("", "", "Москва"));
     selectedAddressId.value = null;
+    selectedPhone.value = "";
+    phoneEdited.value = false;
     return;
   }
   const value = recipientDefaults(auth.user);
   self.name = value.name;
   self.phone = value.phone;
+  phoneEdited.value = false;
+  selectedPhone.value = value.phone;
   void refreshAddresses();
+  if (auth.user?.role === "USER") void refreshPhones();
 });
 
 const canSubmit = computed(
@@ -557,50 +613,82 @@ function manualAddress() {
   self.comment = "";
 }
 
+const shakeFields = ref<CheckoutField[]>([]);
+let shakeTimer: ReturnType<typeof setTimeout> | undefined;
+onBeforeUnmount(() => clearTimeout(shakeTimer));
+
+function fieldClass(field: CheckoutField) {
+  return {
+    "form__field--invalid": Boolean(errors[field]),
+    "form__field--shake": shakeFields.value.includes(field),
+  };
+}
+
+watch(
+  () => [recipient.value.name, recipient.value.phone, recipient.value.city,
+    recipient.value.street, recipient.value.house, form.pickupAt],
+  () => {
+    const current = checkoutErrors(recipient.value, form);
+    for (const key of checkoutFieldOrder)
+      if (errors[key] && !current[key]) errors[key] = "";
+  },
+);
+
 function validate() {
-  clearErrors();
-
-  if (!recipient.value.name.trim()) {
-    errors.name = "Введите имя";
-  }
-
-  if (!recipient.value.phone.trim()) {
-    errors.phone = "Введите телефон";
-  }
-
-  if (form.type === "DELIVERY" && !recipient.value.city.trim()) {
-    errors.city = "Введите город";
-  }
-
-  if (form.type === "DELIVERY" && !recipient.value.street.trim()) {
-    errors.street = "Введите улицу";
-  }
-
-  if (form.type === "DELIVERY" && !recipient.value.house.trim()) {
-    errors.house = "Введите дом";
-  }
-
-  if (form.type === "PICKUP" && form.pickupTiming === "scheduled") {
-    const date = pickupDate(form.pickupAt);
-    if (!date || date.getTime() <= Date.now())
-      errors.deliveryAt = "Укажите дату и время в будущем";
-  }
-  return !Object.values(errors).some(Boolean);
+  const current = checkoutErrors(recipient.value, form);
+  Object.assign(errors, current);
+  return !Object.values(current).some(Boolean);
 }
 
 function clearErrors() {
-  errors.name = "";
-  errors.phone = "";
-  errors.city = "";
-  errors.street = "";
-  errors.house = "";
-  errors.deliveryAt = "";
+  for (const key of checkoutFieldOrder) errors[key] = "";
+  shakeFields.value = [];
+}
+
+async function revealErrors() {
+  clearTimeout(shakeTimer);
+  shakeFields.value = [];
+  await nextTick();
+  shakeFields.value = checkoutFieldOrder.filter((field) => Boolean(errors[field]));
+  shakeTimer = setTimeout(() => { shakeFields.value = []; }, 350);
+  if (typeof document === "undefined") return;
+  let field: HTMLElement | null = null;
+  for (const key of checkoutFieldOrder) {
+    if (!errors[key]) continue;
+    const candidate = document.querySelector<HTMLElement>(`[data-checkout-field="${key}"]`);
+    if (candidate?.getClientRects().length) {
+      field = candidate;
+      break;
+    }
+  }
+  if (!field) return;
+  const input = field.querySelector<HTMLInputElement>("input, textarea, select");
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  const scroll = () => field.scrollIntoView({
+    behavior: reducedMotion ? "instant" : "smooth",
+    block: "center",
+  });
+  scroll();
+  input?.focus({ preventScroll: true });
+  requestAnimationFrame(scroll);
+  const viewport = window.visualViewport;
+  if (viewport) {
+    const onResize = () => scroll();
+    viewport.addEventListener("resize", onResize, { once: true });
+    setTimeout(() => viewport.removeEventListener("resize", onResize), 700);
+  }
 }
 
 async function submit() {
   if (!canSubmit.value) return;
   if (loading.value) return;
-  if (!validate()) return;
+  if (!validate()) {
+    if (form.type === "DELIVERY" && !showAddressForm.value &&
+      (errors.city || errors.street || errors.house))
+      selectedAddressId.value = null;
+    await revealErrors();
+    return;
+  }
 
   loading.value = true;
   error.value = "";
@@ -721,6 +809,41 @@ useSeoMeta({
 </script>
 
 <style scoped>
+.saved-phone {
+  display: block;
+  margin-bottom: 1rem;
+}
+.saved-phone__label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+.saved-phone__select {
+  width: 100%;
+  min-height: var(--touch-target);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--ui-border);
+  border-radius: 0.5rem;
+  background: var(--ui-bg);
+}
+.form__field--invalid :deep(input),
+.form__field--invalid :deep(textarea) {
+  border-color: var(--ui-error);
+}
+.form__field--shake {
+  animation: checkout-shake 350ms ease-in-out;
+}
+.form__field {
+  scroll-margin-block: 5rem calc(7rem + var(--safe-bottom));
+}
+@keyframes checkout-shake {
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .form__field--shake { animation: none; }
+}
+
 .recipient-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

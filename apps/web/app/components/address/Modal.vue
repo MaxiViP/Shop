@@ -27,7 +27,7 @@
           <UFormField label="Город">
             <AppTextInput
               v-model="form.city"
-              placeholder="Москва"
+              placeholder="Название города"
               size="lg"
             />
           </UFormField>
@@ -35,7 +35,7 @@
           <UFormField label="Улица">
             <AppTextInput
               v-model="form.street"
-              placeholder="Ленинский проспект"
+              placeholder="Название улицы"
               size="lg"
             />
           </UFormField>
@@ -45,7 +45,7 @@
           <UFormField label="Дом">
             <UInput
               v-model="form.house"
-              placeholder="53"
+              placeholder="Номер дома"
               size="lg"
             />
           </UFormField>
@@ -53,7 +53,7 @@
           <UFormField label="Квартира">
             <UInput
               v-model="form.flat"
-              placeholder="25"
+              placeholder="Номер квартиры"
               size="lg"
             />
           </UFormField>
@@ -61,7 +61,7 @@
           <UFormField label="Подъезд">
             <UInput
               v-model="form.entrance"
-              placeholder="2"
+              placeholder="Номер подъезда"
               size="lg"
             />
           </UFormField>
@@ -69,7 +69,7 @@
           <UFormField label="Этаж">
             <UInput
               v-model="form.floor"
-              placeholder="7"
+              placeholder="Номер этажа"
               size="lg"
             />
           </UFormField>
@@ -78,7 +78,7 @@
         <UFormField label="Домофон">
           <UInput
             v-model="form.intercom"
-            placeholder="25К"
+            placeholder="Код домофона"
             size="lg"
           />
         </UFormField>
@@ -86,7 +86,7 @@
         <UFormField label="Комментарий курьеру">
           <UTextarea
             v-model="form.comment"
-            placeholder="Позвонить за 10 минут"
+            placeholder="Комментарий для курьера"
             :rows="3"
             maxlength="300"
             size="lg"

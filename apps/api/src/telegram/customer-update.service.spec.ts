@@ -24,18 +24,29 @@ const callback = (data: string, id = telegramId, type = 'private') => ({
   callback_query: { id: 'ack', data, from: { id, is_bot: false },
     message: { message_id: 55, chat: { id, type } } },
 });
+const contact = (number: string, userId: number | null = telegramId) => ({
+  message: { message_id: 11, contact: { phone_number: number, ...(userId !== null ? { user_id: userId } : {}) },
+    from: { id: telegramId, is_bot: false }, chat: { id: telegramId, type: 'private' } },
+});
 const fetcher = vi.fn<typeof fetch>();
 function setup(linked = true) {
   const db = {
     telegramIdentity: {
       findUnique: vi.fn().mockResolvedValue(linked ? {
-        id: 3, userId: 7, firstName: 'Maksim', user: { name: 'Maksim', role: 'USER' },
+        id: 3, userId: 7, firstName: 'Maksim', phoneNumber: '+79990000003', phoneVerified: true,
+        user: { name: 'Maksim', role: 'USER' },
       } : null),
+      findUniqueOrThrow: vi.fn().mockResolvedValue({
+        id: 3, userId: 7, firstName: 'Maksim', phoneNumber: null, phoneVerified: false,
+        user: { name: 'Maksim', role: 'USER' },
+      }),
       update: vi.fn().mockResolvedValue({
-        id: 3, userId: 7, firstName: 'Maksim', user: { name: 'Maksim', role: 'USER' },
+        id: 3, userId: 7, firstName: 'Maksim', phoneNumber: '+79990000003', phoneVerified: true,
+        user: { name: 'Maksim', role: 'USER' },
       }),
       create: vi.fn().mockResolvedValue({
-        id: 3, userId: 7, firstName: 'Maksim', user: { name: 'Maksim', role: 'USER' },
+        id: 3, userId: 7, firstName: 'Maksim', phoneNumber: '+79990000003', phoneVerified: true,
+        user: { name: 'Maksim', role: 'USER' },
       }),
     },
     order: {
@@ -65,7 +76,8 @@ function setup(linked = true) {
   return { db, service, coordination, orders, shop, checkout };
 }
 type TelegramBody = { text?: string; callback_query_id?: string; message_id?: number;
-  reply_markup?: { inline_keyboard?: Array<Array<{ text: string; callback_data?: string; url?: string; web_app?: { url: string } }>>; force_reply?: boolean } };
+  reply_markup?: { inline_keyboard?: Array<Array<{ text: string; callback_data?: string; url?: string; web_app?: { url: string } }>>;
+    keyboard?: Array<Array<{ text: string; request_contact?: boolean }>>; remove_keyboard?: boolean; force_reply?: boolean } };
 const sent = () => fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as TelegramBody);
 
 beforeEach(() => {
@@ -111,8 +123,12 @@ describe('customer cabinet', () => {
     expect(sent()[0]?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
       .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
   });
-  it('first /start creates a USER with no phone and opens the normal menu', async () => {
-    const { db, service } = setup(false);
+  it('first /start creates USER and requests a self-contact before shopping', async () => {
+    const { db, service, shop } = setup(false);
+    db.telegramIdentity.create.mockResolvedValueOnce({
+      id: 3, userId: 7, firstName: 'Maksim', phoneNumber: null, phoneVerified: false,
+      user: { name: 'Maksim', role: 'USER' },
+    });
     await service.handle({ message: { ...message('/start').message,
       from: { id: telegramId, is_bot: false, username: 'buyer',
         first_name: 'Maksim', last_name: 'Buyer' },
@@ -125,13 +141,63 @@ describe('customer cabinet', () => {
         user: { create: { role: 'USER', phone: null, name: 'Maksim Buyer' } },
       },
     }));
-    const buttons = sent()[0]?.reply_markup?.inline_keyboard?.flat();
-    expect(buttons?.map(button => button.callback_data)).toEqual(
-      expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
-    expect(buttons?.map(button => button.web_app?.url)).toEqual(expect.arrayContaining([
-      'https://shop.example/telegram?returnTo=%2Fprofile',
-      'https://shop.example/telegram?returnTo=%2Fcatalog',
-    ]));
+    expect(sent()[0]?.text).toContain('Для доставки нужен ваш номер телефона');
+    expect(sent()[0]?.reply_markup?.keyboard?.[0]?.[0])
+      .toEqual({ text: 'Поделиться номером', request_contact: true });
+    expect(shop.handle).not.toHaveBeenCalled();
+  });
+  it('valid self-contact is normalized, removes the keyboard, then opens the inline menu', async () => {
+    const { db, service } = setup();
+    db.telegramIdentity.findUnique.mockResolvedValueOnce({
+      id: 3, userId: 7, firstName: 'Maksim', phoneNumber: null, phoneVerified: false,
+      user: { name: 'Maksim', role: 'USER' },
+    });
+    await service.handle(contact('8 (999) 123-45-67'));
+    expect(db.telegramIdentity.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 3 }, data: { phoneNumber: '+79991234567', phoneVerified: true },
+    }));
+    expect(sent()[0]?.reply_markup?.remove_keyboard).toBe(true);
+    expect(sent()[1]?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
+      .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
+  });
+  it('foreign or missing contact user_id cannot verify a phone or enter shopping', async () => {
+    const { db, service, shop } = setup();
+    const missingPhone = {
+      id: 3, userId: 7, firstName: 'Maksim', phoneNumber: null, phoneVerified: false,
+      user: { name: 'Maksim', role: 'USER' },
+    };
+    db.telegramIdentity.findUnique.mockResolvedValue(missingPhone);
+    await service.handle(contact('+79991234567', telegramId + 1));
+    await service.handle(contact('+79991234567', null));
+    expect(db.telegramIdentity.update).not.toHaveBeenCalled();
+    expect(shop.handle).not.toHaveBeenCalled();
+    expect(sent().filter(body => body.reply_markup?.keyboard)).toHaveLength(2);
+  });
+  it('invalid self-contact is not stored and requests a usable phone again', async () => {
+    const { db, service } = setup();
+    db.telegramIdentity.findUnique.mockResolvedValueOnce({
+      id: 3, userId: 7, firstName: 'Maksim', phoneNumber: null, phoneVerified: false,
+      user: { name: 'Maksim', role: 'USER' },
+    });
+    await service.handle(contact('invalid'));
+    expect(db.telegramIdentity.update).not.toHaveBeenCalled();
+    expect(sent()[0]?.reply_markup?.keyboard?.[0]?.[0]?.request_contact).toBe(true);
+  });
+  it('existing no-phone user is prompted on the next shopping action', async () => {
+    const { db, service, shop } = setup();
+    db.telegramIdentity.findUnique.mockResolvedValue({
+      id: 3, userId: 7, firstName: 'Maksim', phoneNumber: null, phoneVerified: false,
+      user: { name: 'Maksim', role: 'USER' },
+    });
+    await service.handle(message('/cart'));
+    expect(shop.handle).not.toHaveBeenCalled();
+    expect(sent()[0]?.reply_markup?.keyboard?.[0]?.[0]?.request_contact).toBe(true);
+  });
+  it('verified Telegram phone skips the contact prompt', async () => {
+    const { service, shop } = setup();
+    await service.handle(message('/cart'));
+    expect(shop.handle).toHaveBeenCalledOnce();
+    expect(sent().some(body => body.reply_markup?.keyboard)).toBe(false);
   });
   it.each(['ADMIN', 'SELLER'])('does not activate an existing %s account', async role => {
     const { db, service } = setup();

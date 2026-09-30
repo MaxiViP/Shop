@@ -3,7 +3,7 @@ import { DbService } from '../db/db.service.js';
 import { CoordinationService } from '../order/coordination.service.js';
 import { OrderService } from '../order/order.service.js';
 import { chatSchema } from '../order/coordination.schema.js';
-import { botRequest } from './bot-api.js';
+import { botMessage, botRequest } from './bot-api.js';
 import type { CustomerTelegramSession, UserRole } from '../db/gen/client.js';
 import { customerShow, customerPrompt } from './customer-send.js';
 import { CustomerShopService } from './customer-shop.service.js';
@@ -11,16 +11,18 @@ import { CustomerCheckoutService } from './customer-checkout.service.js';
 import { customerError } from './customer-error.js';
 import { shoppingAction } from './shopping-callback.js';
 import { customerBotToken } from './bot-config.js';
+import { phone } from '../common/phone.js';
 import { customerAction, customerUpdate, customerView, type CustomerAction } from './customer-callback.js';
 import {
   activeStatuses, amount, date, issueCard, orderCard, orderStatus, short, webAppUrl,
   type Button, type Screen,
 } from './customer-view.js';
 
-type Identity = { id: number; userId: number; firstName: string | null; user: { name: string | null; role: UserRole } };
+type Identity = { id: number; userId: number; firstName: string | null; phoneNumber: string | null; phoneVerified: boolean; user: { name: string | null; role: UserRole } };
 type Sender = { id: number; username?: string; first_name?: string; last_name?: string };
 type Target = { chatId: number; messageId?: number };
-const identitySelect = { id: true, userId: true, firstName: true, user: { select: { name: true, role: true } } } as const;
+const identitySelect = { id: true, userId: true, firstName: true, phoneNumber: true, phoneVerified: true,
+  user: { select: { name: true, role: true } } } as const;
 
 @Injectable()
 export class CustomerUpdateService {
@@ -70,6 +72,43 @@ export class CustomerUpdateService {
       }
     }
     throw new Error('Customer Telegram start retry exhausted');
+  }
+  private async requestPhone(chatId: number, invalid = false) {
+    const ok = await botMessage(customerBotToken(), 'sendMessage', {
+      chat_id: chatId,
+      text: invalid
+        ? 'Поделитесь только своим номером Telegram. Нажмите «Поделиться номером».'
+        : 'Для доставки нужен ваш номер телефона. Нажмите «Поделиться номером».',
+      reply_markup: {
+        keyboard: [[{ text: 'Поделиться номером', request_contact: true }]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+      },
+    });
+    if (!ok) this.logger.warn('Customer Telegram phone prompt failed');
+  }
+  private async removeContactKeyboard(chatId: number) {
+    const ok = await botMessage(customerBotToken(), 'sendMessage', {
+      chat_id: chatId,
+      text: 'Номер подтверждён.',
+      reply_markup: { remove_keyboard: true },
+    });
+    if (!ok) this.logger.warn('Customer Telegram keyboard removal failed');
+  }
+  private async acceptContact(identity: Identity, sender: Sender, rawPhone: string): Promise<Identity> {
+    const number = phone(rawPhone);
+    return this.db.$transaction(async db => {
+      await db.$executeRaw`SELECT pg_advisory_xact_lock(704003, hashtext(${String(sender.id)}))`;
+      const current = await db.telegramIdentity.findUniqueOrThrow({
+        where: { id: identity.id }, select: identitySelect,
+      });
+      if (current.user.role !== 'USER' || (current.phoneVerified && current.phoneNumber)) return current;
+      return db.telegramIdentity.update({
+        where: { id: identity.id },
+        data: { phoneNumber: number, phoneVerified: true },
+        select: identitySelect,
+      });
+    });
   }
   private async answer(id: string, text: string) {
     if (!await botRequest(customerBotToken(), 'answerCallbackQuery', {
@@ -272,6 +311,32 @@ export class CustomerUpdateService {
       if (identity.user.role !== 'USER') {
         this.logger.warn('Customer Telegram identity has a non-customer role');
         await this.show(target, { text: 'Этот аккаунт недоступен в покупательском боте.', keyboard: { inline_keyboard: [] } });
+        return;
+      }
+      if (message?.contact) {
+        if (message.contact.user_id !== sender.id) {
+          if (!identity.phoneVerified || !identity.phoneNumber) await this.requestPhone(chat.id, true);
+          return;
+        }
+        let updated: Identity;
+        try {
+          updated = await this.acceptContact(identity, sender, message.contact.phone_number);
+        } catch (error) {
+          if (error instanceof HttpException && error.getStatus() === 400) {
+            await this.requestPhone(chat.id, true);
+            return;
+          }
+          throw error;
+        }
+        if (updated.user.role !== 'USER') return;
+        await this.cancel(updated);
+        await this.removeContactKeyboard(chat.id);
+        await this.menu({ chatId: chat.id }, updated);
+        return;
+      }
+      if (!identity.phoneVerified || !identity.phoneNumber) {
+        await this.cancel(identity);
+        await this.requestPhone(chat.id);
         return;
       }
       if (shopping?.kind === 'resume') await this.resume(target, identity);

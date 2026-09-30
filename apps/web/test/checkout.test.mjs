@@ -8,6 +8,7 @@ import { useCartStore } from "../app/stores/cart.ts";
 import { deliveryEligibility } from "../app/utils/shop-settings.ts";
 import { pickupDate } from "../app/utils/pickup.ts";
 import { recipientDefaults, recipientDraft } from "../app/utils/checkout-recipient.ts";
+import { checkoutErrors, checkoutFieldOrder, validOrderPhone } from "../app/utils/checkout-validation.ts";
 
 const page = await readFile(new URL("../app/pages/cart.vue", import.meta.url), "utf8");
 const script = page.match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1];
@@ -27,7 +28,7 @@ const product = { id: 1, name: "Fixture", slug: "fixture", unit: "GRAM", price: 
 
 // Execute the actual page setup with Vue refs and local API fixtures.
 // No template mounting, component framework, browser, or real requests.
-async function fixture(t, authenticated = false) {
+async function fixture(t, authenticated = false, preserveDefault = false) {
   const cart = useCartStore(createPinia());
   const pending = ref(false);
   const quoteError = ref("");
@@ -57,7 +58,8 @@ async function fixture(t, authenticated = false) {
   const stops = [];
   t.after(() => stops.forEach(stop => stop()));
   const context = {
-    computed, ref, shallowRef, reactive,
+    computed, ref, shallowRef, reactive, nextTick,
+    onBeforeUnmount: callback => t.after(callback),
     watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
     useCartStore: () => cart,
     useCartActions: () => ({
@@ -67,9 +69,17 @@ async function fixture(t, authenticated = false) {
     useAuthStore: () => ({ loggedIn: authenticated, user }),
     useApi: async (path, options) => {
       if (path === "/shop/settings") return { data: settings, error: settingsError, refresh: async () => {} };
+      if (path === "/order-phones") {
+        state.phoneOptions = options;
+        return { data: ref(authenticated
+          ? { phones: [{ id: null, phone: user.phone, source: "ACCOUNT" },
+              { id: 7, phone: "+79990000009", source: "MANUAL" }],
+            primaryPhone: "+79990000009" }
+          : null), refresh: async () => {} };
+      }
       assert.equal(path, "/addresses");
       state.addressOptions = options;
-      return { data: ref(authenticated ? [address] : []) };
+      return { data: ref(authenticated ? [address] : []), refresh: async () => {} };
     },
     useCartQuote: () => ({
       ready: computed(() => cart.quoteReady && !pending.value), pending, error: quoteError,
@@ -93,11 +103,12 @@ async function fixture(t, authenticated = false) {
     useSeoMeta() {},
     navigateTo: async path => { state.navigation.push(path); },
     deliveryEligibility, pickupDate, recipientDefaults, recipientDraft,
+    checkoutErrors, checkoutFieldOrder,
   };
   const setup = new AsyncFunction(...Object.keys(context),
-    executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, selectAddress, selectedAddressId };");
+    executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, errors, shakeFields, selectAddress, selectedAddressId, selectedPhone, choosePhone, onPhoneInput, availablePhones, phoneData };");
   const result = await setup(...Object.values(context));
-  Object.assign(result.recipient.value, { name: "Recipient", phone: "+79990000000" });
+  Object.assign(result.recipient.value, { name: "Recipient", ...(preserveDefault ? {} : { phone: "+79990000000" }) });
   if (!authenticated) Object.assign(result.recipient.value, { city: "City", street: "Street", house: "10", comment: "Call" });
   return { ...result, cart, pending, state, settings, settingsError, address, user };
 }
@@ -270,4 +281,147 @@ test("pickup for another recipient sends no address; self edits do not mutate pr
   assert.equal(f.state.requests[0].body.customerName, "Pickup friend");
   assert.equal(f.state.requests[0].body.address, undefined);
   assert.deepEqual(f.user, account);
+});
+
+test("saved primary phone prefills self, selecting another saved phone stays order-only", async t => {
+  const f = await fixture(t, true, true);
+  assert.equal(f.state.phoneOptions.immediate, true);
+  assert.equal(f.self.phone, "+79990000009");
+  assert.equal(f.selectedPhone.value, "+79990000009");
+  f.selectedPhone.value = "+79990000000";
+  f.choosePhone();
+  assert.equal(f.self.phone, "+79990000000");
+  f.selectedPhone.value = "manual";
+  f.choosePhone();
+  f.self.phone = "+79998887766";
+  f.onPhoneInput();
+  assert.equal(f.selectedPhone.value, "manual");
+  f.recipientMode.value = "other";
+  assert.equal(f.other.phone, "");
+  f.recipientMode.value = "self";
+  assert.equal(f.self.phone, "+79998887766");
+  assert.equal(f.user.phone, "+79990000000");
+  assert.deepEqual(recipientDefaults(f.user, "", "+79990000009"),
+    { name: "User", phone: "+79990000009" });
+});
+
+test("invalid guest checkout preserves cart, shows phone format error, focuses first visible field and restarts shake", async t => {
+  const f = await fixture(t);
+  f.recipient.value.name = "";
+  f.recipient.value.phone = "+7 999";
+  f.recipient.value.city = "";
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  const previousFrame = globalThis.requestAnimationFrame;
+  const events = [];
+  const field = {
+    getClientRects: () => [{}],
+    querySelector: () => ({ focus: options => events.push(["focus", options.preventScroll]) }),
+    scrollIntoView: options => events.push(["scroll", options.behavior]),
+  };
+  globalThis.document = { querySelector: selector => {
+    events.push(["query", selector]);
+    return selector.includes('"name"') ? field : null;
+  } };
+  globalThis.window = { matchMedia: () => ({ matches: false }) };
+  globalThis.requestAnimationFrame = callback => callback();
+  t.after(() => {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+    globalThis.requestAnimationFrame = previousFrame;
+  });
+  const shakes = [];
+  const stop = watch(f.shakeFields, value => shakes.push([...value]), { flush: "sync" });
+  t.after(stop);
+  await f.submit();
+  assert.equal(f.state.requests.length, 0);
+  assert.equal(f.cart.count, 1);
+  assert.equal(f.errors.phone, "Введите корректный номер телефона");
+  assert.deepEqual(events.slice(0, 3), [
+    ["query", '[data-checkout-field="name"]'],
+    ["scroll", "smooth"],
+    ["focus", true],
+  ]);
+  await f.submit();
+  assert.ok(shakes.some(value => value.length === 0), "animation class removed before restart");
+  assert.equal(shakes.at(-1)[0], "name");
+  f.recipient.value.name = "Guest";
+  await nextTick();
+  assert.equal(f.errors.name, "", "corrected field loses red error immediately");
+});
+
+test("reduced motion uses instant scroll; hidden delivery fields are skipped for pickup", async t => {
+  const f = await fixture(t);
+  f.form.type = "PICKUP";
+  f.form.pickupTiming = "scheduled";
+  f.form.pickupAt = "";
+  f.recipient.value.city = "";
+  f.recipient.value.street = "";
+  f.recipient.value.house = "";
+  await nextTick();
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  const previousFrame = globalThis.requestAnimationFrame;
+  const scrolls = [];
+  const field = {
+    getClientRects: () => [{}],
+    querySelector: () => ({ focus() {} }),
+    scrollIntoView: options => scrolls.push(options.behavior),
+  };
+  globalThis.document = { querySelector: selector =>
+    selector.includes('"deliveryAt"') ? field : null };
+  let onViewportResize;
+  globalThis.window = {
+    matchMedia: () => ({ matches: true }),
+    visualViewport: {
+      addEventListener: (_event, callback) => { onViewportResize = callback; },
+      removeEventListener() {},
+    },
+  };
+  globalThis.requestAnimationFrame = callback => callback();
+  t.after(() => {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+    globalThis.requestAnimationFrame = previousFrame;
+  });
+  await f.submit();
+  assert.equal(f.errors.city, "");
+  assert.equal(f.errors.street, "");
+  assert.equal(f.errors.house, "");
+  assert.ok(f.errors.deliveryAt);
+  assert.ok(scrolls.every(value => value === "instant"));
+  const beforeKeyboard = scrolls.length;
+  onViewportResize();
+  assert.equal(scrolls.length, beforeKeyboard + 1, "keyboard resize reveals the focused error again");
+  assert.equal(f.state.requests.length, 0);
+  assert.equal(f.cart.count, 1);
+});
+
+test("phone validation and neutral checkout placeholders match backend input shape", async () => {
+  assert.equal(validOrderPhone("+7 (999) 123-45-67"), true);
+  assert.equal(validOrderPhone("8 999 123 45 67"), true);
+  assert.equal(validOrderPhone("+7 999"), false);
+  assert.equal(validOrderPhone(""), false);
+  const value = checkoutErrors({ name: "Guest", phone: "+7 999", city: "", street: "", house: "" },
+    { type: "PICKUP", pickupTiming: "asap", pickupAt: "" });
+  assert.ok(value.phone);
+  assert.equal(value.city, "");
+  for (const placeholder of ["Введите имя", "+7 (___) ___-__-__", "Название города",
+    "Название улицы", "Номер дома", "Номер квартиры", "Номер подъезда",
+    "Номер этажа", "Код домофона", "Комментарий для курьера"])
+    assert.ok(page.includes('placeholder="' + placeholder + '"'), placeholder);
+  assert.match(page, /prefers-reduced-motion:\s*reduce/);
+  assert.match(page, /novalidate @submit\.prevent="submit"/);
+  assert.match(page, /:aria-invalid="Boolean\(errors\.phone\)"/);
+});
+
+test("invalid saved delivery address opens its fields before checkout error navigation", async t => {
+  const f = await fixture(t, true);
+  assert.equal(f.selectedAddressId.value, f.address.id);
+  f.self.city = "";
+  await f.submit();
+  assert.equal(f.selectedAddressId.value, null);
+  assert.equal(f.errors.city, "Введите город");
+  assert.equal(f.state.requests.length, 0);
+  assert.equal(f.cart.count, 1);
 });

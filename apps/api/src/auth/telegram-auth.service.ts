@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -11,6 +12,7 @@ import { adminPhone } from './admin.config.js';
 import { authUser, authUserSelect as select } from './auth-user.js';
 import { verifyInitData, type TelegramProof } from './telegram-init-data.js';
 import { customerBotToken } from '../telegram/bot-config.js';
+import { phone } from '../common/phone.js';
 
 @Injectable()
 export class TelegramAuthService {
@@ -44,6 +46,15 @@ export class TelegramAuthService {
 
   async login(proof: TelegramProof, previousToken?: string, miniAppSwitch = false) {
     const current = await this.auth.me(previousToken);
+    let verifiedPhone: string | undefined;
+    if (proof.phone?.verified) {
+      try {
+        verifiedPhone = phone(proof.phone.number);
+      } catch (error) {
+        // Unsupported delivery numbers do not invalidate the Telegram login.
+        if (!(error instanceof BadRequestException)) throw error;
+      }
+    }
     // All registration writers serialize by Telegram ID. Unique constraints are
     // the final DB guard; an interrupted transaction never leaves an orphan User.
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -80,9 +91,9 @@ export class TelegramAuthService {
             firstName: profile.first_name ?? null,
             lastName: profile.last_name ?? null,
             ...(profile.photo_url !== undefined ? { photoUrl: profile.photo_url } : {}),
-            ...(proof.phone !== undefined ? {
-              phoneNumber: proof.phone.number,
-              phoneVerified: proof.phone.verified,
+            ...(verifiedPhone ? {
+              phoneNumber: verifiedPhone,
+              phoneVerified: true,
             } : {}),
           };
           const linked = identity

@@ -14,6 +14,10 @@ export const customerUpdate = z.object({
   message: z.object({
     message_id: messageId, from, chat,
     text: z.string().max(4096).optional(),
+    contact: z.object({
+      phone_number: z.string().min(1).max(64),
+      user_id: actorId.optional(),
+    }).optional(),
     reply_to_message: z.object({ message_id: messageId }).optional(),
   }).optional(),
   callback_query: z.object({

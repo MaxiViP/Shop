@@ -96,12 +96,14 @@ model User {
   extras         OrderExtra[]
   id             Int                 @id @default(autoincrement())
   phone          String?             @unique
+  orderPhone     String?
   name           String?
   verifiedAt     DateTime?
   role           UserRole            @default(USER)
 
   orders                Order[]
   addresses             Address[]
+  orderPhones           OrderPhone[]
   telegramIdentity      TelegramIdentity?
   staffTelegramIdentity StaffTelegramIdentity?
   staffTelegramLinkCode StaffTelegramLinkCode?
@@ -142,6 +144,18 @@ model Address {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([userId])
+}
+
+model OrderPhone {
+  id        Int      @id @default(autoincrement())
+  phone     String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, phone])
   @@index([userId])
 }
 

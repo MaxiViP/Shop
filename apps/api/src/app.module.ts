@@ -9,6 +9,7 @@ import { DeliveryModule } from './delivery/delivery.module.js';
 import { FavoriteModule } from './favorite/favorite.module.js';
 import { HealthCtrl } from './health/health.ctrl.js';
 import { OrderModule } from './order/order.module.js';
+import { OrderPhoneModule } from './order-phone/order-phone.module.js';
 import { ProductModule } from './product/product.module.js';
 import { StaffModule } from './staff/staff.module.js';
 
@@ -23,6 +24,7 @@ import { StaffModule } from './staff/staff.module.js';
     DeliveryModule,
     FavoriteModule,
     OrderModule,
+    OrderPhoneModule,
     TelegramWebhookModule,
     ProductModule,
   ],

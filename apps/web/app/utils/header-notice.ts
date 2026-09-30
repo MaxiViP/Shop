@@ -5,6 +5,7 @@ export interface HeaderNotice {
   target: NoticeTarget;
   text: string;
   id: number;
+  shownAt: number;
 }
 export const NOTICE_DURATION = 2200;
 
@@ -21,7 +22,7 @@ export function createHeaderNotice() {
 
   function show(notice: Pick<HeaderNotice, "target" | "text">) {
     clearTimeout(timer);
-    current.value = { ...notice, id: ++revision };
+    current.value = { ...notice, id: ++revision, shownAt: Date.now() };
     timer = setTimeout(clear, NOTICE_DURATION);
   }
 

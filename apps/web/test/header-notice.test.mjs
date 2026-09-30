@@ -68,7 +68,7 @@ test("timer has a scoped exception to global reduced-motion reset, not a full-wi
   assert.match(css, /transition-duration:\s*0\.01ms\s*!important/);
   assert.match(
     component,
-    /\.header-notice__progress-fill\s*\{[^}]*width:\s*0%/,
+    /\.header-notice__progress-fill\s*\{[^}]*width:\s*var\(--notice-start\)/,
   );
   const reduced = component.slice(
     component.indexOf("@media (prefers-reduced-motion: reduce)"),
@@ -81,19 +81,22 @@ test("timer has a scoped exception to global reduced-motion reset, not a full-wi
   assert.match(component, /:key="notice.id"/);
   assert.match(component, /flush: "pre"/);
   assert.equal(NOTICE_DURATION, 2200);
-  assert.match(component, /'--notice-duration': `\$\{NOTICE_DURATION\}ms`/);
-  assert.match(component, /transition: width var\(--notice-duration\) linear/);
+  assert.match(component, /'--notice-start': startWidth/);
+  assert.match(component, /'--notice-remaining': remaining/);
+  assert.match(component, /transition: width var\(--notice-remaining\) linear/);
 });
 
 test("cart notice carries target/text, no duplicate count state", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const state = createHeaderNotice();
   state.show({ target: "cart", text: "Добавлено в корзину" });
-  assert.deepEqual(state.current.value, {
+  assert.deepEqual({ ...state.current.value, shownAt: 0 }, {
     target: "cart",
     text: "Добавлено в корзину",
     id: 1,
+    shownAt: 0,
   });
+  assert.ok(state.current.value.shownAt <= Date.now());
   state.clear();
 });
 
@@ -139,4 +142,22 @@ test("auto dismiss and cleanup cancel pending state without affecting another in
   t.mock.timers.tick(NOTICE_DURATION - 1);
   assert.equal(state.current.value.text, "Next");
   state.clear();
+});
+
+test("cart notice follows the visible cart anchor with one live announcement", async () => {
+  const header = await readFile(
+    new URL("../app/components/app/Header.vue", import.meta.url), "utf8",
+  );
+  const panel = await readFile(
+    new URL("../app/components/app/HeaderNotice.vue", import.meta.url), "utf8",
+  );
+  assert.match(header, /<AppHeaderNotice v-if="!floatingCartVisible" target="cart" \/>/);
+  assert.match(header, /<div v-if="floatingCartVisible" class="floating-cart-anchor">[\s\S]*<AppHeaderNotice target="cart" floating \/>/);
+  assert.match(header, /mobileHeaderHidden\.value && \(cart\.count > 0 \|\| notice\.current\?\.target === "cart"\)/);
+  assert.equal((header.match(/role="status"/g) ?? []).length, 1);
+  assert.equal((panel.match(/role="status"/g) ?? []).length, 0);
+  assert.match(header, /<AppHeaderNotice target="favorites" \/>/);
+  assert.match(panel, /\.header-notice--floating\s*\{[^}]*safe-area-inset-left[^}]*safe-area-inset-right/);
+  assert.match(header, /\.floating-cart-anchor\s*\{[^}]*position:\s*fixed;[^}]*safe-area-inset-top[^}]*safe-area-inset-right/);
+  assert.match(panel, /Date\.now\(\) - active\.shownAt/);
 });

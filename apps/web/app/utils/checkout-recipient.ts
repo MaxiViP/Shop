@@ -1,14 +1,19 @@
 import type { User } from "../types/user";
 
-export function recipientDefaults(user: User | null, guestName = "") {
+export function effectiveOrderPhone(user: User | null) {
+  if (!user) return "";
+  return user.phone?.trim() ||
+    (user.telegram?.phoneVerified ? user.telegram.phoneNumber?.trim() || "" : "");
+}
+
+export function recipientDefaults(user: User | null, guestName = "", primaryPhone = "") {
   if (!user) return { name: guestName.trim(), phone: "" };
   const telegramName = [user.telegram?.firstName, user.telegram?.lastName]
     .filter((part): part is string => Boolean(part?.trim()))
     .join(" ");
   return {
     name: user.name?.trim() || telegramName || "",
-    phone: user.phone?.trim() ||
-      (user.telegram?.phoneVerified ? user.telegram.phoneNumber?.trim() || "" : ""),
+    phone: primaryPhone.trim() || effectiveOrderPhone(user),
   };
 }
 

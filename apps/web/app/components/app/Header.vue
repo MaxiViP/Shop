@@ -99,7 +99,7 @@
               }}</span
             >
           </UButton>
-          <AppHeaderNotice target="cart" />
+          <AppHeaderNotice v-if="!floatingCartVisible" target="cart" />
         </div>
 
         <AppOrdersAction class="header__secondary" :action="orders" />
@@ -250,24 +250,30 @@
     <AuthModal v-model:open="loginOpen" />
   </header>
 
+  <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{
+    notice.current?.text ?? ""
+  }}</span>
   <Transition name="floating-cart">
-    <UButton
-      v-if="mobileHeaderHidden && cart.count"
-      to="/cart"
-      icon="i-lucide-shopping-basket"
-      variant="ghost"
-      color="neutral"
-      class="floating-cart"
-      :aria-label="cartLabel"
-      :title="cartLabel"
-    >
-      <span
-        class="floating-cart__amount"
-        :class="{ 'floating-cart__amount--stale': !cart.quoteReady }"
+    <div v-if="floatingCartVisible" class="floating-cart-anchor">
+      <UButton
+        to="/cart"
+        icon="i-lucide-shopping-basket"
+        variant="ghost"
+        color="neutral"
+        class="floating-cart"
+        :aria-label="cartLabel"
+        :title="cartLabel"
       >
-        {{ cart.displayTotal !== null ? money(cart.displayTotal) : "…" }}
-      </span>
-    </UButton>
+        <span
+          v-if="cart.count"
+          class="floating-cart__amount"
+          :class="{ 'floating-cart__amount--stale': !cart.quoteReady }"
+        >
+          {{ cart.displayTotal !== null ? money(cart.displayTotal) : "…" }}
+        </span>
+      </UButton>
+      <AppHeaderNotice target="cart" floating />
+    </div>
   </Transition>
 </template>
 
@@ -310,6 +316,9 @@ const narrow = ref(false);
 const scrolled = ref(false);
 const mobileHeaderHidden = computed(
   () => narrow.value && scrolled.value && !mobileOpen.value && !loginOpen.value,
+);
+const floatingCartVisible = computed(
+  () => mobileHeaderHidden.value && (cart.count > 0 || notice.current?.target === "cart"),
 );
 
 let stopScroll = () => {};
@@ -393,17 +402,21 @@ function login() {
   display: none;
 }
 
-.floating-cart {
+.floating-cart-anchor {
   position: fixed;
   top: max(0.5rem, env(safe-area-inset-top, 0px));
   right: max(0.5rem, env(safe-area-inset-right, 0px));
   z-index: 30;
-  min-width: 44px;
-  min-height: 44px;
   max-width: calc(
     100vw - max(0.5rem, env(safe-area-inset-left, 0px)) -
       max(0.5rem, env(safe-area-inset-right, 0px))
   );
+}
+
+.floating-cart {
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 100%;
   gap: 0.5rem;
   padding: 0.625rem 0.875rem;
   border: 1px solid var(--ui-border);
@@ -462,7 +475,7 @@ function login() {
 }
 
 @media (min-width: 768px) {
-  .floating-cart {
+  .floating-cart-anchor {
     display: none;
   }
 }
