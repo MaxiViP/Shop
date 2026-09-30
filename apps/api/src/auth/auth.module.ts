@@ -12,6 +12,7 @@ import { StaffGuard } from './staff.guard.js';
 import { AdminLoginGuard } from './admin-login.guard.js';
 import { MethodGuard } from './method.guard.js';
 import { OtpCodeGuard, OtpLoginGuard } from './otp.guard.js';
+import { DisabledOtpSms, OtpSmsProvider } from './otp-sms.provider.js';
 
 @Module({
   imports: [DbModule],
@@ -30,6 +31,7 @@ import { OtpCodeGuard, OtpLoginGuard } from './otp.guard.js';
     MethodGuard,
     OtpCodeGuard,
     OtpLoginGuard,
+    { provide: OtpSmsProvider, useClass: DisabledOtpSms },
   ],
 
   exports: [AuthService, AuthGuard, AdminGuard, StaffGuard],

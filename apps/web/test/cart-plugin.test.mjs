@@ -84,6 +84,7 @@ test("authenticated launch merges guest once and never persists server cart to l
   assert.equal(f.cart.mode, "server");
   assert.equal(f.cart.restored, true);
   assert.equal(f.cart.qty(1), 500);
+  assert.equal(f.cart.additionRevision, 0);
   assert.equal(f.saved, null);
   assert.equal(f.removals, 1);
   assert.equal(f.writes, 0);
@@ -92,6 +93,7 @@ test("authenticated launch merges guest once and never persists server cart to l
   f.listeners.get("focus")();
   await settled();
   assert.equal(f.cart.qty(1), 800);
+  assert.equal(f.cart.additionRevision, 0);
   assert.equal(f.writes, 0);
 });
 
@@ -120,6 +122,7 @@ test("guest cart created before login is merged from memory and is not lost", as
   assert.equal(f.cart.mode, "server");
   assert.equal(f.cart.restored, true);
   assert.equal(f.mergeBodies[0].items[0].qty, 1000);
+  assert.equal(f.cart.additionRevision, 0);
   assert.equal(f.saved, null);
 });
 

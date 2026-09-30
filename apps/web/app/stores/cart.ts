@@ -25,6 +25,7 @@ export const useCartStore = defineStore("cart", () => {
   } | null = null;
   let queue: Promise<void> = Promise.resolve();
   const restored = ref(false);
+  const additionRevision = ref(0);
   const storageWarning = ref("");
   const priceChanged = ref(false);
   const quote = ref<CartQuote | null>(null);
@@ -39,6 +40,10 @@ export const useCartStore = defineStore("cart", () => {
 
   function qty(id: number) {
     return items.value.find((item) => item.product.id === id)?.qty ?? 0;
+  }
+
+  function noteAddition() {
+    additionRevision.value++;
   }
 
   const total = computed(() =>
@@ -259,6 +264,8 @@ export const useCartStore = defineStore("cart", () => {
     restore,
     put,
     restored,
+    additionRevision,
+    noteAddition,
     storageWarning,
     priceChanged,
     key,

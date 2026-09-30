@@ -1,4 +1,9 @@
 <template>
+  <div
+    id="floating-cart-anchor"
+    class="floating-cart-anchor"
+    :class="{ 'floating-cart-anchor--visible': floatingCartVisible }"
+  />
   <header class="header" :class="{ 'header--hidden': mobileHeaderHidden }">
     <UContainer class="header__inner" :inert="mobileHeaderHidden">
       <UButton
@@ -7,26 +12,46 @@
         color="neutral"
         :aria-label="mobileOpen ? 'Закрыть меню' : 'Открыть меню'"
         aria-haspopup="dialog"
+        aria-controls="mobile-menu"
         :aria-expanded="mobileOpen"
         @click="mobileOpen = !mobileOpen"
       >
-        <span class="header__burger" aria-hidden="true" />
+        <span class="header__burger" aria-hidden="true">
+          <span class="header__burger-line" />
+          <span class="header__burger-line" />
+          <span class="header__burger-line" />
+        </span>
       </UButton>
-      <NuxtLink
-        to="/"
-        class="header__brand"
-        aria-label="KorzinaMarket — на главную"
-      >
+
+      <NuxtLink to="/" class="header__brand" aria-label="KorzinaMarket — на главную">
         <AppMarketLogo />
       </NuxtLink>
 
       <nav class="header__nav" aria-label="Основная навигация">
-        <NuxtLink to="/catalog">Каталог</NuxtLink>
-        <NuxtLink to="/delivery">Доставка</NuxtLink>
+        <NuxtLink
+          to="/catalog"
+          class="header__nav-link"
+          :class="{ 'header__nav-link--active': catalogActive }"
+          :aria-current="catalogActive ? 'page' : undefined"
+          aria-label="Каталог"
+          title="Каталог"
+        >
+          <UIcon name="i-lucide-layout-grid" aria-hidden="true" />
+        </NuxtLink>
+        <NuxtLink
+          to="/delivery"
+          class="header__nav-link"
+          :class="{ 'header__nav-link--active': deliveryActive }"
+          :aria-current="deliveryActive ? 'page' : undefined"
+          aria-label="Доставка"
+          title="Доставка"
+        >
+          <UIcon name="i-lucide-truck" aria-hidden="true" />
+        </NuxtLink>
         <a
           v-if="customerTelegramUrl"
           :href="customerTelegramUrl"
-          class="header__telegram"
+          class="header__nav-link"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Покупать в Telegram"
@@ -34,10 +59,7 @@
         >
           <UIcon name="i-lucide-send" aria-hidden="true" />
         </a>
-      </nav>
-
-      <div class="header__actions">
-        <AppThemeControl class="header__theme" />
+        <div class="header__nav-theme"><AppThemeControl /></div>
         <UButton
           v-if="account.adminTo"
           :to="account.adminTo"
@@ -47,12 +69,13 @@
           color="neutral"
           aria-label="Админка"
           title="Админка"
-        >
-          <span class="header__admin-label">Админка</span>
-        </UButton>
+        />
+      </nav>
 
+      <div class="header__actions">
         <UButton
           :to="account.to"
+          class="header__profile"
           icon="i-lucide-user"
           variant="ghost"
           color="neutral"
@@ -60,8 +83,8 @@
           :title="account.label"
           @click="!account.to && login()"
         />
-
-        <div class="header__action">
+        <AppOrdersAction class="header__orders" :action="orders" />
+        <div class="header__action header__action--favorites">
           <UButton
             to="/favorites"
             class="header__favorites"
@@ -74,35 +97,36 @@
               <path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676a.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" />
             </svg>
           </UButton>
-          <span v-if="favorites.count" class="header__count">
-            {{ favorites.count }}
-          </span>
+          <span v-if="favorites.count" class="header__count">{{ favorites.count }}</span>
           <AppHeaderNotice target="favorites" />
         </div>
-
-        <div class="header__action">
-          <UButton
-            to="/cart"
-            icon="i-lucide-shopping-basket"
-            variant="ghost"
-            color="neutral"
-            class="header__cart"
-            :aria-label="cartLabel"
-            :title="cartLabel"
-          >
-            <span
-              v-if="cart.count"
-              class="header__amount"
-              :class="{ 'header__amount--stale': !cart.quoteReady }"
-              >{{
-                cart.displayTotal !== null ? money(cart.displayTotal) : "…"
-              }}</span
+        <Teleport to="#floating-cart-anchor" :disabled="!floatingCartVisible">
+          <div class="header__action header__action--cart" :class="{ 'header__action--floating': floatingCartVisible }">
+            <NuxtLink
+              to="/cart"
+              class="cart-control"
+              :aria-label="cartLabel"
+              :title="cartLabel"
+              :aria-busy="cart.count > 0 && !cart.quoteReady ? true : undefined"
             >
-          </UButton>
-          <AppHeaderNotice v-if="!floatingCartVisible" target="cart" />
-        </div>
-
-        <AppOrdersAction class="header__secondary" :action="orders" />
+              <span
+                v-if="cart.count"
+                class="cart-control__amount"
+                :class="{ 'cart-control__amount--stale': !cart.quoteReady }"
+                aria-hidden="true"
+              >
+                <span
+                  :key="`${cart.displayTotal ?? 'pending'}-${cart.quoteReady}`"
+                  class="cart-control__amount-value"
+                >{{ cart.displayTotal !== null ? (!cart.quoteReady ? '≈ ' : '') + money(cart.displayTotal) : '…' }}</span>
+              </span>
+              <span class="cart-control__scene">
+                <AppBasketScene v-if="cart.restored" :key="sceneKey" :state="sceneState" />
+              </span>
+            </NuxtLink>
+            <AppHeaderNotice target="cart" :floating="floatingCartVisible" />
+          </div>
+        </Teleport>
       </div>
     </UContainer>
 
@@ -126,10 +150,16 @@
       }"
     >
       <template #body>
-        <nav class="mobile-nav" aria-label="Мобильная навигация">
+        <nav
+          id="mobile-menu"
+          class="mobile-nav"
+          aria-label="Мобильная навигация"
+          @click="closeMenuLink"
+          @keydown.esc="mobileOpen = false"
+        >
           <div class="mobile-nav__group">
             <NuxtLink to="/catalog" class="mobile-nav__link">
-              <UIcon name="i-lucide-store" />
+              <UIcon name="i-lucide-layout-grid" />
               <span>Каталог</span>
             </NuxtLink>
 
@@ -164,7 +194,7 @@
               class="mobile-nav__link"
               :aria-label="cartLabel"
             >
-              <UIcon name="i-lucide-shopping-basket" />
+              <UIcon name="i-lucide-shopping-cart" />
               <span>Корзина</span>
               <span
                 v-if="cart.count"
@@ -250,31 +280,7 @@
     <AuthModal v-model:open="loginOpen" />
   </header>
 
-  <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{
-    notice.current?.text ?? ""
-  }}</span>
-  <Transition name="floating-cart">
-    <div v-if="floatingCartVisible" class="floating-cart-anchor">
-      <UButton
-        to="/cart"
-        icon="i-lucide-shopping-basket"
-        variant="ghost"
-        color="neutral"
-        class="floating-cart"
-        :aria-label="cartLabel"
-        :title="cartLabel"
-      >
-        <span
-          v-if="cart.count"
-          class="floating-cart__amount"
-          :class="{ 'floating-cart__amount--stale': !cart.quoteReady }"
-        >
-          {{ cart.displayTotal !== null ? money(cart.displayTotal) : "…" }}
-        </span>
-      </UButton>
-      <AppHeaderNotice target="cart" floating />
-    </div>
-  </Transition>
+  <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ notice.current?.text ?? "" }}</span>
 </template>
 
 <script setup lang="ts">
@@ -293,6 +299,11 @@ const auth = useAuthStore();
 const orders = useOrdersAction();
 const cart = useCartStore();
 const favorites = useFavoritesStore();
+const { sceneKey, sceneState } = useBasketScene();
+const catalogActive = computed(() =>
+  route.path.startsWith("/catalog") || route.path.startsWith("/product/"),
+);
+const deliveryActive = computed(() => route.path === "/delivery");
 const cartLabel = computed(() =>
   !cart.count
     ? "Корзина"
@@ -311,18 +322,21 @@ watch(() => auth.user?.id, notice.clear);
 const loginOpen = ref(false);
 const mobileOpen = ref(false);
 const account = computed(() => headerAccount(auth.user));
+const staff = computed(
+  () => auth.user?.role === "SELLER" || auth.user?.role === "ADMIN",
+);
 
 const narrow = ref(false);
 const scrolled = ref(false);
 const mobileHeaderHidden = computed(
-  () => narrow.value && scrolled.value && !mobileOpen.value && !loginOpen.value,
+  () => narrow.value && scrolled.value && !mobileOpen.value && !loginOpen.value &&
+    notice.current?.target !== "favorites",
 );
 const floatingCartVisible = computed(
   () => mobileHeaderHidden.value && (cart.count > 0 || notice.current?.target === "cart"),
 );
 
 let stopScroll = () => {};
-
 onMounted(() => {
   const media = window.matchMedia("(width < 768px)");
   let frame = 0;
@@ -353,10 +367,7 @@ onMounted(() => {
   syncWidth();
   window.addEventListener("scroll", onScroll, { passive: true });
   media.addEventListener("change", syncWidth);
-  const stopWatch = watch(
-    [() => route.path, mobileOpen, loginOpen],
-    syncScroll,
-  );
+  const stopWatch = watch([() => route.path, mobileOpen, loginOpen], syncScroll);
   stopScroll = () => {
     window.removeEventListener("scroll", onScroll);
     media.removeEventListener("change", syncWidth);
@@ -366,21 +377,19 @@ onMounted(() => {
 });
 onBeforeUnmount(() => stopScroll());
 
-const staff = computed(
-  () => auth.user?.role === "SELLER" || auth.user?.role === "ADMIN",
-);
-
-watch(
-  () => route.fullPath,
-  () => {
-    mobileOpen.value = false;
-    notice.clear();
-  },
-);
+watch(() => route.fullPath, () => {
+  mobileOpen.value = false;
+  notice.clear();
+});
 
 function login() {
   mobileOpen.value = false;
   loginOpen.value = true;
+}
+
+function closeMenuLink(event: MouseEvent) {
+  if (event.target instanceof Element && event.target.closest("a"))
+    mobileOpen.value = false;
 }
 </script>
 
@@ -389,102 +398,8 @@ function login() {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: var(--ui-bg);
   border-bottom: 1px solid var(--ui-border);
-}
-
-.header__theme {
-  display: flex;
-  flex: 0 0 auto;
-}
-
-.header__admin-action {
-  display: none;
-}
-
-.floating-cart-anchor {
-  position: fixed;
-  top: max(0.5rem, env(safe-area-inset-top, 0px));
-  right: max(0.5rem, env(safe-area-inset-right, 0px));
-  z-index: 30;
-  max-width: calc(
-    100vw - max(0.5rem, env(safe-area-inset-left, 0px)) -
-      max(0.5rem, env(safe-area-inset-right, 0px))
-  );
-}
-
-.floating-cart {
-  min-width: 44px;
-  min-height: 44px;
-  max-width: 100%;
-  gap: 0.5rem;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid var(--ui-border);
-  border-radius: 999px;
   background: var(--ui-bg);
-  color: var(--ui-text);
-  box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
-}
-
-.floating-cart:hover {
-  background: var(--ui-bg-elevated);
-}
-
-.floating-cart:focus-visible {
-  outline: 2px solid var(--ui-primary);
-  outline-offset: 2px;
-}
-
-.floating-cart__amount {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.floating-cart__amount--stale {
-  color: var(--ui-text-muted);
-}
-
-.floating-cart-enter-active {
-  transition:
-    opacity 180ms ease 180ms,
-    transform 180ms ease 180ms;
-}
-
-.floating-cart-enter-from {
-  opacity: 0;
-  transform: translateY(-0.25rem);
-}
-
-/* Remove the floating control immediately when the header returns. */
-.floating-cart-leave-active {
-  display: none;
-}
-
-@media (width < 768px) {
-  .header {
-    transition: transform 180ms ease;
-  }
-
-  .header--hidden {
-    transform: translateY(-100%);
-  }
-}
-
-@media (min-width: 768px) {
-  .floating-cart-anchor {
-    display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .header,
-  .floating-cart-enter-active {
-    transition: none;
-  }
 }
 
 .header__inner {
@@ -492,21 +407,23 @@ function login() {
   min-width: 0;
   min-height: var(--header-height);
   align-items: center;
-  gap: 0.25rem;
+  gap: 0;
 }
 
 .header__brand {
   display: flex;
-  align-items: center;
-  flex-shrink: 0;
   min-width: 44px;
   min-height: 44px;
-  margin-right: auto;
+  flex: 0 0 auto;
+  align-items: center;
   border-radius: 0.5rem;
 }
-.header__brand:focus-visible {
+
+.header__brand:focus-visible,
+.header__nav-link:focus-visible,
+.cart-control:focus-visible {
   outline: 2px solid var(--ui-primary);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 
 .header__menu,
@@ -519,55 +436,36 @@ function login() {
 }
 
 .header__burger {
-  position: relative;
-  display: block;
+  display: flex;
   width: 1.25rem;
   height: 1rem;
   flex: none;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
-.header__burger::before,
-.header__burger::after {
-  content: "";
-  position: absolute;
-  left: 0;
+.header__burger-line {
+  display: block;
+  width: 100%;
   height: 2px;
   border-radius: 999px;
   background: currentColor;
-  transition:
-    transform 180ms ease,
-    width 180ms ease;
+  transition: transform 180ms ease, opacity 180ms ease;
 }
 
-.header__burger::before {
-  top: 4px;
-  width: 100%;
+.header__menu[aria-expanded="true"] .header__burger-line:first-child {
+  transform: translateY(7px) rotate(45deg);
 }
 
-.header__burger::after {
-  bottom: 4px;
-  width: 70%;
+.header__menu[aria-expanded="true"] .header__burger-line:nth-child(2) {
+  opacity: 0;
 }
 
-.header__menu[aria-expanded="true"] .header__burger::before {
-  transform: translateY(3px) rotate(45deg);
+.header__menu[aria-expanded="true"] .header__burger-line:last-child {
+  transform: translateY(-7px) rotate(-45deg);
 }
 
-.header__menu[aria-expanded="true"] .header__burger::after {
-  width: 100%;
-  transform: translateY(-3px) rotate(-45deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .header__burger::before,
-  .header__burger::after {
-    transition: none;
-  }
-}
-
-.header__nav,
-.header__secondary,
-.header__admin-label {
+.header__nav {
   display: none;
 }
 
@@ -575,11 +473,29 @@ function login() {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 0.125rem;
+  margin-left: auto;
+  gap: 0.25rem;
+}
+
+.header__profile,
+.header__orders,
+.header__favorites,
+.header__action--favorites .header__count {
+  display: none;
+}
+
+/* Keep the favorites notice mounted beside the cart when its icon moves to the drawer. */
+.header__action--favorites {
+  width: 0;
+}
+
+.header__orders :deep(.orders-action__label) {
+  display: none;
 }
 
 .header__action {
   position: relative;
+  flex: none;
 }
 
 .header__favorites {
@@ -588,6 +504,15 @@ function login() {
 
 .header__favorites:hover {
   background: rgb(225 29 72 / 10%);
+}
+
+.header__profile.router-link-active,
+.header__orders :deep(.orders-action__button.router-link-active),
+.header__favorites.router-link-active,
+.cart-control.router-link-active,
+.header__admin-action.router-link-active {
+  background: color-mix(in srgb, var(--ui-primary) 12%, transparent);
+  color: var(--ui-primary);
 }
 
 .header__favorites:focus-visible {
@@ -608,35 +533,6 @@ function login() {
   stroke-linejoin: round;
 }
 
-.header__cart {
-  flex-direction: column;
-  width: clamp(2.75rem, calc(100vw - 17rem), 6rem);
-  gap: 0.125rem;
-  padding-inline: 0.125rem;
-}
-
-.header__amount {
-  max-width: 100%;
-  font-size: 0.75rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-
-.header__amount--stale,
-.mobile-nav__amount--stale {
-  color: var(--ui-text-muted);
-}
-
-.mobile-nav__amount {
-  max-width: 8rem;
-  text-align: right;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
 .header__count {
   position: absolute;
   top: 0;
@@ -653,6 +549,130 @@ function login() {
   font-weight: 700;
   line-height: 1;
   pointer-events: none;
+}
+
+.cart-control {
+  display: inline-flex;
+  min-width: var(--touch-target);
+  min-height: 3rem;
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  padding: 0.125rem;
+  border-radius: 0.75rem;
+  color: var(--ui-text);
+  text-decoration: none;
+}
+
+.cart-control:hover {
+  background: var(--ui-bg-elevated);
+}
+
+.cart-control__scene {
+  display: block;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+}
+
+.cart-control__amount {
+  display: inline-flex;
+  min-height: 1.75rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--ui-success) 18%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+  color: var(--ui-text-highlighted);
+  font-size: clamp(0.8125rem, calc(0.75rem + 0.2vw), 0.875rem);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cart-control__amount-value {
+  display: inline-block;
+  white-space: nowrap;
+  animation: cart-control-refresh 180ms ease-out;
+}
+
+.cart-control__amount--stale {
+  border-color: color-mix(in srgb, var(--ui-success) 12%, transparent);
+  background: color-mix(in srgb, var(--ui-success) 6%, transparent);
+  color: var(--ui-text-muted);
+}
+
+.mobile-nav__amount--stale {
+  color: var(--ui-text-muted);
+}
+
+@keyframes cart-control-refresh {
+  from { opacity: 0.65; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.mobile-nav__amount {
+  max-width: 8rem;
+  text-align: right;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.floating-cart-anchor {
+  position: fixed;
+  top: max(0.5rem, env(safe-area-inset-top, 0px));
+  right: max(0.5rem, env(safe-area-inset-right, 0px));
+  z-index: 31;
+  max-width: calc(100vw - max(0.5rem, env(safe-area-inset-left, 0px)) - max(0.5rem, env(safe-area-inset-right, 0px)));
+  pointer-events: none;
+}
+
+.floating-cart-anchor--visible .header__action {
+  pointer-events: auto;
+}
+
+.header__action--floating .cart-control {
+  min-height: 3.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--ui-border);
+  border-radius: 1rem;
+  background: var(--ui-bg);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
+}
+
+@media (width < 768px) {
+  .header {
+    transition: transform 180ms ease;
+  }
+
+  .header--hidden {
+    transform: translateY(-100%);
+  }
+}
+
+@media (min-width: 24rem) {
+  .header__orders {
+    display: block;
+  }
+}
+
+@media (min-width: 28rem) {
+  .header__action--favorites {
+    width: auto;
+  }
+
+  .header__favorites {
+    display: inline-flex;
+  }
+
+  .header__action--favorites .header__count {
+    display: grid;
+  }
 }
 
 .mobile-nav {
@@ -736,34 +756,10 @@ function login() {
   padding-block: 0.25rem;
 }
 
-@media (min-width: 48rem) {
-  .header__secondary {
-    display: flex;
-  }
-  .header__admin-action {
-    display: inline-flex;
-  }
-}
 
 @media (min-width: 48rem) {
-  .header__cart {
-    flex-direction: row;
-    width: auto;
-    max-width: 12rem;
-    gap: 0.5rem;
-    padding-inline: 0.5rem;
-  }
-
-  .header__amount {
-    font-size: 0.875rem;
-  }
-
   .header__inner {
-    gap: 1rem;
-  }
-
-  .header__brand {
-    margin-right: 0;
+    gap: clamp(0.25rem, 0.8vw, 0.75rem);
   }
 
   .header__menu {
@@ -772,48 +768,62 @@ function login() {
 
   .header__nav {
     display: flex;
+    min-width: 0;
     align-items: center;
+    gap: 0.125rem;
   }
 
-  .header__nav {
-    gap: 1.5rem;
-    margin-right: auto;
-  }
-
-  .header__nav > a {
+  .header__nav-link {
     display: inline-flex;
-    align-items: center;
-    min-height: var(--touch-target);
-  }
-
-  .header__telegram {
     width: 44px;
     min-width: 44px;
-    height: 44px;
+    min-height: 44px;
+    align-items: center;
     justify-content: center;
     border-radius: 0.5rem;
+    color: var(--ui-text);
   }
 
-  .header__telegram:hover {
+  .header__nav-link:hover,
+  .header__nav-link--active {
     background: var(--ui-bg-elevated);
+    color: var(--ui-primary);
   }
 
-  .header__telegram:focus-visible {
-    outline: 2px solid var(--ui-primary);
-    outline-offset: 2px;
+  .header__nav-link > :first-child {
+    width: 1.25rem;
+    height: 1.25rem;
   }
 
-  .header__actions {
-    gap: 0.25rem;
+  .header__nav-theme {
+    flex: none;
+  }
+
+  .header__admin-action {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .header__profile {
+    display: inline-flex;
+  }
+
+  .cart-control {
+    min-height: 44px;
+    padding-inline: 0.375rem;
+  }
+
+  .floating-cart-anchor {
+    display: none;
   }
 }
-@media (min-width: 64rem) {
-  .header__inner {
-    gap: 2rem;
-  }
 
-  .header__admin-label {
-    display: inline;
+@media (prefers-reduced-motion: reduce) {
+  .header,
+  .header__burger-line,
+  .cart-control__amount-value {
+    transition: none;
+    animation: none;
   }
 }
 </style>

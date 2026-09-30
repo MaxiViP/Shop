@@ -124,7 +124,7 @@ onBeforeUnmount(reset);
   .header-notice__progress-fill--run {
     /* Elapsed-time indicator, not decorative motion: override main.css's
        universal 0.01ms !important reset only for this timer fill. */
-    transition-duration: var(--notice-duration) !important;
+    transition-duration: var(--notice-remaining) !important;
   }
   .header-notice-enter-active,
   .header-notice-leave-active {

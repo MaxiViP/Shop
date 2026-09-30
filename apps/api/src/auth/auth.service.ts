@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
@@ -21,21 +22,28 @@ import type { Prisma } from '../db/gen/client.js';
 import { guestTokenHash } from '../common/guest.js';
 import { adminPhone } from './admin.config.js';
 import { authUser, authUserSelect } from './auth-user.js';
+import { otpDeliveryMode } from './otp-delivery.js';
+import { DisabledOtpSms, OtpSmsProvider } from './otp-sms.provider.js';
 
 const OTP_TTL = 5 * 60 * 1000;
 const OTP_COOLDOWN = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
+const DEMO_OTP_PREFIX = 'demo:';
 export const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 
 export const SID = process.env.NODE_ENV === 'production' ? '__Host-sid' : 'sid';
 
-const testPhoneAuthEnabled = () => process.env.TEST_PHONE_AUTH_ENABLED === 'true';
+const testPhoneAuthEnabled = () =>
+  process.env.TEST_PHONE_AUTH_ENABLED === 'true' && otpDeliveryMode() !== 'DEMO';
 
 @Injectable()
 export class AuthService {
   private readonly secret: string;
 
-  constructor(private readonly db: DbService) {
+  constructor(
+    private readonly db: DbService,
+    private readonly sms: OtpSmsProvider = new DisabledOtpSms(),
+  ) {
     const secret = process.env.AUTH_SECRET;
 
     if (!secret) {
@@ -80,7 +88,7 @@ export class AuthService {
         data: { phone, role: 'USER' },
         select: authUserSelect,
       });
-      const token = await this.createSession(db, user.id, previousToken, true);
+      const token = await this.createSession(db, user.id, previousToken, 'TEST_PHONE');
       return { token, user: authUser(user) };
     });
   }
@@ -88,8 +96,20 @@ export class AuthService {
   async code(value: unknown) {
     const phone = normalizePhone(value);
     await this.rejectAdminOtp(phone);
+    const mode = otpDeliveryMode();
+    if (mode === 'INVALID' || (mode === 'SMS' && !this.sms.available))
+      throw new ServiceUnavailableException('Доставка кода недоступна');
+    const smsHost = mode === 'SMS' ? this.smsHost() : null;
     const code = await this.db.$transaction(async (db) => {
       await this.lockOtp(db, phone);
+      if (mode === 'DEMO') {
+        const existing = await db.user.findUnique({
+          where: { phone },
+          select: { role: true },
+        });
+        if (existing?.role === 'SELLER')
+          throw new UnauthorizedException('Демонстрационный вход доступен только покупателю');
+      }
       const now = Date.now();
       const current = await db.otp.findUnique({ where: { phone } });
       if (current && now - current.createdAt.getTime() < OTP_COOLDOWN) {
@@ -101,7 +121,9 @@ export class AuthService {
       const code = String(randomInt(100000, 1000000));
       const data = {
         id: randomUUID(),
-        codeHash: this.codeHash(phone, code),
+        codeHash: mode === 'DEMO'
+          ? `${DEMO_OTP_PREFIX}${this.codeHash(phone, code)}`
+          : this.codeHash(phone, code),
         attempts: 0,
         expiresAt: new Date(now + OTP_TTL),
         createdAt: new Date(now),
@@ -114,13 +136,15 @@ export class AuthService {
       return code;
     });
 
-    // A future SMS adapter must run after this transaction commits, never inside it.
-    return process.env.NODE_ENV === 'production'
-      ? { ok: true }
-      : {
-          ok: true,
-          devCode: code,
-        };
+    if (mode === 'DEMO') return { ok: true, demoCode: code };
+    if (mode === 'DEV') return { ok: true, devCode: code };
+    try {
+      await this.sms.send(phone, `Код KorzinaMarket: ${code}\n\n@${smsHost} #${code}`);
+    } catch {
+      // Unknown provider outcomes are never retried automatically.
+      throw new ServiceUnavailableException('Не удалось отправить код');
+    }
+    return { ok: true };
   }
 
   async login(
@@ -148,7 +172,13 @@ export class AuthService {
           HttpStatus.TOO_MANY_REQUESTS,
         );
 
-      if (!this.equal(otp.codeHash, this.codeHash(phone, codeValue))) {
+      const demoOtp = otp.codeHash.startsWith(DEMO_OTP_PREFIX);
+      if (demoOtp && otpDeliveryMode() !== 'DEMO')
+        throw new UnauthorizedException('Код больше недоступен');
+      const storedHash = demoOtp
+        ? otp.codeHash.slice(DEMO_OTP_PREFIX.length)
+        : otp.codeHash;
+      if (!this.equal(storedHash, this.codeHash(phone, codeValue))) {
         await db.otp.update({
           where: { id: otp.id },
           data: { attempts: { increment: 1 } },
@@ -165,6 +195,18 @@ export class AuthService {
           'Код истёк или был заменён. Запросите новый код',
         );
       const select = authUserSelect;
+      if (demoOtp) {
+        // A publicly displayed OTP proves no phone ownership or account link.
+        const existing = await db.user.findUnique({ where: { phone }, select });
+        if (existing && existing.role !== 'USER')
+          throw new UnauthorizedException('Демонстрационный вход доступен только покупателю');
+        const user = existing ?? await db.user.create({
+          data: { phone, role: 'USER' },
+          select,
+        });
+        const token = await this.createSession(db, user.id, previousToken, 'DEMO_OTP');
+        return { token, user: authUser(user) };
+      }
       // Serialize phone attachment for the same account as well as the OTP phone.
       if (currentUserId)
         await db.$executeRaw`SELECT pg_advisory_xact_lock(704004, ${currentUserId}::integer)`;
@@ -231,6 +273,19 @@ export class AuthService {
     return result;
   }
 
+  private smsHost() {
+    const configured = process.env.ORDER_SITE_URL;
+    try {
+      if (!configured) throw new Error('CONFIG');
+      const url = new URL(configured);
+      if (url.protocol !== 'https:' || url.username || url.password)
+        throw new Error('CONFIG');
+      return url.hostname;
+    } catch {
+      throw new ServiceUnavailableException('Доставка кода недоступна');
+    }
+  }
+
   private async lockOtp(db: Prisma.TransactionClient, phone: string) {
     // A row lock alone cannot serialize the first request when Otp does not exist.
     // All code/login writers use this transaction-scoped, per-phone lock.
@@ -240,7 +295,9 @@ export class AuthService {
 
   async me(token?: string) {
     // Temporary sessions stop authorizing as soon as test mode is disabled.
-    if (!token || (token.startsWith('tp_') && !testPhoneAuthEnabled()))
+    if (!token ||
+      (token.startsWith('tp_') && !testPhoneAuthEnabled()) ||
+      (token.startsWith('do_') && otpDeliveryMode() !== 'DEMO'))
       return null;
 
     const tokenHash = this.tokenHash(token);
@@ -356,9 +413,10 @@ export class AuthService {
     db: Prisma.TransactionClient,
     userId: number,
     previousToken?: string,
-    testPhone = false,
+    mode?: 'TEST_PHONE' | 'DEMO_OTP',
   ) {
-    const token = `${testPhone ? 'tp_' : ''}${randomBytes(32).toString('hex')}`;
+    const prefix = mode === 'TEST_PHONE' ? 'tp_' : mode === 'DEMO_OTP' ? 'do_' : '';
+    const token = `${prefix}${randomBytes(32).toString('hex')}`;
     if (previousToken)
       await db.session.deleteMany({
         where: { tokenHash: this.tokenHash(previousToken) },

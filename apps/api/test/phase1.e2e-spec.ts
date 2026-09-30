@@ -86,20 +86,26 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     return `${SID}=${token}`;
   }
   async function create(type = 'DELIVERY', cookie = owner) {
+    const cart = cookie ? (await call(cookie).get('/cart').expect(200)).body : null;
+    const changed = cart
+      ? (await call(cookie).post('/cart/change', { revision: cart.revision, kind: 'set', productId, qty: 1000 }).expect(201)).body
+      : null;
     const response = await call(cookie)
-      .post('/orders', {
+      .post(cookie ? '/cart/checkout' : '/orders', {
+        ...(changed ? { revision: changed.revision } : {}),
         type,
         customerName: 'Fixture',
         customerPhone: '+79990000103',
         ...(type === 'DELIVERY'
           ? { address: { city: 'Москва', street: 'Тестовая', house: '1' } }
           : {}),
-        items: [{ productId, qty: 1000 }],
+        ...(!cookie ? { items: [{ productId, qty: 1000 }] } : {}),
       })
       .expect(201);
+    const order = cookie ? response.body.order : response.body;
     return {
-      id: response.body.id as number,
-      publicId: response.body.publicId as string,
+      id: order.id as number,
+      publicId: order.publicId as string,
       cookie:
         cookie ||
         (response.headers['set-cookie'] as unknown as string[])[0]!.split(
@@ -227,19 +233,23 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       await call(admin).patch('/admin/settings', { deliveryEnabled: false, pickupEnabled: false }).expect(400);
       for (const input of [{ minDeliverySubtotal: -1 }, { maxOrderExtraUnitPrice: 0 }, { maxOrderExtrasTotal: 1.5 }, { minDeliverySubtotal: 100000001 }])
         await call(admin).patch('/admin/settings', input).expect(400);
-      const checkout = (type: string, qty = 2500) => call(owner).post('/orders', { type, customerName: 'Limits', customerPhone: '+79990000103', ...(type === 'DELIVERY' ? { address: { city: 'Москва', street: 'Тест', house: '1' } } : {}), items: [{ productId, qty }] });
-      await checkout('DELIVERY').expect(400);
-      const pickup = (await checkout('PICKUP').expect(201)).body;
-      await checkout('DELIVERY', 3000).expect(201);
+      const checkout = async (type: 'DELIVERY' | 'PICKUP', qty = 2500, expected = 201) => {
+        const cart = (await call(owner).get('/cart').expect(200)).body;
+        const changed = (await call(owner).post('/cart/change', { revision: cart.revision, kind: 'set', productId, qty }).expect(201)).body;
+        return call(owner).post('/cart/checkout', { revision: changed.revision, type, customerName: 'Limits', customerPhone: '+79990000103', ...(type === 'DELIVERY' ? { address: { city: 'Москва', street: 'Тестовая', house: '1' } } : {}) }).expect(expected);
+      };
+      await checkout('DELIVERY', 2500, 400);
+      const pickup = (await checkout('PICKUP')).body.order;
+      await checkout('DELIVERY', 3000);
       await call(admin).patch('/admin/settings', { minDeliverySubtotal: 200000 }).expect(200);
-      const old = (await checkout('DELIVERY').expect(201)).body;
+      const old = (await checkout('DELIVERY')).body.order;
       await call(admin).patch('/admin/settings', { minDeliverySubtotal: 400000 }).expect(200);
-      await checkout('DELIVERY').expect(400);
+      await checkout('DELIVERY', 2500, 400);
       expect((await call(owner).get(`/orders/${old.publicId}`).expect(200)).body.subtotal).toBe(250000);
       await call(admin).patch('/admin/settings', { deliveryEnabled: false }).expect(200);
-      await checkout('DELIVERY', 5000).expect(400);
+      await checkout('DELIVERY', 5000, 400);
       await call(admin).patch('/admin/settings', { deliveryEnabled: true, pickupEnabled: false }).expect(200);
-      await checkout('PICKUP').expect(400);
+      await checkout('PICKUP', 2500, 400);
       const id = pickup.id as number;
       await call(seller).post(`/staff/orders/${id}/confirm`).expect(201);
       await call(seller).post(`/staff/orders/${id}/assembly/start`).expect(201);
@@ -1204,7 +1214,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       where: { id: productId },
       data: { price: 100000000, priceQty: 1 },
     });
-    await call(owner)
+    await call('')
       .post('/orders', {
         type: 'PICKUP',
         customerName: 'Fixture',

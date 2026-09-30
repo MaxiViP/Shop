@@ -29,8 +29,8 @@ test("customer bot URL validator rejects unsafe, missing and seller destinations
 
 test("desktop icon and burger item share a safe CUSTOMER-only external URL", async () => {
   const header = await readFile(new URL("../app/components/app/Header.vue", import.meta.url), "utf8");
-  assert.match(header, /<nav class="header__nav"[\s\S]*?<a\s+v-if="customerTelegramUrl"[\s\S]*?class="header__telegram"[\s\S]*?target="_blank"[\s\S]*?rel="noopener noreferrer"[\s\S]*?aria-label="Покупать в Telegram"[\s\S]*?title="Покупать в Telegram"[\s\S]*?i-lucide-send/);
-  assert.match(header, /class="header__telegram"[\s\S]*?width: 44px;[\s\S]*?height: 44px;/);
+  assert.match(header, /<nav class="header__nav"[\s\S]*?<a\s+v-if="customerTelegramUrl"[\s\S]*?class="header__nav-link"[\s\S]*?target="_blank"[\s\S]*?rel="noopener noreferrer"[\s\S]*?aria-label="Покупать в Telegram"[\s\S]*?title="Покупать в Telegram"[\s\S]*?i-lucide-send/);
+  assert.match(header, /\.header__nav-link\s*\{[^}]*width: 44px;[^}]*min-height: 44px;/);
   assert.match(header, /v-if="customerTelegramUrl"[\s\S]*?:href="customerTelegramUrl"[\s\S]*?class="mobile-nav__link"[\s\S]*?target="_blank"[\s\S]*?rel="noopener noreferrer"[\s\S]*?Покупать в Telegram/);
   assert.match(header, /customerBotUrl\(useRuntimeConfig\(\)\.public\.telegramCustomerBotUrl\)/);
   assert.doesNotMatch(header, /korzinamarket_seller_bot/);

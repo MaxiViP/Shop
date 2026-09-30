@@ -75,7 +75,7 @@ test("timer has a scoped exception to global reduced-motion reset, not a full-wi
   );
   assert.match(
     reduced,
-    /\.header-notice__progress-fill--run\s*\{[^}]*transition-duration:\s*var\(--notice-duration\)\s*!important/,
+    /\.header-notice__progress-fill--run\s*\{[^}]*transition-duration:\s*var\(--notice-remaining\)\s*!important/,
   );
   assert.doesNotMatch(reduced, /width:\s*100%|animation:\s*none/);
   assert.match(component, /:key="notice.id"/);
@@ -144,16 +144,21 @@ test("auto dismiss and cleanup cancel pending state without affecting another in
   state.clear();
 });
 
-test("cart notice follows the visible cart anchor with one live announcement", async () => {
+test("one cart notice moves with the one cart control without resetting its progress", async () => {
   const header = await readFile(
     new URL("../app/components/app/Header.vue", import.meta.url), "utf8",
   );
   const panel = await readFile(
     new URL("../app/components/app/HeaderNotice.vue", import.meta.url), "utf8",
   );
-  assert.match(header, /<AppHeaderNotice v-if="!floatingCartVisible" target="cart" \/>/);
-  assert.match(header, /<div v-if="floatingCartVisible" class="floating-cart-anchor">[\s\S]*<AppHeaderNotice target="cart" floating \/>/);
+  assert.match(header, /<Teleport to="#floating-cart-anchor" :disabled="!floatingCartVisible">/);
+  assert.match(header, /<div\s+id="floating-cart-anchor"[\s\S]*floating-cart-anchor--visible/);
+  assert.equal((header.match(/<AppHeaderNotice target="cart"/g) ?? []).length, 1);
+  assert.equal((header.match(/<AppBasketScene /g) ?? []).length, 1);
+  assert.match(header, /<AppHeaderNotice target="cart" :floating="floatingCartVisible" \/>/);
+  assert.doesNotMatch(header, /<AppHeaderNotice v-if=/);
   assert.match(header, /mobileHeaderHidden\.value && \(cart\.count > 0 \|\| notice\.current\?\.target === "cart"\)/);
+  assert.match(header, /notice\.current\?\.target !== "favorites"/);
   assert.equal((header.match(/role="status"/g) ?? []).length, 1);
   assert.equal((panel.match(/role="status"/g) ?? []).length, 0);
   assert.match(header, /<AppHeaderNotice target="favorites" \/>/);

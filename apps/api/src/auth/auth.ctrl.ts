@@ -54,6 +54,7 @@ export class AuthCtrl {
   }
 
   @Post('code')
+  @Header('Cache-Control', 'no-store')
   @UseGuards(OtpCodeGuard)
   code(
     @Body({

@@ -14,6 +14,8 @@ import { PrismaClient } from '../src/db/gen/client.js';
 import { DbService } from '../src/db/db.service.js';
 import { AuthModule } from '../src/auth/auth.module.js';
 import { AuthService, SID } from '../src/auth/auth.service.js';
+import { OtpSmsProvider } from '../src/auth/otp-sms.provider.js';
+import { GID, guestTokenHash } from '../src/common/guest.js';
 import { configureProxy } from '../src/auth/proxy.js';
 
 // PostgreSQL transactions and observable lock queues, not mocked race outcomes.
@@ -28,6 +30,7 @@ describe.skipIf(!process.env.DATABASE_URL)('OTP lifecycle / PostgreSQL', () => {
   let created = false;
   let sequence = randomInt(1000000, 8000000);
   let ipSequence = 0;
+  const sms = { available: false, send: vi.fn(async (_phone: string, _text: string) => {}) };
   const phone = () => `+7991${sequence++}`;
   const ip = () => `198.51.100.${++ipSequence}`;
   const hash = (number: string, code: string) =>
@@ -105,6 +108,7 @@ describe.skipIf(!process.env.DATABASE_URL)('OTP lifecycle / PostgreSQL', () => {
   beforeAll(async () => {
     vi.stubEnv('AUTH_SECRET', secret);
     vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'false');
+    vi.stubEnv('OTP_DELIVERY_MODE', 'DEV');
     vi.stubEnv('ADMIN_PHONE', '+79990000001');
     vi.stubEnv('TRUST_PROXY', '127.0.0.1/32,::1/128');
     await connection.connect();
@@ -139,6 +143,8 @@ describe.skipIf(!process.env.DATABASE_URL)('OTP lifecycle / PostgreSQL', () => {
     const module = await Test.createTestingModule({ imports: [AuthModule] })
       .overrideProvider(DbService)
       .useValue(db)
+      .overrideProvider(OtpSmsProvider)
+      .useValue(sms)
       .compile();
     app = module.createNestApplication<NestExpressApplication>({
       logger: false,
@@ -149,7 +155,12 @@ describe.skipIf(!process.env.DATABASE_URL)('OTP lifecycle / PostgreSQL', () => {
     app.useGlobalPipes(new StandardSchemaValidationPipe({ transform: true }));
     await app.init();
   }, 30000);
-  afterEach(() => vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'false'));
+  afterEach(() => {
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'false');
+    vi.stubEnv('OTP_DELIVERY_MODE', 'DEV');
+    sms.available = false;
+    sms.send.mockClear();
+  });
   afterAll(async () => {
     await app?.close();
     await db?.$disconnect();
@@ -464,13 +475,130 @@ describe.skipIf(!process.env.DATABASE_URL)('OTP lifecycle / PostgreSQL', () => {
     expect(await app.get(AuthService).me(prior)).toBeNull();
     expect(await db.user.count({ where: { phone: number } })).toBe(1);
   });
-  it('production still omits devCode; this change does not implement SMS delivery', async () => {
-    const previous = process.env.NODE_ENV;
+  it('DEMO registers and reuses one unverified USER with a revocable demo SID', async () => {
+    vi.stubEnv('OTP_DELIVERY_MODE', 'DEMO');
+    const number = phone();
+    const previousNodeEnv = process.env.NODE_ENV;
     vi.stubEnv('NODE_ENV', 'production');
-    try {
-      await post('code', phone()).expect(201).expect({ ok: true });
-    } finally {
-      vi.stubEnv('NODE_ENV', previous);
+    const issued = await post('code', number).expect(201);
+    vi.stubEnv('NODE_ENV', previousNodeEnv);
+    expect(issued.body).toEqual({ ok: true, demoCode: expect.stringMatching(/^\d{6}$/) });
+    expect(issued.headers['cache-control']).toBe('no-store');
+    expect((await db.otp.findUniqueOrThrow({ where: { phone: number } })).codeHash)
+      .toMatch(/^demo:[a-f0-9]{64}$/);
+    const first = await post('login', number, issued.body.demoCode as string).expect(201);
+    const created = await db.user.findUniqueOrThrow({ where: { phone: number } });
+    expect(first.body).toMatchObject({ id: created.id, role: 'USER', verifiedAt: null });
+    expect(created.verifiedAt).toBeNull();
+    const cookie = (first.headers['set-cookie'] as string[])[0]!.split(';')[0]!;
+    expect(cookie).toMatch(new RegExp(`^${SID}=do_[a-f0-9]{64}$`));
+    await request(app.getHttpServer()).get('/api/auth/me')
+      .set('Cookie', cookie).expect(200).expect((response) => {
+        expect(response.body.id).toBe(created.id);
+      });
+    vi.stubEnv('OTP_DELIVERY_MODE', 'SMS');
+    await request(app.getHttpServer()).get('/api/auth/me')
+      .set('Cookie', cookie).expect(200).expect('');
+    vi.stubEnv('OTP_DELIVERY_MODE', 'DEMO');
+    const again = await post('code', number).expect(201);
+    const second = await post('login', number, again.body.demoCode as string).expect(201);
+    expect(second.body.id).toBe(created.id);
+    expect(await db.user.count({ where: { phone: number } })).toBe(1);
+    expect((await db.user.findUniqueOrThrow({ where: { id: created.id } })).verifiedAt).toBeNull();
+  });
+
+  it('DEMO preserves expiry, cooldown and attempt limits without logging in on a bad code', async () => {
+    vi.stubEnv('OTP_DELIVERY_MODE', 'DEMO');
+    const number = phone();
+    const issued = await post('code', number).expect(201);
+    await post('code', number).expect(429);
+    for (let attempt = 0; attempt < 5; attempt++)
+      await post('login', number, '000000').expect(401);
+    await post('login', number, issued.body.demoCode as string).expect(429);
+    expect(await sessions(number)).toBe(0);
+    const expired = phone();
+    const fresh = await post('code', expired).expect(201);
+    await db.otp.update({ where: { phone: expired }, data: { expiresAt: new Date(0) } });
+    await post('login', expired, fresh.body.demoCode as string).expect(401);
+    expect(await sessions(expired)).toBe(0);
+  });
+
+  it('DEMO never links a Telegram-only account or claims matching guest orders', async () => {
+    vi.stubEnv('OTP_DELIVERY_MODE', 'DEMO');
+    const number = phone();
+    const telegram = await db.user.create({
+      data: {
+        role: 'USER',
+        telegramIdentity: { create: {
+          telegramUserId: BigInt(Date.now()) * 1000n + BigInt(randomInt(1000)),
+          phoneNumber: number, phoneVerified: true,
+        } },
+      },
+    });
+    const prior = await db.$transaction((tx) =>
+      app.get(AuthService).createSession(tx, telegram.id));
+    const guestToken = randomBytes(32).toString('hex');
+    const guest = await db.guestSession.create({
+      data: { tokenHash: guestTokenHash(guestToken),
+        expiresAt: new Date(Date.now() + 600_000) },
+    });
+    const order = await db.order.create({
+      data: { type: 'PICKUP', customerName: 'Recipient', customerPhone: number,
+        subtotal: 100, total: 100, deliveryPrice: 0, guestSessionId: guest.id },
+    });
+    const issued = await post('code', number).expect(201);
+    const result = await post('login', number, issued.body.demoCode as string)
+      .set('Cookie', `${SID}=${prior}; ${GID}=${guestToken}`).expect(201);
+    expect(result.body.id).not.toBe(telegram.id);
+    expect(result.body.verifiedAt).toBeNull();
+    expect((await db.user.findUniqueOrThrow({ where: { id: telegram.id } })).phone).toBeNull();
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).userId).toBeNull();
+    expect(await app.get(AuthService).me(prior)).toBeNull();
+  });
+
+  it('DEMO cannot authorize ADMIN or SELLER and overrides the legacy TEST_PHONE route', async () => {
+    vi.stubEnv('OTP_DELIVERY_MODE', 'DEMO');
+    vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'true');
+    await request(app.getHttpServer()).post('/api/auth/method')
+      .send({ phone: '+79990000001' }).expect(201).expect({ method: 'PASSWORD' });
+    await post('code', '+79990000001').expect(401);
+    const number = phone();
+    await request(app.getHttpServer()).post('/api/auth/method')
+      .send({ phone: number }).expect(201).expect({ method: 'OTP' });
+    await testLogin(number).expect(404);
+    for (const role of ['ADMIN', 'SELLER'] as const) {
+      const blocked = phone();
+      await db.user.create({ data: { phone: blocked, role } });
+      await post('code', blocked).expect(401);
+      expect(await sessions(blocked)).toBe(0);
     }
+  });
+
+  it('SMS sends after commit, never returns a code, and keeps verified OTP login', async () => {
+    vi.stubEnv('OTP_DELIVERY_MODE', 'SMS');
+    vi.stubEnv('ORDER_SITE_URL', 'https://korzinamarket.ru');
+    const number = phone();
+    await post('code', number).expect(503);
+    expect(await db.otp.findUnique({ where: { phone: number } })).toBeNull();
+    sms.available = true;
+    const issued = await post('code', number).expect(201).expect({ ok: true });
+    expect(issued.text).not.toMatch(/devCode|demoCode/);
+    expect(sms.send).toHaveBeenCalledTimes(1);
+    const [recipient, text] = sms.send.mock.calls[0]!;
+    expect(recipient).toBe(number);
+    const code = text.match(/@korzinamarket\.ru #(\d{6})$/)?.[1];
+    expect(code).toMatch(/^\d{6}$/);
+    await post('login', number, code).expect(201);
+    expect((await db.user.findUniqueOrThrow({ where: { phone: number } })).verifiedAt)
+      .not.toBeNull();
+  });
+
+  it('a DEMO code cannot become a verified SMS login after switching mode', async () => {
+    vi.stubEnv('OTP_DELIVERY_MODE', 'DEMO');
+    const number = phone();
+    const issued = await post('code', number).expect(201);
+    vi.stubEnv('OTP_DELIVERY_MODE', 'SMS');
+    await post('login', number, issued.body.demoCode as string).expect(401);
+    expect(await db.user.findUnique({ where: { phone: number } })).toBeNull();
   });
 });

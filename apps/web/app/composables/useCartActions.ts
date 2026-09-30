@@ -7,16 +7,29 @@ export function useCartActions() {
 
   async function put(product: ProductListItem, qty: number) {
     if (!cart.restored || !validCartQty(qty, product)) return false;
-    if (cart.mode === "guest") return cart.put(product, qty);
-    return cart.changeServer({ kind: "set", productId: product.id, qty });
+    const before = cart.qty(product.id);
+    const changed = cart.mode === "guest"
+      ? cart.put(product, qty)
+      : await cart.changeServer({ kind: "set", productId: product.id, qty });
+    if (changed && cart.qty(product.id) > before) cart.noteAddition();
+    return changed;
   }
 
   async function add(product: ProductListItem) {
     if (!cart.restored) return false;
-    if (cart.mode === "guest") return cart.add(product);
-    const next = nextCartQty(cart.qty(product.id) || undefined, product);
+    const before = cart.qty(product.id);
+    if (cart.mode === "guest") {
+      const changed = cart.add(product);
+      if (changed && cart.qty(product.id) > before) cart.noteAddition();
+      return changed;
+    }
+    const next = nextCartQty(before || undefined, product);
     if (next === null) return false;
-    return cart.changeServer({ kind: "add", productId: product.id, qty: product.portionQty });
+    const changed = await cart.changeServer({
+      kind: "add", productId: product.id, qty: product.portionQty,
+    });
+    if (changed && cart.qty(product.id) > before) cart.noteAddition();
+    return changed;
   }
 
   async function subtract(product: ProductListItem) {
