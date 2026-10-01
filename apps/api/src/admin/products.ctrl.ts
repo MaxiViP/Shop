@@ -7,12 +7,14 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminGuard } from '../auth/admin.guard.js';
+import type { AuthRequest } from '../auth/auth.guard.js';
 import { AdminProductsService } from './products.service.js';
 import { ImagesService, type ImageFile } from './images.service.js';
 import {
@@ -42,15 +44,16 @@ export class AdminProductsCtrl {
     return this.products.get(id);
   }
   @Post()
-  create(@Body({ schema: productSchema }) body: ProductInput) {
-    return this.products.create(body);
+  create(@Body({ schema: productSchema }) body: ProductInput, @Req() request: AuthRequest) {
+    return this.products.create(body, request.user.id);
   }
   @Patch(':id')
   update(
     @Param('id', { schema: idSchema }) id: number,
     @Body({ schema: productPatch }) body: Partial<ProductInput>,
+    @Req() request: AuthRequest,
   ) {
-    return this.products.update(id, body);
+    return this.products.update(id, body, request.user.id);
   }
   @Delete(':id')
   remove(@Param('id', { schema: idSchema }) id: number) {

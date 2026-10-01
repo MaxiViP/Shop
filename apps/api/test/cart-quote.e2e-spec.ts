@@ -91,6 +91,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
           await readFile(join(root, migration.name, 'migration.sql'), 'utf8'),
         );
       }
+      const seededHours = await connection.query<{ weekday: number; openMinutes: number; closeMinutes: number }>(
+        'SELECT weekday, "openMinutes", "closeMinutes" FROM "ShopHours" ORDER BY weekday',
+      );
+      expect(seededHours.rows).toHaveLength(7);
+      expect(seededHours.rows.every(row => row.openMinutes === 540 && row.closeMinutes === 1260)).toBe(true);
+      // Checkout integration fixtures must remain valid regardless of test wall-clock time.
+      await connection.query('UPDATE "ShopHours" SET "openMinutes" = 0, "closeMinutes" = 1440');
       db = new PrismaClient({
         adapter: new PrismaPg(
           {
@@ -332,11 +339,27 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(await db.cart.count({ where: { userId: staff.id } })).toBe(0);
     });
 
+    it('rejects checkout when the market closes after a previously open storefront status', async () => {
+      const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow',
+        year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      const date = new Date(`${day}T00:00:00.000Z`);
+      const before = await db.order.count();
+      await db.shopHoursException.create({ data: { date, closed: true } });
+      try {
+        const response = await order('PICKUP').expect(409);
+        expect(response.body.code).toBe('SHOP_CLOSED');
+        expect(response.body.nextOpenAt).toEqual(expect.any(String));
+        expect(await db.order.count()).toBe(before);
+      } finally {
+        await db.shopHoursException.delete({ where: { date } });
+      }
+    });
+
     it('migration backfills every legacy product from min without changing existing columns', async () => {
       expect(legacyProducts).toHaveLength(4);
       const result = await connection.query('SELECT * FROM "Product" WHERE id < 0 ORDER BY id');
       expect(result.rows).toEqual(legacyProducts.map((product) => ({
-        ...product, portionQty: product.min,
+        ...product, portionQty: product.min, settlementMode: 'UNSET', basePrice: null,
       })));
       const column = await connection.query<{ is_nullable: string }>(
         `SELECT is_nullable FROM information_schema.columns

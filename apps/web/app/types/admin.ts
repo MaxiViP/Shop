@@ -21,6 +21,8 @@ export interface AdminProduct {
   slug: string;
   description: string | null;
   price: number;
+  settlementMode: "UNSET" | "SHARED_MARKUP" | "NO_MARKUP";
+  basePrice: number | null;
   priceQty: number;
   unit: Unit;
   step: number;
@@ -38,6 +40,7 @@ export interface AdminPage<T> {
   page: number;
   limit: number;
   pages: number;
+  unsetCount?: number;
 }
 export interface AdminUser {
   id: number;

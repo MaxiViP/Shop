@@ -273,7 +273,8 @@ export class StaffService {
     });
     if (changed) void this.notifications.dispatchTelegram(orderId).catch(() => {});
     await this.notifications.dispatch(orderId);
-    return saved;
+    const { settlementModeSnapshot: _mode, basePriceSnapshot: _base, ...publicItem } = saved;
+    return publicItem;
   }
 
   // The same snapshot-price and audit path serves manual, one-tap and bulk picking.
@@ -724,7 +725,7 @@ export class StaffService {
         where: { id },
 
         data: {
-          status: 'COMPLETED',
+          status: 'COMPLETED', completedAt: new Date(),
         },
       });
       await message(db, id, 'Заказ доставлен. Спасибо за покупку!', 'SYSTEM', actor?.userId ?? null, null, 'customer', 'ORDER_COMPLETED');
@@ -757,7 +758,7 @@ export class StaffService {
 
       const saved = await db.order.update({
         where: { id },
-        data: { status: next },
+        data: { status: next, ...(next === 'COMPLETED' ? { completedAt: new Date() } : {}) },
       });
       await message(db, id, next === 'CONFIRMED' ? 'Заказ подтверждён.' : next === 'ASSEMBLING' ? 'Началась сборка заказа.' : 'Заказ выдан. Спасибо за покупку!',
         'SYSTEM', actor?.userId ?? null, null, 'customer', next === 'CONFIRMED' ? 'ORDER_CONFIRMED' : next === 'ASSEMBLING' ? 'ASSEMBLY_STARTED' : 'ORDER_COMPLETED');

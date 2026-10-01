@@ -373,6 +373,7 @@ export class DeliveryService {
               : status === 'PICKED_UP'
                 ? 'DELIVERING'
                 : 'READY',
+          ...(status === 'DELIVERED' ? { completedAt: new Date() } : {}),
           ...deliveryTotals(order, price),
         },
       });
@@ -673,6 +674,7 @@ export class DeliveryService {
         where: { id: current.order.id },
         data: {
           status: orderStatus,
+          ...(orderStatus === 'COMPLETED' && current.order.status !== 'COMPLETED' ? { completedAt: new Date() } : {}),
           ...totals,
         },
       });

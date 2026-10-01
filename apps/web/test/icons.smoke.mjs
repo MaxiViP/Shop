@@ -199,8 +199,9 @@ try {
     assert.ok(svgs.length > 0, 'Product favorite SVG missing: ' + route);
     assert.match(markup, /class="header__burger"/, route + ': missing CSS menu control');
     assert.match(markup, /<svg\b[^>]*class="header__favorite-icon"/, route + ': missing filled favorite heart');
-    for (const icon of ['user', 'shopping-basket', admin ? 'clipboard-list' : 'package'])
+    for (const icon of ['user', admin ? 'clipboard-list' : 'package'])
       assert.ok(cssIcons.some(m => m[1] === icon), route + ': missing ' + icon);
+    assert.match(markup, /class="cart-control"/, route + ': missing cart control');
     if (admin) assert.ok(cssIcons.some(m => m[1] === 'settings'));
     assert.ok(cssIcons.some(m => m[1] === 'plus'), route + ': missing plus');
   }

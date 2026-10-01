@@ -10,8 +10,18 @@ import { AdminUsersService } from './users.service.js';
 import { ImagesService } from './images.service.js';
 import { SettingsCtrl, PublicSettingsCtrl, ExtraLimitsCtrl } from './settings.ctrl.js';
 import { SettingsService } from './settings.service.js';
+import { ScheduleCtrl, ShopStatusCtrl } from './schedule.ctrl.js';
+import { ScheduleService } from './schedule.service.js';
+import { StaffModule } from '../staff/staff.module.js';
+import { AdminOrdersCtrl } from './orders.ctrl.js';
+import { AdminOrdersService } from './orders.service.js';
+import { FinanceCtrl, PayoutsCtrl } from './finance.ctrl.js';
+import { FinanceService } from './finance.service.js';
+import { PayoutsService } from './payouts.service.js';
+import { DashboardCtrl } from './dashboard.ctrl.js';
+import { DashboardService } from './dashboard.service.js';
 @Module({
-  imports: [AuthModule, DbModule],
+  imports: [AuthModule, DbModule, StaffModule],
   controllers: [
     AdminProductsCtrl,
     AdminCategoriesCtrl,
@@ -19,6 +29,12 @@ import { SettingsService } from './settings.service.js';
     SettingsCtrl,
     PublicSettingsCtrl,
     ExtraLimitsCtrl,
+    ScheduleCtrl,
+    ShopStatusCtrl,
+    AdminOrdersCtrl,
+    FinanceCtrl,
+    PayoutsCtrl,
+    DashboardCtrl,
   ],
   providers: [
     AdminProductsService,
@@ -26,6 +42,11 @@ import { SettingsService } from './settings.service.js';
     AdminUsersService,
     ImagesService,
     SettingsService,
+    ScheduleService,
+    AdminOrdersService,
+    FinanceService,
+    PayoutsService,
+    DashboardService,
   ],
 })
 export class AdminModule {}

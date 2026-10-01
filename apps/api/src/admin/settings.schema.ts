@@ -9,5 +9,7 @@ export const settingsSchema = z.strictObject({
   maxOrderExtrasTotal: money.optional(),
   deliveryEnabled: z.boolean().optional(),
   pickupEnabled: z.boolean().optional(),
+  partner1Name: z.string().trim().min(1).max(80).optional(),
+  partner2Name: z.string().trim().min(1).max(80).optional(),
 });
 export type SettingsInput = z.infer<typeof settingsSchema>;

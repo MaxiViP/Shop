@@ -345,7 +345,9 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
   it('a forbidden Telegram delivery records blocked state; /start reactivates the same identity', async () => {
     telegram.send.mockResolvedValueOnce('blocked');
     const f = await waiting();
-    expect((await db.telegramIdentity.findUniqueOrThrow({ where: { id: f.identity!.id } })).customerBotBlockedAt).not.toBeNull();
+    await vi.waitFor(async () => expect((await db.telegramIdentity.findUniqueOrThrow({
+      where: { id: f.identity!.id },
+    })).customerBotBlockedAt).not.toBeNull());
     await makeBot().handle(text(f.telegramId, '/start'));
     expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: f.identity!.id } })).toMatchObject({ customerBotBlockedAt: null });
     expect((await db.user.findUniqueOrThrow({ where: { id: f.user.id } })).phone).toBeNull();

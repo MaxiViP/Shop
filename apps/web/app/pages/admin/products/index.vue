@@ -6,6 +6,7 @@
         >Добавить товар</UButton
       >
     </div>
+    <UAlert v-if="data?.unsetCount" color="warning" :title="`Не настроено товаров: ${data.unsetCount}`" />
     <div class="flex gap-2">
       <UButton
         :variant="section === 'products' ? 'solid' : 'outline'"
@@ -38,19 +39,25 @@
               { label: 'Скрытые', value: 'false' },
             ]"
         /></UFormField>
+        <UFormField label="Внутренний расчёт">
+          <USelect v-model="mode" :items="modeOptions" />
+        </UFormField>
         <UButton type="submit" :loading="pending">Найти</UButton>
       </form>
       <p v-if="pending" role="status">Загрузка…</p>
       <UAlert v-else-if="error" color="error" :title="apiError(error)" />
       <p v-else-if="!data?.items.length">Товары не найдены</p>
       <div v-else class="overflow-x-auto border border-default rounded-lg">
-        <table class="w-full text-sm min-w-[780px]">
+        <table class="w-full text-sm min-w-[1060px]">
           <thead class="bg-elevated text-left">
             <tr>
               <th class="p-3">Фото</th>
               <th>Название</th>
               <th>Категория</th>
               <th>Цена / ед.</th>
+              <th>Режим</th>
+              <th>Базовая цена</th>
+              <th>Наценка</th>
               <th>Статус</th>
               <th>Порядок</th>
               <th class="p-3">Действия</th>
@@ -82,6 +89,9 @@
                 {{ money(product.price) }} / {{ product.priceQty }}
                 {{ labels[product.unit] }}
               </td>
+              <td class="pr-3"><UBadge :color="product.settlementMode === 'UNSET' ? 'warning' : product.settlementMode === 'SHARED_MARKUP' ? 'success' : 'neutral'">{{ modeLabel[product.settlementMode] }}</UBadge></td>
+              <td class="pr-3 whitespace-nowrap">{{ product.basePrice === null ? '—' : money(product.basePrice) }}</td>
+              <td class="pr-3 whitespace-nowrap">{{ product.basePrice === null ? '—' : money(product.price - product.basePrice) }}</td>
               <td class="pr-3">
                 <UBadge :color="product.active ? 'success' : 'neutral'">{{
                   product.active ? "Опубликован" : "Скрыт"
@@ -153,12 +163,19 @@ const section = ref("products");
 const search = ref("");
 const category = ref(0);
 const active = ref("all");
+const mode = ref("all");
+const modeOptions = [
+  { label: "Все", value: "all" }, { label: "С наценкой", value: "SHARED_MARKUP" },
+  { label: "Без наценки", value: "NO_MARKUP" }, { label: "Не настроено", value: "UNSET" },
+];
+const modeLabel = { UNSET: "Не настроено", SHARED_MARKUP: "50/50", NO_MARKUP: "Без наценки" };
 const query = reactive({
   page: 1,
   limit: 20,
   search: "",
   category: undefined as number | undefined,
   active: undefined as string | undefined,
+  settlementMode: undefined as string | undefined,
 });
 const { data, pending, error, refresh } = await useApi<AdminPage<AdminProduct>>(
   "/admin/products",
@@ -185,6 +202,7 @@ function apply() {
     search: search.value,
     category: category.value || undefined,
     active: active.value === "all" ? undefined : active.value,
+    settlementMode: mode.value === "all" ? undefined : mode.value,
   });
 }
 const labels = { GRAM: "г", PIECE: "шт.", BUNCH: "пуч.", PACK: "уп." };

@@ -6,6 +6,7 @@
         Очистить
       </UButton>
     </header>
+    <AppShopStatus class="mb-4" />
 
     <UAlert
       v-if="cart.storageWarning"

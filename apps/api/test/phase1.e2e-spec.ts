@@ -158,10 +158,22 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
         await connection.query(
           `INSERT INTO "Order" ("customerName", "customerPhone", type, subtotal, "deliveryPrice", total, "updatedAt") VALUES ('Legacy fixture', '+79990000109', 'PICKUP', 123, 0, 123, NOW())`,
         );
+      if (entry.name === '20261001120000_admin_operations') {
+        const before = await connection.query<{ count: string }>(
+          `SELECT count(*)::text AS count FROM "Order" WHERE "customerName" = 'Legacy fixture'`,
+        );
+        expect(before.rows[0]?.count).toBe('1');
+        await connection.query(`INSERT INTO "OrderItem"
+          ("orderId", "productName", "productSlug", price, "priceQty", unit, qty, total)
+          SELECT id, 'Legacy item', 'legacy-item', 123, 1, 'PIECE', 1, 123
+          FROM "Order" WHERE "customerName" = 'Legacy fixture'`);
+      }
       await connection.query(
         await readFile(join(root, entry.name, 'migration.sql'), 'utf8'),
       );
     }
+    // Keep unrelated order-flow fixtures independent of the test wall clock.
+    await connection.query('UPDATE "ShopHours" SET "openMinutes" = 0, "closeMinutes" = 1440');
     db = new PrismaClient({
       adapter: new PrismaPg(
         {
@@ -280,7 +292,10 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       total: 123,
       weightToleranceBps: 1000,
       assemblyFinalizedAt: null,
+      completedAt: null,
     });
+    const legacyItem = await db.orderItem.findFirstOrThrow({ where: { orderId: legacy.id } });
+    expect(legacyItem).toMatchObject({ settlementModeSnapshot: null, basePriceSnapshot: null });
     expect(
       (await call(admin).get('/admin/settings').expect(200)).body
         .weightToleranceBps,
@@ -705,6 +720,8 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
 
   it('PHASE 2 missing removal and replacement preserve history and proposal price, duplicates are idempotent', async () => {
     const order = await phase2Order(1000);
+    await db.product.update({ where: { id: productId },
+      data: { settlementMode: 'SHARED_MARKUP', basePrice: 30000 } });
     const path = `/staff/orders/${order.id}/items/${order.itemId}`;
     await call(seller).patch(path, { status: 'PENDING' }).expect(200);
     await call(seller).patch(path, { status: 'MISSING' }).expect(200);
@@ -726,7 +743,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     const proposal = await issueFor(order.id);
     await db.product.update({
       where: { id: productId },
-      data: { price: 199000 },
+      data: { price: 199000, basePrice: 32000 },
     });
     await decision(order, missing, 'ACCEPT_REPLACEMENT').expect(409);
     await Promise.all([
@@ -742,7 +759,13 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       qty: 500,
       total: 50000,
       status: 'PENDING',
+      settlementModeSnapshot: 'SHARED_MARKUP',
+      basePriceSnapshot: 32000,
     });
+    await db.product.update({ where: { id: productId },
+      data: { settlementMode: 'NO_MARKUP', basePrice: null } });
+    expect(await db.orderItem.findUniqueOrThrow({ where: { id: replacement.id } }))
+      .toMatchObject({ settlementModeSnapshot: 'SHARED_MARKUP', basePriceSnapshot: 32000 });
     expect(await db.orderItem.count({ where: { orderId: order.id } })).toBe(2);
     expect(
       await db.orderItem.findUniqueOrThrow({ where: { id: order.itemId } }),
@@ -764,6 +787,8 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
         })
       ).amount,
     ).toBe(50000);
+    await db.product.update({ where: { id: productId },
+      data: { settlementMode: 'UNSET', basePrice: null } });
     const remove = await phase2Order(1200);
     await decision(remove, await issueFor(remove.id), 'REMOVE_ITEM').expect(
       201,
@@ -1400,6 +1425,194 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     } finally { available.mockRestore(); }
     expect((await db.deliveryAttempt.findUniqueOrThrow({ where: { orderId: order.id } })).state).toBe('ACTIVE');
     expect(await db.delivery.count({ where: { orderId: order.id } })).toBe(1);
+  });
+
+  it('settles 1.8 kg actual weight from immutable price/base snapshots and excludes NO_MARKUP', async () => {
+    const before = await db.product.findUniqueOrThrow({ where: { id: productId } });
+    const settingsBefore = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
+    const checkout = async (qty: number) => {
+      let basket = (await call(owner).get('/cart').expect(200)).body;
+      basket = (await call(owner).post('/cart/change', { revision: basket.revision, kind: 'clear' }).expect(201)).body;
+      basket = (await call(owner).post('/cart/change', { revision: basket.revision, kind: 'set', productId, qty }).expect(201)).body;
+      const created = await call(owner).post('/cart/checkout', {
+        revision: basket.revision, type: 'PICKUP', customerName: 'Покупатель',
+        customerPhone: '+79990000103',
+      }).expect(201);
+      return created.body.order as { id: number; publicId: string };
+    };
+    try {
+      await db.shopSettings.update({ where: { id: 1 }, data: { weightToleranceBps: 1000 } });
+      await call(admin).patch(`/admin/products/${productId}`, {
+        price: 45000, active: true, settlementMode: 'SHARED_MARKUP', basePrice: 30000,
+      }).expect(200);
+      const first = await checkout(2000);
+      const oldItem = await db.orderItem.findFirstOrThrow({ where: { orderId: first.id } });
+      expect(oldItem).toMatchObject({ price: 45000, settlementModeSnapshot: 'SHARED_MARKUP', basePriceSnapshot: 30000 });
+      await assemble(first, 1800);
+      await call(seller).post(`/staff/orders/${first.id}/assembly/finish`).expect(201);
+      await call(seller).post(`/staff/orders/${first.id}/payment/confirm`).expect(201);
+      await call(seller).post(`/staff/orders/${first.id}/pickup/complete`).expect(201);
+      const finished = await db.order.findUniqueOrThrow({ where: { id: first.id }, include: { items: true } });
+      expect(finished.completedAt).not.toBeNull();
+      expect(finished.items[0]).toMatchObject({ actualQty: 1800, actualTotal: 81000 });
+      await call(admin).patch(`/admin/products/${productId}`, { basePrice: 32000 }).expect(200);
+      const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow',
+        year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      const day = (await call(admin).get(`/admin/finance/days/${date}`).expect(200)).body as {
+        id: number; lines: { saleAmount: number; baseAmount: number; sharedMarkup: number }[];
+        totals: { partner1Share: number; partner2Share: number };
+      }[];
+      expect(day.find(row => row.id === first.id)?.lines[0]).toMatchObject({
+        saleAmount: 81000, baseAmount: 54000, sharedMarkup: 27000,
+      });
+      const next = await checkout(1000);
+      expect(await db.orderItem.findFirstOrThrow({ where: { orderId: next.id } }))
+        .toMatchObject({ settlementModeSnapshot: 'SHARED_MARKUP', basePriceSnapshot: 32000 });
+      await call(admin).patch(`/admin/products/${productId}`, {
+        settlementMode: 'NO_MARKUP', basePrice: 32000,
+      }).expect(200);
+      const excluded = await checkout(1000);
+      expect(await db.orderItem.findFirstOrThrow({ where: { orderId: excluded.id } }))
+        .toMatchObject({ settlementModeSnapshot: 'NO_MARKUP', basePriceSnapshot: null });
+      await assemble(excluded, 1000);
+      await call(seller).post(`/staff/orders/${excluded.id}/assembly/finish`).expect(201);
+      await call(seller).post(`/staff/orders/${excluded.id}/payment/confirm`).expect(201);
+      await call(seller).post(`/staff/orders/${excluded.id}/pickup/complete`).expect(201);
+      const latest = (await call(admin).get(`/admin/finance/days/${date}`).expect(200)).body as {
+        id: number; totals: { noMarkupRevenue: number; sharedMarkup: number };
+      }[];
+      expect(latest.find(row => row.id === excluded.id)?.totals)
+        .toMatchObject({ noMarkupRevenue: 45000, sharedMarkup: 0 });
+      expect((await db.orderItem.findUniqueOrThrow({ where: { id: oldItem.id } })).basePriceSnapshot).toBe(30000);
+    } finally {
+      await db.product.update({ where: { id: productId }, data: {
+        price: before.price, active: before.active,
+        settlementMode: before.settlementMode, basePrice: before.basePrice,
+      } });
+      await db.shopSettings.update({ where: { id: 1 }, data: { weightToleranceBps: settingsBefore.weightToleranceBps } });
+    }
+  });
+
+  it('ADMIN settlement is private; orders, cart, catalog and SELLER stay public-safe', async () => {
+    await call(seller).patch(`/admin/products/${productId}`, { settlementMode: 'SHARED_MARKUP', basePrice: 30000 }).expect(403);
+    const saved = await call(admin).patch(`/admin/products/${productId}`, {
+      settlementMode: 'SHARED_MARKUP', basePrice: 30000,
+    }).expect(200);
+    expect(saved.body).toMatchObject({ settlementMode: 'SHARED_MARKUP', basePrice: 30000 });
+    const adminList = await call(admin).get('/admin/products?settlementMode=SHARED_MARKUP').expect(200);
+    expect(adminList.body.items.some((item: { id: number }) => item.id === productId)).toBe(true);
+    const privateKeys = ['basePrice', 'settlementMode', 'basePriceSnapshot',
+      'settlementModeSnapshot', 'sharedMarkup', 'partner1Share', 'partner2Share'];
+    for (const body of [
+      (await call(owner).get('/products/tomato').expect(200)).body,
+      (await call(owner).get('/products').expect(200)).body,
+      (await call(owner).get('/cart').expect(200)).body,
+      (await call(owner).post('/orders/quote', { items: [{ productId, qty: 1000 }] }).expect(201)).body,
+      (await call(owner).get('/orders').expect(200)).body,
+      (await call(seller).get('/staff/orders').expect(200)).body,
+    ]) for (const key of privateKeys) expect(JSON.stringify(body)).not.toContain(`"${key}"`);
+    const order = await create('PICKUP');
+    const item = await db.orderItem.findFirstOrThrow({ where: { orderId: order.id } });
+    expect(item).toMatchObject({ settlementModeSnapshot: 'SHARED_MARKUP', basePriceSnapshot: 30000 });
+    const customerOrder = await call(owner).get(`/orders/${order.publicId}`).expect(200);
+    for (const key of privateKeys) expect(JSON.stringify(customerOrder.body)).not.toContain(`"${key}"`);
+    const guestCreated = await call('').post('/orders', {
+      type: 'PICKUP', customerName: 'Guest', customerPhone: '+79990000103',
+      items: [{ productId, qty: 1000 }],
+    }).expect(201);
+    const guestItem = await db.orderItem.findFirstOrThrow({ where: { orderId: guestCreated.body.id } });
+    expect(guestItem).toMatchObject({ settlementModeSnapshot: 'SHARED_MARKUP', basePriceSnapshot: 30000 });
+    const guestCookie = (guestCreated.headers['set-cookie'] as unknown as string[])[0]!.split(';')[0]!;
+    for (const body of [guestCreated.body,
+      (await call(guestCookie).get('/orders').expect(200)).body,
+      (await call(guestCookie).get(`/orders/${guestCreated.body.publicId}`).expect(200)).body,
+    ]) for (const key of privateKeys) expect(JSON.stringify(body)).not.toContain(`"${key}"`);
+    const staffOrder = await call(seller).get(`/staff/orders/${order.id}`).expect(200);
+    for (const key of privateKeys) expect(JSON.stringify(staffOrder.body)).not.toContain(`"${key}"`);
+    await call(seller).post('/staff/orders/' + order.id + '/confirm').expect(201);
+    await call(seller).post('/staff/orders/' + order.id + '/assembly/start').expect(201);
+    const changedItem = await call(seller).patch('/staff/orders/' + order.id + '/items/' + item.id, {
+      status: 'PICKED', actualQty: item.qty,
+    }).expect(200);
+    for (const key of privateKeys) expect(JSON.stringify(changedItem.body)).not.toContain('"' + key + '"');
+    const excluded = await call(admin).patch(`/admin/products/${productId}`, {
+      settlementMode: 'NO_MARKUP', basePrice: 30000,
+    }).expect(200);
+    expect(excluded.body).toMatchObject({ settlementMode: 'NO_MARKUP', basePrice: null });
+    const normalized = await call(admin).patch(`/admin/products/${productId}`, { basePrice: 30000 }).expect(200);
+    expect(normalized.body.basePrice).toBeNull();
+    await call(admin).patch(`/admin/products/${productId}`, { settlementMode: 'UNSET' }).expect(200);
+    expect((await db.product.findUniqueOrThrow({ where: { id: productId } })).basePrice).toBeNull();
+  });
+
+  it('ADMIN schedule, report and payout endpoints reject SELLER and keep audit/idempotency', async () => {
+    for (const path of ['/admin/finance', '/admin/payouts', '/admin/schedule',
+      '/admin/orders', '/admin/dashboard']) await call(seller).get(path).expect(403);
+    const safeStatus = await call(owner).get('/shop/status').expect(200);
+    expect(Object.keys(safeStatus.body).sort()).toEqual([
+      'closeTime', 'isOpen', 'nextOpenAt', 'openTime', 'timezone', 'today',
+    ].sort());
+    await call(admin).get('/admin/dashboard').expect(200);
+    await call(admin).get('/admin/orders?limit=1&page=1').expect(200);
+    await call(admin).get('/admin/finance?period=today').expect(200);
+    const week = await call(admin).patch('/admin/schedule/weekly/1', {
+      enabled: true, openMinutes: 540, closeMinutes: 1260,
+    }).expect(200);
+    expect(week.body).toMatchObject({ weekday: 1, openMinutes: 540, closeMinutes: 1260 });
+    await call(admin).patch('/admin/schedule/weekly/1', { enabled: true, openMinutes: 0, closeMinutes: 1440 }).expect(200);
+    const special = await call(admin).post('/admin/schedule/exceptions', {
+      date: '2099-01-01', closed: true, openMinutes: null, closeMinutes: null, note: 'Тест',
+    }).expect(201);
+    await call(admin).patch(`/admin/schedule/exceptions/${special.body.id}`, {
+      date: '2099-01-01', closed: false, openMinutes: 540, closeMinutes: 1020, note: 'Тест',
+    }).expect(200);
+    const duplicateDate = { date: '2099-01-02', closed: true,
+      openMinutes: null, closeMinutes: null, note: null };
+    const attempts = await Promise.all([
+      call(admin).post('/admin/schedule/exceptions', duplicateDate),
+      call(admin).post('/admin/schedule/exceptions', duplicateDate),
+    ]);
+    expect(attempts.map(result => result.status).sort()).toEqual([201, 409]);
+    const createdException = attempts.find(result => result.status === 201)!.body.id;
+    await request(app.getHttpServer()).delete(`/api/admin/schedule/exceptions/${createdException}`)
+      .set('Cookie', admin).expect(200);
+    await request(app.getHttpServer()).delete(`/api/admin/schedule/exceptions/${special.body.id}`)
+      .set('Cookie', admin).expect(200);
+    const idempotencyKey = randomUUID();
+    const payout = { partner: 1, periodFrom: '2026-09-01', periodTo: '2026-09-07',
+      amount: 1000, paidAt: new Date().toISOString(), comment: 'Тест', idempotencyKey };
+    const first = await call(admin).post('/admin/payouts', payout).expect(201);
+    const again = await call(admin).post('/admin/payouts', payout).expect(201);
+    expect(again.body.id).toBe(first.body.id);
+    expect(await db.partnerPayout.count({ where: { idempotencyKey } })).toBe(1);
+    expect(await db.adminAudit.count({ where: { action: 'PARTNER_PAYOUT_RECORDED', entityId: String(first.body.id) } })).toBe(1);
+    const duplicate = await call(admin).post('/admin/payouts', {
+      ...payout, idempotencyKey: randomUUID(),
+    }).expect(409);
+    expect(duplicate.body.code).toBe('PAYOUT_DUPLICATE');
+    expect(await db.partnerPayout.count({ where: { partner: 1, amount: 1000 } })).toBe(1);
+    await call(admin).post('/admin/payouts', {
+      ...payout, amount: -1000, idempotencyKey: randomUUID(),
+    }).expect(201);
+    const concurrent = { ...payout, periodFrom: '2099-02-01', periodTo: '2099-02-07' };
+    const pair = await Promise.all([
+      call(admin).post('/admin/payouts', { ...concurrent, idempotencyKey: randomUUID() }),
+      call(admin).post('/admin/payouts', { ...concurrent, idempotencyKey: randomUUID() }),
+    ]);
+    expect(pair.map(response => response.status).sort()).toEqual([201, 409]);
+    expect(await db.partnerPayout.count({ where: {
+      partner: 1, amount: 1000,
+      periodFrom: new Date('2099-02-01T00:00:00.000Z'),
+      periodTo: new Date('2099-02-07T00:00:00.000Z'),
+    } })).toBe(1);
+    const sameKey = { ...payout, periodFrom: '2099-03-01', periodTo: '2099-03-07',
+      idempotencyKey: randomUUID() };
+    const repeated = await Promise.all([
+      call(admin).post('/admin/payouts', sameKey),
+      call(admin).post('/admin/payouts', sameKey),
+    ]);
+    expect(repeated.map(response => response.status)).toEqual([201, 201]);
+    expect(repeated[0]?.body.id).toBe(repeated[1]?.body.id);
   });
 
   it('H1 preserves legacy local bookings and does not invent another attempt', async () => {

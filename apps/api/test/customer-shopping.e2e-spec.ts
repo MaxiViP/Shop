@@ -133,6 +133,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
           await readFile(join(root, entry.name, 'migration.sql'), 'utf8'),
         );
       }
+      // The test exercises checkout at any hour without depending on real Moscow time.
+      await connection.query('UPDATE "ShopHours" SET "openMinutes" = 0, "closeMinutes" = 1440');
       db = new PrismaClient({
         adapter: new PrismaPg(
           {
@@ -409,8 +411,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
     it.each(['PICKUP', 'DELIVERY'] as const)(
       '%s checkout creates a normal owned Order with authoritative snapshots',
       async (type) => {
-        const f = await fixture(),
-          s = await ready(f, type);
+        const f = await fixture();
+        await db.product.update({ where: { id: f.product.id }, data: {
+          settlementMode: 'SHARED_MARKUP', basePrice: 25000,
+        } });
+        const s = await ready(f, type);
         const o = await checkout.confirm(f.actor, s.id);
         const saved = await db.order.findUniqueOrThrow({
           where: { id: o.id },
@@ -429,6 +434,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
           unit: 'GRAM',
           qty: 500,
           total: 17500,
+          settlementModeSnapshot: 'SHARED_MARKUP',
+          basePriceSnapshot: 25000,
         });
         if (type === 'DELIVERY')
           expect(saved).toMatchObject({

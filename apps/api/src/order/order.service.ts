@@ -18,6 +18,7 @@ import { paymentSelect, paymentDetails } from './payment.js';
 import type { PaymentMethod, Prisma } from '../db/gen/client.js';
 import { issueSummary, message } from './coordination.js';
 import { checkoutLimits } from './limits.js';
+import { assertMarketTime } from '../admin/shop-hours.js';
 import {
   cartProductSelect,
   cartQuantities,
@@ -46,7 +47,7 @@ export class OrderService {
     guestToken: string | undefined,
     data: OrderInput,
   ) {
-    const result = await this.save(this.db, userId, guestToken, data);
+    const result = await this.db.$transaction((db) => this.save(db, userId, guestToken, data));
     this.created(result.order.id);
     return result;
   }
@@ -61,7 +62,15 @@ export class OrderService {
 
   private async save(db: Prisma.TransactionClient, userId: number | null,
     guestToken: string | undefined, data: OrderInput) {
+    const productIds = [...new Set(data.items.map(item => item.productId))].sort((a, b) => a - b);
+    for (const id of productIds)
+      await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${id} FOR SHARE`;
     const quote = await this.quote(data, db);
+    const settlement = await db.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, settlementMode: true, basePrice: true },
+    });
+    const settlementById = new Map(settlement.map(product => [product.id, product]));
     if (data.quoteToken && data.quoteToken !== quote.token)
       throw new ConflictException({
         code: 'CART_CHANGED',
@@ -73,8 +82,13 @@ export class OrderService {
       );
     const items = quote.items.map((item) => {
       const product = item.product!;
+      const financialSnapshot = settlementById.get(product.id);
+      if (!financialSnapshot)
+        throw new ConflictException('Данные товара изменились. Повторите оформление заказа.');
       return {
         productId: product.id,
+        settlementModeSnapshot: financialSnapshot.settlementMode,
+        basePriceSnapshot: financialSnapshot.basePrice,
         productName: product.name,
         productSlug: product.slug,
         image: product.images[0]?.url,
@@ -86,6 +100,7 @@ export class OrderService {
       };
     });
 
+    await assertMarketTime(db, new Date(), data.deliveryAt ? new Date(data.deliveryAt) : undefined);
     const subtotal = quote.subtotal!;
     const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
     checkoutLimits(data.type, subtotal, settings);
@@ -99,7 +114,7 @@ export class OrderService {
     let newGuestToken: string | undefined;
 
     if (!userId) {
-      const guest = await this.ensureGuest(guestToken);
+      const guest = await this.ensureGuest(guestToken, db);
 
       guestSessionId = guest.id;
       newGuestToken = guest.token;
@@ -434,10 +449,10 @@ export class OrderService {
     return result;
   }
 
-  private async findGuest(token?: string) {
+  private async findGuest(token?: string, db: Prisma.TransactionClient = this.db) {
     if (!token) return null;
 
-    const guest = await this.db.guestSession.findUnique({
+    const guest = await db.guestSession.findUnique({
       where: {
         tokenHash: guestTokenHash(token),
       },
@@ -446,7 +461,7 @@ export class OrderService {
     if (!guest) return null;
 
     if (guest.expiresAt.getTime() < Date.now()) {
-      await this.db.guestSession.delete({
+      await db.guestSession.delete({
         where: {
           id: guest.id,
         },
@@ -458,8 +473,8 @@ export class OrderService {
     return guest.id;
   }
 
-  private async ensureGuest(token?: string) {
-    const id = await this.findGuest(token);
+  private async ensureGuest(token?: string, db: Prisma.TransactionClient = this.db) {
+    const id = await this.findGuest(token, db);
 
     if (id) {
       return {
@@ -470,7 +485,7 @@ export class OrderService {
 
     const newToken = createGuestToken();
 
-    const guest = await this.db.guestSession.create({
+    const guest = await db.guestSession.create({
       data: {
         tokenHash: guestTokenHash(newToken),
 

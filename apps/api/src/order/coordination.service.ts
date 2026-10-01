@@ -195,10 +195,19 @@ export class CoordinationService {
           !issue.proposedQty
         )
           throw stale();
+        if (!issue.proposedProductId) throw stale();
+        await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${issue.proposedProductId} FOR SHARE`;
+        const product = await db.product.findUnique({
+          where: { id: issue.proposedProductId },
+          select: { settlementMode: true, basePrice: true },
+        });
+        if (!product) throw stale();
         const replacement = await db.orderItem.create({
           data: {
             orderId: id,
             productId: issue.proposedProductId,
+            settlementModeSnapshot: product.settlementMode,
+            basePriceSnapshot: product.basePrice,
             productName: issue.proposedName,
             productSlug: issue.proposedSlug,
             unit: issue.proposedUnit,

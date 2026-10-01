@@ -72,10 +72,10 @@ describe('Current server cart quote', () => {
   });
   it('rejects tampered quantities using database rules before any order write', async () => {
     const create = vi.fn();
-    const db = {
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
       product: { findMany: vi.fn().mockResolvedValue([{ ...product, step: 100 }]) },
-      order: { create },
-    } as unknown as DbService;
+      order: { create } };
+    const db = { ...tx, $transaction: vi.fn((fn: (client: typeof tx) => Promise<unknown>) => fn(tx)) } as unknown as DbService;
     const input = orderSchema.parse({
       type: 'PICKUP', customerName: 'Иван', customerPhone: '+79991234567',
       items: [{ productId: 1, qty: 501, min: 1, step: 1, portionQty: 1, price: 1 }],
@@ -153,12 +153,10 @@ describe('Current server cart quote', () => {
   });
   it('checks a quote fingerprint against fresh data before any order/guest write', async () => {
     const create = vi.fn();
-    const db = {
-      product: {
-        findMany: vi.fn().mockResolvedValue([{ ...product, price: 250000 }]),
-      },
-      order: { create },
-    } as unknown as DbService;
+    const tx = { $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
+      product: { findMany: vi.fn().mockResolvedValue([{ ...product, price: 250000 }]) },
+      order: { create } };
+    const db = { ...tx, $transaction: vi.fn((fn: (client: typeof tx) => Promise<unknown>) => fn(tx)) } as unknown as DbService;
     const input = orderSchema.parse({
       type: 'PICKUP',
       customerName: 'Иван',

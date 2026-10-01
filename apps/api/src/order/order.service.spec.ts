@@ -16,7 +16,10 @@ describe('OrderService creation', () => {
       const create = vi
         .fn()
         .mockImplementation(({ data }) => ({ id: 1, ...data }));
-      const db = {
+      const tx = {
+        $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
+        shopHours: { findMany: vi.fn().mockResolvedValue(Array.from({ length: 7 }, (_, i) => ({ weekday: i + 1, enabled: true, openMinutes: 0, closeMinutes: 1440 }))) },
+        shopHoursException: { findMany: vi.fn().mockResolvedValue([]) },
         shopSettings: {
           findUniqueOrThrow: vi
             .fn()
@@ -29,6 +32,8 @@ describe('OrderService creation', () => {
               name: 'Яблоки',
               slug: 'apples',
               price: 45_000,
+              settlementMode: 'SHARED_MARKUP',
+              basePrice: 30_000,
               priceQty: 1_000,
               unit: 'GRAM',
               min: 500,
@@ -39,7 +44,8 @@ describe('OrderService creation', () => {
           ]),
         },
         order: { create },
-      } as unknown as DbService;
+      };
+      const db = { ...tx, $transaction: vi.fn((fn: (client: typeof tx) => Promise<unknown>) => fn(tx)) } as unknown as DbService;
       const input = orderSchema.parse({
         type,
         customerName: '  Александр  ',
@@ -66,6 +72,10 @@ describe('OrderService creation', () => {
       expect(input).not.toHaveProperty('total');
       expect(input).not.toHaveProperty('finalTotal');
       expect(create.mock.calls[0]?.[0].data).not.toHaveProperty('status');
+      expect(create.mock.calls[0]?.[0].data.items.create[0]).toMatchObject({
+        settlementModeSnapshot: 'SHARED_MARKUP', basePriceSnapshot: 30_000,
+      });
+      expect(create.mock.calls[0]?.[0].select.items.select).not.toHaveProperty('basePriceSnapshot');
       if (type === 'PICKUP')
         expect(create.mock.calls[0]?.[0].data.city).toBeUndefined();
     },

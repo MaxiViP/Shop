@@ -22,10 +22,17 @@ export class SettingsService {
         throw new BadRequestException(
           'Общий лимит услуг не может быть меньше лимита цены одной услуги.',
         );
-      return db.shopSettings.update({
-        where: { id: 1 },
-        data: { ...input, updatedById },
+      const saved = await db.shopSettings.update({
+        where: { id: 1 }, data: { ...input, updatedById },
       });
+      if (current.partner1Name !== saved.partner1Name || current.partner2Name !== saved.partner2Name)
+        await db.adminAudit.create({ data: {
+          actorId: updatedById, action: 'PARTNER_NAMES_CHANGED', entity: 'SHOP_SETTINGS',
+          entityId: '1',
+          oldValue: { partner1Name: current.partner1Name, partner2Name: current.partner2Name },
+          newValue: { partner1Name: saved.partner1Name, partner2Name: saved.partner2Name },
+        } });
+      return saved;
     });
   }
 }

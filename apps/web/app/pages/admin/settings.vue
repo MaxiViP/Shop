@@ -61,6 +61,9 @@
           От 1 до 120 минут. После этого продавцу предлагается позвонить
           покупателю. Автоматических повторных SMS нет.
         </p>
+        <h3 class="font-semibold">Партнёры · 50/50</h3>
+        <UFormField label="Партнёр 1"><UInput v-model="partner1Name" maxlength="80" class="w-full" /></UFormField>
+        <UFormField label="Партнёр 2"><UInput v-model="partner2Name" maxlength="80" class="w-full" /></UFormField>
         <UButton type="submit" :loading="busy">Сохранить</UButton>
       </form>
     </UCard>
@@ -77,6 +80,8 @@ const { data, pending, error, refresh } = await useApi<{
   maxOrderExtrasTotal: number;
   deliveryEnabled: boolean;
   pickupEnabled: boolean;
+  partner1Name: string;
+  partner2Name: string;
 }>("/admin/settings");
 const moneyFields = [
   {
@@ -105,6 +110,8 @@ const amounts = reactive({
 });
 const deliveryEnabled = ref(data.value?.deliveryEnabled ?? true);
 const pickupEnabled = ref(data.value?.pickupEnabled ?? true);
+const partner1Name = ref(data.value?.partner1Name ?? "Партнёр 1");
+const partner2Name = ref(data.value?.partner2Name ?? "Партнёр 2");
 const percent = ref(
   data.value ? bpsPercent(data.value.weightToleranceBps) : "",
 );
@@ -173,6 +180,8 @@ async function save() {
         maxOrderExtrasTotal,
         deliveryEnabled: deliveryEnabled.value,
         pickupEnabled: pickupEnabled.value,
+        partner1Name: partner1Name.value.trim(),
+        partner2Name: partner2Name.value.trim(),
       },
     });
     await refresh();

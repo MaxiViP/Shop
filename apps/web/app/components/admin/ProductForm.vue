@@ -110,6 +110,29 @@
         </div>
       </UCard>
       <UCard>
+        <template #header><h2 class="font-semibold">Внутренний расчёт</h2></template>
+        <div class="space-y-4">
+          <UFormField label="Режим расчёта">
+            <USelect v-model="settlementMode" :items="settlementOptions" class="w-full max-w-md" />
+          </UFormField>
+          <template v-if="settlementMode === 'SHARED_MARKUP'">
+            <UFormField label="Базовая цена для расчёта, ₽" required>
+              <UInput v-model="baseRubles" inputmode="decimal" required class="w-full max-w-md" />
+            </UFormField>
+            <p class="text-sm text-muted">Используется только во внутренней финансовой отчётности. Покупатели эту цену не видят.</p>
+            <dl v-if="settlementPreview" class="grid grid-cols-2 gap-2 text-sm max-w-md">
+              <dt>Цена продажи</dt><dd>{{ money(settlementPreview.sale) }}</dd>
+              <dt>Базовая цена</dt><dd>{{ money(settlementPreview.base) }}</dd>
+              <dt>Наценка</dt><dd :class="settlementPreview.markup < 0 ? 'text-error' : 'text-success'">{{ money(settlementPreview.markup) }}</dd>
+              <dt>Партнёр 1</dt><dd>{{ money(settlementPreview.partner1) }}</dd>
+              <dt>Партнёр 2</dt><dd>{{ money(settlementPreview.partner2) }}</dd>
+            </dl>
+          </template>
+          <UAlert v-else-if="settlementMode === 'NO_MARKUP'" color="neutral" title="Товар не участвует в распределении наценки." />
+          <UAlert v-else color="warning" title="Финансовый расчёт товара ещё не настроен." />
+        </div>
+      </UCard>
+      <UCard>
         <template #header><h2 class="font-semibold">Публикация</h2></template>
         <div class="flex flex-wrap gap-6 items-center">
           <USwitch v-model="form.active" label="Товар опубликован" />
@@ -174,6 +197,21 @@ const form = reactive({
   sort: source?.sort ?? 0,
 });
 const rubles = ref(source ? kopecksToRubles(source.price) : "");
+const settlementMode = ref<AdminProduct["settlementMode"]>(source?.settlementMode ?? "UNSET");
+const baseRubles = ref(source?.basePrice ? kopecksToRubles(source.basePrice) : "");
+const settlementOptions = [
+  { label: "Не настроено", value: "UNSET" },
+  { label: "Общая наценка 50/50", value: "SHARED_MARKUP" },
+  { label: "Без наценки", value: "NO_MARKUP" },
+];
+const settlementPreview = computed(() => {
+  const sale = rublesToKopecks(rubles.value);
+  const base = rublesToKopecks(baseRubles.value);
+  if (settlementMode.value !== "SHARED_MARKUP" || sale === null || base === null) return null;
+  const markup = sale - base;
+  const partner1 = Math.trunc(markup / 2);
+  return { sale, base, markup, partner1, partner2: markup - partner1 };
+});
 const manualSlug = ref(Boolean(source));
 const units = [
   { label: "Весовой", value: "GRAM" },
@@ -225,6 +263,11 @@ async function save() {
       "Укажите положительную цену до 1 000 000 ₽, не более двух знаков после запятой";
     return;
   }
+  const basePrice = settlementMode.value === "SHARED_MARKUP" ? rublesToKopecks(baseRubles.value) : null;
+  if (settlementMode.value === "SHARED_MARKUP" && basePrice === null) {
+    error.value = "Укажите корректную базовую цену для расчёта";
+    return;
+  }
   if (!form.categoryId) {
     error.value = "Выберите категорию";
     return;
@@ -241,6 +284,8 @@ async function save() {
           name: form.name.trim(),
           description: form.description.trim() || null,
           price,
+          settlementMode: settlementMode.value,
+          basePrice,
         },
       },
     );

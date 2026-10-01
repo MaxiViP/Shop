@@ -16,6 +16,8 @@ const productFields = z.strictObject({
   slug,
   description: z.string().trim().max(10000).nullable(),
   price: z.number().int().positive().max(100_000_000),
+  settlementMode: z.enum(['UNSET', 'SHARED_MARKUP', 'NO_MARKUP']).optional(),
+  basePrice: z.number().int().positive().max(100_000_000).nullable().optional(),
   priceQty: qty,
   unit: z.enum(['GRAM', 'PIECE', 'BUNCH', 'PACK']),
   step: qty,
@@ -54,6 +56,7 @@ export const pageSchema = z.object({
 export const productQuery = pageSchema.extend({
   category: idSchema.optional(),
   active: z.enum(['true', 'false']).optional(),
+  settlementMode: z.enum(['UNSET', 'SHARED_MARKUP', 'NO_MARKUP']).optional(),
 });
 export const userQuery = pageSchema.extend({
   role: z.enum(['USER', 'SELLER', 'ADMIN']).optional(),

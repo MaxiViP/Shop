@@ -21,7 +21,10 @@ const fetcher = vi.fn<typeof fetch>();
 let token: string;
 
 function database() {
-  return {
+  const tx = {
+    $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
+    shopHours: { findMany: vi.fn().mockResolvedValue(Array.from({ length: 7 }, (_, i) => ({ weekday: i + 1, enabled: true, openMinutes: 0, closeMinutes: 1440 }))) },
+    shopHoursException: { findMany: vi.fn().mockResolvedValue([]) },
     order: {
       findUnique: vi.fn().mockResolvedValue(order),
       create: vi.fn().mockResolvedValue({ id: order.id }),
@@ -35,6 +38,7 @@ function database() {
     }) },
     guestSession: { create: vi.fn().mockResolvedValue({ id: 'guest' }) },
   };
+  return { ...tx, $transaction: vi.fn((fn: (client: typeof tx) => Promise<unknown>) => fn(tx)) };
 }
 
 beforeEach(() => {

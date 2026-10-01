@@ -10,20 +10,13 @@
       <UButton :loading="busy" variant="outline" color="neutral" @click="logout"
         >Выйти</UButton
       >
-      <nav aria-label="Админка" class="flex flex-wrap gap-2 w-full">
+      <nav aria-label="Админка" class="flex flex-wrap gap-1 w-full border-t border-default pt-3">
         <UButton
-          to="/admin/products"
-          :variant="
-            route.path.startsWith('/admin/products') ? 'solid' : 'ghost'
-          "
-          >Товары</UButton
-        >
-        <UButton
-          to="/admin/users"
-          :variant="route.path === '/admin/users' ? 'solid' : 'ghost'"
-          >Пользователи</UButton
-        >
-        <UButton to="/admin/settings" :variant="route.path === '/admin/settings' ? 'solid' : 'ghost'">Настройки</UButton>
+          v-for="item in navigation" :key="item.to" :to="item.to"
+          :icon="item.icon" size="sm"
+          :variant="route.path === item.to || (item.to !== '/admin' && route.path.startsWith(`${item.to}/`)) ? 'solid' : 'ghost'">
+          {{ item.label }}
+        </UButton>
       </nav>
     </header>
     <slot />
@@ -33,6 +26,16 @@
 <script setup lang="ts">
 import { useAuthStore } from "~/stores/auth";
 const route = useRoute();
+const navigation = [
+  { to: '/admin', label: 'Обзор', icon: 'i-lucide-layout-dashboard' },
+  { to: '/admin/orders', label: 'Заказы', icon: 'i-lucide-clipboard-list' },
+  { to: '/admin/products', label: 'Товары и категории', icon: 'i-lucide-package' },
+  { to: '/admin/finance', label: 'Отчёты', icon: 'i-lucide-chart-no-axes-combined' },
+  { to: '/admin/payouts', label: 'Выплаты', icon: 'i-lucide-wallet' },
+  { to: '/admin/users', label: 'Пользователи', icon: 'i-lucide-users' },
+  { to: '/admin/schedule', label: 'Режим работы', icon: 'i-lucide-clock' },
+  { to: '/admin/settings', label: 'Настройки', icon: 'i-lucide-settings' },
+];
 const auth = useAuthStore();
 const orders = useOrdersAction();
 const api = useApiClient();

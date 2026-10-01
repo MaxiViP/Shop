@@ -486,7 +486,7 @@ describe('StaffService', () => {
     );
     expect(client.order.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { status: 'COMPLETED' },
+        data: expect.objectContaining({ status: 'COMPLETED', completedAt: expect.any(Date) }),
       }),
     );
   });
@@ -525,7 +525,7 @@ describe('StaffService', () => {
 
     expect(client.order.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { status: 'COMPLETED' },
+        data: expect.objectContaining({ status: 'COMPLETED', completedAt: expect.any(Date) }),
       }),
     );
     expect(client.delivery.update).not.toHaveBeenCalled();
