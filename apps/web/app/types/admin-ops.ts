@@ -47,7 +47,7 @@ export interface AdminOrderDetail extends AdminOrderRow {
   finance: { lines: FinanceLine[]; totals: FinanceTotals };
   extras: { id: number; title: string; amount: number; status: string }[];
   issues: { id: number; type: string; status: string; resolution: string | null }[];
-  messages: { id: number; text: string; createdAt: string; sender: string }[];
+  messages: { id: number; text: string; createdAt: string }[];
   history: { id: number; action: string; createdAt: string }[];
 }
 export interface Payout {

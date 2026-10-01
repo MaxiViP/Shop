@@ -49,7 +49,7 @@ export class AdminOrdersService {
         settlementModeSnapshot: true, basePriceSnapshot: true }, orderBy: { id: 'asc' } },
       extras: { where: { status: 'ACTIVE' }, select: { amount: true } },
       messages: { orderBy: { id: 'asc' }, take: 100,
-        select: { id: true, text: true, createdAt: true, sender: true } },
+        select: { id: true, text: true, createdAt: true } },
       staffAudits: { orderBy: { id: 'desc' }, take: 100 },
     } });
     if (!internal) throw new NotFoundException();

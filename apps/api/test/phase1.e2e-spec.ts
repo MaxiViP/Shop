@@ -1545,6 +1545,20 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     expect((await db.product.findUniqueOrThrow({ where: { id: productId } })).basePrice).toBeNull();
   });
 
+  it('ADMIN order detail selects existing chat fields through Prisma', async () => {
+    const order = await create('PICKUP');
+    const chat = await db.orderChatMessage.create({ data: {
+      orderId: order.id, authorType: 'CUSTOMER', recipient: 'staff', text: 'Сообщение для проверки',
+    } });
+    const response = await call(admin).get(`/admin/orders/${order.id}`).expect(200);
+    expect(response.body.id).toBe(order.id);
+    expect(response.body.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: chat.id, text: chat.text, createdAt: expect.any(String) }),
+    ]));
+    expect(response.body.messages.find((message: { id: number }) => message.id === chat.id))
+      .not.toHaveProperty('sender');
+  });
+
   it('ADMIN schedule, report and payout endpoints reject SELLER and keep audit/idempotency', async () => {
     for (const path of ['/admin/finance', '/admin/payouts', '/admin/schedule',
       '/admin/orders', '/admin/dashboard']) await call(seller).get(path).expect(403);
