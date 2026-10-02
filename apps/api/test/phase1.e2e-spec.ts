@@ -1067,7 +1067,11 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     await revise(owner, customerBase, customerRequest, 'Эти помидоры').expect(201);
     expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(1);
     expect(await db.orderChatMessage.count({ where: { orderId: order.id } })).toBe(messageCount);
-    await call(seller).post(`${staffBase}/messages/read`, { through: photo.body.id }).expect(201);
+    const customerRevision = (await call(seller).get(`${staffBase}/messages`).expect(200)).body.unreadRevision;
+    expect(customerRevision).toMatchObject({ messageId: photo.body.id, version: 1 });
+    await call(seller).post(`${staffBase}/messages/read`, {
+      through: photo.body.id, revisionThrough: customerRevision.id,
+    }).expect(201);
     expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(0);
 
     const sellerMark = await revise(seller, staffBase, randomUUID(), 'Вот эти?').expect(201);
@@ -1075,13 +1079,20 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     expect((await call(owner).get(`${customerBase}/coordination`)).body.unread).toBe(1);
     expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(0);
     expect((await call(owner).get('/orders/unread')).body.latestOrderId).toBe(order.publicId);
-    await call(owner).post(`${customerBase}/messages/read`, { through: photo.body.id }).expect(201);
+    const sellerRevision = (await call(owner).get(`${customerBase}/messages`).expect(200)).body.unreadRevision;
+    expect(sellerRevision).toMatchObject({ messageId: photo.body.id, version: 2 });
+    await call(owner).post(`${customerBase}/messages/read`, {
+      through: photo.body.id, revisionThrough: sellerRevision.id,
+    }).expect(201);
     expect((await call(owner).get(`${customerBase}/coordination`)).body.unread).toBe(0);
 
     const nextMark = await revise(owner, customerBase, randomUUID(), 'Уточняю').expect(201);
     expect(nextMark.body).toMatchObject({ id: photo.body.id, imageRevision: 3 });
     expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(1);
-    await call(seller).post(`${staffBase}/messages/read`, { through: photo.body.id }).expect(201);
+    const nextRevision = (await call(seller).get(`${staffBase}/messages`).expect(200)).body.unreadRevision;
+    await call(seller).post(`${staffBase}/messages/read`, {
+      through: photo.body.id, revisionThrough: nextRevision.id,
+    }).expect(201);
     expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(0);
     expect(await db.orderChatMessage.count({ where: { orderId: order.id } })).toBe(messageCount);
 
@@ -1089,6 +1100,68 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(1);
     await call(seller).post(`${staffBase}/messages/read`, { through: text.body.id }).expect(201);
     expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(0);
+  });
+
+  it('keeps an old photo revision unread until its current image is delivered and explicitly read', async () => {
+    const order = await create('PICKUP');
+    const staffBase = `/staff/orders/${order.id}`;
+    const customerBase = `/orders/${order.publicId}`;
+    const png = await sharp({ create: { width: 24, height: 16, channels: 3,
+      background: '#86efac' } }).png().toBuffer();
+    const photo = await request(app.getHttpServer()).post(`/api${staffBase}/messages/image`)
+      .set('Cookie', seller).field('text', 'Прилавок').field('requestId', randomUUID())
+      .attach('file', png, { filename: 'market.png', contentType: 'image/png' }).expect(201);
+    await db.orderChatMessage.createMany({ data: Array.from({ length: 35 }, (_, index) => ({
+      orderId: order.id, authorType: 'SYSTEM' as const, recipient: 'customer', text: `История ${index}`,
+    })) });
+    const latest = await db.orderChatMessage.findFirstOrThrow({ where: { orderId: order.id },
+      orderBy: { id: 'desc' }, select: { id: true } });
+    const count = await db.orderChatMessage.count({ where: { orderId: order.id } });
+    await call(owner).post(`${customerBase}/messages/read`, { through: latest.id }).expect(201);
+    await call(seller).post(`${staffBase}/messages/read`, { through: latest.id }).expect(201);
+    const revise = (cookie: string, base: string, requestId: string) =>
+      request(app.getHttpServer()).post(`/api${base}/messages/${photo.body.id}/revisions`)
+        .set('Cookie', cookie).field('text', 'Отмечено').field('requestId', requestId)
+        .attach('file', png, { filename: 'marked.png', contentType: 'image/png' });
+
+    const customerRequest = randomUUID();
+    await revise(owner, customerBase, customerRequest).expect(201);
+    expect((await call(owner).get(`${customerBase}/coordination`)).body.unread).toBe(0);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(1);
+    const recentText = await call(owner).post(`${customerBase}/messages`, { text: 'Текст после разметки' }).expect(201);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(2);
+    const staffPage = (await call(seller).get(`${staffBase}/messages`).expect(200)).body;
+    expect(staffPage.messages).toHaveLength(30);
+    expect(staffPage.messages.some((entry: { id: number }) => entry.id === photo.body.id)).toBe(false);
+    expect(staffPage.unreadRevision).toMatchObject({ messageId: photo.body.id, version: 1,
+      message: { id: photo.body.id, imageRevision: 1, revisionText: 'Отмечено' } });
+    await call(seller).post(`${staffBase}/messages/read`, { through: recentText.body.id }).expect(201);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(1);
+    await call(seller).post(`${staffBase}/messages/read`, {
+      through: recentText.body.id, revisionThrough: staffPage.unreadRevision.id + 1,
+    }).expect(400);
+    await call(seller).get(`${staffBase}/messages/${photo.body.id}/thumbnail`).expect(200);
+    await call(seller).post(`${staffBase}/messages/read`, {
+      through: 0, revisionThrough: staffPage.unreadRevision.id,
+    }).expect(201);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(0);
+    await revise(owner, customerBase, customerRequest).expect(201);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(0);
+
+    await revise(seller, staffBase, randomUUID()).expect(201);
+    expect((await call(owner).get(`${customerBase}/coordination`)).body.unread).toBe(1);
+    const customerPage = (await call(owner).get(`${customerBase}/messages`).expect(200)).body;
+    expect(customerPage.messages.some((entry: { id: number }) => entry.id === photo.body.id)).toBe(false);
+    expect(customerPage.unreadRevision).toMatchObject({ messageId: photo.body.id, version: 2,
+      message: { id: photo.body.id, imageRevision: 2 } });
+    await call(owner).post(`${customerBase}/messages/read`, { through: recentText.body.id }).expect(201);
+    expect((await call(owner).get(`${customerBase}/coordination`)).body.unread).toBe(1);
+    await call(owner).get(`${customerBase}/messages/${photo.body.id}/thumbnail`).expect(200);
+    await call(owner).post(`${customerBase}/messages/read`, {
+      through: 0, revisionThrough: customerPage.unreadRevision.id,
+    }).expect(201);
+    expect((await call(owner).get(`${customerBase}/coordination`)).body.unread).toBe(0);
+    expect(await db.orderChatMessage.count({ where: { orderId: order.id } })).toBe(count + 1);
   });
 
   it('chat cleanup respects active orders, seven-day operations, 90-day evidence and missing files', async () => {

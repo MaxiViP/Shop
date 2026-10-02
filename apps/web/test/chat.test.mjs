@@ -90,3 +90,16 @@ test("photo revisions update the same visible message and never roll back after 
     revisionText: "Вот этот", revisionActor: "CUSTOMER", revisionAt: "2026-10-02T10:00:00Z" }]), true);
   assert.equal(history.messages[0].imageExpired, true);
 });
+
+test("an unread old photo joins the feed without moving the latest-message poll cursor", () => {
+  const history = createChatHistory();
+  receiveMessages(history, Array.from({ length: 30 }, (_, index) => message(index + 11)));
+  const oldPhoto = { ...message(1, 'SELLER'), image: true, imageRevision: 2,
+    revisionText: 'Отмечено', imageExpired: false };
+  history.messages = mergeMessages(history.messages, [oldPhoto]);
+  assert.equal(history.cursor, 40);
+  assert.deepEqual(history.messages.map((entry) => entry.id), [1, ...Array.from({ length: 30 }, (_, index) => index + 11)]);
+  history.messages = mergeMessages(history.messages, [{ ...message(1), image: true, imageRevision: 0 }]);
+  assert.equal(history.messages.filter((entry) => entry.id === 1).length, 1);
+  assert.equal(history.messages[0].revisionText, 'Отмечено');
+});

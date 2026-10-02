@@ -13,7 +13,7 @@
         aria-label="Открыть фото крупнее"
         @click="show"
       >
-        <img :src="thumb" alt="Фото в сообщении" class="chat-image__thumb">
+        <img :src="thumb" alt="Фото в сообщении" class="chat-image__thumb" @load="emit('ready', thumbRevision)">
       </button>
       <UButton type="button" size="sm" variant="soft" icon="i-lucide-pencil" :loading="marking" :disabled="fullLoading" @click="mark">Отметить на фото</UButton>
       <div v-if="markError" role="alert" class="chat-image__status">
@@ -39,9 +39,10 @@
 
 <script setup lang="ts">
 const props = defineProps<{ base: string; id: number; revision: number; expired?: boolean }>();
-const emit = defineEmits<{ mark: [value: { id: number; file: File }] }>();
+const emit = defineEmits<{ mark: [value: { id: number; file: File }]; ready: [revision: number] }>();
 const api = useApiClient();
 const thumb = ref("");
+const thumbRevision = ref(props.revision);
 const full = ref("");
 const fullBlob = shallowRef<Blob | null>(null);
 const loading = ref(!props.expired);
@@ -63,6 +64,7 @@ function isGone(cause: unknown) {
 async function loadThumb() {
   if (gone.value) return;
   const generation = imageGeneration;
+  const revision = props.revision;
   loading.value = true;
   error.value = false;
   try {
@@ -71,6 +73,7 @@ async function loadThumb() {
     });
     if (!active || generation !== imageGeneration) return;
     if (thumb.value) URL.revokeObjectURL(thumb.value);
+    thumbRevision.value = revision;
     thumb.value = URL.createObjectURL(blob);
   } catch (cause) {
     if (active && generation === imageGeneration) {

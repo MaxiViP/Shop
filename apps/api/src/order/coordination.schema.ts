@@ -36,4 +36,7 @@ export const cursorSchema = z
     seen: z.string().max(6000).regex(/^\d+(,\d+)*$/).optional(),
   })
   .refine((value) => !(value.after && value.before));
-export const readSchema = z.strictObject({ through: z.number().int().min(0) });
+export const readSchema = z.strictObject({
+  through: z.number().int().min(0),
+  revisionThrough: recordId.optional(),
+});

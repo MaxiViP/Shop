@@ -130,7 +130,7 @@ export class CustomerCoordinationCtrl {
     @Req() request: Request,
     @Body({ schema: readSchema }) body: z.infer<typeof readSchema>,
   ) {
-    return this.service.read(await this.actor(id, request), body.through);
+    return this.service.read(await this.actor(id, request), body.through, body.revisionThrough);
   }
 }
 
@@ -228,6 +228,6 @@ export class StaffCoordinationCtrl {
     @Req() request: AuthRequest,
     @Body({ schema: readSchema }) body: z.infer<typeof readSchema>,
   ) {
-    return this.service.read(this.actor(id, request), body.through);
+    return this.service.read(this.actor(id, request), body.through, body.revisionThrough);
   }
 }

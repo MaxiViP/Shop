@@ -55,5 +55,6 @@ export interface ChatMessage {
 export interface MessagePage {
   messages: ChatMessage[];
   revisions: (Pick<ChatMessage, 'id' | 'imageRevision' | 'imageExpired' | 'revisionText' | 'revisionActor' | 'revisionAt'>)[];
+  unreadRevision: { id: number; messageId: number; version: number; message: ChatMessage } | null;
   hasMore: boolean;
 }

@@ -27,12 +27,15 @@
       <article
         v-for="entry in messages"
         :key="entry.id"
+        :data-message-id="entry.id"
         class="chat__message"
         :class="{
           'chat__message--system': entry.authorType === 'SYSTEM',
           'chat__message--customer': entry.authorType === 'CUSTOMER',
+          'chat__message--unread-photo': unreadRevision?.messageId === entry.id,
         }"
       >
+        <p v-if="unreadRevision?.messageId === entry.id" class="chat__unread-photo">Непрочитанное обновление фото</p>
         <p class="text-sm text-muted">
           {{ author(entry.authorType) }} ·
           <time
@@ -47,7 +50,7 @@
           >
         </p>
         <p v-if="entry.text" class="chat__text">{{ entry.text }}</p>
-        <OrderChatImage v-if="entry.image" :id="entry.id" :base="base" :revision="entry.imageRevision" :expired="entry.imageExpired" @mark="markImage" />
+        <OrderChatImage v-if="entry.image" :id="entry.id" :base="base" :revision="entry.imageRevision" :expired="entry.imageExpired" @mark="markImage" @ready="imageReady(entry.id, $event)" />
         <p v-if="entry.imageRevision && entry.revisionActor" class="chat__revision">
           {{ entry.revisionActor === 'CUSTOMER' ? 'Отмечено покупателем' : `Фото обновлено: ${author(entry.revisionActor)}` }} ·
           <time v-if="entry.revisionAt" :datetime="entry.revisionAt">{{ new Date(entry.revisionAt).toLocaleString('ru-RU') }}</time>
@@ -151,6 +154,9 @@ const route = useRoute();
 const communicationRevision = useCommunicationRevision();
 const history = reactive(createChatHistory());
 const { messages, initialLoaded } = toRefs(history);
+const unreadRevision = ref<MessagePage['unreadRevision']>(null);
+const oldestPageId = ref<number>();
+const readyImages = reactive(new Map<number, number>());
 const text = ref("");
 const markupText = ref("");
 const photo = ref<File | null>(null);
@@ -179,7 +185,7 @@ let inView = false;
 let observer: IntersectionObserver | undefined;
 let reading = false;
 let lastRead = 0;
-let acknowledgedUnread = 0;
+let lastReadRevision = 0;
 let photoSelection = 0;
 let photoPreparation: AbortController | null = null;
 // POST responses must not move the GET cursor past unseen concurrent messages.
@@ -194,27 +200,47 @@ const bottom = () =>
     viewport.value.scrollTop -
     viewport.value.clientHeight <
     48;
+function photoVisible(messageId: number) {
+  const frame = viewport.value?.getBoundingClientRect();
+  const image = viewport.value?.querySelector<HTMLElement>(
+    `[data-message-id="${messageId}"] .chat-image__thumb`);
+  if (!frame || !image) return false;
+  const photo = image.getBoundingClientRect();
+  if (!photo.width || !photo.height) return false;
+  const visible = Math.min(photo.bottom, frame.bottom, window.innerHeight) -
+    Math.max(photo.top, frame.top, 0);
+  return visible >= Math.min(48, photo.height / 2);
+}
+function imageReady(messageId: number, revision: number) {
+  readyImages.set(messageId, revision);
+  void markVisible();
+}
 async function markVisible() {
-  const through = history.cursor ?? 0;
-  const pendingUnread = props.unread;
+  const through = bottom() ? history.cursor ?? 0 : 0;
+  const target = unreadRevision.value;
+  const revisionThrough = target && readyImages.get(target.messageId) === target.message.imageRevision &&
+    photoVisible(target.messageId) ? target.id : undefined;
   if (
     !active ||
     reading ||
     !inView ||
     document.visibilityState !== "visible" ||
-    !bottom() ||
-    (through <= Math.max(lastRead, props.readThrough) && pendingUnread <= acknowledgedUnread)
+    (through <= Math.max(lastRead, props.readThrough) &&
+      (!revisionThrough || revisionThrough <= lastReadRevision))
   )
     return;
   reading = true;
   try {
     await api(`${props.base}/messages/read`, {
       method: "POST",
-      body: { through },
+      body: { through, ...(revisionThrough ? { revisionThrough } : {}) },
     });
     if (active) {
       lastRead = Math.max(lastRead, through);
-      acknowledgedUnread = Math.max(acknowledgedUnread, pendingUnread);
+      if (revisionThrough) {
+        lastReadRevision = Math.max(lastReadRevision, revisionThrough);
+        if (unreadRevision.value?.id === revisionThrough) unreadRevision.value = null;
+      }
       communicationRevision.value++;
       emit("read");
     }
@@ -228,6 +254,7 @@ async function load() {
   if (loading.value || !active) return;
   loading.value = true;
   const wasBottom = bottom();
+  const wasInitial = !initialLoaded.value;
   try {
     const after = history.cursor;
     const seen = messages.value.filter(entry => entry.image).slice(-500).map(entry => entry.id).join(',');
@@ -235,16 +262,25 @@ async function load() {
       query: { ...(after ? { after } : {}), ...(seen ? { seen } : {}) },
     });
     if (!active) return;
-    if (!after) hasOlder.value = page.hasMore;
+    if (!after) {
+      hasOlder.value = page.hasMore;
+      oldestPageId.value = page.messages[0]?.id;
+    }
     const changed = receiveMessages(history, page.messages);
     const revised = applyImageRevisions(history, page.revisions ?? []);
+    const newUnread = page.unreadRevision && page.unreadRevision.id !== unreadRevision.value?.id;
+    unreadRevision.value = page.unreadRevision;
     if (page.messages.length && wasBottom && messages.value.length > 500) {
       messages.value = messages.value.slice(-500);
+      oldestPageId.value = messages.value[0]?.id;
       hasOlder.value = true;
     }
+    if (page.unreadRevision)
+      messages.value = mergeMessages(messages.value, [page.unreadRevision.message]);
     error.value = false;
     await nextTick();
-    if ((changed || revised) && wasBottom && viewport.value)
+    if (newUnread && !wasInitial && route.hash === '#order-chat') await focusChat();
+    else if ((changed || revised) && wasBottom && viewport.value)
       viewport.value.scrollTop = viewport.value.scrollHeight;
     await markVisible();
   } catch {
@@ -260,10 +296,11 @@ async function older() {
   const previousTop = viewport.value?.scrollTop ?? 0;
   try {
     const page = await api<MessagePage>(`${props.base}/messages`, {
-      query: { before: messages.value[0]?.id },
+      query: { before: oldestPageId.value },
     });
     if (!active) return;
     messages.value = mergeMessages(messages.value, page.messages);
+    oldestPageId.value = page.messages[0]?.id ?? oldestPageId.value;
     hasOlder.value = page.hasMore;
     await nextTick();
     if (viewport.value)
@@ -411,7 +448,12 @@ async function focusChat() {
   if (route.hash !== '#order-chat') return;
   await nextTick();
   document.getElementById('order-chat')?.scrollIntoView({ block: 'start' });
-  if (window.matchMedia('(min-width: 40rem)').matches)
+  const target = unreadRevision.value && viewport.value?.querySelector<HTMLElement>(
+    `[data-message-id="${unreadRevision.value.messageId}"]`);
+  if (target) {
+    target.scrollIntoView({ block: 'center' });
+    void markVisible();
+  } else if (window.matchMedia('(min-width: 40rem)').matches)
     document.querySelector<HTMLTextAreaElement>('#order-chat textarea')?.focus({ preventScroll: true });
 }
 function onKeydown(event: KeyboardEvent) {
@@ -426,8 +468,7 @@ onMounted(() => {
     void markVisible();
   });
   if (viewport.value) observer.observe(viewport.value);
-  void load();
-  void focusChat();
+  void load().then(focusChat);
 });
 onBeforeUnmount(() => {
   active = false;
@@ -436,10 +477,7 @@ onBeforeUnmount(() => {
   if (preview.value) URL.revokeObjectURL(preview.value);
 });
 watch(() => route.hash, () => { void focusChat() });
-watch(() => props.unread, value => {
-  if (!value) acknowledgedUnread = 0;
-  void markVisible();
-});
+watch(() => props.unread, () => { void markVisible() });
 watch(markupOpen, (open) => {
   if (!open) {
     markupSource.value = null;
@@ -479,6 +517,7 @@ useOrderPolling(load, () => props.poll === false ? 30000 : 4000);
 }
 .chat__revision { color: var(--ui-text-muted); font-size: 0.75rem; }
 .chat__revision-text { border-left: 2px solid var(--ui-primary); padding-left: 0.5rem; font-size: 0.875rem; }
+.chat__unread-photo { color: var(--ui-primary); font-size: 0.75rem; font-weight: 600; }
 .chat__message {
   justify-self: start;
   max-width: 94%;
@@ -502,6 +541,7 @@ useOrderPolling(load, () => props.poll === false ? 30000 : 4000);
   color: var(--ui-text-muted);
   background: var(--ui-bg-elevated);
 }
+.chat__message--unread-photo { border-color: var(--ui-primary); }
 .chat__text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

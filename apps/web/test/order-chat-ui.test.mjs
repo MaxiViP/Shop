@@ -170,6 +170,12 @@ test("queue and customer unread CTA use the chat anchor; shared chat renders pho
   assert.match(chat, /\/messages\/\$\{attempt\.messageId\}\/revisions/);
   assert.match(chat, /Отмечено покупателем/);
   assert.match(chat, /watch\(\(\) => props\.unread/);
+  assert.match(chat, /page\.unreadRevision/);
+  assert.match(chat, /revisionThrough/);
+  assert.match(chat, /photoVisible\(target\.messageId\)/);
+  assert.match(chat, /\[data-message-id=.*\.chat-image__thumb/);
+  assert.match(chat, /target\.scrollIntoView/);
+  assert.match(chat, /@ready="imageReady/);
   assert.match(chat, /v-if="photo \|\| markupSource"/);
   assert.match(chat, /@send="sendMarked"/);
   assert.match(chat, /Назначение фото/);

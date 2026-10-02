@@ -34,10 +34,20 @@ const stale = () =>
 type ImageRevisionView = { version: number; caption: string; actorType: MessageAuthor; createdAt: Date };
 const latestRevision = { orderBy: { version: 'desc' }, take: 1,
   select: { version: true, caption: true, actorType: true, createdAt: true } } as const;
+const chatMessageSelect = {
+  id: true, issueId: true, authorType: true, text: true,
+  imageKey: true, imageRevision: true, imageDeletedAt: true,
+  createdAt: true, imageRevisions: latestRevision,
+} satisfies Prisma.OrderChatMessageSelect;
 function revisionFields(revision?: ImageRevisionView | null) {
   return { revisionText: revision?.version ? revision.caption : null,
     revisionActor: revision?.version ? revision.actorType : null,
     revisionAt: revision?.version ? revision.createdAt : null };
+}
+function chatMessageView({ imageKey, imageDeletedAt, imageRevisions, ...entry }:
+  Prisma.OrderChatMessageGetPayload<{ select: typeof chatMessageSelect }>) {
+  return { ...entry, image: Boolean(imageKey || imageDeletedAt), imageExpired: Boolean(imageDeletedAt),
+    ...revisionFields(imageRevisions[0]) };
 }
 function publicChatMessage(saved: OrderChatMessage, revision?: ImageRevisionView | null) {
   return {
@@ -374,17 +384,7 @@ export class CoordinationService {
         },
         orderBy: { id: query.after ? 'asc' : 'desc' },
         take: query.limit + 1,
-        select: {
-          id: true,
-          issueId: true,
-          authorType: true,
-          text: true,
-          imageKey: true,
-          imageRevision: true,
-          imageDeletedAt: true,
-          createdAt: true,
-          imageRevisions: latestRevision,
-        },
+        select: chatMessageSelect,
       });
       const hasMore = rows.length > query.limit;
       const page = rows.slice(0, query.limit);
@@ -393,13 +393,25 @@ export class CoordinationService {
         select: { id: true, imageRevision: true, imageDeletedAt: true,
           imageRevisions: latestRevision },
       }) : [];
+      const staff = 'orderId' in actor;
+      const order = await db.order.findUniqueOrThrow({ where: { id }, select: {
+        staffReadImageRevisionId: true, customerReadImageRevisionId: true,
+      } });
+      const unreadRevision = await db.orderChatImageRevision.findFirst({
+        where: { id: { gt: staff ? order.staffReadImageRevisionId : order.customerReadImageRevisionId },
+          version: { gt: 0 }, actorType: staff ? 'CUSTOMER' : { in: ['SELLER', 'ADMIN'] },
+          message: { orderId: id } },
+        orderBy: { id: 'asc' },
+        select: { id: true, messageId: true, version: true,
+          message: { select: chatMessageSelect } },
+      });
       return {
-        messages: (query.after ? page : page.reverse()).map(({ imageKey, imageDeletedAt, imageRevisions, ...entry }) => ({
-          ...entry, image: Boolean(imageKey || imageDeletedAt), imageExpired: Boolean(imageDeletedAt),
-          ...revisionFields(imageRevisions[0]),
-        })),
+        messages: (query.after ? page : page.reverse()).map(chatMessageView),
         revisions: seen.map(row => ({ id: row.id, imageRevision: row.imageRevision,
           imageExpired: Boolean(row.imageDeletedAt), ...revisionFields(row.imageRevisions[0]) })),
+        unreadRevision: unreadRevision && { id: unreadRevision.id,
+          messageId: unreadRevision.messageId, version: unreadRevision.version,
+          message: chatMessageView(unreadRevision.message) },
         hasMore, orderId: id,
       };
     });
@@ -631,7 +643,7 @@ export class CoordinationService {
     return this.images.read(key, variant);
   }
 
-  read(actor: OrderActor, through: number) {
+  read(actor: OrderActor, through: number, revisionThrough?: number) {
     return this.locked(actor, async (db, id) => {
       const staff = 'orderId' in actor;
       if (
@@ -647,15 +659,16 @@ export class CoordinationService {
         staff ? order.staffReadMessageId : order.customerReadMessageId,
       );
       let revisionCursor = staff ? order.staffReadImageRevisionId : order.customerReadImageRevisionId;
-      const latestMessage = await db.orderChatMessage.findFirst({
-        where: { orderId: id }, orderBy: { id: 'desc' }, select: { id: true },
-      });
-      if (!latestMessage || through >= latestMessage.id) {
-        const latestRevision = await db.orderChatImageRevision.findFirst({
-          where: { message: { orderId: id }, version: { gt: 0 } },
-          orderBy: { id: 'desc' }, select: { id: true },
+      if (revisionThrough && revisionThrough > revisionCursor) {
+        const nextUnread = await db.orderChatImageRevision.findFirst({
+          where: { id: { gt: revisionCursor }, version: { gt: 0 },
+            actorType: staff ? 'CUSTOMER' : { in: ['SELLER', 'ADMIN'] },
+            message: { orderId: id } },
+          orderBy: { id: 'asc' }, select: { id: true },
         });
-        revisionCursor = Math.max(revisionCursor, latestRevision?.id ?? 0);
+        if (nextUnread?.id !== revisionThrough)
+          throw new BadRequestException('Разметка не найдена или более раннее обновление не просмотрено');
+        revisionCursor = revisionThrough;
       }
       const unread = await chatUnread(db, id, staff, cursor, revisionCursor);
       await db.order.update({
