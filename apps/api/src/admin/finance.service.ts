@@ -10,7 +10,7 @@ const orderSelect = {
   finalTotal: true, deliveryPrice: true,
   items: { select: {
     id: true, productName: true, status: true, qty: true, actualQty: true,
-    total: true, actualTotal: true, priceQty: true,
+    total: true, actualTotal: true, price: true, actualPrice: true, priceQty: true,
     settlementModeSnapshot: true, basePriceSnapshot: true,
   } },
   extras: { where: { status: 'ACTIVE' }, select: { amount: true } },

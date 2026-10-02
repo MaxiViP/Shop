@@ -13,7 +13,7 @@ export function assertStaffActor(actor: StaffActor | undefined, userId: number |
 }
 
 export type StaffAuditAction =
-  | 'CONFIRM' | 'START_ASSEMBLY' | 'ITEM_PICKED' | 'ITEM_MISSING' | 'ITEM_RESET'
+  | 'CONFIRM' | 'START_ASSEMBLY' | 'ITEM_PICKED' | 'ITEM_MISSING' | 'ITEM_RESET' | 'ITEM_PRICE_CHANGE'
   | 'EXTRA_ADD' | 'EXTRA_EDIT' | 'EXTRA_CANCEL' | 'FINISH_ASSEMBLY' | 'REOPEN'
   | 'PAYMENT_CONFIRM' | 'CANCEL' | 'RESTORE' | 'PICKUP_COMPLETE'
   | 'DELIVERY_UPDATE' | 'DELIVERY_HANDOFF' | 'DELIVERY_COMPLETE';

@@ -4,7 +4,8 @@ import type { SettlementMode } from '../db/gen/client.js';
 export type FinanceItem = {
   id: number; productName: string; status: 'PENDING' | 'PICKED' | 'MISSING';
   qty: number; actualQty: number | null; total: number; actualTotal: number | null;
-  priceQty: number; settlementModeSnapshot: SettlementMode | null; basePriceSnapshot: number | null;
+  price: number; actualPrice: number | null; priceQty: number;
+  settlementModeSnapshot: SettlementMode | null; basePriceSnapshot: number | null;
 };
 function safe(value: bigint) {
   if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < BigInt(Number.MIN_SAFE_INTEGER))
@@ -26,6 +27,7 @@ export function financeLine(item: FinanceItem) {
   const sharedMarkup = category === 'SHARED_MARKUP' ? saleAmount - baseAmount : 0;
   return {
     id: item.id, productName: item.productName, mode: category, qty,
+    orderPrice: item.price, finalPrice: item.actualPrice ?? item.price, priceQty: item.priceQty,
     saleAmount, baseAmount, sharedMarkup,
   };
 }

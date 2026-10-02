@@ -6,7 +6,7 @@ export function ordersAction(
 ) {
   const parts = [
     ...(staff && newCount ? [`новых ${newCount}`] : []),
-    ...(unread ? [`непрочитанных сообщений ${unread}`] : []),
+    ...(unread ? [`непрочитанных в чате ${unread}`] : []),
   ];
   const name = staff ? "Заказы" : "Мои заказы";
   return {
@@ -19,7 +19,7 @@ export function ordersAction(
       : newCount > 0
         ? "/staff/orders?tab=new"
         : unread > 0 && latestOrderId !== null
-          ? `/staff/orders/${latestOrderId}`
+          ? `/staff/orders/${latestOrderId}#order-chat`
           : "/staff/orders",
   };
 }

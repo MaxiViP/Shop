@@ -9,6 +9,7 @@ import { PrismaClient, type Unit } from '../src/db/gen/client.js';
 import { DbService } from '../src/db/db.service.js';
 import { StaffService } from '../src/staff/staff.service.js';
 import { NotificationService } from '../src/order/notification.service.js';
+import { AdminOrdersService } from '../src/admin/orders.service.js';
 import { StaffBotFlowService } from '../src/telegram/staff-bot-flow.service.js';
 import { StaffBotService } from '../src/telegram/staff-bot.service.js';
 import { StaffLinkService } from '../src/telegram/staff-link.service.js';
@@ -21,7 +22,8 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
   let connection: pg.Client, db: PrismaClient, staff: StaffService;
   let created = false, sequence = 100;
   const fetcher = vi.fn<typeof fetch>();
-  const notices = { dispatch: vi.fn(async () => {}), dispatchTelegram: vi.fn(async () => {}) };
+  const notices = { dispatch: vi.fn(async () => {}), dispatchTelegram: vi.fn(async () => {}),
+    dispatchStaffPrice: vi.fn(async (_orderId: number) => {}) };
   beforeAll(async () => {
     const target = new URL(process.env.DATABASE_URL!);
     if (!['localhost', '127.0.0.1', '[::1]'].includes(target.hostname))
@@ -41,6 +43,7 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
     staff = new StaffService(db as unknown as DbService, notices as unknown as NotificationService);
   }, 60000);
   beforeEach(async () => {
+    notices.dispatchStaffPrice.mockReset().mockImplementation(async () => {});
     vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', randomUUID());
     vi.stubEnv('TELEGRAM_STAFF_WEBHOOK_SECRET', randomUUID());
     vi.stubEnv('ORDER_SITE_URL', 'https://shop.example');
@@ -100,6 +103,82 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
     return staffConfirmData(f.order.id, 'xs', (await session(f)).confirmationCode!);
   }
   const audits = (f: Fixture, action: string) => db.orderStaffAudit.findMany({ where: { orderId: f.order.id, action } });
+
+  it('keeps checkout price, computes final weight at corrected price, and enqueues one notice per linked ADMIN', async () => {
+    const f = await fixture();
+    const primary = await db.user.create({ data: { role: 'ADMIN', name: 'Primary', phone: '+79990000002' } });
+    const second = await db.user.create({ data: { role: 'ADMIN', name: 'Second' } });
+    const unlinked = await db.user.create({ data: { role: 'ADMIN', name: 'No Telegram' } });
+    vi.stubEnv('ADMIN_PHONE', primary.phone!);
+    for (const user of [primary, second]) await db.staffTelegramIdentity.create({ data: {
+      userId: user.id, telegramUserId: BigInt(400000 + user.id), botStartedAt: new Date(),
+    } });
+    const itemId = f.order.items[0]!.id;
+    const requestId = randomUUID();
+    const committed: { orderId: number; changes: number; notices: number }[] = [];
+    notices.dispatchStaffPrice.mockImplementation(async orderId => {
+      committed.push({ orderId, changes: await db.orderItemPriceChange.count({ where: { orderId } }),
+        notices: await db.orderNotification.count({ where: { orderId, channel: 'STAFF_TELEGRAM' } }) });
+    });
+    const changed = await staff.itemPrice(f.order.id, itemId, { price: 65000, reason: 'Новая цена на рынке', requestId }, f.actor);
+    expect(changed).toMatchObject({ price: 60000, actualPrice: 65000, total: 42000 });
+    await staff.itemPrice(f.order.id, itemId, { price: 65000, reason: 'Новая цена на рынке', requestId }, f.actor);
+    await staff.itemPrice(f.order.id, itemId, { price: 65000, requestId: randomUUID() }, f.actor);
+    await Promise.all(notices.dispatchStaffPrice.mock.results.map(result => result.value));
+    expect(notices.dispatchStaffPrice).toHaveBeenCalledTimes(1);
+    expect(committed).toEqual([{ orderId: f.order.id, changes: 1, notices: 2 }]);
+    expect(await db.orderItemPriceChange.findMany({ where: { orderId: f.order.id } })).toMatchObject([
+      { previousPrice: 60000, newPrice: 65000, actorId: f.actor.userId, reason: 'Новая цена на рынке' },
+    ]);
+    const notified = (await db.orderNotification.findMany({ where: { orderId: f.order.id, channel: 'STAFF_TELEGRAM' },
+      orderBy: { recipientUserId: 'asc' } })).map(row => row.recipientUserId);
+    expect(notified).toEqual([primary.id, second.id]);
+    expect(notified).not.toContain(unlinked.id);
+    expect(await audits(f, 'ITEM_PRICE_CHANGE')).toHaveLength(1);
+    await staff.item(f.order.id, itemId, { status: 'PICKED', actualQty: 700 }, f.actor.userId, f.actor);
+    expect(await db.orderItem.findUniqueOrThrow({ where: { id: itemId } })).toMatchObject({
+      price: 60000, actualPrice: 65000, total: 42000, actualTotal: 45500,
+    });
+    await staff.finishAssembly(f.order.id, f.actor);
+    expect(await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).toMatchObject({
+      subtotal: 42000, finalSubtotal: 45500, finalTotal: 45500,
+    });
+    const adminView = await new AdminOrdersService(db as unknown as DbService, staff).get(f.order.id);
+    expect(adminView.finance.lines).toMatchObject([{
+      orderPrice: 60000, finalPrice: 65000, saleAmount: 45500,
+    }]);
+    expect(adminView.priceChanges).toMatchObject([{
+      previousPrice: 60000, newPrice: 65000, reason: 'Новая цена на рынке',
+      actor: { name: 'Staff fixture', role: 'SELLER' },
+    }]);
+    await expect(staff.itemPrice(f.order.id, itemId, { price: 66000, requestId: randomUUID() }, f.actor))
+      .rejects.toThrow('Цену можно менять только во время сборки');
+  });
+
+  it('keeps the committed price and audit when immediate Telegram dispatch fails', async () => {
+    const f = await fixture('SELLER', 'PIECE');
+    const admin = await db.user.create({ data: { role: 'ADMIN', name: 'Admin' } });
+    await db.staffTelegramIdentity.create({ data: { userId: admin.id,
+      telegramUserId: BigInt(400000 + admin.id), botStartedAt: new Date() } });
+    notices.dispatchStaffPrice.mockRejectedValueOnce(new Error('Synthetic Telegram failure'));
+    await staff.itemPrice(f.order.id, f.order.items[0]!.id,
+      { price: 65000, requestId: randomUUID() }, f.actor);
+    expect(await db.orderItem.findUniqueOrThrow({ where: { id: f.order.items[0]!.id } }))
+      .toMatchObject({ price: 60000, actualPrice: 65000 });
+    expect(await audits(f, 'ITEM_PRICE_CHANGE')).toHaveLength(1);
+    expect(await db.orderNotification.count({ where: { orderId: f.order.id,
+      recipientUserId: admin.id, channel: 'STAFF_TELEGRAM', status: 'PENDING' } })).toBe(1);
+  });
+
+  it('rejects price changes after payment even when assembly status is stale', async () => {
+    const f = await fixture('SELLER', 'PIECE');
+    await db.orderPayment.create({ data: { orderId: f.order.id, amount: 42000, status: 'PAID' } });
+    await expect(staff.itemPrice(f.order.id, f.order.items[0]!.id,
+      { price: 65000, requestId: randomUUID() }, f.actor))
+      .rejects.toThrow('Цену можно менять только во время сборки');
+    expect(await db.orderItemPriceChange.count({ where: { orderId: f.order.id } })).toBe(0);
+    expect(notices.dispatchStaffPrice).not.toHaveBeenCalled();
+  });
 
   it.each(['timeout', 'reset', 'malformed', 'missing-message', 'bad-id'])(
     'persists initial EXTRA when Telegram has unknown %s result', async kind => {

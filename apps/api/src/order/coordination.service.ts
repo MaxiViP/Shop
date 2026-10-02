@@ -7,16 +7,16 @@ import {
   GoneException,
   Logger,
 } from '@nestjs/common';
-import type { Prisma, OrderChatMessage } from '../db/gen/client.js';
+import type { Prisma, OrderChatMessage, MessageAuthor } from '../db/gen/client.js';
 import type { z } from 'zod';
 import { DbService } from '../db/db.service.js';
 import { OrderService } from './order.service.js';
 import { NotificationService } from './notification.service.js';
-import { actionNotification, message, customerIssueActions, compositionQty, compositionMoney } from './coordination.js';
+import { actionNotification, chatUnread, message, customerIssueActions, compositionQty, compositionMoney } from './coordination.js';
 import { cancelOrder } from './cancel.js';
 import { goodsLine } from './pricing.js';
 import { chatSchema } from './coordination.schema.js';
-import { imageChatSchema } from './coordination.schema.js';
+import { imageChatSchema, imageRevisionSchema } from './coordination.schema.js';
 import { ChatImagesService } from './chat-images.service.js';
 import type { ChatUploadFile } from './chat-images.service.js';
 import { imageExpiry } from './chat-cleanup.service.js';
@@ -31,12 +31,21 @@ export type OrderActor =
   | { orderId: number; userId: number; role: 'SELLER' | 'ADMIN' };
 const stale = () =>
   new ConflictException('Данные позиции изменились. Обновите заказ.');
-function publicChatMessage(saved: OrderChatMessage) {
+type ImageRevisionView = { version: number; caption: string; actorType: MessageAuthor; createdAt: Date };
+const latestRevision = { orderBy: { version: 'desc' }, take: 1,
+  select: { version: true, caption: true, actorType: true, createdAt: true } } as const;
+function revisionFields(revision?: ImageRevisionView | null) {
+  return { revisionText: revision?.version ? revision.caption : null,
+    revisionActor: revision?.version ? revision.actorType : null,
+    revisionAt: revision?.version ? revision.createdAt : null };
+}
+function publicChatMessage(saved: OrderChatMessage, revision?: ImageRevisionView | null) {
   return {
     id: saved.id, orderId: saved.orderId, issueId: saved.issueId,
     authorType: saved.authorType, authorUserId: saved.authorUserId,
     recipient: saved.recipient, text: saved.text, createdAt: saved.createdAt,
     image: Boolean(saved.imageKey || saved.imageDeletedAt), imageExpired: Boolean(saved.imageDeletedAt),
+    imageRevision: saved.imageRevision, ...revisionFields(revision),
   };
 }
 
@@ -109,6 +118,7 @@ export class CoordinationService {
               productName: true,
               unit: true,
               price: true,
+              actualPrice: true,
               priceQty: true,
             },
           },
@@ -350,6 +360,9 @@ export class CoordinationService {
 
   messages(actor: OrderActor, query: z.infer<typeof cursorSchema>) {
     return this.locked(actor, async (db, id) => {
+      const seenIds = query.seen?.split(',').map(Number) ?? [];
+      if (seenIds.length > 500 || seenIds.some(value => !Number.isSafeInteger(value) || value <= 0))
+        throw new BadRequestException('Слишком много фото для обновления');
       const rows = await db.orderChatMessage.findMany({
         where: {
           orderId: id,
@@ -367,16 +380,26 @@ export class CoordinationService {
           authorType: true,
           text: true,
           imageKey: true,
+          imageRevision: true,
           imageDeletedAt: true,
           createdAt: true,
+          imageRevisions: latestRevision,
         },
       });
       const hasMore = rows.length > query.limit;
       const page = rows.slice(0, query.limit);
+      const seen = seenIds.length ? await db.orderChatMessage.findMany({
+        where: { orderId: id, id: { in: seenIds } },
+        select: { id: true, imageRevision: true, imageDeletedAt: true,
+          imageRevisions: latestRevision },
+      }) : [];
       return {
-        messages: (query.after ? page : page.reverse()).map(({ imageKey, imageDeletedAt, ...entry }) => ({
+        messages: (query.after ? page : page.reverse()).map(({ imageKey, imageDeletedAt, imageRevisions, ...entry }) => ({
           ...entry, image: Boolean(imageKey || imageDeletedAt), imageExpired: Boolean(imageDeletedAt),
+          ...revisionFields(imageRevisions[0]),
         })),
+        revisions: seen.map(row => ({ id: row.id, imageRevision: row.imageRevision,
+          imageExpired: Boolean(row.imageDeletedAt), ...revisionFields(row.imageRevisions[0]) })),
         hasMore, orderId: id,
       };
     });
@@ -505,6 +528,96 @@ export class CoordinationService {
     return publicChatMessage(saved);
   }
 
+  private async existingRevision(db: Prisma.TransactionClient, orderId: number, messageId: number,
+    actor: OrderActor, data: z.infer<typeof imageRevisionSchema>) {
+    const previous = await db.orderChatImageRevision.findUnique({
+      where: { messageId_requestId: { messageId, requestId: data.requestId } },
+    });
+    if (!previous) return null;
+    const staff = 'orderId' in actor;
+    if (previous.actorUserId !== actor.userId || previous.caption !== data.text ||
+      (staff ? !['SELLER', 'ADMIN'].includes(previous.actorType) : previous.actorType !== 'CUSTOMER'))
+      throw new ConflictException('Ключ разметки уже использован');
+    const row = await db.orderChatMessage.findFirst({
+      where: { id: messageId, orderId }, include: { imageRevisions: latestRevision },
+    });
+    if (!row) throw new NotFoundException('Фото не найдено');
+    return publicChatMessage(row, row.imageRevisions[0]);
+  }
+
+  async reviseImage(actor: OrderActor, messageId: number,
+    input: z.infer<typeof imageRevisionSchema>, file?: ChatUploadFile) {
+    const data = imageRevisionSchema.parse(input);
+    const duplicate = await this.locked(actor, async (db, id) => {
+      const row = await db.orderChatMessage.findFirst({ where: { id: messageId, orderId: id },
+        select: { imageKey: true, imageDeletedAt: true } });
+      if (!row) throw new NotFoundException('Фото не найдено');
+      const earlier = await this.existingRevision(db, id, messageId, actor, data);
+      if (earlier) return earlier;
+      if (row.imageDeletedAt) throw new GoneException('Фото больше не хранится');
+      if (!row.imageKey) throw new NotFoundException('Фото не найдено');
+      return null;
+    });
+    if (duplicate) return duplicate;
+    const imageKey = await this.images.save(file);
+    let result: { message: ReturnType<typeof publicChatMessage>; used: boolean };
+    try {
+      result = await this.locked(actor, async (db, id) => {
+        const earlier = await this.existingRevision(db, id, messageId, actor, data);
+        if (earlier) return { message: earlier, used: false };
+        const row = await db.orderChatMessage.findFirst({ where: { id: messageId, orderId: id },
+          include: { imageRevisions: latestRevision, issue: true,
+            order: { include: { cancellations: {
+              where: { restoredAt: null }, orderBy: { canceledAt: 'desc' }, take: 1,
+            } } } },
+        });
+        if (!row) throw new NotFoundException('Фото не найдено');
+        if (row.imageDeletedAt) throw new GoneException('Фото больше не хранится');
+        if (!row.imageKey) throw new NotFoundException('Фото не найдено');
+        const latestAt = row.imageRevisions[0]?.createdAt ?? row.createdAt;
+        const currentExpiry = imageExpiry({
+          retention: row.imageRetention ?? 'OPERATIONAL', createdAt: latestAt,
+          orderStatus: row.order.status, completedAt: row.order.completedAt,
+          canceledAt: row.order.cancellations[0]?.canceledAt ?? null,
+          orderUpdatedAt: row.order.updatedAt, issue: row.issue,
+        });
+        if (currentExpiry && currentExpiry <= new Date()) throw new GoneException('Фото больше не хранится');
+        const recent = await db.orderChatImageRevision.count({ where: {
+          messageId, createdAt: { gt: new Date(Date.now() - 60000) },
+        } });
+        if (recent >= 15) throw new HttpException('Слишком много разметок. Подождите минуту.', 429);
+        const now = new Date();
+        const staff = 'orderId' in actor;
+        const retention = row.imageRetention === 'EVIDENCE' || row.issueId ||
+          (!staff && row.order.status === 'COMPLETED') ? 'EVIDENCE' : 'OPERATIONAL';
+        const version = row.imageRevision + 1;
+        const revision = await db.orderChatImageRevision.create({ data: {
+          messageId, version, imageKey, requestId: data.requestId,
+          actorType: staff ? actor.role : 'CUSTOMER', actorUserId: actor.userId,
+          caption: data.text, createdAt: now,
+        } });
+        const updated = await db.orderChatMessage.update({ where: { id: messageId }, data: {
+          imageKey, imageRevision: version, imageRetention: retention,
+          imageExpiresAt: imageExpiry({ retention, createdAt: now,
+            orderStatus: row.order.status, completedAt: row.order.completedAt,
+            canceledAt: row.order.cancellations[0]?.canceledAt ?? null,
+            orderUpdatedAt: row.order.updatedAt, issue: row.issue }),
+        } });
+        await db.order.update({ where: { id }, data: staff
+          ? { customerUnread: { increment: 1 } }
+          : { staffUnread: { increment: 1 } },
+        });
+        return { message: publicChatMessage(updated, revision), used: true };
+      });
+    } catch (error) {
+      await this.images.remove(imageKey).catch((cause: unknown) => this.logger.error('Could not remove unwritten chat revision', cause));
+      throw error;
+    }
+    if (!result.used)
+      await this.images.remove(imageKey).catch((cause: unknown) => this.logger.error('Could not remove duplicate chat revision', cause));
+    return result.message;
+  }
+
   async image(actor: OrderActor, messageId: number, variant: 'full' | 'thumb') {
     const key = await this.locked(actor, async (db, id) => {
       const row = await db.orderChatMessage.findFirst({
@@ -533,18 +646,23 @@ export class CoordinationService {
         through,
         staff ? order.staffReadMessageId : order.customerReadMessageId,
       );
-      const unread = await db.orderChatMessage.count({
-        where: {
-          orderId: id,
-          id: { gt: cursor },
-          recipient: { in: [staff ? 'staff' : 'customer', 'both'] },
-        },
+      let revisionCursor = staff ? order.staffReadImageRevisionId : order.customerReadImageRevisionId;
+      const latestMessage = await db.orderChatMessage.findFirst({
+        where: { orderId: id }, orderBy: { id: 'desc' }, select: { id: true },
       });
+      if (!latestMessage || through >= latestMessage.id) {
+        const latestRevision = await db.orderChatImageRevision.findFirst({
+          where: { message: { orderId: id }, version: { gt: 0 } },
+          orderBy: { id: 'desc' }, select: { id: true },
+        });
+        revisionCursor = Math.max(revisionCursor, latestRevision?.id ?? 0);
+      }
+      const unread = await chatUnread(db, id, staff, cursor, revisionCursor);
       await db.order.update({
         where: { id },
         data: staff
-          ? { staffReadMessageId: cursor, staffUnread: unread }
-          : { customerReadMessageId: cursor, customerUnread: unread },
+          ? { staffReadMessageId: cursor, staffReadImageRevisionId: revisionCursor, staffUnread: unread }
+          : { customerReadMessageId: cursor, customerReadImageRevisionId: revisionCursor, customerUnread: unread },
       });
       return { unread };
     });

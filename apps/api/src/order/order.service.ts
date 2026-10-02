@@ -296,9 +296,17 @@ export class OrderService {
     const total = await this.db.order.aggregate({ where, _sum: { customerUnread: true } });
     const latest = await this.db.orderChatMessage.findFirst({
       where: { recipient: { in: ['customer', 'both'] }, order: { ...where, customerUnread: { gt: 0 } } },
-      orderBy: { id: 'desc' }, select: { order: { select: { publicId: true } } },
+      orderBy: { id: 'desc' }, select: { createdAt: true, order: { select: { publicId: true } } },
     });
-    return { count: total._sum.customerUnread ?? 0, latestOrderId: latest?.order.publicId ?? null };
+    const revision = await this.db.orderChatImageRevision.findFirst({
+      where: { version: { gt: 0 }, actorType: { in: ['SELLER', 'ADMIN'] },
+        message: { order: { ...where, customerUnread: { gt: 0 } } } },
+      orderBy: { id: 'desc' },
+      select: { createdAt: true, message: { select: { order: { select: { publicId: true } } } } },
+    });
+    return { count: total._sum.customerUnread ?? 0,
+      latestOrderId: revision && (!latest || revision.createdAt >= latest.createdAt)
+        ? revision.message.order.publicId : latest?.order.publicId ?? null };
   }
 
   async get(publicId: string, userId: number | null, guestToken?: string) {
@@ -370,6 +378,7 @@ export class OrderService {
             image: true,
 
             price: true,
+            actualPrice: true,
             priceQty: true,
             unit: true,
 

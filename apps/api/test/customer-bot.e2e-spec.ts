@@ -137,6 +137,13 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     await staff.item(f.order.id, f.order.items[0]!.id, { status: 'PICKED', actualQty: 1200 }, seller.userId, seller);
     const issue = await db.orderIssue.findUniqueOrThrow({ where: { orderItemId: f.order.items[0]!.id } });
     await notices.dispatchTelegram(f.order.id);
+    // The staff mutation also starts a post-commit dispatcher without awaiting it.
+    // A second dispatcher can find the row claimed as SENDING before the first finishes.
+    await vi.waitFor(async () => {
+      const notice = (await events(f.order.id)).find(event => event.channel === 'TELEGRAM');
+      expect(notice && (['SENT', 'FAILED', 'UNCONFIGURED'].includes(notice.status) ||
+        (notice.status === 'SENDING' && notice.error === 'TELEGRAM_OUTCOME_UNKNOWN'))).toBe(true);
+    }, { timeout: 5000 });
     return { ...f, issue };
   }
   async function prompt(f: Awaited<ReturnType<typeof fixture>>) {
@@ -272,9 +279,11 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
       [legacyRows.map(row => row.id)])).rows;
     expect(rows).toHaveLength(6);
     for (const [index, row] of rows.entries()) {
-      const { channel, messageId, ...original } = row;
+      const { channel, messageId, priceChangeId, recipientUserId, ...original } = row;
       expect(channel).toBe('SMS');
       expect(messageId).toBeNull();
+      expect(priceChangeId).toBeNull();
+      expect(recipientUserId).toBeNull();
       expect(original).toEqual(legacyRows[index]);
     }
     // An old API's single-column conflict target is intentionally no longer compatible.

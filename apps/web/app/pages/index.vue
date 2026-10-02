@@ -18,9 +18,7 @@
         </ol>
       </section>
 
-      <section class="home__section">
-        <h2 class="home__title">Категории</h2>
-
+      <section class="home__section home__section--categories">
         <CategoryList :items="categories" />
       </section>
 
@@ -85,6 +83,9 @@ const {
 .home__section {
   min-width: 0;
   margin-top: var(--section-gap);
+}
+.home__section--categories {
+  margin-top: clamp(1rem, 2vw, 1.5rem);
 }
 .home__feature {
   display: grid;

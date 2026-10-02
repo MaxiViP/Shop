@@ -12,7 +12,14 @@
       color="error"
     />
 
-    <ProductGrid v-if="items.length" :items="items" />
+    <div v-if="groups.length" class="favorites-page__groups">
+      <section v-for="group in groups" :key="group.slug" class="favorites-page__group">
+        <h2 class="favorites-page__group-title">
+          <NuxtLink :to="`/catalog/${group.slug}`">{{ group.name }} <UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink>
+        </h2>
+        <ProductGrid :items="group.items" compact />
+      </section>
+    </div>
 
     <div v-else-if="!loading && !loadError" class="favorites-page__empty">
       <h2 class="favorites-page__empty-title">В избранном пока ничего нет</h2>
@@ -25,6 +32,7 @@
 import type { ProductListItem, ProductListResponse } from "~/types/product";
 import { useAuthStore } from "~/stores/auth";
 import { useFavoritesStore } from "~/stores/favorites";
+import { favoriteGroups } from "~/utils/favorite-groups";
 
 const auth = useAuthStore();
 const favorites = useFavoritesStore();
@@ -47,6 +55,7 @@ const items = computed(() => {
     ...currentGuestItems.value.filter(({ id }) => !serverIds.has(id)),
   ];
 });
+const groups = computed(() => favoriteGroups(items.value));
 
 onMounted(() => {
   void refresh();
@@ -122,11 +131,17 @@ useSeoMeta({
 }
 
 .favorites-page__title {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   font-size: var(--page-title);
   font-weight: 700;
   line-height: 1.1;
 }
+.favorites-page__groups { display: grid; gap: clamp(1rem, 2vw, 1.5rem); }
+.favorites-page__group { display: grid; gap: 0.5rem; min-width: 0; }
+.favorites-page__group-title { font-size: 1.125rem; font-weight: 700; }
+.favorites-page__group-title a { display: inline-flex; align-items: center; gap: 0.3rem; min-height: var(--touch-target); }
+.favorites-page__group-title a:hover, .favorites-page__group-title a:focus-visible { color: var(--ui-primary); }
+.favorites-page__group-title a:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }
 
 .favorites-page__state {
   color: var(--ui-text-muted);

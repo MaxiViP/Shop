@@ -29,6 +29,7 @@ import {
   recordId,
   chatSchema,
   imageChatSchema,
+  imageRevisionSchema,
   cursorSchema,
   decisionSchema,
   proposalSchema,
@@ -96,6 +97,17 @@ export class CustomerCoordinationCtrl {
     @UploadedFile() file?: ChatUploadFile,
   ) {
     return this.service.postImage(await this.actor(id, request), body.text, file, body.issueId, body.evidence === 'true', body.requestId);
+  }
+  @Post('messages/:messageId/revisions')
+  @UseInterceptors(ChatTempCleanupInterceptor, imageUpload)
+  async reviseImage(
+    @Param('publicId', { schema: z.string().uuid() }) id: string,
+    @Param('messageId', { schema: recordId }) messageId: number,
+    @Req() request: Request,
+    @Body({ schema: imageRevisionSchema }) body: z.infer<typeof imageRevisionSchema>,
+    @UploadedFile() file?: ChatUploadFile,
+  ) {
+    return this.service.reviseImage(await this.actor(id, request), messageId, body, file);
   }
   @Get('messages/:messageId/:variant')
   @Header('Cache-Control', 'private, no-store, max-age=0')
@@ -183,6 +195,17 @@ export class StaffCoordinationCtrl {
     @UploadedFile() file?: ChatUploadFile,
   ) {
     return this.service.postImage(this.actor(id, request), body.text, file, body.issueId, body.evidence === 'true', body.requestId);
+  }
+  @Post('messages/:messageId/revisions')
+  @UseInterceptors(ChatTempCleanupInterceptor, imageUpload)
+  reviseImage(
+    @Param('id', { schema: recordId }) id: number,
+    @Param('messageId', { schema: recordId }) messageId: number,
+    @Req() request: AuthRequest,
+    @Body({ schema: imageRevisionSchema }) body: z.infer<typeof imageRevisionSchema>,
+    @UploadedFile() file?: ChatUploadFile,
+  ) {
+    return this.service.reviseImage(this.actor(id, request), messageId, body, file);
   }
   @Get('messages/:messageId/:variant')
   @Header('Cache-Control', 'private, no-store, max-age=0')

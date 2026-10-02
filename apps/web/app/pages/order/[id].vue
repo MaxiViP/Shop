@@ -6,22 +6,20 @@
 
     <header class="order__head">
       <div>
-        <p class="order__number">
-          Заказ №{{ order.id }}
-        </p>
-
-        <h1 class="order__title">
-          {{ status.label }}
-        </h1>
+        <h1 class="order__title">Заказ №{{ order.id }}</h1>
+        <p class="order__quick">{{ order.items.length }} позиций · {{ order.type === 'DELIVERY' ? 'Доставка' : 'Самовывоз' }}</p>
       </div>
-
-      <OrderStatus :status="order.status" :type="order.type" />
+      <div class="order__headline">
+        <OrderStatus :status="order.status" :type="order.type" />
+        <strong>{{ knownMoney(order.finalTotal ?? order.total, 'Не рассчитано') }}</strong>
+      </div>
     </header>
 
     <OrderProgress :status="order.status" :type="order.type" />
+    <OrderSections :links="customerSections" initial-hash="#order-items" />
 
     <div class="order__layout">
-      <section class="card">
+      <section id="order-items" class="card">
         <h2 class="card__title">
           Состав заказа
         </h2>
@@ -37,6 +35,7 @@
             </strong>
             <p v-if="replacementIds.has(item.id)" class="item__state">🔁 Замена исходного товара</p>
             <p class="item__qty">Заказано: {{ qtyText(item.unit, item.qty) }}</p>
+            <p v-if="item.actualPrice !== null && item.actualPrice !== item.price" class="item__price-change">Цена изменена: {{ money(item.price) }} → {{ money(item.actualPrice) }} / {{ qtyText(item.unit, item.priceQty) }}</p>
             <p v-if="item.status === 'MISSING'" class="item__state">❌ Нет в наличии</p>
             <p v-else-if="item.status === 'PICKED' && item.actualQty !== null" class="item__state">
               Собрано: {{ qtyText(item.unit, item.actualQty) }}
@@ -51,7 +50,7 @@
           </strong>
         </div>
 
-        <div class="card__summary">
+        <div id="order-summary" class="card__summary">
           <div>
             <span>Предварительная стоимость товаров</span>
             <strong>≈ {{ money(order.subtotal) }}</strong>
@@ -75,7 +74,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section id="order-receiving" class="card">
         <h2 class="card__title">
           Получение
         </h2>
@@ -160,12 +159,12 @@
       </section>
     </div>
 
-    <p v-if="order.status === 'ASSEMBLING'" class="my-4 text-muted">Дополнительные позиции и фактический вес будут учтены в итоговой сумме после сборки.</p>
-    <p v-else-if="!order.assemblyFinalizedAt && order.status !== 'CANCELED'" class="my-4 text-muted">Мы соберём и взвесим товары. После сборки здесь появится точная сумма для оплаты.</p>
-    <p v-if="order.type === 'DELIVERY'" class="my-4 text-muted">Доставка оплачивается отдельно и не входит в перевод магазину за товары.</p>
+    <p v-if="order.status === 'ASSEMBLING'" class="order__note">Фактический вес, услуги и изменения цены войдут в итог после сборки. Предварительная сумма выше рассчитана по цене заказа.</p>
+    <p v-else-if="!order.assemblyFinalizedAt && order.status !== 'CANCELED'" class="order__note">Мы соберём и взвесим товары. После сборки здесь появится точная сумма для оплаты.</p>
+    <p v-if="order.type === 'DELIVERY'" class="order__note">Доставка оплачивается отдельно и не входит в перевод магазину за товары.</p>
     <OrderExtras :extras="order.extras ?? []" />
     <OrderPayment :order="order" />
-    <OrderCoordination :key="order.publicId" :base="`/orders/${order.publicId}`" :bps="order.weightToleranceBps" :assembling="order.status === 'ASSEMBLING'" :poll="active" @refresh="refreshOrder" />
+    <OrderCoordination :key="order.publicId" :base="`/orders/${order.publicId}`" :bps="order.weightToleranceBps" :assembling="order.status === 'ASSEMBLING'" :has-issues="order.issues.length > 0" :poll="active" @refresh="refreshOrder" />
 
     <p
       v-if="active"
@@ -190,7 +189,6 @@ import type {
 } from '~/types/order'
 import {
   isActiveOrder,
-  orderMeta,
 } from '~/utils/order'
 import {
   deliveryProvider,
@@ -243,13 +241,19 @@ const order = computed(
   () => data.value!,
 )
 
-const status = computed(
-  () => orderMeta(order.value.status, order.value.type),
-)
-
 const active = computed(
   () => isActiveOrder(order.value.status),
 )
+const customerSections = computed(() => [
+  { hash: '#order-items', label: 'Состав' },
+  { hash: '#order-receiving', label: 'Получение' },
+  { hash: '#order-summary', label: 'Итог' },
+  ...(order.value.assemblyFinalizedAt && order.value.payment &&
+    order.value.status !== 'CANCELED' && order.value.payment.status !== 'CANCELED'
+    ? [{ hash: '#order-payment', label: 'Оплата' }] : []),
+  ...(order.value.issues.length ? [{ hash: '#order-issues', label: 'Вопросы' }] : []),
+  { hash: '#order-chat', label: 'Чат' },
+])
 
 
 const address = computed(() =>
@@ -312,7 +316,7 @@ useSeoMeta({
 .order {
   max-width: 60rem;
   min-width: 0;
-  padding-block: var(--page-start) var(--page-end);
+  padding-block: 0.75rem var(--page-end);
 }
 
 .order__sign-in {
@@ -323,38 +327,38 @@ useSeoMeta({
 }
 
 .order__head {
-  display: grid;
-  align-items: start;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 1rem;
-  margin-top: var(--card-padding);
-}
-
-.order__number {
-  color: var(--ui-primary);
-  font-weight: 600;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 .order__title {
-  margin-top: 0.25rem;
-  font-size: var(--page-title);
+  font-size: clamp(1.25rem, 1rem + 1vw, var(--page-title));
   font-weight: 700;
   line-height: 1.1;
   overflow-wrap: anywhere;
 }
+.order__quick { color: var(--ui-text-muted); font-size: 0.8125rem; }
+.order__headline { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.order__headline strong { white-space: nowrap; }
+.order__note { margin-top: 0.5rem; color: var(--ui-text-muted); font-size: 0.875rem; line-height: 1.45; }
 
 
 .order__layout {
   display: grid;
   min-width: 0;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .card {
   min-width: 0;
-  padding: var(--card-padding);
+  padding: 0.75rem;
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
+  scroll-margin-top: calc(var(--header-height) + 4.5rem);
 }
 
 .card--delivery {
@@ -362,8 +366,8 @@ useSeoMeta({
 }
 
 .card__title {
-  margin-bottom: 1.25rem;
-  font-size: var(--section-title);
+  margin-bottom: 0.65rem;
+  font-size: 1.125rem;
   font-weight: 700;
 }
 
@@ -371,9 +375,10 @@ useSeoMeta({
 .item__qty {
   color: var(--ui-text-muted);
 }
+.item__price-change { color: var(--ui-warning); font-size: 0.875rem; font-weight: 600; }
 
 .card__muted {
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
   overflow-wrap: anywhere;
 }
 
@@ -383,7 +388,7 @@ useSeoMeta({
     auto-fit,
     minmax(min(100%, 10rem), 1fr)
   );
-  gap: 1rem;
+  gap: 0.65rem;
 }
 
 .delivery > div {
@@ -404,15 +409,16 @@ useSeoMeta({
 .delivery__action {
   width: 100%;
   min-height: var(--touch-target);
-  margin-top: 1.25rem;
+  margin-top: 0.75rem;
   justify-content: center;
 }
 
 .item {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   justify-content: space-between;
-  gap: 1rem;
-  padding-block: 0.75rem;
+  gap: 0.5rem;
+  padding-block: 0.55rem;
 }
 
 .item > * {
@@ -422,16 +428,17 @@ useSeoMeta({
 
 .item__qty,
 .item__state {
-  margin-top: 0.25rem;
-  font-size: 0.875rem;
+  margin-top: 0.15rem;
+  font-size: 0.8125rem;
 }
 
 .card__summary {
   display: grid;
-  gap: 0.75rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
   border-top: 1px solid var(--ui-border);
+  scroll-margin-top: calc(var(--header-height) + 4.5rem);
 }
 
 .card__summary > div {
@@ -444,23 +451,31 @@ useSeoMeta({
 }
 
 .card__total {
-  padding-top: 0.75rem;
+  padding-top: 0.5rem;
   border-top: 1px solid var(--ui-border);
-  font-size: 1.25rem;
+  font-size: 1.125rem;
 }
 
 .order__refresh {
-  margin-top: 1rem;
+  margin-top: 0.75rem;
   color: var(--ui-text-muted);
   font-size: 0.875rem;
 }
 
 @media (min-width: 40rem) {
+  .order { padding-top: var(--page-start); }
   .order__head {
-    display: flex;
-    align-items: center;
+    gap: 1rem;
   }
-
+  .order__title { font-size: var(--page-title); }
+  .order__layout { gap: 1rem; }
+  .order__note { margin-top: 1rem; }
+  .card { padding: var(--card-padding); }
+  .card__title { margin-bottom: 1.25rem; font-size: var(--section-title); }
+  .item { display: flex; gap: 1rem; padding-block: 0.75rem; }
+  .item__qty, .item__state { font-size: 0.875rem; }
+  .card__summary { gap: 0.75rem; margin-top: 1rem; padding-top: 1rem; }
+  .card__total { padding-top: 0.75rem; font-size: 1.25rem; }
 
   .card__summary > div {
     display: flex;

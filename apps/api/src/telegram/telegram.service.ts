@@ -4,7 +4,7 @@ import type { OrderStatus } from '../db/gen/client.js';
 import { newOrderMessage, telegramOrderSelect } from './message.js';
 import { orderKeyboard } from './callback.js';
 import { botRequest, botSendMessageId, type BotMethod } from './bot-api.js';
-import { staffBotToken, staffWebhookSecret, validWebhookSecret } from './bot-config.js';
+import { staffBotToken, staffWebhookSecret, validWebhookSecret, staffPageUrl } from './bot-config.js';
 
 @Injectable()
 export class TelegramService {
@@ -113,15 +113,9 @@ export class TelegramService {
   }
 
   private orderUrl(orderId: number): string | undefined {
-    try {
-      const origin = new URL(process.env.ORDER_SITE_URL ?? '');
-      if (origin.protocol !== 'https:' || origin.username || origin.password)
-        throw new Error('CONFIG');
-      return new URL('/staff/orders/' + orderId, origin).href;
-    } catch {
-      this.logger.warn('Telegram staff link unavailable: check ORDER_SITE_URL');
-      return undefined;
-    }
+    const url = staffPageUrl('/staff/orders/' + orderId);
+    if (!url) this.logger.warn('Telegram staff link unavailable: check ORDER_SITE_URL');
+    return url;
   }
 
   private async request(

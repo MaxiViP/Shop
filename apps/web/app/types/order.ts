@@ -181,6 +181,7 @@ export interface OrderDetail {
     image: string | null
 
     price: number
+    actualPrice: number | null
     priceQty: number
     unit: Unit
 

@@ -48,9 +48,12 @@ const deviation = computed(() =>
 <style scoped>
 .weight {
   display: grid;
-  gap: 0.5rem;
-  margin-block: 0.75rem;
+  gap: 0.25rem;
+  margin-block: 0.25rem;
   font-size: 0.875rem;
   color: var(--ui-text-muted);
+}
+@media (min-width: 40rem) {
+  .weight { gap: 0.5rem; margin-block: 0.75rem; }
 }
 </style>

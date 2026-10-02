@@ -4,6 +4,7 @@
       v-for="product in items"
       :key="product.id"
       :product="product"
+      :compact="compact"
     />
   </div>
 </template>
@@ -13,6 +14,7 @@ import type { ProductListItem } from "~/types/product";
 
 defineProps<{
   items: ProductListItem[];
+  compact?: boolean;
 }>();
 </script>
 

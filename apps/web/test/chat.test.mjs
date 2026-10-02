@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyImageRevisions,
   createChatHistory,
   mergeMessages,
   receiveMessages,
@@ -70,4 +71,22 @@ test("older pages keep chronological order and ignore duplicate incoming IDs", (
     ),
     [1, 2, 3],
   );
+});
+
+test("photo revisions update the same visible message and never roll back after a delayed poll", () => {
+  const history = createChatHistory();
+  receiveMessages(history, [{ ...message(1), image: true, imageRevision: 0, imageExpired: false }]);
+  const first = history.messages[0];
+  assert.equal(applyImageRevisions(history, [{ id: 1, imageRevision: 1, imageExpired: false,
+    revisionText: "Вот этот", revisionActor: "CUSTOMER", revisionAt: "2026-10-02T10:00:00Z" }]), true);
+  assert.equal(history.messages.length, 1);
+  assert.equal(history.messages[0].id, first.id);
+  assert.equal(history.messages[0].revisionText, "Вот этот");
+  assert.equal(history.cursor, 1);
+  assert.equal(applyImageRevisions(history, [{ id: 1, imageRevision: 0, imageExpired: false,
+    revisionText: null, revisionActor: null, revisionAt: null }]), false);
+  assert.equal(mergeMessages(history.messages, [first]), history.messages);
+  assert.equal(applyImageRevisions(history, [{ id: 1, imageRevision: 1, imageExpired: true,
+    revisionText: "Вот этот", revisionActor: "CUSTOMER", revisionAt: "2026-10-02T10:00:00Z" }]), true);
+  assert.equal(history.messages[0].imageExpired, true);
 });

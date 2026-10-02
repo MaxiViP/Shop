@@ -45,17 +45,22 @@ export class AdminOrdersService {
       completedAt: true, userId: true,
       user: { select: { id: true, name: true, phone: true } },
       items: { select: { id: true, productName: true, status: true, qty: true,
-        actualQty: true, total: true, actualTotal: true, priceQty: true,
+        actualQty: true, total: true, actualTotal: true, price: true, actualPrice: true, priceQty: true,
         settlementModeSnapshot: true, basePriceSnapshot: true }, orderBy: { id: 'asc' } },
       extras: { where: { status: 'ACTIVE' }, select: { amount: true } },
       messages: { orderBy: { id: 'asc' }, take: 100,
         select: { id: true, text: true, createdAt: true } },
       staffAudits: { orderBy: { id: 'desc' }, take: 100 },
+      priceChanges: { orderBy: { id: 'desc' }, take: 100,
+        select: { id: true, itemId: true, previousPrice: true, newPrice: true,
+          reason: true, createdAt: true, item: { select: { productName: true } },
+          actor: { select: { name: true, role: true } } } },
     } });
     if (!internal) throw new NotFoundException();
     const lines = internal.items.map(financeLine);
     return { ...order, completedAt: internal.completedAt, userId: internal.userId,
       purchaser: internal.user, messages: internal.messages, history: internal.staffAudits,
+      priceChanges: internal.priceChanges,
       finance: {
         lines, totals: financeTotals(lines,
           internal.extras.reduce((acc, extra) => acc + extra.amount, 0), order.deliveryPrice ?? 0),

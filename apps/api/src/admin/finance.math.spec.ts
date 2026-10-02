@@ -1,7 +1,7 @@
 import { financeLine, financeTotals, splitMarkup, type FinanceItem } from './finance.math.js';
 const item = (overrides: Partial<FinanceItem> = {}): FinanceItem => ({
   id: 1, productName: 'Помидоры', status: 'PICKED', qty: 1000,
-  actualQty: 1000, total: 45000, actualTotal: 45000, priceQty: 1000,
+  actualQty: 1000, total: 45000, actualTotal: 45000, price: 45000, actualPrice: null, priceQty: 1000,
   settlementModeSnapshot: 'SHARED_MARKUP', basePriceSnapshot: 30000,
   ...overrides,
 });
@@ -59,6 +59,12 @@ describe('financial snapshot arithmetic', () => {
       basePriceSnapshot: 60000 }))], 20000, 30000)).toMatchObject({
       goodsRevenue: 100000, extras: 20000, delivery: 30000,
       turnover: 150000, sharedMarkup: 40000,
+    });
+  });
+  it('reports both order and corrected unit prices while using the saved actual sale amount', () => {
+    expect(financeLine(item({ actualPrice: 50000, actualTotal: 50000 }))).toMatchObject({
+      orderPrice: 45000, finalPrice: 50000, saleAmount: 50000,
+      baseAmount: 30000, sharedMarkup: 20000,
     });
   });
 });

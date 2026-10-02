@@ -14,6 +14,7 @@ export interface FinanceReport extends FinanceTotals {
 export interface FinanceLine {
   id: number; productName: string; mode: 'SHARED_MARKUP' | 'NO_MARKUP' | 'UNSET' | 'LEGACY';
   qty: number; saleAmount: number; baseAmount: number; sharedMarkup: number;
+  orderPrice: number; finalPrice: number; priceQty: number;
 }
 export interface FinanceDayOrder {
   id: number; publicId: string; completedAt: string; customerName: string;
@@ -39,7 +40,8 @@ export interface AdminOrderRow {
 }
 export interface AdminOrderDetail extends AdminOrderRow {
   items: { id: number; productName: string; qty: number; actualQty: number | null;
-    total: number; actualTotal: number | null; status: string; unit: string }[];
+    total: number; actualTotal: number | null; status: string; unit: string;
+    price: number; actualPrice: number | null; priceQty: number }[];
   city: string | null; street: string | null; house: string | null;
   flat: string | null; comment: string | null;
   deliveryPrice: number | null; finalSubtotal: number | null;
@@ -49,6 +51,9 @@ export interface AdminOrderDetail extends AdminOrderRow {
   issues: { id: number; type: string; status: string; resolution: string | null }[];
   messages: { id: number; text: string; createdAt: string }[];
   history: { id: number; action: string; createdAt: string }[];
+  priceChanges: { id: number; itemId: number; previousPrice: number; newPrice: number;
+    reason: string | null; createdAt: string; item: { productName: string };
+    actor: { name: string | null; role: string } }[];
 }
 export interface Payout {
   id: number; partner: number; periodFrom: string; periodTo: string;

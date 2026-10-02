@@ -1,5 +1,5 @@
 <template>
-  <article class="card" :class="{ 'card--added': action.added }">
+  <article class="card" :class="{ 'card--added': action.added, 'card--compact': compact }">
     <div class="card__media">
       <NuxtLink :to="`/product/${product.slug}`" class="card__img">
         <img
@@ -23,6 +23,7 @@
 
     <div class="card__body">
       <NuxtLink
+        v-if="!compact"
         :to="`/catalog/${product.category.slug}`"
         class="card__category"
       >
@@ -100,6 +101,7 @@ import { money } from "~/utils/money";
 
 const { product } = defineProps<{
   product: ProductListItem;
+  compact?: boolean;
 }>();
 
 const cart = useCartStore();
@@ -572,6 +574,12 @@ async function subtract() {
   .card__total {
     font-size: 0.68rem;
   }
+}
+
+@media (width < 40rem) {
+  .card--compact .card__img { aspect-ratio: 4 / 3; }
+  .card--compact .card__title { min-height: 2.4em; margin-top: 0; }
+  .card--compact .card__bottom { gap: 0.125rem; padding-top: 0.125rem; }
 }
 
 /* =========================================================

@@ -7,7 +7,7 @@ function fixture(at = completedAt) {
     completedAt: at, customerName: 'Покупатель', finalTotal: 46200,
     deliveryPrice: 500,
     items: [{ id: 1, productName: 'Помидоры', status: 'PICKED', qty: 1000,
-      actualQty: 1000, total: 45000, actualTotal: 45000, priceQty: 1000,
+      actualQty: 1000, total: 45000, actualTotal: 45000, price: 45000, actualPrice: null, priceQty: 1000,
       settlementModeSnapshot: 'SHARED_MARKUP', basePriceSnapshot: 30000 }],
     extras: [{ amount: 700 }],
   }]);

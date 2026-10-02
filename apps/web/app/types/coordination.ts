@@ -20,6 +20,7 @@ export interface OrderIssue {
     productName: string;
     unit: Unit;
     price: number;
+    actualPrice: number | null;
     priceQty: number;
   };
 }
@@ -45,9 +46,14 @@ export interface ChatMessage {
   text: string;
   image: boolean;
   imageExpired: boolean;
+  imageRevision: number;
+  revisionText: string | null;
+  revisionActor: ChatMessage['authorType'] | null;
+  revisionAt: string | null;
   createdAt: string;
 }
 export interface MessagePage {
   messages: ChatMessage[];
+  revisions: (Pick<ChatMessage, 'id' | 'imageRevision' | 'imageExpired' | 'revisionText' | 'revisionActor' | 'revisionAt'>)[];
   hasMore: boolean;
 }

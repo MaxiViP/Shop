@@ -1,14 +1,10 @@
 <template>
   <UContainer v-if="order" class="workspace">
-    <AppBackButton fallback="/staff/orders" label="К заказам" />
-
     <header class="workspace__bar">
       <div class="workspace__identity">
-        <div>
-          <p class="workspace__number">Заказ №{{ order.id }}</p>
-          <h1 class="workspace__title">
-            {{ orderMeta(order.status, order.type).label }}
-          </h1>
+        <div class="workspace__heading">
+          <AppBackButton fallback="/staff/orders" label="К заказам" />
+          <h1 class="workspace__title">Заказ №{{ order.id }}</h1>
         </div>
 
         <div class="workspace__badges">
@@ -26,6 +22,10 @@
           >
             Осталось позиций: {{ pending }}
           </UBadge>
+          <span class="workspace__total">
+            {{ order.finalSubtotal === null ? 'Предварительно' : 'Итого' }}:
+            <strong>{{ knownMoney(order.finalTotal ?? order.total, 'Не рассчитано') }}</strong>
+          </span>
         </div>
       </div>
 
@@ -53,7 +53,7 @@
         <UButton
           v-if="order.status === 'ASSEMBLING'"
           size="lg"
-          :disabled="pending > 0 || toleranceBlocked || Boolean(actionLoading) || itemLoading !== null"
+          :disabled="pending > 0 || toleranceBlocked || Boolean(actionLoading) || itemLoading !== null || priceBusy"
           :loading="actionLoading === 'finish'"
           @click="finishAssembly"
         >
@@ -123,30 +123,12 @@
       </div>
     </header>
 
-    <UAlert v-if="toleranceBlocked" class="my-4" color="warning" title="Требуется подтверждение покупателя" description="Нельзя завершить сборку: есть позиции, требующие подтверждения покупателя." />
-    <UAlert v-if="order.status === 'READY' && order.type === 'DELIVERY' && order.payment?.status !== 'PAID'" class="my-4" color="info" title="Проверьте поступление оплаты" description="Кнопка «Оплата получена — оформить доставку» подтвердит получение денег и запустит оформление доставки." />
-    <OrderStaffPayment :order-id="id" :type="order.type" :payment="order.payment" @refresh="refresh" />
-    <OrderExtras :extras="order.extras ?? []" staff :order-id="id" :editable="order.status === 'ASSEMBLING' && !order.assemblyFinalizedAt" @refresh="refresh" />
-    <UButton v-if="canReopen" class="my-4" variant="outline" :disabled="Boolean(actionLoading)" @click="runAction('reopen', 'assembly/reopen', 'Заказ возвращён к сборке')">Вернуть к сборке</UButton>
-
-    <nav class="stages" aria-label="Этапы работы с заказом">
-      <NuxtLink
-        v-for="stage in stages"
-        :key="stage.id"
-        :to="{ path: route.path, hash: stage.hash }"
-        class="stages__link"
-        :class="{ 'stages__link--active': activeStage === stage.id }"
-        :aria-current="activeStage === stage.id ? 'step' : undefined"
-      >
-        <span class="stages__number">{{ stage.number }}</span>
-        {{ stage.label }}
-      </NuxtLink>
-    </nav>
+    <OrderSections :links="sections" :initial-hash="activeHash" />
 
     <section
       id="order-data"
       class="stage"
-      :class="{ 'stage--active': activeStage === 'details' }"
+      :class="{ 'stage--active': selectedHash === '#order-data' }"
     >
       <header class="stage__head">
         <p class="stage__number">Этап 1</p>
@@ -191,7 +173,7 @@
     <section
       id="assembly"
       class="stage"
-      :class="{ 'stage--active': activeStage === 'assembly' }"
+      :class="{ 'stage--active': selectedHash === '#assembly' }"
     >
       <header class="stage__head">
         <p class="stage__number">Этап 2</p>
@@ -206,115 +188,74 @@
         :title="`Осталось обработать: ${pending}`"
         description="Отметьте каждую позицию как собранную или отсутствующую."
       />
+      <UAlert v-if="toleranceBlocked" color="warning" title="Требуется подтверждение покупателя" description="Нельзя завершить сборку: есть позиции, требующие подтверждения покупателя." />
 
       <div class="items">
         <article v-for="item in order.items" :key="item.id" class="item">
           <div class="item__head">
             <div>
-              <h2 class="item__name">{{ item.productName }}</h2>
+              <h3 class="item__name">{{ item.productName }}</h3>
               <p class="item__price">{{ itemPrice(item) }}</p>
+              <p v-if="item.actualPrice !== null && item.actualPrice !== item.price" class="item__changed">Цена изменена: {{ money(item.price) }} → {{ money(item.actualPrice) }}</p>
             </div>
-
-            <UBadge :color="itemColor(item.status)" variant="soft">
-              {{ itemStatus(item.status) }}
-            </UBadge>
+            <div class="item__state">
+              <UBadge :color="itemColor(item.status)" variant="soft">
+                {{ itemStatus(item.status) }}
+              </UBadge>
+              <button
+                type="button"
+                class="item__toggle"
+                :aria-controls="`item-${item.id}-details`"
+                :aria-expanded="openItemId === item.id"
+                :aria-label="`${openItemId === item.id ? 'Скрыть' : 'Показать'} действия и детали: ${item.productName}`"
+                @click="toggleItem(item.id)"
+              ><UIcon name="i-lucide-chevron-down" :class="{ 'item__chevron--open': openItemId === item.id }" /></button>
+            </div>
           </div>
 
-          <dl class="item__stats">
+          <dl class="item__glance">
             <div>
-              <dt>
-                {{ item.unit === 'GRAM' ? 'Заказанный вес' : 'Заказано' }}
-              </dt>
+              <dt>Заказано</dt>
               <dd>{{ qtyText(item.unit, item.qty) }}</dd>
             </div>
-
             <div>
-              <dt>Предварительная стоимость</dt>
+              <dt>Предварительно</dt>
               <dd>{{ money(item.total) }}</dd>
             </div>
-
             <div v-if="item.actualQty !== null">
-              <dt>
-                {{ item.unit === 'GRAM' ? 'Фактический вес' : 'Фактически' }}
-              </dt>
+              <dt>Факт</dt>
               <dd>{{ qtyText(item.unit, item.actualQty) }}</dd>
-            </div>
-
-            <div v-if="item.actualTotal !== null">
-              <dt>Фактическая стоимость</dt>
-              <dd>{{ money(item.actualTotal) }}</dd>
             </div>
           </dl>
 
-          <OrderWeight v-if="item.unit === 'GRAM' && item.status !== 'MISSING'" :requested="item.qty" :actual="actual[item.id] ?? item.qty" :price="item.price" :price-qty="item.priceQty" :bps="order.weightToleranceBps" :approved="approvedWeight(order.issues?.find(issue => issue.orderItemId === item.id), item.actualQty)" />
-          <UButton v-if="order.status === 'ASSEMBLING' && item.status === 'PENDING'" variant="ghost" color="neutral" @click="drafts.reset(item.id)">Сбросить ввод</UButton>
-          <div
-            v-if="order.status === 'ASSEMBLING' && item.status === 'PENDING'"
-            class="item__actions"
-          >
-            <UFormField
-              :label="
-                item.unit === 'GRAM'
-                  ? 'Фактический вес, г'
-                  : 'Фактическое количество'
-              "
-            >
-              <UInput
-                v-model.number="actual[item.id]"
-                class="item__input"
-                type="number"
-                min="1"
-                step="1"
-                size="xl"
-              />
-            </UFormField>
-
-            <UButton
-              size="xl"
-              :loading="itemLoading === item.id"
-              :disabled="itemLoading !== null"
-              @click="pick(item.id)"
-            >
-              Собрано
-            </UButton>
-
-            <UButton
-              size="xl"
-              color="error"
-              variant="soft"
-              :loading="itemLoading === item.id"
-              :disabled="itemLoading !== null"
-              @click="missing(item.id)"
-            >
-              Нет в наличии
-            </UButton>
-          </div>
-
-          <div
-            v-else-if="order.status === 'ASSEMBLING'"
-            class="item__actions"
-          >
-            <UButton
-              type="button"
-              size="lg"
-              color="neutral"
-              variant="soft"
-              :loading="itemLoading === item.id"
-              :disabled="itemLoading !== null"
-              @click="returnToAssembly(item.id)"
-            >
-              Вернуть в сборку
-            </UButton>
+          <div :id="`item-${item.id}-details`" class="item__details" :class="{ 'item__details--open': openItemId === item.id }">
+            <p v-if="item.actualTotal !== null" class="item__actual-total">
+              Фактическая стоимость: <strong>{{ money(item.actualTotal) }}</strong>
+            </p>
+            <div v-if="order.status === 'ASSEMBLING' && item.status === 'PENDING'" class="item__actions">
+              <UFormField :label="item.unit === 'GRAM' ? 'Фактический вес, г' : 'Фактическое количество'" class="item__quantity">
+                <UInput v-model.number="actual[item.id]" class="item__input" type="number" inputmode="numeric" min="1" step="1" size="lg" />
+              </UFormField>
+              <UButton :loading="itemLoading === item.id" :disabled="itemLoading !== null" @click="pick(item.id)">
+                Собрано
+              </UButton>
+              <UButton color="error" variant="soft" :loading="itemLoading === item.id" :disabled="itemLoading !== null" @click="missing(item.id)">Нет в наличии</UButton>
+              <UButton class="item__reset" variant="ghost" color="neutral" :disabled="itemLoading !== null" @click="drafts.reset(item.id)">Сбросить</UButton>
+            </div>
+            <div v-else-if="order.status === 'ASSEMBLING'" class="item__actions">
+              <UButton type="button" color="neutral" variant="soft" :loading="itemLoading === item.id" :disabled="itemLoading !== null" @click="returnToAssembly(item.id)">Вернуть в сборку</UButton>
+            </div>
+            <OrderWeight v-if="item.unit === 'GRAM' && item.status !== 'MISSING'" :requested="item.qty" :actual="actual[item.id] ?? item.qty" :price="item.actualPrice ?? item.price" :price-qty="item.priceQty" :bps="order.weightToleranceBps" :approved="approvedWeight(order.issues?.find(issue => issue.orderItemId === item.id), item.actualQty)" />
+            <OrderItemPrice :order-id="id" :item="item" :editable="canChangePrice(item)" :disabled="itemLoading !== null || Boolean(actionLoading)" @busy="priceBusy = $event" @refresh="refresh" />
           </div>
         </article>
       </div>
+      <OrderExtras :extras="order.extras ?? []" staff :order-id="id" :editable="order.status === 'ASSEMBLING' && !order.assemblyFinalizedAt" @refresh="refresh" />
     </section>
-
-    <OrderCoordination :key="order.id" :base="`/staff/orders/${id}`" :bps="order.weightToleranceBps" staff :phone="order.customerPhone" :assembling="order.status === 'ASSEMBLING'" @refresh="refresh" />
     <section
       id="order-summary"
       class="stage"
-      :class="{ 'stage--active': activeStage === 'summary' }"
+      :class="{ 'stage--active': selectedHash === '#order-summary' }"
     >
       <header class="stage__head">
         <p class="stage__number">Этап 3</p>
@@ -350,13 +291,18 @@
           <strong>{{ knownMoney(order.finalTotal ?? order.total, 'Не рассчитано') }}</strong>
         </div>
       </div>
+      <UAlert v-if="order.status === 'READY' && order.type === 'DELIVERY' && order.payment?.status !== 'PAID'" color="info" title="Проверьте поступление оплаты" description="Кнопка «Оплата получена — оформить доставку» подтвердит получение денег и запустит оформление доставки." />
+      <OrderStaffPayment :order-id="id" :type="order.type" :payment="order.payment" @refresh="refresh" />
+      <UButton v-if="canReopen" variant="outline" :disabled="Boolean(actionLoading)" @click="runAction('reopen', 'assembly/reopen', 'Заказ возвращён к сборке')">Вернуть к сборке</UButton>
     </section>
+
+    <OrderCoordination :key="order.id" :base="`/staff/orders/${id}`" :bps="order.weightToleranceBps" staff :phone="order.customerPhone" :assembling="order.status === 'ASSEMBLING'" :has-issues="order.issues.length > 0" @refresh="refresh" />
 
     <section
       v-if="showDelivery"
       id="delivery"
       class="delivery stage"
-      :class="{ 'stage--active': activeStage === 'delivery' }"
+      :class="{ 'stage--active': selectedHash === '#delivery' }"
     >
       <header class="delivery__head">
         <div>
@@ -632,9 +578,9 @@ import { useAuthStore } from '~/stores/auth'
 import { apiError } from '~/utils/api-error'
 import { deliveryProvider, deliveryStatus } from '~/utils/delivery'
 import { knownMoney, kopecksToRubles, money, rublesToKopecks } from '~/utils/money'
-import { orderMeta } from '~/utils/order'
 import { qtyText } from '~/utils/qty'
 import { pickupTime } from '~/utils/pickup'
+import { focusedAssemblyItem } from '~/utils/assembly'
 
 interface DeliveryForm {
   provider: DeliveryProvider
@@ -643,15 +589,6 @@ interface DeliveryForm {
   courierName: string
   courierPhone: string
   priceRubles: string
-}
-
-type StageId = 'details' | 'assembly' | 'summary' | 'delivery'
-
-interface StageLink {
-  id: StageId
-  number: number
-  label: string
-  hash: string
 }
 
 interface YandexConfig {
@@ -690,6 +627,8 @@ const order = computed(() => data.value!)
 const drafts = assemblyDrafts()
 const actual = drafts.values
 const itemLoading = ref<number | null>(null)
+const priceBusy = ref(false)
+const expandedItem = ref<number | 'none' | null>(null)
 const actionLoading = ref<string | null>(null)
 const deliveryLoading = ref(false)
 const yandexQuote = ref<YandexQuote | null>(null)
@@ -706,12 +645,6 @@ const form = reactive<DeliveryForm>({
 const providerOptions = [
   { label: deliveryProvider.YANDEX, value: 'YANDEX' },
   { label: deliveryProvider.OTHER, value: 'OTHER' },
-]
-
-const baseStages: StageLink[] = [
-  { id: 'details', number: 1, label: 'Данные заказа', hash: '#order-data' },
-  { id: 'assembly', number: 2, label: 'Сборка', hash: '#assembly' },
-  { id: 'summary', number: 3, label: 'Итог заказа', hash: '#order-summary' },
 ]
 
 watch(
@@ -741,6 +674,12 @@ watch(
 const pending = computed(
   () => order.value.items.filter((item) => item.status === 'PENDING').length,
 )
+const openItemId = computed(() => focusedAssemblyItem(
+  order.value.items, order.value.status === 'ASSEMBLING', expandedItem.value,
+))
+function toggleItem(itemId: number) {
+  expandedItem.value = openItemId.value === itemId ? 'none' : itemId
+}
 
 const toleranceBlocked = computed(() => order.value.status === 'ASSEMBLING' && (order.value.issues?.some(issue => ['WAITING_CUSTOMER', 'WAITING_SELLER'].includes(issue.status)) || order.value.items.some(item => {
   if (item.unit !== 'GRAM' || item.status === 'MISSING') return false
@@ -781,30 +720,31 @@ const showDelivery = computed(
       )),
 )
 
-const stages = computed<StageLink[]>(() =>
-  order.value.type === 'DELIVERY'
-    ? [
-        ...baseStages,
-        { id: 'delivery', number: 4, label: 'Доставка', hash: '#delivery' },
-      ]
-    : baseStages,
-)
+const sections = computed(() => [
+  { hash: '#order-data', label: 'Данные' },
+  { hash: '#assembly', label: 'Сборка' },
+  { hash: '#order-summary', label: 'Итог' },
+  ...(order.value.issues.length ? [{ hash: '#order-issues', label: 'Вопросы' }] : []),
+  { hash: '#order-chat', label: 'Чат' },
+  ...(showDelivery.value ? [{ hash: '#delivery', label: 'Доставка' }] : []),
+])
 
-const activeStage = computed<StageId>(() => {
-  if (order.value.status === 'ASSEMBLING') return 'assembly'
+const activeHash = computed(() => {
+  if (order.value.status === 'ASSEMBLING') return '#assembly'
 
   if (
     order.value.type === 'DELIVERY' &&
     ['READY', 'DELIVERING'].includes(order.value.status) &&
     order.value.payment?.status === 'PAID'
   ) {
-    return 'delivery'
+    return '#delivery'
   }
 
-  if (['NEW', 'CONFIRMED'].includes(order.value.status)) return 'details'
+  if (['NEW', 'CONFIRMED'].includes(order.value.status)) return '#order-data'
 
-  return 'summary'
+  return '#order-summary'
 })
+const selectedHash = computed(() => route.hash || activeHash.value)
 
 const deliveryHint = computed(() =>
   form.provider === 'YANDEX'
@@ -1021,6 +961,7 @@ async function pick(itemId: number) {
     })
     await refresh()
     drafts.reset(itemId)
+    expandedItem.value = null
     toast.add({ title: 'Позиция собрана' })
   } catch (error) {
     toast.add({
@@ -1045,6 +986,7 @@ async function missing(itemId: number) {
     })
     await refresh()
     drafts.reset(itemId)
+    expandedItem.value = null
     toast.add({ title: 'Позиция отмечена отсутствующей' })
   } catch (error) {
     toast.add({
@@ -1069,6 +1011,7 @@ async function returnToAssembly(itemId: number) {
     })
     await refresh()
     drafts.reset(itemId)
+    expandedItem.value = itemId
     toast.add({ title: 'Позиция возвращена в сборку' })
   } catch (error) {
     toast.add({
@@ -1156,7 +1099,15 @@ function optional(value: string) {
 }
 
 function itemPrice(item: StaffOrderDetail['items'][number]) {
-  return `${money(item.price)} / ${qtyText(item.unit, item.priceQty)}`
+  return `Цена заказа ${money(item.price)} / ${qtyText(item.unit, item.priceQty)}`
+}
+
+function canChangePrice(item: StaffOrderDetail['items'][number]) {
+  return order.value.status === 'ASSEMBLING' && !order.value.assemblyFinalizedAt &&
+    !['REPORTED', 'PAID'].includes(order.value.payment?.status ?? '') &&
+    item.status !== 'MISSING' && !order.value.issues.some(issue =>
+      issue.orderItemId === item.id && (issue.replacementItemId !== null ||
+        (issue.status === 'RESOLVED' && issue.resolution === 'REMOVE_ITEM')));
 }
 
 function itemStatus(status: OrderItemStatus) {
@@ -1193,7 +1144,7 @@ useSeoMeta({
 .workspace {
   max-width: 68.75rem;
   min-width: 0;
-  padding-block: var(--page-start) var(--page-end);
+  padding-block: 0.5rem var(--page-end);
 }
 
 .workspace__bar {
@@ -1201,9 +1152,9 @@ useSeoMeta({
   min-width: 0;
   align-items: stretch;
   flex-direction: column;
-  gap: 1rem;
-  margin: 1rem 0 1.5rem;
-  padding: 1rem;
+  gap: 0.65rem;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.75rem;
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
   background: color-mix(in srgb, var(--ui-bg) 94%, transparent);
@@ -1214,17 +1165,17 @@ useSeoMeta({
 .workspace__identity {
   display: grid;
   min-width: 0;
-  gap: 0.75rem;
+  gap: 0.45rem;
 }
+.workspace__heading { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; }
 
-.workspace__number,
 .delivery__label {
   color: var(--ui-primary);
   font-weight: 600;
 }
 
 .workspace__title {
-  font-size: clamp(1.5rem, 1.3rem + 1vw, 2rem);
+  font-size: clamp(1.25rem, 1.1rem + 1vw, 2rem);
   font-weight: 700;
   line-height: 1.15;
   overflow-wrap: anywhere;
@@ -1237,15 +1188,25 @@ useSeoMeta({
 .delivery-form__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .workspace__badges {
   min-width: 0;
+  align-items: center;
 }
 
+.workspace__total {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: baseline;
+  color: var(--ui-text-muted);
+  font-size: 0.875rem;
+}
+.workspace__total strong { color: var(--ui-text); }
+
 .workspace__actions {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .workspace__actions > *,
@@ -1253,62 +1214,22 @@ useSeoMeta({
 .copy-card__actions > *,
 .delivery-card__actions > *,
 .delivery-form__actions > * {
-  width: 100%;
+  width: auto;
   min-height: var(--touch-target);
   justify-content: center;
 }
 
 .workspace__alert {
-  margin-top: 1.5rem;
-}
-
-.stages {
-  display: flex;
-  max-width: 100%;
-  gap: 0.75rem;
-  padding-bottom: 0.5rem;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scroll-snap-type: inline proximity;
-  scrollbar-width: thin;
-}
-
-.stages__link {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  padding: 0.75rem;
-  border: 1px solid var(--ui-border);
-  border-radius: 0.875rem;
-  color: var(--ui-text-muted);
-  font-weight: 600;
-  flex: 0 0 9.5rem;
-  scroll-snap-align: start;
-}
-
-.stages__link--active {
-  border-color: var(--ui-primary);
-  background: color-mix(in srgb, var(--ui-primary) 10%, var(--ui-bg));
-  color: var(--ui-primary);
-}
-
-.stages__number {
-  display: grid;
-  width: 1.75rem;
-  height: 1.75rem;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--ui-bg-elevated);
+  margin-top: 0.5rem;
 }
 
 .stage {
   display: grid;
-  gap: 1rem;
-  margin-top: var(--card-padding);
+  gap: 0.75rem;
+  margin-top: 0.75rem;
   min-width: 0;
-  padding: 0.75rem;
-  scroll-margin-top: calc(var(--header-height) + var(--card-padding));
+  padding: 0.5rem;
+  scroll-margin-top: calc(var(--header-height) + 4.5rem);
   border: 2px solid transparent;
   border-radius: 1.25rem;
 }
@@ -1320,6 +1241,7 @@ useSeoMeta({
 }
 
 .stage__number {
+  display: none;
   color: var(--ui-primary);
   font-size: 0.875rem;
   font-weight: 700;
@@ -1327,8 +1249,7 @@ useSeoMeta({
 }
 
 .stage__title {
-  margin-top: 0.25rem;
-  font-size: var(--section-title);
+  font-size: 1.125rem;
   font-weight: 700;
 }
 
@@ -1346,12 +1267,11 @@ useSeoMeta({
 .customer {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.25rem), 1fr));
-  gap: 1rem;
-  padding: var(--card-padding);
+  gap: 0.65rem;
+  padding: 0.75rem;
 }
 
 .customer > div,
-.item__stats > div,
 .delivery-card__details > div {
   display: grid;
   align-content: start;
@@ -1360,7 +1280,6 @@ useSeoMeta({
 }
 
 .customer__label,
-.item__stats dt,
 .delivery-card__details dt {
   color: var(--ui-text-muted);
   font-size: 0.875rem;
@@ -1369,38 +1288,83 @@ useSeoMeta({
 .items {
   display: grid;
   min-width: 0;
-  gap: 1rem;
+  gap: 0.5rem;
 }
 
 .item {
   display: grid;
   min-width: 0;
-  gap: 1.5rem;
-  padding: var(--card-padding);
+  gap: 0.45rem;
+  padding: 0.75rem;
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
 }
 
 .item__head {
-  display: grid;
-  align-items: flex-start;
+  display: flex;
+  align-items: start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.5rem;
 }
+.item__head > div:first-child { min-width: 0; }
+.item__state { display: flex; flex: none; align-items: center; gap: 0.25rem; }
+.item__toggle {
+  display: grid;
+  place-items: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border: 1px solid var(--ui-border);
+  border-radius: 0.5rem;
+  color: var(--ui-text);
+}
+.item__toggle:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }
+.item__chevron--open { transform: rotate(180deg); }
+
+.item__glance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.75rem;
+  min-width: 0;
+  font-size: 0.8125rem;
+}
+.item__glance > div { display: flex; gap: 0.25rem; min-width: 0; }
+.item__glance dt { color: var(--ui-text-muted); }
+.item__glance dd { font-weight: 600; overflow-wrap: anywhere; }
+.item__details {
+  display: none;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ui-border);
+}
+.item__details--open { display: grid; }
+.item__actual-total { font-size: 0.875rem; color: var(--ui-text-muted); }
+.item__actual-total strong { color: var(--ui-text); }
+
+.item__quantity { min-width: 0; grid-column: 1 / -1; }
+.item__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.item__actions > * { min-width: 0; }
+.item__reset { grid-column: 1 / -1; justify-self: start; }
+.item__actions :deep(button) { min-height: var(--touch-target); }
+.item__input { min-width: 0; width: 100%; }
+.item__input :deep(input) { min-height: var(--touch-target); }
 
 .item__name {
-  font-size: 1.25rem;
+  font-size: 1.0625rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 
 .item__price {
-  margin-top: 0.25rem;
   color: var(--ui-text-muted);
+  font-size: 0.8125rem;
 }
+.item__changed { color: var(--ui-warning); font-size: 0.8125rem; font-weight: 600; }
 
-.item__stats,
 .delivery-card__details,
 .delivery-form__grid {
   display: grid;
@@ -1408,28 +1372,15 @@ useSeoMeta({
   gap: 1rem;
 }
 
-.item__stats dd,
 .delivery-card__details dd {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.item__actions {
-  display: grid;
-  gap: 0.75rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--ui-border);
-}
-
-.item__input {
-  min-width: 0;
-  width: 100%;
-}
-
 .summary {
   display: grid;
-  gap: 1rem;
-  padding: var(--card-padding);
+  gap: 0.65rem;
+  padding: 0.75rem;
 }
 
 .summary__row {
@@ -1442,15 +1393,15 @@ useSeoMeta({
 }
 
 .summary__row--total {
-  padding-top: 1rem;
+  padding-top: 0.65rem;
   border-top: 1px solid var(--ui-border);
   font-size: 1.25rem;
 }
 
 .delivery {
   display: grid;
-  gap: 1rem;
-  padding: var(--card-padding);
+  gap: 0.75rem;
+  padding: 0.75rem;
 }
 
 .delivery__head {
@@ -1542,24 +1493,20 @@ useSeoMeta({
 }
 
 @media (min-width: 40rem) {
-  .item__head,
-  .delivery__head {
-    display: flex;
-  }
-
-  .workspace__actions > *,
-  .item__actions > *,
-  .copy-card__actions > *,
-  .delivery-card__actions > *,
-  .delivery-form__actions > * {
-    width: auto;
-  }
-
+  .workspace { padding-top: var(--page-start); }
+  .stage__number { display: block; }
+  .stage__title { margin-top: 0.25rem; font-size: var(--section-title); }
+  .item { gap: 1rem; padding: var(--card-padding); }
+  .item__name { font-size: 1.25rem; }
+  .item__toggle { display: none; }
+  .item__details { display: grid; }
   .item__actions {
     display: flex;
     align-items: flex-end;
     flex-wrap: wrap;
   }
+  .item__quantity { min-width: 12rem; grid-column: auto; }
+  .item__reset { grid-column: auto; }
 
   .stage {
     padding: 1rem;
@@ -1569,18 +1516,6 @@ useSeoMeta({
     display: flex;
     justify-content: space-between;
     gap: 2rem;
-  }
-}
-
-@media (min-width: 48rem) {
-  .stages {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(9.375rem, 1fr));
-    overflow: visible;
-  }
-
-  .stages__link {
-    flex: initial;
   }
 }
 
@@ -1595,8 +1530,13 @@ useSeoMeta({
     gap: 1.5rem;
     margin-inline: -1rem;
   }
+  .workspace__actions { justify-content: flex-end; }
 
   .stage {
+    scroll-margin-top: calc(var(--header-height) + 10rem);
+  }
+  .workspace :deep(#order-issues),
+  .workspace :deep(#order-chat) {
     scroll-margin-top: calc(var(--header-height) + 10rem);
   }
 }

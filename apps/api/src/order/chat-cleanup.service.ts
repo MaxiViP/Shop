@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { ChatImageRetention, OrderStatus } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import { ChatImagesService } from './chat-images.service.js';
+import { chatUnread } from './coordination.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const logger = new Logger('ChatCleanup');
@@ -54,11 +55,14 @@ export class ChatCleanupService {
             where: { id: candidate.id },
             include: { order: { include: { cancellations: {
               where: { restoredAt: null }, orderBy: { canceledAt: 'desc' }, take: 1,
-            } } }, issue: true },
+            } } }, issue: true, imageRevisions: {
+              select: { imageKey: true, createdAt: true }, orderBy: { version: 'desc' },
+            } },
           });
-          if (!row?.imageKey || !row.imageRetention || row.imageDeletedAt) return false;
+          if (!row?.imageKey || !row.imageRetention || row.imageDeletedAt) return null;
           const expiry = imageExpiry({
-            retention: row.imageRetention, createdAt: row.createdAt,
+            retention: row.imageRetention,
+            createdAt: row.imageRevisions[0]?.createdAt ?? row.createdAt,
             orderStatus: row.order.status, completedAt: row.order.completedAt,
             canceledAt: row.order.cancellations[0]?.canceledAt ?? null,
             orderUpdatedAt: row.order.updatedAt, issue: row.issue,
@@ -67,15 +71,27 @@ export class ChatCleanupService {
             await tx.orderChatMessage.update({
               where: { id: row.id }, data: { imageExpiresAt: expiry },
             });
-          if (!expiry || expiry > now) return false;
-          await this.images.remove(row.imageKey);
+          if (!expiry || expiry > now) return null;
+          const keys = [...new Set([row.imageKey, ...row.imageRevisions.map(revision => revision.imageKey)])];
           await tx.orderChatMessage.update({
             where: { id: row.id },
             data: { imageKey: null, imageDeletedAt: now, imageExpiresAt: expiry },
           });
-          return true;
+          await tx.orderChatImageRevision.deleteMany({ where: { messageId: row.id } });
+          const staffUnread = await chatUnread(tx, row.orderId, true,
+            row.order.staffReadMessageId, row.order.staffReadImageRevisionId);
+          const customerUnread = await chatUnread(tx, row.orderId, false,
+            row.order.customerReadMessageId, row.order.customerReadImageRevisionId);
+          await tx.order.update({ where: { id: row.orderId }, data: { staffUnread, customerUnread } });
+          return keys;
         });
-        if (removed) deleted++;
+        if (removed) {
+          deleted++;
+          // Hide the expired image in DB first. A failed unlink leaves only safe
+          // orphan files; it cannot leave a live message pointing at a missing file.
+          for (const key of removed)
+            await this.images.remove(key).catch((error: unknown) => logger.error('Could not remove expired chat revision', error));
+        }
       }
     }
     const orphans = await this.sweepOrphans(now);
@@ -85,6 +101,7 @@ export class ChatCleanupService {
 
   async sweepOrphans(now = new Date()) {
     return this.images.sweepOrphans(now, async key => Boolean(
+      await this.db.orderChatImageRevision.findUnique({ where: { imageKey: key }, select: { id: true } }) ||
       await this.db.orderChatMessage.findUnique({ where: { imageKey: key }, select: { id: true } }),
     ));
   }

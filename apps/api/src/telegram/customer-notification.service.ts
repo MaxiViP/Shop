@@ -27,6 +27,7 @@ export class CustomerNotificationService {
       ORDER_COMPLETED: 'Заказ завершён',
       ORDER_CANCELED: 'Заказ отменён',
       CHAT_MESSAGE: 'Новое сообщение от продавца',
+      ITEM_PRICE_CHANGED: 'Цена товара изменена',
     };
     const text = 'Заказ №' + order.id + '\n' + headings[event.type] +
       (event.type === 'PAYMENT_READY' ? '\nТовары: ' + amount(order.finalSubtotal) + '\nИтого: ' + amount(order.finalTotal) : '') +

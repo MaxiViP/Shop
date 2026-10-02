@@ -20,3 +20,12 @@ export function percentToBps(value: string): number | null {
 export function bpsPercent(bps: number): string {
   return (bps / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
 }
+
+export function focusedAssemblyItem(
+  items: readonly { id: number; status: string }[],
+  assembling: boolean,
+  selected: number | 'none' | null,
+): number | null {
+  if (selected === 'none') return null;
+  return selected ?? (assembling ? items.find(item => item.status === 'PENDING')?.id ?? null : null);
+}

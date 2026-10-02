@@ -56,7 +56,7 @@
           <OrderStatus :status="order.status" :type="order.type" />
           <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_CUSTOMER')" color="warning">Нужен ответ покупателя</UBadge>
           <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_SELLER')" color="error">Нужно действие продавца</UBadge>
-          <UBadge v-if="order.staffUnread" color="info">Новых сообщений: {{ order.staffUnread }}</UBadge>
+          <UBadge v-if="order.staffUnread" color="info">Обновлений в чате: {{ order.staffUnread }}</UBadge>
           <UButton
             v-if="order.staffUnread"
             :to="`/staff/orders/${order.id}#order-chat`"

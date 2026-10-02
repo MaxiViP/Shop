@@ -1,9 +1,9 @@
 <template>
-  <UCard v-if="payment" class="my-6">
+  <UCard v-if="payment" class="staff-payment">
     <template #header
-      ><h2 class="text-xl font-semibold">Оплата заказа</h2></template
+      ><h2 class="staff-payment__title">Оплата заказа</h2></template
     >
-    <div class="space-y-3">
+    <div class="staff-payment__body">
       <p>
         Финальная стоимость товаров и услуг:
         <strong>{{ money(payment.amount) }}</strong>
@@ -71,3 +71,13 @@ async function save() {
   }
 }
 </script>
+
+<style scoped>
+.staff-payment { margin-block: 0.75rem; }
+.staff-payment__title { font-size: 1rem; font-weight: 700; }
+.staff-payment__body { display: grid; justify-items: start; gap: 0.5rem; }
+@media (min-width: 40rem) {
+  .staff-payment { margin-block: 1.5rem; }
+  .staff-payment__title { font-size: 1.25rem; }
+}
+</style>

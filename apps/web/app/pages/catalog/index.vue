@@ -1,7 +1,6 @@
 <template>
   <CatalogView
     title="Каталог"
-    description="Свежие продукты с рынка с доставкой по Москве."
     :categories="categories"
   />
 </template>

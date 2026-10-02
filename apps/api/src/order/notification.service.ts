@@ -2,6 +2,9 @@ import { Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from '@ne
 import { DbService } from '../db/db.service.js';
 import { CustomerNotificationService } from '../telegram/customer-notification.service.js';
 import type { BotDelivery } from '../telegram/bot-api.js';
+import { botDelivery } from '../telegram/bot-api.js';
+import { staffBotToken } from '../telegram/bot-config.js';
+import { staffPriceNotice } from '../telegram/staff-price-notice.js';
 
 // A real provider adapter must explicitly implement this contract. OTP is unrelated.
 export abstract class OrderSmsProvider {
@@ -152,6 +155,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
             case 'DELIVERY_CHANGED':
               valid = Boolean(order.delivery && !['CANCELED', 'COMPLETED'].includes(order.status));
               break;
+            case 'ITEM_PRICE_CHANGED': valid = false; break;
           }
           // Returning to ASSEMBLING must not revive a pending notice from an earlier cycle.
           if (valid && (event.type === 'ASSEMBLY_STARTED' || event.type === 'DELIVERY_CHANGED')) {
@@ -195,6 +199,60 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     } catch { this.logger.warn('Customer notification dispatch failed'); }
   }
 
+  async dispatchStaffPrice(orderId: number) {
+    try {
+      const events = await this.db.orderNotification.findMany({
+        where: { orderId, channel: 'STAFF_TELEGRAM', type: 'ITEM_PRICE_CHANGED', status: 'PENDING' },
+        orderBy: { id: 'asc' }, take: 50,
+      });
+      for (const pending of events) {
+        const current = await this.db.$transaction(async db => {
+          const event = await db.orderNotification.findUnique({
+            where: { id: pending.id },
+            include: {
+              priceChange: { include: {
+                item: { select: { productName: true, productId: true } },
+                actor: { select: { name: true, role: true } },
+              } },
+              recipientUser: { select: { role: true, staffTelegramIdentity: {
+                select: { id: true, telegramUserId: true, botStartedAt: true, blockedAt: true },
+              } } },
+            },
+          });
+          const identity = event?.recipientUser?.staffTelegramIdentity;
+          const eligible = Boolean(event?.priceChange && event.recipientUser?.role === 'ADMIN' &&
+            identity?.botStartedAt && !identity.blockedAt && staffBotToken());
+          const claimed = await db.orderNotification.updateMany({
+            where: { id: pending.id, channel: 'STAFF_TELEGRAM', status: 'PENDING' },
+            data: { status: !event?.priceChange ? 'CANCELED' : eligible ? 'SENDING' : 'UNCONFIGURED',
+              ...(eligible ? { attempts: { increment: 1 } } : {}) },
+          });
+          return claimed.count && eligible && event?.priceChange && identity ?
+            { change: event.priceChange, identity } : null;
+        });
+        if (!current) continue;
+        let outcome: BotDelivery;
+        try {
+          outcome = await botDelivery(staffBotToken(), {
+            chat_id: current.identity.telegramUserId.toString(),
+            ...staffPriceNotice(current.change),
+          });
+        } catch { outcome = 'unknown'; }
+        await this.db.orderNotification.update({
+          where: { id: pending.id },
+          data: outcome === 'sent' ? { status: 'SENT', sentAt: new Date(), error: null } :
+            outcome === 'unknown' ? { status: 'SENDING', error: 'TELEGRAM_OUTCOME_UNKNOWN' } :
+              { status: 'FAILED', error: outcome === 'blocked' ? 'TELEGRAM_BLOCKED' : 'TELEGRAM_REJECTED' },
+        });
+        if (outcome !== 'sent') this.logger.warn('Staff price notification delivery failed');
+        if (outcome === 'blocked') await this.db.staffTelegramIdentity.updateMany({
+          where: { id: current.identity.id, botStartedAt: { lte: current.identity.botStartedAt! } },
+          data: { blockedAt: new Date() },
+        });
+      }
+    } catch { this.logger.warn('Staff price notification dispatch failed'); }
+  }
+
   onModuleInit() {
     if (process.env.NODE_ENV === 'test') return;
     this.timer = setInterval(() => { void this.sweep(); }, 30000);
@@ -211,6 +269,11 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
         take: 50, select: { orderId: true },
       });
       for (const orderId of new Set(rows.map(row => row.orderId))) await this.dispatchTelegram(orderId);
+      const staffRows = await this.db.orderNotification.findMany({
+        where: { channel: 'STAFF_TELEGRAM', type: 'ITEM_PRICE_CHANGED', status: 'PENDING' },
+        orderBy: { id: 'asc' }, take: 50, select: { orderId: true },
+      });
+      for (const orderId of new Set(staffRows.map(row => row.orderId))) await this.dispatchStaffPrice(orderId);
       const expired = await this.db.customerTelegramSession.findMany({
         where: { expiresAt: { lte: new Date() } }, orderBy: { expiresAt: 'asc' }, take: 100, select: { id: true },
       });

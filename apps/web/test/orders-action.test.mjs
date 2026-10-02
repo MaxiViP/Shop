@@ -22,11 +22,11 @@ test("customer unread belongs to My Orders, including read reset and badge cap",
 
 test("staff shows independent green/new and blue/unread badges with an accessible breakdown", () => {
   for (const [fresh, unread, green, blue, label] of [
-    [2, 3, "2", "3", "Заказы: новых 2, непрочитанных сообщений 3"],
-    [0, 3, "", "3", "Заказы: непрочитанных сообщений 3"],
+    [2, 3, "2", "3", "Заказы: новых 2, непрочитанных в чате 3"],
+    [0, 3, "", "3", "Заказы: непрочитанных в чате 3"],
     [2, 0, "2", "", "Заказы: новых 2"],
     [0, 0, "", "", "Заказы"],
-    [100, 101, "99+", "99+", "Заказы: новых 100, непрочитанных сообщений 101"],
+    [100, 101, "99+", "99+", "Заказы: новых 100, непрочитанных в чате 101"],
   ]) {
     const action = ordersAction(true, fresh, unread, 123);
     assert.equal(action.newOrdersCount, fresh);
@@ -39,7 +39,7 @@ test("staff shows independent green/new and blue/unread badges with an accessibl
 
 test("staff click prioritizes new orders, then latest unread, then list", () => {
   assert.equal(ordersAction(true, 2, 3, 123).to, "/staff/orders?tab=new");
-  assert.equal(ordersAction(true, 0, 3, 123).to, "/staff/orders/123");
+  assert.equal(ordersAction(true, 0, 3, 123).to, "/staff/orders/123#order-chat");
   assert.equal(ordersAction(true, 0, 3, null).to, "/staff/orders");
   assert.equal(ordersAction(true, 0, 0, 123).to, "/staff/orders");
 });

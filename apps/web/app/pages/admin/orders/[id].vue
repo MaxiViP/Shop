@@ -23,7 +23,7 @@
         <UCard>
           <template #header><h3 class="font-semibold">Товары</h3></template>
           <div v-for="item in data.items" :key="item.id" class="flex justify-between gap-3 border-b border-default py-2 text-sm">
-            <span>{{ item.productName }} · {{ item.actualQty ?? item.qty }} {{ item.unit }} <UBadge v-if="item.status === 'MISSING'" color="warning">Нет в наличии</UBadge></span>
+            <span>{{ item.productName }} · {{ item.actualQty ?? item.qty }} {{ item.unit }} <UBadge v-if="item.status === 'MISSING'" color="warning">Нет в наличии</UBadge><span v-if="item.actualPrice !== null && item.actualPrice !== item.price" class="block text-warning">Цена {{ money(item.price) }} → {{ money(item.actualPrice) }}</span></span>
             <span class="whitespace-nowrap">{{ money(item.actualTotal ?? item.total) }}</span>
           </div>
         </UCard>
@@ -36,10 +36,11 @@
       <UCard>
         <template #header><h3 class="font-semibold">Внутренний финансовый расчёт</h3></template>
         <div class="overflow-x-auto"><table class="w-full min-w-[620px] text-sm text-left">
-          <thead><tr><th>Товар</th><th>Режим</th><th>Продажа</th><th>База</th><th>Наценка</th></tr></thead>
+          <thead><tr><th>Товар</th><th>Режим</th><th>Цена заказа → факт</th><th>Продажа</th><th>База</th><th>Наценка</th></tr></thead>
           <tbody><tr v-for="line in data.finance.lines" :key="line.id" class="border-t border-default">
             <td class="py-2">{{ line.productName }}</td>
             <td><UBadge :color="line.mode === 'LEGACY' || line.mode === 'UNSET' ? 'warning' : line.mode === 'NO_MARKUP' ? 'neutral' : 'success'">{{ modeLabel[line.mode] }}</UBadge></td>
+            <td>{{ money(line.orderPrice) }}{{ line.finalPrice !== line.orderPrice ? ` → ${money(line.finalPrice)}` : '' }}</td>
             <td>{{ money(line.saleAmount) }}</td><td>{{ line.mode === 'SHARED_MARKUP' ? money(line.baseAmount) : '—' }}</td>
             <td :class="line.sharedMarkup < 0 ? 'text-error' : 'text-success'">{{ money(line.sharedMarkup) }}</td>
           </tr></tbody>
@@ -59,6 +60,12 @@
           <p v-for="entry in data.messages" :key="entry.id" class="py-1 text-sm">{{ date(entry.createdAt) }} · {{ entry.text }}</p>
         </UCard>
       </div>
+      <UCard v-if="data.priceChanges.length">
+        <template #header><h3 class="font-semibold">Изменения цен позиций</h3></template>
+        <p v-for="change in data.priceChanges" :key="change.id" class="border-b border-default py-2 text-sm">
+          {{ date(change.createdAt) }} · {{ change.item.productName }} · {{ money(change.previousPrice) }} → {{ money(change.newPrice) }} · {{ change.actor.name || change.actor.role }}<span v-if="change.reason"> · {{ change.reason }}</span>
+        </p>
+      </UCard>
     </template>
   </section>
 </template>

@@ -6,13 +6,14 @@
       order.status !== 'CANCELED' &&
       payment.status !== 'CANCELED'
     "
+    id="order-payment"
     class="payment"
   >
     <template #header
-      ><h2 class="text-xl font-semibold">Оплата заказа</h2></template
+      ><h2 class="payment__title">Оплата заказа</h2></template
     >
     <div class="payment__body">
-      <p class="text-2xl font-semibold">
+      <p class="payment__amount">
         {{ payment.status === "PAID" ? "Оплачено" : "К оплате" }}:
         {{ money(payment.amount) }}
       </p>
@@ -151,11 +152,14 @@ async function copy(value: string) {
 
 <style scoped>
 .payment {
-  margin-block: 1.5rem;
+  margin-block: 0.75rem;
+  scroll-margin-top: calc(var(--header-height) + 4.5rem);
 }
+.payment__title { font-size: 1rem; font-weight: 700; }
+.payment__amount { font-size: 1.25rem; font-weight: 600; }
 .payment__body {
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
   justify-items: start;
   overflow-wrap: anywhere;
 }
@@ -170,5 +174,11 @@ async function copy(value: string) {
 }
 .payment :deep(button) {
   min-height: 44px;
+}
+@media (min-width: 40rem) {
+  .payment { margin-block: 1.5rem; }
+  .payment__title { font-size: 1.25rem; }
+  .payment__amount { font-size: 1.5rem; }
+  .payment__body { gap: 1rem; }
 }
 </style>

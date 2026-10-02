@@ -79,6 +79,8 @@ export function orderCard(order: CustomerOrder, page = 0): Screen {
     return [
       (replacementIds.has(item.id) ? '🔁 Замена: ' : '') + short(item.productName),
       'Заказано: ' + quantity(item.qty, item.unit),
+      ...(item.actualPrice != null && item.actualPrice !== item.price ?
+        ['Цена изменена: ' + amount(item.price) + ' → ' + amount(item.actualPrice)] : []),
       ...(item.status === 'MISSING' ? ['❌ Нет в наличии'] : item.status === 'PICKED' && item.actualQty !== null
         ? [(item.unit === 'GRAM' ? '⚖️ ' : '✅ ') + 'Собрано: ' + quantity(item.actualQty, item.unit) +
           (item.actualTotal !== null ? ' · ' + amount(item.actualTotal) : '')] : []),
@@ -102,7 +104,7 @@ export function orderCard(order: CustomerOrder, page = 0): Screen {
     ...(order.total === null ? ['Товары при заказе: ' + amount(order.subtotal), 'Стоимость доставки уточняется'] : []),
     ...(order.finalSubtotal !== null ? ['Итог за товары: ' + amount(order.finalSubtotal), 'Итого: ' + amount(order.finalTotal)] :
       order.status === 'ASSEMBLING' && order.extras.length ? ['Доп. позиции: ' + amount(order.extras.reduce((sum, extra) => sum + extra.amount, 0))] : []),
-    ...(order.customerUnread ? ['Новых сообщений: ' + order.customerUnread] : []),
+    ...(order.customerUnread ? ['Обновлений в чате: ' + order.customerUnread] : []),
     'Оплата: ' + (order.payment ? paymentStatus[order.payment.status] : 'после сборки'),
     ...(order.payment ? ['Сумма оплаты товаров: ' + amount(order.payment.amount)] : []),
     ...(order.type === 'DELIVERY' ? ['Доставка: ' + amount(order.deliveryPrice)] : []),

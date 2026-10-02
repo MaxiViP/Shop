@@ -24,11 +24,16 @@ export const imageChatSchema = z.strictObject({
   evidence: z.enum(['true', 'false']).optional(),
   requestId: z.string().uuid().optional(),
 });
+export const imageRevisionSchema = z.strictObject({
+  text: z.string().trim().max(2000).default(''),
+  requestId: z.string().uuid(),
+});
 export const cursorSchema = z
   .object({
     after: recordId.optional(),
     before: recordId.optional(),
     limit: z.coerce.number().int().min(1).max(50).default(30),
+    seen: z.string().max(6000).regex(/^\d+(,\d+)*$/).optional(),
   })
   .refine((value) => !(value.after && value.before));
 export const readSchema = z.strictObject({ through: z.number().int().min(0) });

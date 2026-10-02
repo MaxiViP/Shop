@@ -47,11 +47,16 @@
           >
         </p>
         <p v-if="entry.text" class="chat__text">{{ entry.text }}</p>
-        <OrderChatImage v-if="entry.image" :id="entry.id" :base="base" :expired="entry.imageExpired" @mark="markImage($event, entry.issueId)" />
+        <OrderChatImage v-if="entry.image" :id="entry.id" :base="base" :revision="entry.imageRevision" :expired="entry.imageExpired" @mark="markImage" />
+        <p v-if="entry.imageRevision && entry.revisionActor" class="chat__revision">
+          {{ entry.revisionActor === 'CUSTOMER' ? 'Отмечено покупателем' : `Фото обновлено: ${author(entry.revisionActor)}` }} ·
+          <time v-if="entry.revisionAt" :datetime="entry.revisionAt">{{ new Date(entry.revisionAt).toLocaleString('ru-RU') }}</time>
+        </p>
+        <p v-if="entry.revisionText" class="chat__revision-text">{{ entry.revisionText }}</p>
       </article>
     </div>
     <p v-if="unread" role="status" class="text-primary text-sm">
-      Непрочитанных сообщений: {{ unread }}
+      Непрочитанных обновлений: {{ unread }}
     </p>
     <form class="chat__form" @submit.prevent="send">
       <UFormField label="Сообщение продавцу" class="chat__field">
@@ -70,10 +75,9 @@
       </UFormField>
       <div class="chat__attachments">
         <input ref="photoInput" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" aria-label="Выбрать фото" @change="selectPhoto">
-        <input ref="cameraInput" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" aria-label="Снять фото" @change="selectPhoto">
         <UButton type="button" size="sm" variant="soft" color="neutral" icon="i-lucide-image-plus" :disabled="sending || preparing" @click="photoInput?.click()">Фото</UButton>
-        <UButton type="button" size="sm" variant="soft" color="neutral" icon="i-lucide-camera" :disabled="sending || preparing" @click="cameraInput?.click()">Камера</UButton>
-        <UButton v-if="photo" type="button" size="sm" variant="soft" color="neutral" icon="i-lucide-pencil" :disabled="sending || preparing" @click="markupOpen = true">Разметка</UButton>
+        <UButton type="button" size="sm" variant="soft" color="neutral" icon="i-lucide-camera" :disabled="sending || preparing" @click="camera?.openCamera()">Камера</UButton>
+        <UButton v-if="photo" type="button" size="sm" variant="soft" color="neutral" icon="i-lucide-pencil" :disabled="sending || preparing" @click="openNewMarkup">Разметка</UButton>
       </div>
       <div v-if="photo && preview" class="chat__preview">
         <img :src="preview" alt="Фото перед отправкой" class="chat__preview-image">
@@ -106,7 +110,19 @@
         >{{ sendError ? "Повторить отправку" : "Отправить" }}</UButton
       >
     </form>
-    <OrderMarkup v-if="photo || markupSource" v-model:open="markupOpen" v-model:text="text" :file="markupSource ?? photo!" @send="sendMarked" />
+    <OrderCamera ref="camera" @select="cameraPhoto" @gallery="photoInput?.click()" />
+    <OrderMarkup
+      v-if="photo || markupSource"
+      v-model:open="markupOpen"
+      v-model:text="markupText"
+      :file="markupSource ?? photo!"
+      :revision="Boolean(markupTarget)"
+      :sending="revisionSending"
+      :retry="Boolean(revisionAttempt && revisionError)"
+      :submit-error="revisionError"
+      @send="sendMarked"
+      @retry="saveRevision"
+    />
   </UCard>
 </template>
 
@@ -114,6 +130,7 @@
 import type { ChatMessage, MessagePage, OrderIssue } from "~/types/coordination";
 import {
   createChatHistory,
+  applyImageRevisions,
   mergeMessages,
   receiveMessages,
 } from "~/utils/chat-messages";
@@ -135,13 +152,18 @@ const communicationRevision = useCommunicationRevision();
 const history = reactive(createChatHistory());
 const { messages, initialLoaded } = toRefs(history);
 const text = ref("");
+const markupText = ref("");
 const photo = ref<File | null>(null);
 const photoContext = ref('operational');
 const preview = ref("");
 const photoInput = ref<HTMLInputElement>();
-const cameraInput = ref<HTMLInputElement>();
+const camera = ref<{ openCamera: () => void }>();
 const markupOpen = ref(false);
 const markupSource = ref<File | null>(null);
+const markupTarget = ref<number | null>(null);
+const revisionAttempt = ref<{ messageId: number; file: File; text: string; requestId: string } | null>(null);
+const revisionSending = ref(false);
+const revisionError = ref('');
 const requestId = ref("");
 const sendError = ref("");
 const photoError = ref("");
@@ -157,6 +179,7 @@ let inView = false;
 let observer: IntersectionObserver | undefined;
 let reading = false;
 let lastRead = 0;
+let acknowledgedUnread = 0;
 let photoSelection = 0;
 let photoPreparation: AbortController | null = null;
 // POST responses must not move the GET cursor past unseen concurrent messages.
@@ -173,13 +196,14 @@ const bottom = () =>
     48;
 async function markVisible() {
   const through = history.cursor ?? 0;
+  const pendingUnread = props.unread;
   if (
     !active ||
     reading ||
     !inView ||
     document.visibilityState !== "visible" ||
     !bottom() ||
-    through <= Math.max(lastRead, props.readThrough)
+    (through <= Math.max(lastRead, props.readThrough) && pendingUnread <= acknowledgedUnread)
   )
     return;
   reading = true;
@@ -189,7 +213,8 @@ async function markVisible() {
       body: { through },
     });
     if (active) {
-      lastRead = through;
+      lastRead = Math.max(lastRead, through);
+      acknowledgedUnread = Math.max(acknowledgedUnread, pendingUnread);
       communicationRevision.value++;
       emit("read");
     }
@@ -205,19 +230,21 @@ async function load() {
   const wasBottom = bottom();
   try {
     const after = history.cursor;
+    const seen = messages.value.filter(entry => entry.image).slice(-500).map(entry => entry.id).join(',');
     const page = await api<MessagePage>(`${props.base}/messages`, {
-      query: after ? { after } : {},
+      query: { ...(after ? { after } : {}), ...(seen ? { seen } : {}) },
     });
     if (!active) return;
     if (!after) hasOlder.value = page.hasMore;
     const changed = receiveMessages(history, page.messages);
+    const revised = applyImageRevisions(history, page.revisions ?? []);
     if (page.messages.length && wasBottom && messages.value.length > 500) {
       messages.value = messages.value.slice(-500);
       hasOlder.value = true;
     }
     error.value = false;
     await nextTick();
-    if (changed && wasBottom && viewport.value)
+    if ((changed || revised) && wasBottom && viewport.value)
       viewport.value.scrollTop = viewport.value.scrollHeight;
     await markVisible();
   } catch {
@@ -329,15 +356,55 @@ function removePhoto() {
   markupOpen.value = false;
   photoError.value = "";
 }
-async function sendMarked(file: File) {
-  if (!setPhoto(file)) return;
-  markupOpen.value = false;
-  markupSource.value = null;
-  await send();
+function cameraPhoto(file: File) {
+  if (setPhoto(file)) photoContext.value = 'operational';
 }
-function markImage(file: File, issueId: number | null) {
-  markupSource.value = file;
-  photoContext.value = issueId ? String(issueId) : 'operational';
+function openNewMarkup() {
+  markupTarget.value = null;
+  markupSource.value = null;
+  markupText.value = text.value;
+  markupOpen.value = true;
+}
+async function sendMarked(file: File) {
+  if (markupTarget.value !== null) {
+    revisionAttempt.value = { messageId: markupTarget.value, file,
+      text: markupText.value.trim(), requestId: crypto.randomUUID() };
+    await saveRevision();
+  } else if (setPhoto(file)) {
+    text.value = markupText.value;
+    markupOpen.value = false;
+    await send();
+  }
+}
+async function saveRevision() {
+  const attempt = revisionAttempt.value;
+  if (!attempt || revisionSending.value) return;
+  revisionSending.value = true;
+  revisionError.value = '';
+  try {
+    const body = new FormData();
+    body.append('text', attempt.text);
+    body.append('requestId', attempt.requestId);
+    body.append('file', attempt.file);
+    const entry = await api<ChatMessage>(`${props.base}/messages/${attempt.messageId}/revisions`,
+      { method: 'POST', body });
+    if (!active) return;
+    messages.value = mergeMessages(messages.value, [entry]);
+    revisionAttempt.value = null;
+    markupOpen.value = false;
+    toast.add({ title: 'Разметка сохранена' });
+  } catch (cause) {
+    if (active) revisionError.value = apiError(cause);
+  } finally {
+    revisionSending.value = false;
+  }
+}
+function markImage(value: { id: number; file: File }) {
+  markupSource.value = value.file;
+  markupTarget.value = value.id;
+  markupText.value = '';
+  revisionAttempt.value = null;
+  revisionError.value = '';
   markupOpen.value = true;
 }
 async function focusChat() {
@@ -369,14 +436,25 @@ onBeforeUnmount(() => {
   if (preview.value) URL.revokeObjectURL(preview.value);
 });
 watch(() => route.hash, () => { void focusChat() });
-watch(markupOpen, (open) => { if (!open) markupSource.value = null; });
+watch(() => props.unread, value => {
+  if (!value) acknowledgedUnread = 0;
+  void markVisible();
+});
+watch(markupOpen, (open) => {
+  if (!open) {
+    markupSource.value = null;
+    markupTarget.value = null;
+    revisionAttempt.value = null;
+    revisionError.value = '';
+  }
+});
 useOrderPolling(load, () => props.poll === false ? 30000 : 4000);
 </script>
 
 <style scoped>
 .chat {
   min-width: 0;
-  scroll-margin-top: calc(var(--header-height) + 1rem);
+  scroll-margin-top: calc(var(--header-height) + 4.5rem);
   border: 1px solid color-mix(in srgb, var(--ui-primary) 35%, var(--ui-border));
   background: color-mix(in srgb, var(--ui-primary) 4%, var(--ui-bg-elevated));
 }
@@ -399,6 +477,8 @@ useOrderPolling(load, () => props.poll === false ? 30000 : 4000);
   outline: 2px solid var(--ui-primary);
   outline-offset: 2px;
 }
+.chat__revision { color: var(--ui-text-muted); font-size: 0.75rem; }
+.chat__revision-text { border-left: 2px solid var(--ui-primary); padding-left: 0.5rem; font-size: 0.875rem; }
 .chat__message {
   justify-self: start;
   max-width: 94%;

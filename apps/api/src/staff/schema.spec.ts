@@ -1,6 +1,14 @@
-import { deliverySchema, itemSchema } from './schema.js';
+import { deliverySchema, itemSchema, itemPriceSchema } from './schema.js';
 
 describe('staff schemas', () => {
+  it('accepts only integer kopecks and a UUID for order item price corrections', () => {
+    const valid = { price: 10500, requestId: '00000000-0000-4000-8000-000000000001' };
+    expect(itemPriceSchema.safeParse(valid).success).toBe(true);
+    for (const price of [0, -1, 1.5, 100_000_001, '10500'])
+      expect(itemPriceSchema.safeParse({ ...valid, price }).success).toBe(false);
+    expect(itemPriceSchema.safeParse({ ...valid, requestId: 'retry' }).success).toBe(false);
+    expect(itemPriceSchema.safeParse({ ...valid, productPrice: 10500 }).success).toBe(false);
+  });
   it.each([null, undefined, 0, -1, 1.5, NaN])(
     'rejects OTHER price %s',
     (price) => {

@@ -17,6 +17,12 @@ export const itemSchema = z.discriminatedUnion('status', [
   }),
 ]);
 
+export const itemPriceSchema = z.object({
+  price: z.number().int().min(1).max(100_000_000),
+  reason: z.string().trim().max(500).optional(),
+  requestId: z.uuid(),
+}).strict();
+
 const optional = (max: number) => z.string().trim().min(1).max(max).optional();
 
 const trackingUrl = z
@@ -100,5 +106,6 @@ export const deliverySchema = z
   });
 
 export type ItemInput = z.infer<typeof itemSchema>;
+export type ItemPriceInput = z.infer<typeof itemPriceSchema>;
 
 export type DeliveryInput = z.infer<typeof deliverySchema>;

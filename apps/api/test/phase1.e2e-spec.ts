@@ -948,7 +948,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     await call(guest.cookie).get(`/orders/${guest.publicId}/messages/${fromGuest.body.id}/image`).expect(200);
   });
 
-  it('market photo roundtrip keeps original, supports captions and deduplicates a retry after temp cleanup fails', async () => {
+  it('market photo revisions keep one message, original audit file, and idempotent seller/customer markup', async () => {
     const order = await create('PICKUP');
     const staffBase = `/staff/orders/${order.id}`;
     const customerBase = `/orders/${order.publicId}`;
@@ -957,6 +957,11 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       request(app.getHttpServer()).post(`/api${base}/messages/image`).set('Cookie', cookie)
         .field('text', text).field('requestId', requestId)
         .attach('file', image, { filename: 'market.png', contentType: 'image/png' });
+    const revise = (cookie: string, base: string, messageId: number, image: Buffer,
+      text: string, requestId = randomUUID(), contentType = 'image/png') =>
+      request(app.getHttpServer()).post(`/api${base}/messages/${messageId}/revisions`).set('Cookie', cookie)
+        .field('text', text).field('requestId', requestId)
+        .attach('file', image, { filename: 'marked.png', contentType });
 
     const cleanup = vi.spyOn(app.get(ChatImagesService), 'removeTemp')
       .mockRejectedValueOnce(Object.assign(new Error('Synthetic Windows lock'), { code: 'EBUSY' }));
@@ -972,33 +977,118 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
 
       const sellerCaption = await upload(seller, staffBase, original, 'Выберите помидоры').expect(201);
       expect(sellerCaption.body).toMatchObject({ image: true, text: 'Выберите помидоры' });
+      const originalKey = (await db.orderChatMessage.findUniqueOrThrow({ where: { id: sellerCaption.body.id } })).imageKey!;
+      const messageCount = await db.orderChatMessage.count({ where: { orderId: order.id } });
       const full = await call(owner).get(`${customerBase}/messages/${sellerCaption.body.id}/image`).expect(200);
       const fullMetadata = await sharp(full.body as Buffer).metadata();
       expect(fullMetadata).toMatchObject({ format: 'webp', width: 1500, height: 900 });
       const annotated = await sharp(full.body as Buffer)
         .composite([{ input: Buffer.from('<svg width="1500" height="900"><circle cx="750" cy="450" r="120" fill="none" stroke="yellow" stroke-width="20"/></svg>') }])
         .png().toBuffer();
-      const customerReply = await upload(owner, customerBase, annotated, 'Вот эти, пожалуйста').expect(201);
-      expect(customerReply.body).toMatchObject({ image: true, text: 'Вот эти, пожалуйста' });
-      const sellerView = await call(seller).get(`${staffBase}/messages/${customerReply.body.id}/image`).expect(200);
+      const requestId = randomUUID();
+      await revise(stranger, customerBase, sellerCaption.body.id, annotated, 'Чужая разметка').expect(404);
+      await revise(owner, staffBase, sellerCaption.body.id, annotated, 'Чужая разметка').expect(403);
+      await revise(owner, customerBase, sellerCaption.body.id, annotated, 'Неверный MIME', randomUUID(), 'image/jpeg').expect(400);
+      const customerReply = await revise(owner, customerBase, sellerCaption.body.id, annotated,
+        'Вот эти, пожалуйста', requestId).expect(201);
+      expect(customerReply.body).toMatchObject({ id: sellerCaption.body.id, image: true,
+        text: 'Выберите помидоры', imageRevision: 1, revisionText: 'Вот эти, пожалуйста' });
+      expect(await db.orderChatMessage.count({ where: { orderId: order.id } })).toBe(messageCount);
+      const sellerView = await call(seller).get(`${staffBase}/messages/${sellerCaption.body.id}/image`).expect(200);
       expect((await sharp(sellerView.body as Buffer).metadata()).format).toBe('webp');
       const originalPixel = await sharp(full.body as Buffer).extract({ left: 750, top: 330, width: 1, height: 1 }).raw().toBuffer();
       const markedPixel = await sharp(sellerView.body as Buffer).extract({ left: 750, top: 330, width: 1, height: 1 }).raw().toBuffer();
       expect(markedPixel[1]!).toBeGreaterThan(originalPixel[1]! + 100);
-      expect((await sharp((await call(owner).get(`${customerBase}/messages/${sellerCaption.body.id}/image`).expect(200)).body as Buffer).metadata()).format).toBe('webp');
+      expect(await readFile(join(chatDirectory, originalKey + '.full.webp'))).toEqual(full.body);
+      const repeated = await revise(owner, customerBase, sellerCaption.body.id, annotated,
+        'Вот эти, пожалуйста', requestId).expect(201);
+      expect(repeated.body).toMatchObject({ id: sellerCaption.body.id, imageRevision: 1 });
+      const secondMark = await revise(seller, staffBase, sellerCaption.body.id, annotated, 'Уточнение продавца').expect(201);
+      expect(secondMark.body).toMatchObject({ id: sellerCaption.body.id, imageRevision: 2,
+        revisionText: 'Уточнение продавца' });
+      expect(await db.orderChatMessage.count({ where: { orderId: order.id } })).toBe(messageCount);
+      expect(await db.orderChatImageRevision.count({ where: { messageId: sellerCaption.body.id } })).toBe(3);
+      const revisionRows = await db.orderChatImageRevision.findMany({ where: { messageId: sellerCaption.body.id },
+        orderBy: { version: 'asc' } });
+      expect(revisionRows.map(row => [row.version, row.actorType, row.caption])).toEqual([
+        [0, 'SELLER', ''], [1, 'CUSTOMER', 'Вот эти, пожалуйста'], [2, 'SELLER', 'Уточнение продавца'],
+      ]);
+      const polled = await call(seller).get(`${staffBase}/messages`).query({ after: sellerCaption.body.id, seen: sellerCaption.body.id }).expect(200);
+      expect(polled.body.messages).toHaveLength(0);
+      expect(polled.body.revisions).toMatchObject([{ id: sellerCaption.body.id, imageRevision: 2 }]);
 
       const customerPhoto = await upload(owner, customerBase, original, '').expect(201);
       const staffFull = await call(seller).get(`${staffBase}/messages/${customerPhoto.body.id}/image`).expect(200);
       const staffMarked = await sharp(staffFull.body as Buffer)
         .composite([{ input: Buffer.from('<svg width="1500" height="900"><circle cx="500" cy="450" r="100" fill="none" stroke="cyan" stroke-width="20"/></svg>') }])
         .png().toBuffer();
-      const staffReply = await upload(seller, staffBase, staffMarked, 'Этот товар?').expect(201);
-      expect(staffReply.body).toMatchObject({ image: true, text: 'Этот товар?' });
-      await call(owner).get(`${customerBase}/messages/${staffReply.body.id}/thumbnail`).expect(200);
-      await call(stranger).get(`${customerBase}/messages/${staffReply.body.id}/image`).expect(404);
+      const staffReply = await revise(seller, staffBase, customerPhoto.body.id, staffMarked, 'Этот товар?').expect(201);
+      expect(staffReply.body).toMatchObject({ id: customerPhoto.body.id, imageRevision: 1, revisionText: 'Этот товар?' });
+      const adminReply = await revise(admin, staffBase, customerPhoto.body.id, staffMarked, 'Уточнение администратора').expect(201);
+      expect(adminReply.body).toMatchObject({ id: customerPhoto.body.id, imageRevision: 2 });
+      await call(owner).get(`${customerBase}/messages/${customerPhoto.body.id}/thumbnail`).expect(200);
+      await call(stranger).get(`${customerBase}/messages/${customerPhoto.body.id}/image`).expect(404);
+
+      const guestOrder = await create('PICKUP', '');
+      const guestBase = `/orders/${guestOrder.publicId}`;
+      const guestPhoto = await upload(guestOrder.cookie, guestBase, original, '').expect(201);
+      const guestMark = await revise(guestOrder.cookie, guestBase, guestPhoto.body.id, annotated, 'Вот это').expect(201);
+      expect(guestMark.body).toMatchObject({ id: guestPhoto.body.id, imageRevision: 1 });
+      await revise(owner, guestBase, guestPhoto.body.id, annotated, 'Чужой заказ').expect(404);
     } finally {
       cleanup.mockRestore();
     }
+  });
+
+  it('photo revisions raise only the other side unread and read clears them on the same message', async () => {
+    const order = await create('PICKUP');
+    const staffBase = `/staff/orders/${order.id}`;
+    const customerBase = `/orders/${order.publicId}`;
+    const png = await sharp({ create: { width: 24, height: 16, channels: 3, background: '#86efac' } }).png().toBuffer();
+    const photo = await request(app.getHttpServer()).post(`/api${staffBase}/messages/image`)
+      .set('Cookie', seller).field('text', '').field('requestId', randomUUID())
+      .attach('file', png, { filename: 'market.png', contentType: 'image/png' }).expect(201);
+    const messageCount = await db.orderChatMessage.count({ where: { orderId: order.id } });
+    await call(owner).post(`${customerBase}/messages/read`, { through: photo.body.id }).expect(201);
+    await call(seller).post(`${staffBase}/messages/read`, { through: photo.body.id }).expect(201);
+    expect((await call(owner).get(`${customerBase}/coordination`)).body.unread).toBe(0);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(0);
+    const revise = (cookie: string, base: string, requestId: string, text: string) =>
+      request(app.getHttpServer()).post(`/api${base}/messages/${photo.body.id}/revisions`)
+        .set('Cookie', cookie).field('text', text).field('requestId', requestId)
+        .attach('file', png, { filename: 'marked.png', contentType: 'image/png' });
+
+    const customerRequest = randomUUID();
+    const customerMark = await revise(owner, customerBase, customerRequest, 'Эти помидоры').expect(201);
+    expect(customerMark.body).toMatchObject({ id: photo.body.id, imageRevision: 1 });
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(1);
+    expect((await call(owner).get(`${customerBase}/coordination`)).body.unread).toBe(0);
+    expect((await call(seller).get('/staff/orders/unread')).body.latestOrderId).toBe(order.id);
+    await revise(owner, customerBase, customerRequest, 'Эти помидоры').expect(201);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(1);
+    expect(await db.orderChatMessage.count({ where: { orderId: order.id } })).toBe(messageCount);
+    await call(seller).post(`${staffBase}/messages/read`, { through: photo.body.id }).expect(201);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(0);
+
+    const sellerMark = await revise(seller, staffBase, randomUUID(), 'Вот эти?').expect(201);
+    expect(sellerMark.body).toMatchObject({ id: photo.body.id, imageRevision: 2 });
+    expect((await call(owner).get(`${customerBase}/coordination`)).body.unread).toBe(1);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(0);
+    expect((await call(owner).get('/orders/unread')).body.latestOrderId).toBe(order.publicId);
+    await call(owner).post(`${customerBase}/messages/read`, { through: photo.body.id }).expect(201);
+    expect((await call(owner).get(`${customerBase}/coordination`)).body.unread).toBe(0);
+
+    const nextMark = await revise(owner, customerBase, randomUUID(), 'Уточняю').expect(201);
+    expect(nextMark.body).toMatchObject({ id: photo.body.id, imageRevision: 3 });
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(1);
+    await call(seller).post(`${staffBase}/messages/read`, { through: photo.body.id }).expect(201);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(0);
+    expect(await db.orderChatMessage.count({ where: { orderId: order.id } })).toBe(messageCount);
+
+    const text = await call(owner).post(`${customerBase}/messages`, { text: 'Спасибо' }).expect(201);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(1);
+    await call(seller).post(`${staffBase}/messages/read`, { through: text.body.id }).expect(201);
+    expect((await call(seller).get(`${staffBase}/coordination`)).body.unread).toBe(0);
   });
 
   it('chat cleanup respects active orders, seven-day operations, 90-day evidence and missing files', async () => {
@@ -1021,12 +1111,33 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
 
     const completed = await create('PICKUP');
     const photo = await upload(`/orders/${completed.publicId}`).expect(201);
+    await call(seller).post(`/staff/orders/${completed.id}/messages/read`, { through: photo.body.id }).expect(201);
+    await request(app.getHttpServer()).post(`/api/orders/${completed.publicId}/messages/${photo.body.id}/revisions`)
+      .set('Cookie', owner).field('text', 'Отметка').field('requestId', randomUUID())
+      .attach('file', png, { filename: 'marked.png', contentType: 'image/png' }).expect(201);
+    expect((await call(seller).get(`/staff/orders/${completed.id}/coordination`)).body.unread).toBe(1);
     const row = await db.orderChatMessage.findUniqueOrThrow({ where: { id: photo.body.id } });
+    const versions = await db.orderChatImageRevision.findMany({ where: { messageId: row.id }, orderBy: { version: 'asc' } });
+    expect(versions).toHaveLength(2);
+    expect(versions[0]!.imageKey).not.toBe(row.imageKey);
+    const originalFull = join(chatDirectory, versions[0]!.imageKey + '.full.webp');
+    const originalThumb = join(chatDirectory, versions[0]!.imageKey + '.thumb.webp');
+    const old = new Date(Date.now() - 2 * 86400000);
+    await utimes(originalFull, old, old);
+    await utimes(originalThumb, old, old);
+    await cleanup.sweepOrphans();
+    expect((await stat(originalFull)).isFile()).toBe(true);
+    expect((await stat(originalThumb)).isFile()).toBe(true);
     expect(row.imageRetention).toBe('OPERATIONAL');
     await db.order.update({ where: { id: completed.id }, data: { status: 'COMPLETED', completedAt: new Date() } });
     await unlink(join(chatDirectory, row.imageKey + '.full.webp'));
     await cleanup.run(new Date(Date.now() + 8 * 86400000));
     expect(await db.orderChatMessage.findUniqueOrThrow({ where: { id: row.id } })).toMatchObject({ imageKey: null });
+    expect((await call(seller).get(`/staff/orders/${completed.id}/coordination`)).body.unread).toBe(0);
+    expect(await db.orderChatImageRevision.count({ where: { messageId: row.id } })).toBe(0);
+    for (const version of versions) for (const variant of ['full', 'thumb'])
+      expect(await readFile(join(chatDirectory, `${version.imageKey}.${variant}.webp`)).catch(() => null)).toBeNull();
+    await call(owner).get(`/orders/${completed.publicId}/messages/${row.id}/image`).expect(410);
     await call(owner).get(`/orders/${completed.publicId}/messages/${row.id}/thumbnail`).expect(410);
     const page = await call(owner).get(`/orders/${completed.publicId}/messages`).expect(200);
     expect(page.body.messages.find((entry: { id: number }) => entry.id === row.id)).toMatchObject({ image: true, imageExpired: true });

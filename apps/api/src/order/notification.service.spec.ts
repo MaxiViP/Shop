@@ -33,16 +33,23 @@ it('sweeps only pending Telegram rows, coalesces orders, bounds cleanup and stop
   vi.useFakeTimers();
   vi.stubEnv('NODE_ENV', 'production');
   const { db, sms, service } = setup();
-  db.orderNotification.findMany.mockResolvedValue([{ orderId: 1 }, { orderId: 1 }, { orderId: 2 }]);
+  db.orderNotification.findMany.mockImplementation(async ({ where }: { where: { channel: string } }) =>
+    where.channel === 'TELEGRAM' ? [{ orderId: 1 }, { orderId: 1 }, { orderId: 2 }] : [],
+  );
   db.customerTelegramSession.findMany.mockResolvedValue([{ id: 'expired-reservation' }]);
   const delivery = vi.spyOn(service, 'dispatchTelegram').mockResolvedValue(undefined);
+  const staffDelivery = vi.spyOn(service, 'dispatchStaffPrice').mockResolvedValue(undefined);
   service.onModuleInit();
   try {
     await vi.advanceTimersByTimeAsync(30000);
-    expect(db.orderNotification.findMany).toHaveBeenCalledExactlyOnceWith({
+    expect(db.orderNotification.findMany).toHaveBeenCalledWith({
       where: { channel: 'TELEGRAM', status: 'PENDING' }, orderBy: { id: 'asc' }, take: 50, select: { orderId: true },
     });
+    expect(db.orderNotification.findMany).toHaveBeenCalledWith({
+      where: { channel: 'STAFF_TELEGRAM', type: 'ITEM_PRICE_CHANGED', status: 'PENDING' }, orderBy: { id: 'asc' }, take: 50, select: { orderId: true },
+    });
     expect(delivery.mock.calls).toEqual([[1], [2]]);
+    expect(staffDelivery).not.toHaveBeenCalled();
     expect(sms.send).not.toHaveBeenCalled();
     expect(db.customerTelegramSession.findMany).toHaveBeenCalledWith({
       where: { expiresAt: { lte: expect.any(Date) } }, orderBy: { expiresAt: 'asc' }, take: 100, select: { id: true },

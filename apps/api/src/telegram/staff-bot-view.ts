@@ -118,6 +118,8 @@ export function itemView(order: OrderView, item: OrderView['items'][number]):
     'Заказ #' + order.id + ' · ' + clean(item.productName, 120),
     'Заказ: ' + quantity(item.qty, item.unit),
     'Цена: ' + money(item.price) + ' / ' + quantity(item.priceQty, item.unit),
+    ...(item.actualPrice != null && item.actualPrice !== item.price ?
+      ['Фактическая цена: ' + money(item.actualPrice)] : []),
     'Запрошено: ' + money(item.total),
     'Статус: ' + (item.status === 'PICKED' ? '✅ Собран' :
       item.status === 'MISSING' ? '❌ Нет в наличии' : 'В сборке'),

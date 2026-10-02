@@ -1,5 +1,5 @@
 <template>
-  <nav class="categories">
+  <nav class="categories" aria-label="Категории товаров">
     <NuxtLink :to="link('/catalog')" class="categories__item"> Все </NuxtLink>
 
     <NuxtLink
@@ -29,10 +29,11 @@ function link(path: string) {
 <style scoped>
 .categories {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
   scrollbar-width: thin;
+  padding-block: 0.125rem;
 }
 
 .categories__item {
@@ -43,15 +44,25 @@ function link(path: string) {
   padding: 0.65rem 1rem;
   border: 1px solid var(--ui-border);
   border-radius: 999px;
+  background: var(--ui-bg-elevated);
+  font-weight: 500;
   transition: background-color 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .categories__item:hover {
-  background: var(--ui-bg-muted);
+  border-color: var(--ui-primary);
+  color: var(--ui-primary);
+  background: color-mix(in srgb, var(--ui-primary) 8%, var(--ui-bg-elevated));
 }
 
 .categories__item.router-link-exact-active {
   border-color: var(--ui-primary);
   color: var(--ui-primary);
+  background: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-bg-elevated));
+}
+
+.categories__item:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: -2px;
 }
 </style>

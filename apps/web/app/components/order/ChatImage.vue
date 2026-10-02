@@ -29,7 +29,7 @@
           <UButton size="sm" variant="soft" @click="loadFull">Повторить</UButton>
         </div>
         <div v-else-if="full" class="chat-image__full-view">
-          <img :src="full" alt="Фото в сообщении крупным планом" class="chat-image__full">
+          <OrderPhotoViewer :src="full" @close="open = false" />
           <UButton type="button" size="sm" variant="soft" icon="i-lucide-pencil" :loading="marking" @click="mark">Отметить на фото</UButton>
         </div>
       </template>
@@ -38,8 +38,8 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{ base: string; id: number; expired?: boolean }>();
-const emit = defineEmits<{ mark: [file: File] }>();
+const props = defineProps<{ base: string; id: number; revision: number; expired?: boolean }>();
+const emit = defineEmits<{ mark: [value: { id: number; file: File }] }>();
 const api = useApiClient();
 const thumb = ref("");
 const full = ref("");
@@ -53,6 +53,7 @@ const fullError = ref(false);
 const gone = ref(Boolean(props.expired));
 const open = ref(false);
 let active = true;
+let imageGeneration = 0;
 
 function isGone(cause: unknown) {
   if (!cause || typeof cause !== "object") return false;
@@ -61,45 +62,48 @@ function isGone(cause: unknown) {
 }
 async function loadThumb() {
   if (gone.value) return;
+  const generation = imageGeneration;
   loading.value = true;
   error.value = false;
   try {
     const blob = await api<Blob>(props.base + "/messages/" + props.id + "/thumbnail", {
       responseType: "blob",
     });
-    if (!active) return;
+    if (!active || generation !== imageGeneration) return;
     if (thumb.value) URL.revokeObjectURL(thumb.value);
     thumb.value = URL.createObjectURL(blob);
   } catch (cause) {
-    if (active) {
+    if (active && generation === imageGeneration) {
       if (isGone(cause)) gone.value = true;
       else error.value = true;
     }
   } finally {
-    if (active) loading.value = false;
+    if (active && generation === imageGeneration) loading.value = false;
   }
 }
 async function loadFull(): Promise<Blob | null> {
   if (gone.value || fullLoading.value) return null;
   if (fullBlob.value) return fullBlob.value;
+  const generation = imageGeneration;
   fullLoading.value = true;
   fullError.value = false;
   try {
     const blob = await api<Blob>(props.base + "/messages/" + props.id + "/image", {
       responseType: "blob",
     });
-    if (!active || blob.type !== "image/webp") throw new Error("Invalid image response");
+    if (!active || generation !== imageGeneration) return null;
+    if (blob.type !== "image/webp") throw new Error("Invalid image response");
     fullBlob.value = blob;
     full.value = URL.createObjectURL(blob);
     return blob;
   } catch (cause) {
-    if (active) {
+    if (active && generation === imageGeneration) {
       if (isGone(cause)) { gone.value = true; open.value = false; }
       else fullError.value = true;
     }
     return null;
   } finally {
-    if (active) fullLoading.value = false;
+    if (active && generation === imageGeneration) fullLoading.value = false;
   }
 }
 async function mark() {
@@ -114,7 +118,7 @@ async function mark() {
     }
     open.value = false;
     await nextTick();
-    if (active) emit("mark", new File([blob], "photo.webp", { type: "image/webp" }));
+    if (active) emit("mark", { id: props.id, file: new File([blob], "photo.webp", { type: "image/webp" }) });
   } finally {
     marking.value = false;
   }
@@ -124,6 +128,17 @@ function show() {
   void loadFull();
 }
 watch(() => props.expired, value => { if (value) gone.value = true; });
+watch(() => props.revision, () => {
+  imageGeneration++;
+  fullLoading.value = false;
+  fullBlob.value = null;
+  if (full.value) URL.revokeObjectURL(full.value);
+  full.value = "";
+  if (!gone.value) {
+    void loadThumb();
+    if (open.value) void loadFull();
+  }
+});
 watch(gone, value => {
   if (!value) return;
   open.value = false;
@@ -148,6 +163,5 @@ onBeforeUnmount(() => {
 .chat-image__open { display: block; max-width: 100%; border-radius: 0.5rem; cursor: zoom-in; overflow: hidden; }
 .chat-image__open:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }
 .chat-image__thumb { display: block; max-width: min(100%, 18rem); max-height: 16rem; object-fit: contain; }
-.chat-image__full { display: block; max-width: 100%; max-height: 82dvh; margin-inline: auto; object-fit: contain; }
 .chat-image__full-view { display: grid; justify-items: center; gap: 0.75rem; }
 </style>

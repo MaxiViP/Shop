@@ -52,13 +52,15 @@ const descriptions = {
 
 <style scoped>
 .order-progress {
-  margin-block: 1.5rem;
+  margin-block: 0.75rem;
 }
 .order-progress__steps {
-  display: grid;
+  display: flex;
   margin: 0;
-  padding: 1rem;
+  padding: 0.65rem 0.25rem;
   list-style: none;
+  overflow-x: auto;
+  scrollbar-width: thin;
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
   background: var(--ui-bg-elevated);
@@ -66,19 +68,22 @@ const descriptions = {
 .order-progress__step {
   position: relative;
   display: grid;
-  grid-template-columns: 1.5rem minmax(0, 1fr);
-  align-items: center;
-  gap: 0.75rem;
-  min-height: 2.5rem;
+  grid-template-rows: 1.5rem auto;
+  flex: 1 0 4.75rem;
+  justify-items: center;
+  align-content: start;
+  gap: 0.25rem;
+  min-height: 3.5rem;
   color: var(--ui-text-muted);
+  text-align: center;
 }
 .order-progress__step:not(:first-child)::before {
   position: absolute;
   content: "";
-  width: 2px;
-  height: calc(100% - 1.5rem);
-  left: calc(0.75rem - 1px);
-  bottom: calc(50% + 0.75rem);
+  width: calc(100% - 1.5rem);
+  height: 2px;
+  left: calc(-50% + 0.75rem);
+  top: calc(0.75rem - 1px);
   background: var(--progress-connector, var(--ui-border-accented));
   transition: background-color 180ms ease;
 }
@@ -125,8 +130,8 @@ const descriptions = {
   height: 0.875rem;
 }
 .order-progress__label {
-  font-size: 0.8125rem;
-  line-height: 1.4;
+  font-size: 0.75rem;
+  line-height: 1.25;
   overflow-wrap: anywhere;
   transition: color 180ms ease;
 }
@@ -134,7 +139,9 @@ const descriptions = {
   font-weight: 600;
 }
 @media (min-width: 40rem) {
+  .order-progress { margin-block: 1.5rem; }
   .order-progress__steps {
+    display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
     padding: 1.5rem 0.5rem;

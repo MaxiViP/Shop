@@ -21,13 +21,31 @@ export function receiveMessages(
 
 // Persisted IDs also define the server's cursor order. Keep existing objects.
 export function mergeMessages(current: ChatMessage[], incoming: ChatMessage[]) {
-  const ids = new Set(current.map((entry) => entry.id));
-  const added = incoming.filter((entry) => {
-    if (ids.has(entry.id)) return false;
-    ids.add(entry.id);
-    return true;
+  const byId = new Map(current.map(entry => [entry.id, entry]));
+  let changed = false;
+  for (const entry of incoming) {
+    const previous = byId.get(entry.id);
+    if (!previous || (entry.imageRevision ?? 0) > (previous.imageRevision ?? 0) ||
+      (entry.imageExpired && !previous.imageExpired)) {
+      byId.set(entry.id, entry);
+      changed = true;
+    }
+  }
+  return changed ? [...byId.values()].sort((a, b) => a.id - b.id) : current;
+}
+
+export function applyImageRevisions(history: ReturnType<typeof createChatHistory>,
+  updates: { id: number; imageRevision: number; imageExpired: boolean;
+    revisionText: string | null; revisionActor: ChatMessage['revisionActor']; revisionAt: string | null }[]) {
+  const byId = new Map(updates.map(update => [update.id, update]));
+  let changed = false;
+  const next = history.messages.map(entry => {
+    const update = byId.get(entry.id);
+    if (!update || ((entry.imageRevision ?? 0) >= update.imageRevision &&
+      (!update.imageExpired || entry.imageExpired))) return entry;
+    changed = true;
+    return { ...entry, ...update };
   });
-  return added.length
-    ? [...current, ...added].sort((a, b) => a.id - b.id)
-    : current;
+  if (changed) history.messages = next;
+  return changed;
 }

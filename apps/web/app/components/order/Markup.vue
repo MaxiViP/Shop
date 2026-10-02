@@ -8,6 +8,7 @@
     <template #body>
       <div class="markup">
         <p v-if="error" role="alert" class="markup__error">{{ error }}</p>
+        <p v-if="submitError" role="alert" class="markup__error">{{ submitError }} Повторите сохранение или обновите чат.</p>
         <canvas
           ref="canvas"
           class="markup__canvas"
@@ -18,7 +19,7 @@
           @pointercancel="finish"
         />
         <UFormField label="Сообщение к фото (необязательно)">
-          <UTextarea v-model="caption" class="w-full" :rows="2" :maxlength="2000" placeholder="Например: нужен вот этот товар" />
+          <UTextarea v-model="caption" class="w-full" :rows="2" :maxlength="2000" :disabled="sending || retry" placeholder="Например: нужен вот этот товар" />
         </UFormField>
         <div class="markup__tools">
           <fieldset class="markup__colors">
@@ -32,12 +33,13 @@
               :style="{ backgroundColor: option.value }"
               :aria-label="option.label"
               :aria-pressed="color === option.value"
+              :disabled="sending || retry"
               @click="color = option.value"
             />
           </fieldset>
           <label class="markup__width"
             >Толщина
-            <select v-model.number="width" aria-label="Толщина линии">
+            <select v-model.number="width" aria-label="Толщина линии" :disabled="sending || retry">
               <option :value="3">Тонкая</option>
               <option :value="6">Средняя</option>
               <option :value="10">Толстая</option>
@@ -46,14 +48,14 @@
           <UButton
             variant="soft"
             color="neutral"
-            :disabled="!strokes.length"
+            :disabled="!strokes.length || sending || retry"
             @click="undo"
             >Отменить линию</UButton
           >
           <UButton
             variant="soft"
             color="neutral"
-            :disabled="!strokes.length"
+            :disabled="!strokes.length || sending || retry"
             @click="clear"
             >Очистить</UButton
           >
@@ -64,12 +66,12 @@
       <UButton
         variant="ghost"
         color="neutral"
-        :disabled="busy"
+        :disabled="busy || sending"
         @click="open = false"
         >Отмена</UButton
       >
-      <UButton :loading="busy" :disabled="!ready || busy" @click="send"
-        >Отправить фото</UButton
+      <UButton :loading="busy || sending" :disabled="!ready || busy || sending" @click="retry ? emit('retry') : send()"
+        >{{ retry ? 'Повторить сохранение' : revision ? 'Сохранить разметку' : 'Отправить фото' }}</UButton
       >
     </template>
   </UModal>
@@ -77,8 +79,9 @@
 
 <script setup lang="ts">
 import { MAX_CHAT_PHOTO_BYTES } from "~/utils/chat-photo";
-const props = defineProps<{ file: File }>();
-const emit = defineEmits<{ send: [file: File] }>();
+const props = withDefaults(defineProps<{ file: File; revision?: boolean; sending?: boolean;
+  retry?: boolean; submitError?: string }>(), { revision: false, sending: false, retry: false, submitError: '' });
+const emit = defineEmits<{ send: [file: File]; retry: [] }>();
 const open = defineModel<boolean>("open", { required: true });
 const caption = defineModel<string>("text", { required: true });
 const canvas = ref<HTMLCanvasElement>();
@@ -166,7 +169,7 @@ function point(event: PointerEvent): Point {
 }
 
 function start(event: PointerEvent) {
-  if (!ready.value || !canvas.value) return;
+  if (!ready.value || !canvas.value || props.sending || props.retry) return;
   event.preventDefault();
   const rect = canvas.value.getBoundingClientRect();
   if (!rect.width) return;

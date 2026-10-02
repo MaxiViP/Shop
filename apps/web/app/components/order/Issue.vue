@@ -23,7 +23,7 @@
         {{
           money(
             lineAmount(
-              issue.orderItem.price,
+              issue.orderItem.actualPrice ?? issue.orderItem.price,
               issue.actualQty,
               issue.orderItem.priceQty,
             ),

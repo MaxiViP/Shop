@@ -166,6 +166,19 @@ try {
     assert.deepEqual(canonical, [site + path], path + ' canonical');
     assert.equal(h1.length, 1, path + ' H1');
     assert.equal(robots, 'index, follow', path + ' robots');
+    const categoryNav = body.indexOf('aria-label="Категории товаров"');
+    if (path === '/' || path.startsWith('/catalog')) assert.ok(categoryNav >= 0, path + ' category navigation');
+    if (path === '/') {
+      assert.doesNotMatch(body, /<h2[^>]*>Категории<\/h2>/, 'home categories have no repeated heading');
+    }
+    if (path.startsWith('/catalog')) {
+      assert.match(h1[0][0], /<h1[^>]*class="[^"]*\bsr-only\b[^"]*"/, path + ' accessible heading');
+      assert.ok(!body.includes('class="catalog__head"'), path + ' duplicate heading');
+      const breadcrumbs = body.indexOf('aria-label="Хлебные крошки"');
+      assert.ok(breadcrumbs >= 0 && breadcrumbs < categoryNav, path + ' navigation order');
+      assert.ok(body.includes('aria-label="Поиск продуктов"'), path + ' search');
+      assert.ok(body.includes('aria-label="Сортировка товаров"'), path + ' sorting');
+    }
     assert.ok(blocks.length, path + ' JSON-LD');
     const entities = blocks.flatMap(value => Array.isArray(value) ? value : value['@graph'] || [value]);
     if (path.startsWith('/product/')) {

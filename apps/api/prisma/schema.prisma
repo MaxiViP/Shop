@@ -123,6 +123,9 @@ model User {
   issues                OrderIssue[]
   messages              OrderChatMessage[]
   staffAudits           OrderStaffAudit[]
+  priceChanges          OrderItemPriceChange[]   @relation("ItemPriceActor")
+  priceNotices          OrderNotification[]      @relation("StaffPriceRecipient")
+  chatImageRevisions    OrderChatImageRevision[] @relation("ChatImageRevisionActor")
   adminAudits           AdminAudit[]
   payouts               PartnerPayout[]
   cart                  Cart?
@@ -262,16 +265,19 @@ model Order {
   guestSessionId String?
   guestSession   GuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
 
-  items                    OrderItem[]
-  issues                   OrderIssue[]
-  messages                 OrderChatMessage[]
-  notifications            OrderNotification[]
-  customerTelegramSessions CustomerTelegramSession[]
-  staffAudits              OrderStaffAudit[]
-  customerReadMessageId    Int                       @default(0)
-  staffReadMessageId       Int                       @default(0)
-  customerUnread           Int                       @default(0)
-  staffUnread              Int                       @default(0)
+  items                       OrderItem[]
+  issues                      OrderIssue[]
+  messages                    OrderChatMessage[]
+  notifications               OrderNotification[]
+  customerTelegramSessions    CustomerTelegramSession[]
+  staffAudits                 OrderStaffAudit[]
+  priceChanges                OrderItemPriceChange[]
+  customerReadMessageId       Int                       @default(0)
+  staffReadMessageId          Int                       @default(0)
+  customerReadImageRevisionId Int                       @default(0)
+  staffReadImageRevisionId    Int                       @default(0)
+  customerUnread              Int                       @default(0)
+  staffUnread                 Int                       @default(0)
 
   delivery        Delivery?
   deliveryAttempt DeliveryAttempt?
@@ -374,6 +380,7 @@ model OrderItem {
   image       String?
 
   price                  Int
+  actualPrice            Int?
   settlementModeSnapshot SettlementMode?
   basePriceSnapshot      Int?
   priceQty               Int
@@ -386,8 +393,9 @@ model OrderItem {
   total     Int
 
   actualTotal    Int?
-  issue          OrderIssue? @relation("ItemIssue")
-  replacementFor OrderIssue? @relation("IssueReplacement")
+  priceChanges   OrderItemPriceChange[]
+  issue          OrderIssue?            @relation("ItemIssue")
+  replacementFor OrderIssue?            @relation("IssueReplacement")
 
   orderId Int
   order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -397,6 +405,26 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productId])
+}
+
+// Append-only price decisions. The order item keeps the original checkout snapshot.
+model OrderItemPriceChange {
+  id            Int                 @id @default(autoincrement())
+  orderId       Int
+  order         Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemId        Int
+  item          OrderItem           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  requestId     String              @db.Uuid
+  previousPrice Int
+  newPrice      Int
+  reason        String?             @db.VarChar(500)
+  actorId       Int
+  actor         User                @relation("ItemPriceActor", fields: [actorId], references: [id], onDelete: Restrict)
+  notices       OrderNotification[]
+  createdAt     DateTime            @default(now())
+
+  @@unique([orderId, requestId])
+  @@index([itemId, createdAt])
 }
 
 model GuestSession {
@@ -615,26 +643,46 @@ enum ChatImageRetention {
 
 model OrderChatMessage {
   notifications  OrderNotification[]
-  id             Int                 @id @default(autoincrement())
+  imageRevisions OrderChatImageRevision[]
+  id             Int                      @id @default(autoincrement())
   orderId        Int
-  order          Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order          Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   issueId        Int?
-  issue          OrderIssue?         @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  issue          OrderIssue?              @relation(fields: [issueId], references: [id], onDelete: SetNull)
   authorType     MessageAuthor
-  recipient      String              @default("both")
+  recipient      String                   @default("both")
   authorUserId   Int?
-  authorUser     User?               @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
-  text           String              @db.VarChar(2000)
-  imageRequestId String?             @db.Uuid
-  imageKey       String?             @unique @db.Uuid
+  authorUser     User?                    @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  text           String                   @db.VarChar(2000)
+  imageRequestId String?                  @db.Uuid
+  imageKey       String?                  @unique @db.Uuid
+  imageRevision  Int                      @default(0)
   imageRetention ChatImageRetention?
   imageExpiresAt DateTime?
   imageDeletedAt DateTime?
-  createdAt      DateTime            @default(now())
+  createdAt      DateTime                 @default(now())
 
   @@unique([orderId, imageRequestId])
   @@index([orderId, id])
   @@index([imageExpiresAt])
+}
+
+model OrderChatImageRevision {
+  id          Int              @id @default(autoincrement())
+  messageId   Int
+  message     OrderChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  version     Int
+  imageKey    String           @unique @db.Uuid
+  requestId   String?          @db.Uuid
+  actorType   MessageAuthor
+  actorUserId Int?
+  actorUser   User?            @relation("ChatImageRevisionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  caption     String           @default("") @db.VarChar(2000)
+  createdAt   DateTime         @default(now())
+
+  @@unique([messageId, version])
+  @@unique([messageId, requestId])
+  @@index([messageId, createdAt])
 }
 
 enum NotificationType {
@@ -647,11 +695,13 @@ enum NotificationType {
   ORDER_COMPLETED
   ORDER_CANCELED
   CHAT_MESSAGE
+  ITEM_PRICE_CHANGED
 }
 
 enum NotificationChannel {
   SMS
   TELEGRAM
+  STAFF_TELEGRAM
 }
 
 enum NotificationStatus {
@@ -664,27 +714,33 @@ enum NotificationStatus {
 }
 
 model OrderNotification {
-  channel      NotificationChannel @default(SMS)
-  messageId    Int?
-  message      OrderChatMessage?   @relation(fields: [messageId], references: [id], onDelete: SetNull)
-  id           Int                 @id @default(autoincrement())
-  orderId      Int
-  order        Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  issueId      Int?
-  issue        OrderIssue?         @relation(fields: [issueId], references: [id], onDelete: SetNull)
-  issueVersion Int?
-  type         NotificationType
-  status       NotificationStatus  @default(PENDING)
-  dedupeKey    String
-  attempts     Int                 @default(0)
-  error        String?
-  sentAt       DateTime?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  channel         NotificationChannel   @default(SMS)
+  messageId       Int?
+  message         OrderChatMessage?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  priceChangeId   Int?
+  priceChange     OrderItemPriceChange? @relation(fields: [priceChangeId], references: [id], onDelete: SetNull)
+  recipientUserId Int?
+  recipientUser   User?                 @relation("StaffPriceRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+  id              Int                   @id @default(autoincrement())
+  orderId         Int
+  order           Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  issueId         Int?
+  issue           OrderIssue?           @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  issueVersion    Int?
+  type            NotificationType
+  status          NotificationStatus    @default(PENDING)
+  dedupeKey       String
+  attempts        Int                   @default(0)
+  error           String?
+  sentAt          DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
   @@unique([channel, dedupeKey])
   @@index([orderId, status])
   @@index([channel, status, id])
+  @@index([priceChangeId])
+  @@index([recipientUserId])
 }
 
 model TelegramIdentity {

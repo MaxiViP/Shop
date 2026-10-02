@@ -2,12 +2,13 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import type { OrderItem, OrderStatus, OrderType, UserRole, Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
-import type { DeliveryInput, ItemInput } from './schema.js';
+import type { DeliveryInput, ItemInput, ItemPriceInput } from './schema.js';
 import {
   deliveryTotals,
   positiveDeliveryPrice,
@@ -24,10 +25,12 @@ import { message } from '../order/coordination.js';
 import type { ExtraInput } from './extra.js';
 import { extraLimits } from '../order/limits.js';
 import { assertStaffActor, recordStaffAudit, type StaffActor } from './audit.js';
+import { adminPriceRecipients } from './price.js';
 
 
 @Injectable()
 export class StaffService {
+  private readonly logger = new Logger(StaffService.name);
   constructor(private readonly db: DbService, private readonly notifications: NotificationService) {}
 
   async list(status?: OrderStatus) {
@@ -97,9 +100,16 @@ export class StaffService {
     const total = await this.db.order.aggregate({ _sum: { staffUnread: true } });
     const latest = await this.db.orderChatMessage.findFirst({
       where: { recipient: { in: ['staff', 'both'] }, order: { staffUnread: { gt: 0 } } },
-      orderBy: { id: 'desc' }, select: { orderId: true },
+      orderBy: { id: 'desc' }, select: { orderId: true, createdAt: true },
     });
-    return { count: total._sum.staffUnread ?? 0, latestOrderId: latest?.orderId ?? null };
+    const revision = await this.db.orderChatImageRevision.findFirst({
+      where: { version: { gt: 0 }, actorType: 'CUSTOMER',
+        message: { order: { staffUnread: { gt: 0 } } } },
+      orderBy: { id: 'desc' }, select: { createdAt: true, message: { select: { orderId: true } } },
+    });
+    return { count: total._sum.staffUnread ?? 0,
+      latestOrderId: revision && (!latest || revision.createdAt >= latest.createdAt)
+        ? revision.message.orderId : latest?.orderId ?? null };
   }
 
   async get(id: number) {
@@ -165,6 +175,7 @@ export class StaffService {
             image: true,
 
             price: true,
+            actualPrice: true,
             priceQty: true,
             unit: true,
 
@@ -277,11 +288,70 @@ export class StaffService {
     return publicItem;
   }
 
+  async itemPrice(orderId: number, itemId: number, data: ItemPriceInput, actor: StaffActor) {
+    const reason = data.reason || null;
+    const result = await this.db.$transaction(async db => {
+      const order = await this.lockedOrder(db, orderId);
+      const earlier = await db.orderItemPriceChange.findUnique({
+        where: { orderId_requestId: { orderId, requestId: data.requestId } },
+      });
+      if (earlier) {
+        if (earlier.itemId !== itemId || earlier.newPrice !== data.price ||
+          earlier.actorId !== actor.userId || earlier.reason !== reason)
+          throw new ConflictException('Этот запрос уже использован для другого изменения цены');
+        const item = await db.orderItem.findFirst({ where: { id: itemId, orderId } });
+        if (!item) throw new NotFoundException('Позиция не найдена');
+        return { item, changed: false };
+      }
+      if (order.status !== 'ASSEMBLING' || order.assemblyFinalizedAt ||
+        ['REPORTED', 'PAID'].includes(order.payment?.status ?? ''))
+        throw new ConflictException('Цену можно менять только во время сборки до оплаты');
+      const item = await db.orderItem.findFirst({ where: { id: itemId, orderId } });
+      if (!item) throw new NotFoundException('Позиция не найдена');
+      if (item.status === 'MISSING') throw new ConflictException('Отсутствующему товару нельзя изменить цену');
+      const issue = await db.orderIssue.findUnique({ where: { orderItemId: item.id } });
+      if (issue?.replacementItemId || (issue?.status === 'RESOLVED' && issue.resolution === 'REMOVE_ITEM'))
+        throw new ConflictException('Исходный товар уже заменён или удалён из заказа');
+      const previousPrice = item.actualPrice ?? item.price;
+      if (previousPrice === data.price) return { item, changed: false };
+      // Validate even a pending item before persisting a price that cannot be assembled.
+      goodsLine(data.price, item.status === 'PICKED' ? item.actualQty! : item.qty, item.priceQty);
+      const updated = await db.orderItem.update({ where: { id: item.id }, data: {
+        actualPrice: data.price === item.price ? null : data.price,
+        ...(item.status === 'PICKED' ? { actualTotal: goodsLine(data.price, item.actualQty!, item.priceQty) } : {}),
+      } });
+      const change = await db.orderItemPriceChange.create({ data: {
+        orderId, itemId, requestId: data.requestId, previousPrice, newPrice: data.price,
+        reason, actorId: actor.userId,
+      } });
+      await recordStaffAudit(db, orderId, actor, 'ITEM_PRICE_CHANGE', 'ITEM', itemId);
+      await message(db, orderId,
+        `${item.productName}: цена изменена ${compositionMoney(previousPrice)} → ${compositionMoney(data.price)} за ${compositionQty(item.priceQty, item.unit)}.`,
+        'SYSTEM', actor.userId, null, 'customer', 'CHAT_MESSAGE');
+      const recipients = await adminPriceRecipients(db);
+      if (recipients.length) await db.orderNotification.createMany({
+        data: recipients.map(recipientUserId => ({
+          orderId, channel: 'STAFF_TELEGRAM', type: 'ITEM_PRICE_CHANGED',
+          priceChangeId: change.id, recipientUserId,
+          dedupeKey: `price:${change.id}:${recipientUserId}`,
+        })), skipDuplicates: true,
+      });
+      return { item: updated, changed: true };
+    });
+    if (result.changed) {
+      void this.notifications.dispatchStaffPrice(orderId).catch(() => this.logger.warn('Staff price notification dispatch failed'));
+      void this.notifications.dispatchTelegram(orderId).catch(() => {});
+      await this.notifications.dispatch(orderId);
+    }
+    const { settlementModeSnapshot: _mode, basePriceSnapshot: _base, ...publicItem } = result.item;
+    return publicItem;
+  }
+
   // The same snapshot-price and audit path serves manual, one-tap and bulk picking.
   private async pickItem(db: Prisma.TransactionClient,
     order: { id: number; weightToleranceBps: number }, item: OrderItem, actualQty: number,
     userId: number | null, actor?: StaffActor, notify = true) {
-    const actualTotal = goodsLine(item.price, actualQty, item.priceQty);
+    const actualTotal = goodsLine(item.actualPrice ?? item.price, actualQty, item.priceQty);
     const updated = await db.orderItem.update({
       where: { id: item.id }, data: { status: 'PICKED', actualQty, actualTotal },
     });
@@ -320,7 +390,7 @@ export class StaffService {
       for (const item of eligible) {
         if (!Number.isSafeInteger(item.qty) || item.qty <= 0 || item.qty > 1_000_000)
           throw new BadRequestException('Некорректное количество позиции');
-        goodsLine(item.price, item.qty, item.priceQty);
+        goodsLine(item.actualPrice ?? item.price, item.qty, item.priceQty);
       }
       for (const item of eligible)
         await this.pickItem(db, order, item, item.qty, actor.userId, actor, false);
@@ -364,12 +434,12 @@ export class StaffService {
       if (!items.length || items.some((item) => item.status === 'PENDING'))
         throw new BadRequestException('Сначала обработайте все товары');
       // Validate quantities before tolerance/approval checks; invalid data is a business error.
-      for (const item of items) if (item.status === 'PICKED') goodsLine(item.price, item.actualQty ?? 0, item.priceQty);
+      for (const item of items) if (item.status === 'PICKED') goodsLine(item.actualPrice ?? item.price, item.actualQty ?? 0, item.priceQty);
       await checkIssues(db, id, items, order.weightToleranceBps);
       const amounts = items.map((item) => {
         if (item.status === 'MISSING') return 0;
         const amount = goodsLine(
-          item.price,
+          item.actualPrice ?? item.price,
           item.actualQty ?? 0,
           item.priceQty,
         );

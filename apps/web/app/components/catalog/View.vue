@@ -1,10 +1,7 @@
 <template>
   <UContainer class="catalog">
     <AppBreadcrumbs :items="breadcrumbs" />
-    <header class="catalog__head">
-      <h1 class="catalog__title">{{ title }}</h1>
-      <p class="catalog__text">{{ description }}</p>
-    </header>
+    <h1 class="sr-only">{{ title }}</h1>
 
     <CategoryList
       class="catalog__categories"
@@ -99,9 +96,8 @@
 import type { Category } from "~/types/category";
 import { productSortOptions, useCatalog } from "~/composables/useCatalog";
 
-const { title, description, category = undefined, categories } = defineProps<{
+const { title, category = undefined, categories } = defineProps<{
   title: string;
-  description: string;
   category?: string;
   categories: Category[];
 }>();
@@ -146,21 +142,6 @@ async function showMore() {
 .catalog {
   min-width: 0;
   padding-block: var(--page-start) var(--page-end);
-}
-
-.catalog__head {
-  margin-bottom: 1rem;
-}
-
-.catalog__title {
-  font-size: var(--page-title);
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.catalog__text {
-  margin-top: 0.5rem;
-  color: var(--ui-text-muted);
 }
 
 .catalog__categories {
@@ -295,7 +276,6 @@ async function showMore() {
     display: inline;
   }
 
-  .catalog__head,
   .catalog__categories {
     margin-bottom: 1.5rem;
   }
@@ -325,7 +305,6 @@ async function showMore() {
 }
 
 @media (min-width: 64rem) {
-  .catalog__head,
   .catalog__categories {
     margin-bottom: 2rem;
   }

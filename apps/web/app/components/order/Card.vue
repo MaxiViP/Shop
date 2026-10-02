@@ -21,7 +21,7 @@
       {{ products }}
     </p>
     <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_CUSTOMER')" color="warning">Требуется ваше решение</UBadge>
-    <UBadge v-if="order.customerUnread" color="info">Новых сообщений: {{ order.customerUnread }}</UBadge>
+    <UBadge v-if="order.customerUnread" color="info">Обновлений в чате: {{ order.customerUnread }}</UBadge>
     <span v-if="order.customerUnread" class="order__chat">Открыть чат <UIcon name="i-lucide-arrow-up-right" /></span>
 
     <p v-if="order.type === 'PICKUP'" class="order__items">

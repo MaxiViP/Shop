@@ -46,7 +46,7 @@
           <span class="text-muted"> · {{ order.customerName }} · {{ money(order.totals.turnover) }}</span>
           <p class="text-sm text-muted">Доставка {{ money(order.totals.delivery) }} · услуги {{ money(order.totals.extras) }}<span v-if="order.finalTotal !== null && order.finalTotal !== order.totals.turnover" class="text-warning"> · расхождение с итогом {{ money(order.finalTotal - order.totals.turnover) }}</span></p>
           <div v-for="line in order.lines" :key="line.id" class="flex flex-wrap justify-between gap-2 pl-3 text-sm">
-            <span>{{ line.productName }} · {{ modeLabel[line.mode] }}</span>
+            <span>{{ line.productName }} · {{ modeLabel[line.mode] }}<span v-if="line.finalPrice !== line.orderPrice" class="text-warning"> · цена {{ money(line.orderPrice) }} → {{ money(line.finalPrice) }}</span></span>
             <span>Продажа {{ money(line.saleAmount) }} · база {{ money(line.baseAmount) }} · наценка {{ money(line.sharedMarkup) }}</span>
           </div>
         </div>

@@ -2,7 +2,6 @@
   <CatalogView
     :key="slug"
     :title="category!.name"
-    :description="category!.description || metadata.description"
     :category="slug"
     :categories="categories"
   />

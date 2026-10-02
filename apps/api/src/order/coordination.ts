@@ -28,6 +28,18 @@ export const issueSummary = {
   select: { id: true, status: true },
 } satisfies Prisma.Order$issuesArgs;
 
+export async function chatUnread(db: Prisma.TransactionClient, orderId: number, staff: boolean,
+  messageCursor: number, revisionCursor: number) {
+  const messages = await db.orderChatMessage.count({ where: {
+    orderId, id: { gt: messageCursor }, recipient: { in: [staff ? 'staff' : 'customer', 'both'] },
+  } });
+  const revisions = await db.orderChatImageRevision.count({ where: {
+    id: { gt: revisionCursor }, version: { gt: 0 }, message: { orderId },
+    actorType: staff ? 'CUSTOMER' : { in: ['SELLER', 'ADMIN'] },
+  } });
+  return messages + revisions;
+}
+
 export async function message(
   db: Prisma.TransactionClient,
   orderId: number,
@@ -44,6 +56,10 @@ export async function message(
       imageKey: image?.key, imageRetention: image?.retention, imageExpiresAt: image?.expiresAt,
       imageRequestId: image?.requestId },
   });
+  if (image) await db.orderChatImageRevision.create({ data: {
+    messageId: saved.id, version: 0, imageKey: image.key, requestId: image.requestId,
+    actorType: authorType, actorUserId: authorUserId, createdAt: saved.createdAt,
+  } });
   await db.order.update({
     where: { id: orderId },
     data: {

@@ -21,8 +21,10 @@ import { extraSchema, editExtraSchema, cancelExtraSchema } from './extra.js';
 import {
   deliverySchema,
   itemSchema,
+  itemPriceSchema,
   type DeliveryInput,
   type ItemInput,
+  type ItemPriceInput,
 } from './schema.js';
 
 const idSchema = z.coerce.number().int().positive();
@@ -213,5 +215,13 @@ export class StaffCtrl {
     body: ItemInput,
   ) {
     return this.staff.item(id, itemId, body, request.user.id, staffActor(request.user));
+  }
+
+  @Patch(':id/items/:itemId/price')
+  itemPrice(@Req() request: AuthRequest,
+    @Param('id', { schema: idSchema }) id: number,
+    @Param('itemId', { schema: idSchema }) itemId: number,
+    @Body({ schema: itemPriceSchema }) body: ItemPriceInput) {
+    return this.staff.itemPrice(id, itemId, body, staffActor(request.user));
   }
 }

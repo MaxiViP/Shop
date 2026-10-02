@@ -155,7 +155,7 @@ export class CustomerUpdateService {
     const visible = rows.slice(0, 5);
     const buttons: Button[][] = visible.map(order => [{
       text: '№' + order.id + (order.issues.length ? ' · Требуется решение' :
-        order.customerUnread ? ' · Есть сообщения' : ' · ' + orderStatus[order.status]),
+        order.customerUnread ? ' · Есть обновления в чате' : ' · ' + orderStatus[order.status]),
       callback_data: customerView(attention ? order.issues.length ? 'q' : 'm' : 'o', order.publicId),
     }]);
     if (!attention) buttons.push([
