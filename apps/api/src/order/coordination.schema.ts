@@ -18,6 +18,12 @@ export const proposalSchema = z.strictObject({
 export const chatSchema = z.strictObject({
   text: z.string().trim().min(1).max(2000),
 });
+export const imageChatSchema = z.strictObject({
+  text: z.string().trim().max(2000).default(''),
+  issueId: z.coerce.number().int().positive().optional(),
+  evidence: z.enum(['true', 'false']).optional(),
+  requestId: z.string().uuid().optional(),
+});
 export const cursorSchema = z
   .object({
     after: recordId.optional(),

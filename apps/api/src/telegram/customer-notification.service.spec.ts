@@ -66,6 +66,17 @@ it('uses the committed issue message in one customer action-required notice', as
   expect(body.text).toContain('Клубника — нет в наличии.');
   expect(body.text.match(/Клубника/g)).toHaveLength(1);
 });
+it('describes an image-only chat message in Telegram without exposing the private file', async () => {
+  const notice: CustomerNotice = {
+    event: { type: 'CHAT_MESSAGE' },
+    order: { id: 7, publicId: '11111111-1111-4111-8111-111111111111', finalSubtotal: null, finalTotal: null, delivery: null },
+    issue: null, message: { text: '' },
+  };
+  await new CustomerNotificationService().send('12345', notice);
+  const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as { text: string };
+  expect(body.text).toContain('Фото по заказу');
+  expect(body.text).not.toContain('/uploads/');
+});
 it('fails availability in legacy shared-bot mode', () => {
   vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', process.env.TELEGRAM_CUSTOMER_BOT_TOKEN!);
   expect(new CustomerNotificationService().available).toBe(false);

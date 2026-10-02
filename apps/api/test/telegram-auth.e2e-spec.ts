@@ -17,6 +17,7 @@ import { TelegramAuthService } from '../src/auth/telegram-auth.service.js';
 import { TelegramOidcService } from '../src/auth/telegram-oidc.service.js';
 import { OrderService } from '../src/order/order.service.js';
 import { CoordinationService } from '../src/order/coordination.service.js';
+import { ChatImagesService } from '../src/order/chat-images.service.js';
 import type { NotificationService } from '../src/order/notification.service.js';
 import type { TelegramService } from '../src/telegram/telegram.service.js';
 import { customerView } from '../src/telegram/customer-callback.js';
@@ -61,7 +62,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const typed = db as unknown as DbService;
       const domainOrders = new OrderService(typed, { notifyNewOrder: async () => {} } as unknown as TelegramService);
       const coordination = new CoordinationService(typed, domainOrders,
-        { dispatch: async () => {} } as unknown as NotificationService);
+        { dispatch: async () => {} } as unknown as NotificationService, new ChatImagesService());
       const cart = new CartService(typed, domainOrders);
       const checkout = new CustomerCheckoutService(typed, cart, domainOrders);
       return new CustomerUpdateService(typed, coordination, domainOrders,

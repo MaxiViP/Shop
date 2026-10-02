@@ -253,7 +253,11 @@ SSL выпускается **до** `deploy.sh`, потому что Nuxt SSR в
 
 Nginx передаёт `/api/health` в API именно как `/api/health`: у `proxy_pass` нет
 URI и завершающего `/`. `/uploads/products/...` также сохраняет путь. Лимит тела
-6 MB покрывает multipart upload изображения до 5 MB. API не кэшируется.
+6 MB покрывает product upload до 5 MB. Только маршруты `messages/image` для
+customer/staff допускают 21 MB тела для raw фото до 20 MiB плюс multipart
+overhead и передают тело API без полного nginx buffering. API не кэшируется.
+После Certbot это location правило нужно перенести
+в действующий HTTPS server block вручную; `deploy.sh` Nginx не меняет.
 
 Nginx перезаписывает `X-Forwarded-For` значением `$remote_addr`, а также задаёт
 Host, X-Real-IP и X-Forwarded-Proto. Входной XFF не добавляется в цепочку.
@@ -292,7 +296,9 @@ curl -I https://www.korzinamarket.ru
 Git/install/build/Prisma работают от `shop`, systemd и установка файлов — от root.
 Secrets читаются Node как env-данные, не исполняются shell и не передаются в argv.
 
-Deploy создаёт uploads directory при отсутствии, устанавливает два systemd unit,
+Deploy создаёт раздельные каталоги `uploads/products` и `uploads/chat/.incoming`
+с владельцем `shop:shop` и правами `0750`, устанавливает API/Web units и
+ежедневный `shop-chat-cleanup.timer`,
 останавливает процессы на время in-place сборки, устанавливает зависимости по
 lockfile, генерирует Prisma Client и выполняет build. Затем применяет только
 **`prisma migrate deploy --config apps/api/prisma7.config.ts`**. CLI вызывается
@@ -342,7 +348,9 @@ pagination, LOW L1–L3. Это preparation для ограниченного st
 ## 7. Persistence и backup
 
 Постоянные данные находятся в Docker volume **`shop_pgdata`** и каталоге
-**`/var/lib/korzinamarket/uploads`**. Сохранять оба независимо от `/opt/korzinamarket`.
+**`/var/lib/korzinamarket/uploads/products`**. Chat photos находятся отдельно в
+**`/var/lib/korzinamarket/uploads/chat`**; nginx/static не раздают этот каталог.
+Сохранять БД и product images независимо от `/opt/korzinamarket`.
 Обычный deploy не удаляет volume, изображения или существующие заказы.
 Перезапуск/recreate контейнера с тем же volume сохраняет БД; удаление сервера требует
 заранее вынесенного backup. Не выполнять очистку volumes или uploads как часть deploy.
@@ -359,7 +367,7 @@ systemctl stop shop-web shop-api
 docker compose --env-file /etc/korzinamarket/db.env \
   -f /opt/korzinamarket/deploy/compose.db.yml exec -T db \
   sh -c 'exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$backup_dir/database.dump"
-tar -C /var/lib/korzinamarket -czf "$backup_dir/uploads.tar.gz" uploads
+tar -C /var/lib/korzinamarket/uploads -czf "$backup_dir/products.tar.gz" products
 systemctl start shop-api shop-web
 exit
 ```
@@ -369,6 +377,27 @@ exit
 сохранять отдельно в защищённом хранилище. Резервирование не равно проверенному
 disaster recovery; восстановление и расписание backup на сервере ещё нужно настроить.
 
+**Chat backup policy:** ручной пример выше сохраняет DB и products, а
+`uploads/chat` исключает из долгосрочного архива. Репозиторий не содержит
+автоматизации backup или удаления старых архивов. До production включения chat
+photos проверить реальную VPS backup процедуру и исключить `uploads/chat` из
+каждого старого/нового `uploads.tar.gz` или другого долгосрочного snapshot.
+Найти уже созданные архивы с chat photos и удалить их по фактической политике
+VPS. Простое хранение общего `chat.tar.gz` 90 дней нарушит семидневный срок
+обычных фото; хранение отдельных tar 7/90 дней **после создания архива** тоже
+продлевает срок фото, попавших в архив перед удалением. Если требуется
+восстановление chat photos при аварии, настроить отдельную защищённую копию
+с удалением файлов по `imageRetention` и актуальному `imageExpiresAt` из DB,
+синхронизировать удаления после `shop-chat-cleanup.timer` и запретить
+долгоживущую историю версий этой копии. Эту внешнюю VPS процедуру и её restore
+нужно проверить отдельно; deploy её не устанавливает. При восстановлении
+только DB/products отсутствующие chat files дают HTTP 410 и состояние
+«Фото больше не хранится». Это означает потерю доказательств при аварии.
+
+`shop-chat-cleanup.timer` запускает CLI один раз в сутки около 03:30 по времени
+сервера. Он сверяет текущий статус заказа в PostgreSQL перед удалением, удаляет
+full/thumbnail и через 24 часа убирает только распознанные orphan files.
+
 ## 8. Проверка конфигурации
 
 На сервере перед запуском:
@@ -377,7 +406,8 @@ disaster recovery; восстановление и расписание backup �
 cd /opt/korzinamarket
 bash -n deploy/deploy.sh
 sudo docker compose --env-file /etc/korzinamarket/db.env -f deploy/compose.db.yml config --quiet
-sudo systemd-analyze verify deploy/shop-api.service deploy/shop-web.service
+sudo systemd-analyze verify deploy/shop-api.service deploy/shop-web.service \
+  deploy/shop-chat-cleanup.service deploy/shop-chat-cleanup.timer
 sudo nginx -t
 ```
 

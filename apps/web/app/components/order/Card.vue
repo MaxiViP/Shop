@@ -1,6 +1,6 @@
 <template>
   <NuxtLink
-    :to="`/order/${order.publicId}`"
+    :to="`/order/${order.publicId}${order.customerUnread ? '#order-chat' : ''}`"
     class="order"
   >
     <div class="order__head">
@@ -22,6 +22,7 @@
     </p>
     <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_CUSTOMER')" color="warning">Требуется ваше решение</UBadge>
     <UBadge v-if="order.customerUnread" color="info">Новых сообщений: {{ order.customerUnread }}</UBadge>
+    <span v-if="order.customerUnread" class="order__chat">Открыть чат <UIcon name="i-lucide-arrow-up-right" /></span>
 
     <p v-if="order.type === 'PICKUP'" class="order__items">
       Самовывоз · {{ order.deliveryAt ? `К ${pickupTime(order.deliveryAt)} (МСК)` : 'Подготовим как можно скорее' }}
@@ -73,6 +74,15 @@ const products = computed(() =>
 .order:hover {
   border-color: var(--ui-primary);
 }
+
+.order:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 3px;
+}
+
+.order:active { background: color-mix(in srgb, var(--ui-primary) 8%, var(--ui-bg)); }
+
+.order__chat { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--ui-primary); font-weight: 700; }
 
 .order__head {
   display: grid;

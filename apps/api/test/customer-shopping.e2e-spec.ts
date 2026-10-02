@@ -10,6 +10,7 @@ import { DbService } from '../src/db/db.service.js';
 import { CartService } from '../src/cart/cart.service.js';
 import { OrderService } from '../src/order/order.service.js';
 import { CoordinationService } from '../src/order/coordination.service.js';
+import { ChatImagesService } from '../src/order/chat-images.service.js';
 import { NotificationService } from '../src/order/notification.service.js';
 import { StaffService } from '../src/staff/staff.service.js';
 import { TelegramService } from '../src/telegram/telegram.service.js';
@@ -148,7 +149,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const typed = db as unknown as DbService;
       orders = new OrderService(typed, telegram as unknown as TelegramService);
       cart = new CartService(typed, orders);
-      coordination = new CoordinationService(typed, orders, notices);
+      coordination = new CoordinationService(typed, orders, notices, new ChatImagesService());
       checkout = new CustomerCheckoutService(typed, cart, orders);
       staff = new StaffService(typed, notices);
       const user = await db.user.create({ data: { role: 'SELLER' } });

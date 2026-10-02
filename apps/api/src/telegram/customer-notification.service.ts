@@ -30,7 +30,7 @@ export class CustomerNotificationService {
     };
     const text = 'Заказ №' + order.id + '\n' + headings[event.type] +
       (event.type === 'PAYMENT_READY' ? '\nТовары: ' + amount(order.finalSubtotal) + '\nИтого: ' + amount(order.finalTotal) : '') +
-      (event.type === 'CHAT_MESSAGE' && message ? '\n\n' + message.text :
+      (event.type === 'CHAT_MESSAGE' && message ? '\n\n' + (message.text || '📷 Фото по заказу') :
         event.type === 'ACTION_REQUIRED' ? '\n\n' + (message?.text ?? 'Откройте вопрос, чтобы проверить товар и выбрать действие.') : '');
     const url = webAppUrl('/order/' + order.publicId);
     const rows: Button[][] = [

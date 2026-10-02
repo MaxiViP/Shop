@@ -24,6 +24,7 @@ export interface OrderIssue {
   };
 }
 export interface Coordination {
+  status: string;
   issues: OrderIssue[];
   responseMinutes: number;
   smsAvailable: boolean;
@@ -39,8 +40,11 @@ export interface Coordination {
 }
 export interface ChatMessage {
   id: number;
+  issueId: number | null;
   authorType: "CUSTOMER" | "SELLER" | "ADMIN" | "SYSTEM";
   text: string;
+  image: boolean;
+  imageExpired: boolean;
   createdAt: string;
 }
 export interface MessagePage {

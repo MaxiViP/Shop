@@ -185,7 +185,7 @@ export class CustomerUpdateService {
     const authors = { CUSTOMER: 'Вы', SELLER: 'Продавец', ADMIN: 'Продавец', SYSTEM: 'Заказ' };
     const ok = await this.show(target, {
       text: 'Заказ №' + result.orderId + ' · Сообщения\n\n' +
-        (last ? authors[last.authorType] + ' · ' + date(last.createdAt) + '\n' + last.text : 'Сообщений пока нет.'),
+        (last ? authors[last.authorType] + ' · ' + date(last.createdAt) + '\n' + (last.text || (last.image ? '📷 Фото по заказу' : '')) + (last.image ? '\n📷 Фото доступно в заказе на сайте.' : '') : 'Сообщений пока нет.'),
       keyboard: { inline_keyboard: [
         ...(last && result.hasMore ? [[{ text: '← Предыдущее', callback_data: customerView('m', publicId, last.id) }]] : []),
         [{ text: 'Последнее / Обновить', callback_data: customerView('m', publicId) }],

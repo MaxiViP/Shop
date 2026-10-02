@@ -4,8 +4,10 @@ import {
   Injectable,
   NotFoundException,
   HttpException,
+  GoneException,
+  Logger,
 } from '@nestjs/common';
-import type { Prisma } from '../db/gen/client.js';
+import type { Prisma, OrderChatMessage } from '../db/gen/client.js';
 import type { z } from 'zod';
 import { DbService } from '../db/db.service.js';
 import { OrderService } from './order.service.js';
@@ -14,6 +16,10 @@ import { actionNotification, message, customerIssueActions, compositionQty, comp
 import { cancelOrder } from './cancel.js';
 import { goodsLine } from './pricing.js';
 import { chatSchema } from './coordination.schema.js';
+import { imageChatSchema } from './coordination.schema.js';
+import { ChatImagesService } from './chat-images.service.js';
+import type { ChatUploadFile } from './chat-images.service.js';
+import { imageExpiry } from './chat-cleanup.service.js';
 import type {
   cursorSchema,
   decisionSchema,
@@ -25,13 +31,23 @@ export type OrderActor =
   | { orderId: number; userId: number; role: 'SELLER' | 'ADMIN' };
 const stale = () =>
   new ConflictException('Данные позиции изменились. Обновите заказ.');
+function publicChatMessage(saved: OrderChatMessage) {
+  return {
+    id: saved.id, orderId: saved.orderId, issueId: saved.issueId,
+    authorType: saved.authorType, authorUserId: saved.authorUserId,
+    recipient: saved.recipient, text: saved.text, createdAt: saved.createdAt,
+    image: Boolean(saved.imageKey || saved.imageDeletedAt), imageExpired: Boolean(saved.imageDeletedAt),
+  };
+}
 
 @Injectable()
 export class CoordinationService {
+  private readonly logger = new Logger(CoordinationService.name);
   constructor(
     private readonly db: DbService,
     private readonly orders: OrderService,
     private readonly notifications: NotificationService,
+    private readonly images: ChatImagesService,
   ) {}
 
   private async locked<T>(
@@ -129,6 +145,7 @@ export class CoordinationService {
             })
           : [];
       return {
+        status: order.status,
         issues: issues.map(issue => ({ ...issue, actions: order.status === 'ASSEMBLING' &&
           !order.assemblyFinalizedAt && !['PAID', 'REPORTED'].includes(order.payment?.status ?? '') ? customerIssueActions(issue) : [] })),
         responseMinutes: settings.customerResponseMinutes,
@@ -349,12 +366,19 @@ export class CoordinationService {
           issueId: true,
           authorType: true,
           text: true,
+          imageKey: true,
+          imageDeletedAt: true,
           createdAt: true,
         },
       });
       const hasMore = rows.length > query.limit;
       const page = rows.slice(0, query.limit);
-      return { messages: query.after ? page : page.reverse(), hasMore, orderId: id };
+      return {
+        messages: (query.after ? page : page.reverse()).map(({ imageKey, imageDeletedAt, ...entry }) => ({
+          ...entry, image: Boolean(imageKey || imageDeletedAt), imageExpired: Boolean(imageDeletedAt),
+        })),
+        hasMore, orderId: id,
+      };
     });
   }
 
@@ -372,9 +396,11 @@ export class CoordinationService {
     });
   }
 
-  async post(actor: OrderActor, text: string, reply?: { sessionId: string; identityId: number; promptMessageId: number }) {
-    text = chatSchema.parse({ text }).text;
-    const saved = await this.locked(actor, async (db, id) => {
+  private saveChat(actor: OrderActor, text: string,
+    reply?: { sessionId: string; identityId: number; promptMessageId: number },
+    image?: { key: string; issueId?: number; evidence?: boolean; requestId?: string }) {
+    text = image ? imageChatSchema.parse({ text }).text : chatSchema.parse({ text }).text;
+    return this.locked(actor, async (db, id) => {
       if (reply) {
         if ('orderId' in actor || !actor.userId) throw new NotFoundException('Ответ недоступен');
         const claimed = await db.customerTelegramSession.deleteMany({ where: {
@@ -385,35 +411,111 @@ export class CoordinationService {
         if (claimed.count !== 1) throw new ConflictException('Ожидание ответа завершено');
       }
       const staff = 'orderId' in actor;
-      const recent = await db.orderChatMessage.count({
-        where: {
-          orderId: id,
-          authorType: staff ? { in: ['SELLER', 'ADMIN'] } : 'CUSTOMER',
-          createdAt: { gt: new Date(Date.now() - 60000) },
-        },
-      });
-      if (recent >= 15)
-        throw new HttpException(
-          'Слишком много сообщений. Подождите минуту.',
-          429,
-        );
+      const existing = image?.requestId
+        ? await this.existingImage(db, id, actor, image.requestId) : null;
+      if (existing) return existing;
+      await this.assertChatRate(db, id, staff);
+      const order = image ? await db.order.findUniqueOrThrow({
+        where: { id }, include: { cancellations: {
+          where: { restoredAt: null }, orderBy: { canceledAt: 'desc' }, take: 1,
+        } },
+      }) : null;
+      const issue = image?.issueId ? await db.orderIssue.findFirst({
+        where: { id: image.issueId, orderId: id },
+      }) : null;
+      if (image?.issueId && !issue) throw new BadRequestException('Проблема заказа не найдена');
+      const retention = image && (issue || image.evidence || (!staff && order?.status === 'COMPLETED'))
+        ? 'EVIDENCE' : 'OPERATIONAL';
+      const now = new Date();
       return message(
         db,
         id,
         text,
         staff ? actor.role : 'CUSTOMER',
         actor.userId,
-        null,
+        issue?.id ?? null,
         staff ? 'customer' : 'staff',
+        undefined,
+        image && order ? { key: image.key, retention, expiresAt: imageExpiry({
+          retention, createdAt: now, orderStatus: order.status,
+          completedAt: order.completedAt, canceledAt: order.cancellations[0]?.canceledAt ?? null,
+          orderUpdatedAt: order.updatedAt, issue,
+        }), requestId: image.requestId } : undefined,
       );
     });
+  }
+
+  private async existingImage(db: Prisma.TransactionClient, id: number, actor: OrderActor, requestId: string) {
+    const saved = await db.orderChatMessage.findUnique({
+      where: { orderId_imageRequestId: { orderId: id, imageRequestId: requestId } },
+    });
+    if (!saved) return null;
+    const staff = 'orderId' in actor;
+    if (saved.authorUserId !== actor.userId ||
+        (staff ? !['SELLER', 'ADMIN'].includes(saved.authorType) : saved.authorType !== 'CUSTOMER'))
+      throw new ConflictException('Ключ отправки фото уже использован');
+    return saved;
+  }
+
+  private async assertChatRate(db: Prisma.TransactionClient, id: number, staff: boolean) {
+    const recent = await db.orderChatMessage.count({ where: {
+      orderId: id,
+      authorType: staff ? { in: ['SELLER', 'ADMIN'] } : 'CUSTOMER',
+      createdAt: { gt: new Date(Date.now() - 60000) },
+    } });
+    if (recent >= 15)
+      throw new HttpException('Слишком много сообщений. Подождите минуту.', 429);
+  }
+
+  private async notifyChat(actor: OrderActor, orderId: number) {
     if ('orderId' in actor) {
       // The chat message, unread count and TELEGRAM outbox row have committed.
       // The dispatcher claims PENDING atomically; the sweep remains a crash fallback.
-      void this.notifications.dispatchTelegram(saved.orderId).catch(() => {});
-      await this.notifications.dispatch(saved.orderId);
+      void this.notifications.dispatchTelegram(orderId).catch(() => {});
+      await this.notifications.dispatch(orderId);
     }
-    return saved;
+  }
+
+  async post(actor: OrderActor, text: string, reply?: { sessionId: string; identityId: number; promptMessageId: number }) {
+    const saved = await this.saveChat(actor, text, reply);
+    await this.notifyChat(actor, saved.orderId);
+    return publicChatMessage(saved);
+  }
+
+  async postImage(actor: OrderActor, text: string, file?: ChatUploadFile, issueId?: number, evidence?: boolean, requestId?: string) {
+    // The interceptor owns the staged file, including validation and DB failures.
+    const duplicate = await this.locked(actor, async (db, id) => {
+      const existing = requestId ? await this.existingImage(db, id, actor, requestId) : null;
+      if (!existing) await this.assertChatRate(db, id, 'orderId' in actor);
+      return existing;
+    });
+    if (duplicate) return publicChatMessage(duplicate);
+    const imageKey = await this.images.save(file);
+    let saved: Awaited<ReturnType<CoordinationService['saveChat']>>;
+    try { saved = await this.saveChat(actor, text, undefined, { key: imageKey, issueId, evidence, requestId }); }
+    catch (error) {
+      await this.images.remove(imageKey).catch((cause: unknown) => this.logger.error('Could not remove unwritten chat image', cause));
+      throw error;
+    }
+    if (saved.imageKey !== imageKey) {
+      await this.images.remove(imageKey).catch((cause: unknown) => this.logger.error('Could not remove duplicate chat image', cause));
+      return publicChatMessage(saved);
+    }
+    await this.notifyChat(actor, saved.orderId);
+    return publicChatMessage(saved);
+  }
+
+  async image(actor: OrderActor, messageId: number, variant: 'full' | 'thumb') {
+    const key = await this.locked(actor, async (db, id) => {
+      const row = await db.orderChatMessage.findFirst({
+        where: { id: messageId, orderId: id },
+        select: { imageKey: true, imageDeletedAt: true },
+      });
+      if (row?.imageDeletedAt) throw new GoneException('Фото больше не хранится');
+      if (!row?.imageKey) throw new NotFoundException('Фото не найдено');
+      return row.imageKey;
+    });
+    return this.images.read(key, variant);
   }
 
   read(actor: OrderActor, through: number) {

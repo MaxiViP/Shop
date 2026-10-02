@@ -74,6 +74,9 @@ for (const [key, value] of Object.entries({
 })) {
   if (api[key] !== value) throw new Error(`api.env: check ${key}`);
 }
+if (api.CHAT_UPLOAD_DIR && api.CHAT_UPLOAD_DIR !== '/var/lib/korzinamarket/uploads/chat') {
+  throw new Error('api.env: CHAT_UPLOAD_DIR must use the private chat directory');
+}
 for (const [key, value] of Object.entries({
   NODE_ENV: 'production',
   NUXT_PUBLIC_API_BASE: 'https://korzinamarket.ru/api',
@@ -95,7 +98,10 @@ NODE
   as_shop git pull --ff-only origin main
 
   install -d -o shop -g shop -m 0750 /var/lib/korzinamarket/uploads/products
-  install -m 0644 deploy/shop-api.service deploy/shop-web.service /etc/systemd/system/
+  install -d -o shop -g shop -m 0750 /var/lib/korzinamarket/uploads/chat
+  install -d -o shop -g shop -m 0750 /var/lib/korzinamarket/uploads/chat/.incoming
+  install -m 0644 deploy/shop-api.service deploy/shop-web.service \
+    deploy/shop-chat-cleanup.service deploy/shop-chat-cleanup.timer /etc/systemd/system/
   systemctl daemon-reload
   # In-place builds replace live output: use a maintenance window.
   systemctl stop shop-web.service
@@ -117,6 +123,7 @@ NODE
   health --head http://127.0.0.1:3000
   health https://korzinamarket.ru/api/health
   health --head https://korzinamarket.ru
+  systemctl enable --now shop-chat-cleanup.timer
   printf 'Deployment healthy: '
   as_shop git log -1 --oneline
 }

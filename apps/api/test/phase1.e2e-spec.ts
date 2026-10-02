@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
-import { readdir, readFile } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { mkdtemp, readdir, readFile, rm, writeFile, utimes, unlink, stat } from 'node:fs/promises';
+import { resolve, join, relative } from 'node:path';
+import { tmpdir } from 'node:os';
 import pg from 'pg';
 import request from 'supertest';
 import { Test } from '@nestjs/testing';
@@ -19,6 +20,9 @@ import { YandexService, type YandexClaimInfo } from '../src/delivery/yandex.serv
 import { DeliveryService } from '../src/delivery/delivery.service.js';
 import { SID } from '../src/auth/auth.service.js';
 import { OrderSmsProvider } from '../src/order/notification.service.js';
+import sharp from 'sharp';
+import { ChatCleanupService } from '../src/order/chat-cleanup.service.js';
+import { ChatImagesService } from '../src/order/chat-images.service.js';
 
 // Real PostgreSQL, isolated schema; no shop records or external provider calls.
 describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
@@ -29,6 +33,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
   let db: PrismaClient;
   let app: INestApplication<Server>;
   let created = false;
+  let chatDirectory = '';
   let admin: string, seller: string, owner: string, stranger: string;
   let productId: number;
   const sms = { available: false, send: vi.fn(async () => {}) };
@@ -130,6 +135,8 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     return item.id;
   }
   beforeAll(async () => {
+    chatDirectory = await mkdtemp(join(tmpdir(), 'shop-chat-e2e-'));
+    vi.stubEnv('CHAT_UPLOAD_DIR', chatDirectory);
     vi.stubEnv('ADMIN_PHONE', '+79990000101');
     vi.stubEnv('AUTH_SECRET', randomBytes(32).toString('hex'));
     // All payment configuration is synthetic; never use local real requisites.
@@ -231,6 +238,11 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     if (created && /^phase1_test_[a-f0-9]{32}$/.test(schema))
       await connection.query(`DROP SCHEMA "${schema}" CASCADE`);
     await connection.end();
+    if (chatDirectory) {
+      const child = relative(tmpdir(), chatDirectory);
+      if (!/^shop-chat-e2e-[^\\/]+$/.test(child)) throw new Error('Unsafe chat test directory');
+      await rm(chatDirectory, { recursive: true, force: true });
+    }
     vi.unstubAllEnvs();
   }, 30000);
 
@@ -854,6 +866,220 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
         201,
       );
     }
+  });
+
+  it('private chat photos support owner, guest, seller and admin while rejecting invalid files and foreign access', async () => {
+    const column = await connection.query<{ data_type: string }>(
+      `SELECT data_type FROM information_schema.columns WHERE table_schema = '${schema}' AND table_name = 'OrderChatMessage' AND column_name = 'imageKey'`,
+    );
+    expect(column.rows[0]?.data_type).toBe('uuid');
+    const lifecycleColumns = await connection.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = '${schema}' AND table_name = 'OrderChatMessage' AND column_name IN ('imageRetention', 'imageExpiresAt', 'imageDeletedAt', 'imageRequestId')`,
+    );
+    expect(lifecycleColumns.rows.map(row => row.column_name).sort()).toEqual(['imageDeletedAt', 'imageExpiresAt', 'imageRequestId', 'imageRetention']);
+    expect(await db.order.findFirst({ where: { customerName: 'Legacy fixture' } })).not.toBeNull();
+
+    const png = await sharp({ create: { width: 3, height: 2, channels: 3, background: '#e11d48' } }).png().toBuffer();
+    const customer = await create('PICKUP');
+    const guest = await create('PICKUP', '');
+    const customerBase = `/orders/${customer.publicId}`;
+    const staffBase = `/staff/orders/${customer.id}`;
+    const upload = (cookie: string, base: string, text: string, buffer = png, contentType = 'image/png') =>
+      request(app.getHttpServer()).post(`/api${base}/messages/image`).set('Cookie', cookie)
+        .field('text', text).attach('file', buffer, { filename: 'photo.png', contentType });
+
+    const denied = await upload(stranger, customerBase, '', png);
+    expect(denied.status, JSON.stringify(denied.body)).toBe(404);
+    await upload('', customerBase, '', png).expect(404);
+    await upload(owner, staffBase, '', png).expect(403);
+    await upload(owner, customerBase, '', png, 'image/svg+xml').expect(400);
+    await upload(owner, customerBase, '', png, 'image/jpeg').expect(400);
+    await upload(owner, customerBase, '', Buffer.alloc(20 * 1024 * 1024 + 1)).expect(413);
+    const bomb = Buffer.from(png);
+    bomb.writeUInt32BE(10_000, 16);
+    bomb.writeUInt32BE(7_000, 20);
+    let crc = 0xffffffff;
+    for (const byte of bomb.subarray(12, 29)) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    }
+    bomb.writeUInt32BE((crc ^ 0xffffffff) >>> 0, 29);
+    await upload(owner, customerBase, '', bomb).expect(400);
+    const filesBeforeFailedMessage = await readdir(chatDirectory);
+    await request(app.getHttpServer()).post(`/api${customerBase}/messages/image`)
+      .set('Cookie', owner).field('text', '').field('issueId', '999999')
+      .attach('file', png, { filename: 'photo.png', contentType: 'image/png' }).expect(400);
+    expect(await readdir(chatDirectory)).toEqual(filesBeforeFailedMessage);
+    await request(app.getHttpServer()).post(`/api${customerBase}/messages/image`)
+      .set('Cookie', owner).field('text', '').expect(400);
+
+    const fromCustomer = await upload(owner, customerBase, 'Посмотрите на фото').expect(201);
+    expect(fromCustomer.body).toMatchObject({ text: 'Посмотрите на фото', image: true });
+    expect(fromCustomer.body).not.toHaveProperty('imageKey');
+    const fromStaff = await upload(seller, staffBase, '').expect(201);
+    expect(fromStaff.body).toMatchObject({ text: '', image: true });
+    const fromAdmin = await upload(admin, staffBase, 'Комментарий администратора').expect(201);
+    expect(fromAdmin.body.image).toBe(true);
+    const fromGuest = await upload(guest.cookie, `/orders/${guest.publicId}`, '').expect(201);
+    expect(fromGuest.body.image).toBe(true);
+
+    const page = await call(owner).get(`${customerBase}/messages`).expect(200);
+    expect(page.body.messages.filter((entry: { image: boolean }) => entry.image)).toHaveLength(3);
+    expect(page.body.messages[0]).not.toHaveProperty('imageKey');
+    const photoPath = `${customerBase}/messages/${fromStaff.body.id}/image`;
+    const photo = await call(owner).get(photoPath).expect(200);
+    expect(photo.headers['content-type']).toMatch(/^image\/webp/);
+    expect(photo.headers['cache-control']).toBe('private, no-store, max-age=0');
+    expect(photo.headers['x-content-type-options']).toBe('nosniff');
+    expect(photo.headers['content-disposition']).toMatch(/^inline; filename="photo.webp"/);
+    expect((await sharp(photo.body as Buffer).metadata()).format).toBe('webp');
+    const thumbnail = await call(owner).get(`${customerBase}/messages/${fromStaff.body.id}/thumbnail`).expect(200);
+    expect(thumbnail.headers['content-type']).toMatch(/^image\/webp/);
+    expect(thumbnail.headers['cache-control']).toBe('private, no-store, max-age=0');
+    expect((await sharp(thumbnail.body as Buffer).metadata()).format).toBe('webp');
+    await call(stranger).get(photoPath).expect(404);
+    await call(stranger).get(`${customerBase}/messages/${fromStaff.body.id}/thumbnail`).expect(404);
+    await call('').get(photoPath).expect(404);
+    await call(guest.cookie).get(photoPath).expect(404);
+    await call(owner).get(`${staffBase}/messages/${fromStaff.body.id}/image`).expect(403);
+    await call(seller).get(`${staffBase}/messages/${fromStaff.body.id}/image`).expect(200);
+    await call(admin).get(`${staffBase}/messages/${fromStaff.body.id}/image`).expect(200);
+    await call(seller).get(`${staffBase}/messages/${fromGuest.body.id}/image`).expect(404);
+    await call(guest.cookie).get(`/orders/${guest.publicId}/messages/${fromGuest.body.id}/image`).expect(200);
+  });
+
+  it('market photo roundtrip keeps original, supports captions and deduplicates a retry after temp cleanup fails', async () => {
+    const order = await create('PICKUP');
+    const staffBase = `/staff/orders/${order.id}`;
+    const customerBase = `/orders/${order.publicId}`;
+    const original = await sharp({ create: { width: 1500, height: 900, channels: 3, background: '#e11d48' } }).png().toBuffer();
+    const upload = (cookie: string, base: string, image: Buffer, text: string, requestId = randomUUID()) =>
+      request(app.getHttpServer()).post(`/api${base}/messages/image`).set('Cookie', cookie)
+        .field('text', text).field('requestId', requestId)
+        .attach('file', image, { filename: 'market.png', contentType: 'image/png' });
+
+    const cleanup = vi.spyOn(app.get(ChatImagesService), 'removeTemp')
+      .mockRejectedValueOnce(Object.assign(new Error('Synthetic Windows lock'), { code: 'EBUSY' }));
+    try {
+      const idempotencyKey = randomUUID();
+      const sellerPhoto = await upload(seller, staffBase, original, '', idempotencyKey).expect(201);
+      expect(sellerPhoto.body).toMatchObject({ image: true, text: '' });
+      expect(cleanup).toHaveBeenCalled();
+      const retry = await upload(seller, staffBase, original, '', idempotencyKey).expect(201);
+      expect(retry.body.id).toBe(sellerPhoto.body.id);
+      expect(await db.orderChatMessage.count({ where: { orderId: order.id, imageRequestId: idempotencyKey } })).toBe(1);
+      expect(await db.orderChatMessage.count({ where: { orderId: order.id, imageKey: { not: null } } })).toBe(1);
+
+      const sellerCaption = await upload(seller, staffBase, original, 'Выберите помидоры').expect(201);
+      expect(sellerCaption.body).toMatchObject({ image: true, text: 'Выберите помидоры' });
+      const full = await call(owner).get(`${customerBase}/messages/${sellerCaption.body.id}/image`).expect(200);
+      const fullMetadata = await sharp(full.body as Buffer).metadata();
+      expect(fullMetadata).toMatchObject({ format: 'webp', width: 1500, height: 900 });
+      const annotated = await sharp(full.body as Buffer)
+        .composite([{ input: Buffer.from('<svg width="1500" height="900"><circle cx="750" cy="450" r="120" fill="none" stroke="yellow" stroke-width="20"/></svg>') }])
+        .png().toBuffer();
+      const customerReply = await upload(owner, customerBase, annotated, 'Вот эти, пожалуйста').expect(201);
+      expect(customerReply.body).toMatchObject({ image: true, text: 'Вот эти, пожалуйста' });
+      const sellerView = await call(seller).get(`${staffBase}/messages/${customerReply.body.id}/image`).expect(200);
+      expect((await sharp(sellerView.body as Buffer).metadata()).format).toBe('webp');
+      const originalPixel = await sharp(full.body as Buffer).extract({ left: 750, top: 330, width: 1, height: 1 }).raw().toBuffer();
+      const markedPixel = await sharp(sellerView.body as Buffer).extract({ left: 750, top: 330, width: 1, height: 1 }).raw().toBuffer();
+      expect(markedPixel[1]!).toBeGreaterThan(originalPixel[1]! + 100);
+      expect((await sharp((await call(owner).get(`${customerBase}/messages/${sellerCaption.body.id}/image`).expect(200)).body as Buffer).metadata()).format).toBe('webp');
+
+      const customerPhoto = await upload(owner, customerBase, original, '').expect(201);
+      const staffFull = await call(seller).get(`${staffBase}/messages/${customerPhoto.body.id}/image`).expect(200);
+      const staffMarked = await sharp(staffFull.body as Buffer)
+        .composite([{ input: Buffer.from('<svg width="1500" height="900"><circle cx="500" cy="450" r="100" fill="none" stroke="cyan" stroke-width="20"/></svg>') }])
+        .png().toBuffer();
+      const staffReply = await upload(seller, staffBase, staffMarked, 'Этот товар?').expect(201);
+      expect(staffReply.body).toMatchObject({ image: true, text: 'Этот товар?' });
+      await call(owner).get(`${customerBase}/messages/${staffReply.body.id}/thumbnail`).expect(200);
+      await call(stranger).get(`${customerBase}/messages/${staffReply.body.id}/image`).expect(404);
+    } finally {
+      cleanup.mockRestore();
+    }
+  });
+
+  it('chat cleanup respects active orders, seven-day operations, 90-day evidence and missing files', async () => {
+    const png = await sharp({ create: { width: 16, height: 12, channels: 3, background: '#facc15' } }).png().toBuffer();
+    const upload = (base: string, evidence = false) => {
+      let call = request(app.getHttpServer()).post(`/api${base}/messages/image`)
+        .set('Cookie', owner).field('text', '');
+      if (evidence) call = call.field('evidence', 'true');
+      return call.attach('file', png, { filename: 'market.png', contentType: 'image/png' });
+    };
+    const cleanup = app.get(ChatCleanupService);
+    const active = await create('PICKUP');
+    const activePhoto = await upload(`/orders/${active.publicId}`).expect(201);
+    const activeRow = await db.orderChatMessage.findUniqueOrThrow({ where: { id: activePhoto.body.id } });
+    const activeFull = join(chatDirectory, activeRow.imageKey + '.full.webp');
+    await utimes(activeFull, new Date(Date.now() - 2 * 86400000), new Date(Date.now() - 2 * 86400000));
+    await cleanup.run(new Date(Date.now() + 100 * 86400000));
+    expect((await db.orderChatMessage.findUniqueOrThrow({ where: { id: activeRow.id } })).imageKey).toBe(activeRow.imageKey);
+    expect((await stat(activeFull)).isFile()).toBe(true);
+
+    const completed = await create('PICKUP');
+    const photo = await upload(`/orders/${completed.publicId}`).expect(201);
+    const row = await db.orderChatMessage.findUniqueOrThrow({ where: { id: photo.body.id } });
+    expect(row.imageRetention).toBe('OPERATIONAL');
+    await db.order.update({ where: { id: completed.id }, data: { status: 'COMPLETED', completedAt: new Date() } });
+    await unlink(join(chatDirectory, row.imageKey + '.full.webp'));
+    await cleanup.run(new Date(Date.now() + 8 * 86400000));
+    expect(await db.orderChatMessage.findUniqueOrThrow({ where: { id: row.id } })).toMatchObject({ imageKey: null });
+    await call(owner).get(`/orders/${completed.publicId}/messages/${row.id}/thumbnail`).expect(410);
+    const page = await call(owner).get(`/orders/${completed.publicId}/messages`).expect(200);
+    expect(page.body.messages.find((entry: { id: number }) => entry.id === row.id)).toMatchObject({ image: true, imageExpired: true });
+    expect((await cleanup.run(new Date(Date.now() + 8 * 86400000))).deleted).toBe(0);
+
+    const canceled = await create('PICKUP');
+    const canceledPhoto = await upload(`/orders/${canceled.publicId}`).expect(201);
+    await db.order.update({ where: { id: canceled.id }, data: { status: 'CANCELED' } });
+    await db.orderCancellation.create({ data: { orderId: canceled.id, fromStatus: 'NEW', canceledByRole: 'ADMIN' } });
+    await cleanup.run(new Date(Date.now() + 8 * 86400000));
+    expect((await db.orderChatMessage.findUniqueOrThrow({ where: { id: canceledPhoto.body.id } })).imageDeletedAt).not.toBeNull();
+
+    const evidence = await create('PICKUP');
+    const evidencePhoto = await upload(`/orders/${evidence.publicId}`, true).expect(201);
+    expect((await db.orderChatMessage.findUniqueOrThrow({ where: { id: evidencePhoto.body.id } })).imageRetention).toBe('EVIDENCE');
+    await db.order.update({ where: { id: evidence.id }, data: { status: 'COMPLETED', completedAt: new Date() } });
+    await cleanup.run(new Date(Date.now() + 8 * 86400000));
+    expect((await db.orderChatMessage.findUniqueOrThrow({ where: { id: evidencePhoto.body.id } })).imageKey).not.toBeNull();
+    await cleanup.run(new Date(Date.now() + 91 * 86400000));
+    expect((await db.orderChatMessage.findUniqueOrThrow({ where: { id: evidencePhoto.body.id } })).imageDeletedAt).not.toBeNull();
+
+    const issueOrder = await phase2Order(1200);
+    const issue = await issueFor(issueOrder.id);
+    const issuePhoto = await request(app.getHttpServer()).post(`/api/orders/${issueOrder.publicId}/messages/image`)
+      .set('Cookie', owner).field('text', '').field('issueId', String(issue.id))
+      .attach('file', png, { filename: 'issue.png', contentType: 'image/png' }).expect(201);
+    expect(await db.orderChatMessage.findUniqueOrThrow({ where: { id: issuePhoto.body.id } }))
+      .toMatchObject({ issueId: issue.id, imageRetention: 'EVIDENCE', imageExpiresAt: null });
+    await cleanup.run(new Date(Date.now() + 91 * 86400000));
+    expect((await db.orderChatMessage.findUniqueOrThrow({ where: { id: issuePhoto.body.id } })).imageKey).not.toBeNull();
+
+    const received = await create('PICKUP');
+    await db.order.update({ where: { id: received.id }, data: { status: 'COMPLETED', completedAt: new Date() } });
+    const receivedPhoto = await upload(`/orders/${received.publicId}`).expect(201);
+    expect((await db.orderChatMessage.findUniqueOrThrow({ where: { id: receivedPhoto.body.id } })).imageRetention).toBe('EVIDENCE');
+  });
+
+  it('orphan cleanup only removes old unreferenced chat files and staged uploads', async () => {
+    const cleanup = app.get(ChatCleanupService);
+    const old = new Date(Date.now() - 2 * 86400000);
+    const orphan = join(chatDirectory, randomUUID() + '.full.webp');
+    const fresh = join(chatDirectory, randomUUID() + '.thumb.webp');
+    const unrelated = join(chatDirectory, 'product.webp');
+    const incoming = join(chatDirectory, '.incoming', randomBytes(16).toString('hex'));
+    for (const file of [orphan, fresh, unrelated, incoming]) await writeFile(file, 'fixture');
+    for (const file of [orphan, unrelated, incoming]) await utimes(file, old, old);
+    expect(await cleanup.sweepOrphans()).toBe(2);
+    expect(await readFile(orphan).catch(() => null)).toBeNull();
+    expect(await readFile(incoming).catch(() => null)).toBeNull();
+    expect(await readFile(fresh, 'utf8')).toBe('fixture');
+    expect(await readFile(unrelated, 'utf8')).toBe('fixture');
+    await unlink(fresh);
+    await unlink(unrelated);
   });
 
   it('PHASE 2 persisted notification dedupe, new versions, disabled SMS, provider failure and timeout validation', async () => {

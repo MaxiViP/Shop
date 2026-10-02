@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -7,17 +6,13 @@ import {
 import { randomUUID } from 'node:crypto';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import sharp from 'sharp';
 import { DbService } from '../db/db.service.js';
+import { normalizeImage, productUploadRoot, type ImageFile } from '../common/image.js';
 import { dbError } from './errors.js';
 import type { ImageInput } from './schema.js';
 
-export const uploadRoot = resolve(process.env.UPLOAD_DIR || 'uploads/products');
-export interface ImageFile {
-  buffer: Buffer;
-  mimetype: string;
-  size: number;
-}
+export const uploadRoot = productUploadRoot;
+export type { ImageFile } from '../common/image.js';
 export function managedPath(url: string): string | null {
   const match = /^\/uploads\/products\/([a-f0-9-]{36}\.webp)$/.exec(url);
   return match ? resolve(uploadRoot, match[1]!) : null;
@@ -28,37 +23,7 @@ export class ImagesService {
   constructor(private readonly db: DbService) {}
 
   async upload(productId: number, file?: ImageFile) {
-    if (
-      !file ||
-      !['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)
-    )
-      throw new BadRequestException('Разрешены только JPEG, PNG и WebP');
-    if (file.size > 5 * 1024 * 1024)
-      throw new BadRequestException('Максимальный размер фото — 5 МБ');
-    let buffer: Buffer;
-    try {
-      const image = sharp(file.buffer, {
-        limitInputPixels: 25_000_000,
-        failOn: 'warning',
-      });
-      const info = await image.metadata();
-      const formats: Record<string, string> = {
-        jpeg: 'image/jpeg',
-        png: 'image/png',
-        webp: 'image/webp',
-      };
-      if (
-        !info.format ||
-        formats[info.format] !== file.mimetype ||
-        (info.pages ?? 1) > 1
-      )
-        throw new Error('format');
-      buffer = await image.rotate().webp({ quality: 85 }).toBuffer();
-    } catch {
-      throw new BadRequestException(
-        'Файл не является корректным JPEG, PNG или WebP (до 25 мегапикселей)',
-      );
-    }
+    const buffer = await normalizeImage(file);
     const url = `/uploads/products/${randomUUID()}.webp`;
     const path = managedPath(url)!;
     await mkdir(uploadRoot, { recursive: true });

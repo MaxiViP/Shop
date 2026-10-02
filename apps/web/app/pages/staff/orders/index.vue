@@ -33,6 +33,11 @@
         v-for="order in visibleOrders"
         :key="order.id"
         class="order-card"
+        role="link"
+        tabindex="0"
+        :aria-label="`Открыть заказ №${order.id}`"
+        @click="cardClick(order.id, $event)"
+        @keydown="cardKeydown(order.id, $event)"
       >
         <header class="order-card__head">
           <div>
@@ -52,6 +57,13 @@
           <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_CUSTOMER')" color="warning">Нужен ответ покупателя</UBadge>
           <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_SELLER')" color="error">Нужно действие продавца</UBadge>
           <UBadge v-if="order.staffUnread" color="info">Новых сообщений: {{ order.staffUnread }}</UBadge>
+          <UButton
+            v-if="order.staffUnread"
+            :to="`/staff/orders/${order.id}#order-chat`"
+            icon="i-lucide-message-circle"
+            size="sm"
+            color="info"
+          >Открыть чат</UButton>
         </header>
 
         <div class="order-card__meta">
@@ -114,7 +126,7 @@
           </div>
         </dl>
 
-        <footer v-if="operational(order.status)" class="order-card__actions">
+        <footer v-if="operational(order.status)" class="order-card__actions" data-card-action>
           <UButton
             v-if="order.status === 'NEW'"
             size="lg"
@@ -189,7 +201,7 @@
           </UButton>
 
         </footer>
-        <OrderCancellation :order="order" :disabled="busy(order.id)" @refresh="refresh" />
+        <div data-card-action><OrderCancellation :order="order" :disabled="busy(order.id)" @refresh="refresh" /></div>
       </article>
     </div>
 
@@ -209,6 +221,7 @@ import { isActiveOrder } from '~/utils/order'
 import { knownMoney } from '~/utils/money'
 import { compareQueue } from '~/utils/queue'
 import { pickupTime } from '~/utils/pickup'
+import { cardClickNavigates, cardKeyNavigates } from '~/utils/order-card'
 import { staffTabs, staffTab, tabForStatus } from '~/utils/staff-tabs'
 
 const filters = staffTabs
@@ -338,6 +351,17 @@ async function openOrder(id: number, hash?: string) {
   }
 }
 
+function cardClick(id: number, event: MouseEvent) {
+  if (!cardClickNavigates(event.target)) return
+  void openOrder(id)
+}
+
+function cardKeydown(id: number, event: KeyboardEvent) {
+  if (!cardKeyNavigates(event)) return
+  event.preventDefault()
+  void openOrder(id)
+}
+
 async function completePickup(id: number) {
   await action(id, 'pickup', 'pickup/complete', 'Заказ выдан покупателю')
 }
@@ -431,6 +455,23 @@ useSeoMeta({
   padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
+  cursor: pointer;
+  transition: border-color 0.18s, background-color 0.18s, transform 0.18s;
+}
+
+.order-card:hover,
+.order-card:focus-visible {
+  border-color: var(--ui-primary);
+  background: color-mix(in srgb, var(--ui-primary) 5%, var(--ui-bg));
+}
+
+.order-card:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 3px;
+}
+
+.order-card:active {
+  transform: scale(0.995);
 }
 
 .order-card__head,

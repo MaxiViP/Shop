@@ -1,6 +1,10 @@
 <template>
   <section class="coordination" aria-label="Согласование заказа">
     <h2 class="text-xl font-semibold">Согласование заказа</h2>
+    <div class="coordination__intro">
+      <p>Продавец может прямо с рынка отправить фото прилавка с доступными продуктами. Вы сможете открыть снимок, отметить нужный товар прямо на фото и отправить его обратно продавцу.</p>
+      <p class="coordination__aside">Почти как выбрать продукт лично на рынке — только не выходя из дома.</p>
+    </div>
     <UAlert v-if="error" color="error" title="Не удалось загрузить согласование"
       ><template #actions
         ><UButton @click="reload">Повторить</UButton></template
@@ -48,6 +52,8 @@
         :poll="poll"
         :unread="data.unread"
         :read-through="data.readThrough"
+        :status="data.status"
+        :issues="data.issues"
         @read="reload"
       />
     </template>
@@ -123,5 +129,12 @@ useOrderPolling(reload, () => props.poll === false ? 30000 : 4000);
   gap: 1rem;
   margin-block: 1.5rem;
   min-width: 0;
+  padding: var(--card-padding);
+  border: 2px solid color-mix(in srgb, var(--ui-primary) 55%, var(--ui-border));
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--ui-primary) 7%, var(--ui-bg));
+  box-shadow: 0 14px 36px rgb(0 0 0 / 12%);
 }
+.coordination__intro { display: grid; gap: 0.35rem; max-width: 68ch; line-height: 1.55; }
+.coordination__aside { color: var(--ui-text-muted); font-size: 0.875rem; }
 </style>

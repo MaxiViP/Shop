@@ -608,21 +608,33 @@ enum MessageAuthor {
   SYSTEM
 }
 
-model OrderChatMessage {
-  notifications OrderNotification[]
-  id            Int                 @id @default(autoincrement())
-  orderId       Int
-  order         Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  issueId       Int?
-  issue         OrderIssue?         @relation(fields: [issueId], references: [id], onDelete: SetNull)
-  authorType    MessageAuthor
-  recipient     String              @default("both")
-  authorUserId  Int?
-  authorUser    User?               @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
-  text          String              @db.VarChar(2000)
-  createdAt     DateTime            @default(now())
+enum ChatImageRetention {
+  OPERATIONAL
+  EVIDENCE
+}
 
+model OrderChatMessage {
+  notifications  OrderNotification[]
+  id             Int                 @id @default(autoincrement())
+  orderId        Int
+  order          Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  issueId        Int?
+  issue          OrderIssue?         @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  authorType     MessageAuthor
+  recipient      String              @default("both")
+  authorUserId   Int?
+  authorUser     User?               @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  text           String              @db.VarChar(2000)
+  imageRequestId String?             @db.Uuid
+  imageKey       String?             @unique @db.Uuid
+  imageRetention ChatImageRetention?
+  imageExpiresAt DateTime?
+  imageDeletedAt DateTime?
+  createdAt      DateTime            @default(now())
+
+  @@unique([orderId, imageRequestId])
   @@index([orderId, id])
+  @@index([imageExpiresAt])
 }
 
 enum NotificationType {

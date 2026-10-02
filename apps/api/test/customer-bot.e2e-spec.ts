@@ -9,6 +9,7 @@ import { PrismaClient, type OrderStatus, type NotificationType } from '../src/db
 import { DbService } from '../src/db/db.service.js';
 import { OrderService } from '../src/order/order.service.js';
 import { CoordinationService } from '../src/order/coordination.service.js';
+import { ChatImagesService } from '../src/order/chat-images.service.js';
 import { message as appendMessage } from '../src/order/coordination.js';
 import { NotificationService } from '../src/order/notification.service.js';
 import { telegramEvent } from '../src/order/outbox.js';
@@ -90,7 +91,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     const typed = db as unknown as DbService;
     notices = new NotificationService(typed, sms, telegram as unknown as CustomerNotificationService);
     orders = new OrderService(typed, { notifyNewOrder: async () => {} } as unknown as TelegramService);
-    coordination = new CoordinationService(typed, orders, notices);
+    coordination = new CoordinationService(typed, orders, notices, new ChatImagesService());
     staff = new StaffService(typed, notices);
     const user = await db.user.create({ data: { role: 'SELLER', name: 'Seller fixture' } });
     seller = { userId: user.id, role: 'SELLER' };

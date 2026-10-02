@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import type { OrderItem, Prisma, MessageAuthor, NotificationType, OrderIssue, IssueResolution, Unit } from '../db/gen/client.js';
+import type { OrderItem, Prisma, MessageAuthor, NotificationType, OrderIssue, IssueResolution, Unit, ChatImageRetention } from '../db/gen/client.js';
 import { outsideTolerance, approvedWeight } from './assembly.js';
 
 import { telegramEvent } from './outbox.js';
@@ -37,9 +37,12 @@ export async function message(
   issueId: number | null = null,
   recipient: 'customer' | 'staff' | 'both' = 'both',
   notification?: NotificationType,
+  image?: { key: string; retention: ChatImageRetention; expiresAt: Date | null; requestId?: string },
 ) {
   const saved = await db.orderChatMessage.create({
-    data: { orderId, text, authorType, authorUserId, issueId, recipient },
+    data: { orderId, text, authorType, authorUserId, issueId, recipient,
+      imageKey: image?.key, imageRetention: image?.retention, imageExpiresAt: image?.expiresAt,
+      imageRequestId: image?.requestId },
   });
   await db.order.update({
     where: { id: orderId },
