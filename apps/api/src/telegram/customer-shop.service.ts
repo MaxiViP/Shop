@@ -295,6 +295,7 @@ export class CustomerShopService {
     const screen = checkoutScreen(
       session,
       session.step === 'CONFIRM' ? await this.cart.get(identity.userId) : null,
+      session.step === 'TIME' ? await this.orders.offer() : null,
     );
     if (!('prompt' in screen)) return customerShow(target, screen);
     const promptMessageId = await customerPrompt(target.chatId, screen.prompt);

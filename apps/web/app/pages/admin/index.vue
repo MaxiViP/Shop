@@ -11,6 +11,17 @@
       </div>
       <div class="grid gap-4 lg:grid-cols-2">
         <UCard>
+          <template #header><h3 class="font-semibold">Очередь и время подготовки</h3></template>
+          <p>Сейчас ожидают: <strong>{{ data.queue.queueLength }}</strong> · оценка сборки: {{ data.queue.estimatedAssemblyMinutes }} мин. · в расчёте {{ data.queue.assemblyConcurrency }} сборщ.</p>
+          <p>Заказов ко времени: <strong>{{ data.queue.scheduledOrders }}</strong></p>
+          <p>Режим высокой нагрузки: {{ data.queue.peakModeActive ? 'активен' : 'не активен' }}</p>
+          <div v-if="data.queue.slots.length" class="mt-2 text-sm text-muted">
+            Ближайшие слоты:
+            <span v-for="slot in data.queue.slots.slice(0, 4)" :key="slot.at" class="block">{{ dayTime(slot.at) }} · {{ slot.reserved }}/{{ slot.capacity }} занято</span>
+          </div>
+          <UButton to="/admin/settings" variant="link">Настроить нагрузку</UButton>
+        </UCard>
+        <UCard>
           <template #header><h3 class="font-semibold">Рынок</h3></template>
           <UBadge :color="data.market.isOpen ? 'success' : 'neutral'">{{ data.market.isOpen ? 'Сейчас открыт' : 'Сейчас закрыт' }}</UBadge>
           <p class="mt-2">Сегодня: {{ data.market.openTime && data.market.closeTime ? `${data.market.openTime}–${data.market.closeTime}` : 'выходной' }}</p>
@@ -48,13 +59,18 @@
 </template>
 <script setup lang="ts">
 import type { FinanceReport, FinanceDay, ShopStatus, ShopHoursException, AdminOrderRow } from '~/types/admin-ops';
+import type { QueueOffer } from '~/types/order';
 definePageMeta({ middleware: 'admin', layout: 'admin' });
 const { data, error } = await useApi<{
   today: FinanceReport; ordersToday: number; week: FinanceDay[]; market: ShopStatus;
   statuses: { status: string; _count: { id: number } }[];
   latest: AdminOrderRow[]; upcomingException: ShopHoursException | null;
+  queue: QueueOffer & { scheduledOrders: number };
 }>('/admin/dashboard');
 const day = (value: string) => new Date(value).toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit' });
+const dayTime = (value: string) => new Date(value).toLocaleString('ru-RU', {
+  timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+});
 const states = [
   { status: 'NEW', label: 'Новые' }, { status: 'ASSEMBLING', label: 'Собираются' },
   { status: 'READY', label: 'Готовы' }, { status: 'DELIVERING', label: 'Доставляются' },

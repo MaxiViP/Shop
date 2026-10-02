@@ -4,6 +4,10 @@ import type { CustomerNotificationService } from '../telegram/customer-notificat
 
 function setup() {
   const db = {
+    shopSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue({
+      queueThreshold: 4, assemblyFallbackMinutes: 25, assemblyConcurrency: 1, peakModeEnabled: false,
+    }) },
+    order: { findMany: vi.fn().mockResolvedValue([]) },
     orderNotification: { findMany: vi.fn().mockResolvedValue([]) },
     customerTelegramSession: {
       findMany: vi.fn().mockResolvedValue([]),

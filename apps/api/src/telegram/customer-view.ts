@@ -100,6 +100,7 @@ export function orderCard(order: CustomerOrder, page = 0): Screen {
     'Заказ №' + order.id + ' · ' + orderStatus[order.status],
     (order.type === 'PICKUP' ? 'Самовывоз' : 'Доставка') + ' · ' + date(order.createdAt),
     ...(order.deliveryAt ? ['Получение: ' + date(order.deliveryAt)] : []),
+    ...(order.scheduledFor ? ['Подготовить к: ' + date(order.scheduledFor)] : []),
     'При заказе: ' + amount(order.total),
     ...(order.total === null ? ['Товары при заказе: ' + amount(order.subtotal), 'Стоимость доставки уточняется'] : []),
     ...(order.finalSubtotal !== null ? ['Итог за товары: ' + amount(order.finalSubtotal), 'Итого: ' + amount(order.finalTotal)] :

@@ -51,6 +51,11 @@ export async function loadCalendar(db: Prisma.TransactionClient) {
   ]);
   return { weekly, exceptions };
 }
+export function isMarketOpenAt(calendar: Calendar, at: Date) {
+  const wall = parts(at);
+  const today = hours(wall.date, calendar);
+  return Boolean(today && wall.minute >= today.openMinutes && wall.minute < today.closeMinutes);
+}
 export function marketStatusAt(calendar: Calendar, at: Date) {
   const wall = parts(at);
   const today = hours(wall.date, calendar);
@@ -86,4 +91,5 @@ export async function assertMarketTime(db: Prisma.TransactionClient, at: Date, r
   });
 }
 export function moscowDay(at: Date) { return parts(at).date; }
+export function moscowMinute(at: Date) { return parts(at).minute; }
 export { addDays };

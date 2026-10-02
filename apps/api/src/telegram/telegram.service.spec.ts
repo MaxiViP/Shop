@@ -27,6 +27,7 @@ function database() {
     shopHoursException: { findMany: vi.fn().mockResolvedValue([]) },
     order: {
       findUnique: vi.fn().mockResolvedValue(order),
+      findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({ id: order.id }),
     },
     product: { findMany: vi.fn().mockResolvedValue([{
@@ -35,6 +36,7 @@ function database() {
     }]) },
     shopSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue({
       weightToleranceBps: 1000, minDeliverySubtotal: 0, deliveryEnabled: true, pickupEnabled: true,
+      queueThreshold: 4, assemblyFallbackMinutes: 25, assemblyConcurrency: 1,
     }) },
     guestSession: { create: vi.fn().mockResolvedValue({ id: 'guest' }) },
   };

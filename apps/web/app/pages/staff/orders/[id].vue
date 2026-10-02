@@ -15,6 +15,7 @@
           <UBadge v-if="order.deliveryAt" color="info" variant="soft">
             {{ order.type === 'PICKUP' ? `${pickupTime(order.deliveryAt)} (МСК)` : date(order.deliveryAt) }}
           </UBadge>
+          <UBadge v-if="order.scheduledFor" color="warning" variant="soft">Подготовить к {{ pickupTime(order.scheduledFor) }} (МСК)</UBadge>
           <UBadge
             v-if="order.status === 'ASSEMBLING'"
             :color="pending ? 'warning' : 'success'"
@@ -44,7 +45,7 @@
           v-if="order.status === 'CONFIRMED'"
           size="lg"
           :loading="actionLoading === 'assembly'"
-          :disabled="Boolean(actionLoading)"
+          :disabled="Boolean(actionLoading) || (order.fulfillmentMode === 'SCHEDULED' && !scheduledDue)"
           @click="runAction('assembly', 'assembly/start', 'Сборка начата')"
         >
           Начать сборку
@@ -167,7 +168,7 @@
 
     <section v-if="order.type === 'PICKUP'" class="stage">
       <h2 class="stage__title">Самовывоз</h2>
-      <p>{{ order.deliveryAt ? `Подготовить к ${pickupTime(order.deliveryAt)} (МСК)` : 'Собирать сразу' }}</p>
+      <p>{{ order.scheduledFor ? `Подготовить к ${pickupTime(order.scheduledFor)} (МСК)` : 'Собирать сразу' }}</p>
     </section>
 
     <section
@@ -624,6 +625,12 @@ if (error.value || !data.value) {
 }
 
 const order = computed(() => data.value!)
+const clock = ref(Date.now())
+let dueTimer: ReturnType<typeof setInterval> | undefined
+onMounted(() => { dueTimer = setInterval(() => { clock.value = Date.now() }, 30_000) })
+onBeforeUnmount(() => { if (dueTimer) clearInterval(dueTimer) })
+const scheduledDue = computed(() => !order.value.scheduledFor ||
+  Date.parse(order.value.scheduledFor) - order.value.preparationMinutes * 60_000 <= clock.value)
 const drafts = assemblyDrafts()
 const actual = drafts.values
 const itemLoading = ref<number | null>(null)

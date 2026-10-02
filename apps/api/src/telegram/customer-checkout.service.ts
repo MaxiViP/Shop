@@ -186,7 +186,8 @@ export class CustomerCheckoutService {
         delete data.customerName;
         delete data.customerPhone;
         delete data.address;
-        delete data.deliveryAt;
+        delete data.scheduledFor;
+        delete data.fulfillmentMode;
         return this.advance(db, identity, session, 'TYPE', data);
       }
       throw stale();

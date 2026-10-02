@@ -9,7 +9,8 @@ export const checkoutPayload = z.object({
   customerName: orderSchema.shape.customerName.optional(),
   customerPhone: orderSchema.shape.customerPhone.optional(),
   address: addressSchema.partial().optional(),
-  deliveryAt: z.string().datetime().optional(),
+  fulfillmentMode: z.enum(['ASAP', 'SCHEDULED']).optional(),
+  scheduledFor: z.string().datetime().optional(),
   addressId: z.number().int().positive().optional(),
 });
 export type CheckoutPayload = z.infer<typeof checkoutPayload>;
@@ -43,7 +44,7 @@ export const checkoutPrompts: Partial<Record<CheckoutStep, string>> = {
   FLOOR: 'Этаж. Пропустить — «-».',
   INTERCOM: 'Домофон. Пропустить — «-».',
   COMMENT: 'Комментарий к доставке. Пропустить — «-».',
-  TIME: 'Когда получить заказ? «-» — как можно скорее, либо ДД.ММ.ГГГГ ЧЧ:ММ (московское время).',
+  TIME: 'Когда начать подготовку? «-» — как можно скорее.',
 };
 const addressFields = {
   CITY: 'city',
@@ -66,7 +67,7 @@ export function checkoutInput(
   else if (step === 'PHONE')
     next.customerPhone = phone(orderSchema.shape.customerPhone.parse(text));
   else if (step === 'TIME') {
-    if (text.trim() === '-') delete next.deliveryAt;
+    if (text.trim() === '-') { delete next.scheduledFor; next.fulfillmentMode = 'ASAP'; }
     else {
       const match = /^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})$/.exec(
         text.trim(),
@@ -82,7 +83,8 @@ export function checkoutInput(
           y + '-' + m + '-' + d + 'T' + h + ':' + min
       )
         throw new Error('INPUT');
-      next.deliveryAt = date.toISOString();
+      next.scheduledFor = date.toISOString();
+      next.fulfillmentMode = 'SCHEDULED';
     }
   } else if (Object.hasOwn(addressFields, step)) {
     const field = addressFields[step as keyof typeof addressFields];

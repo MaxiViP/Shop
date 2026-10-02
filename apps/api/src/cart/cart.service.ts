@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
-import { OrderService } from '../order/order.service.js';
+import { OrderService, orderCreatedSelect } from '../order/order.service.js';
 import { orderSchema, type OrderInput } from '../order/schema.js';
 import { cartProductSelect, cartQuantityValid } from '../order/cart-quote.js';
 import { manualQuantity } from '../order/assembly.js';
@@ -169,12 +169,12 @@ export class CartService {
 
   async checkout(userId: number, revision: string, data: Omit<OrderInput, 'items'>) {
     const result = await this.db.$transaction(async (db) => {
-      const order = await this.checkoutIn(db, userId, revision, data);
+      const saved = await this.checkoutResultIn(db, userId, revision, data);
       const cart = await this.getIn(db, userId);
-      return { order, cart };
+      return { ...saved, cart };
     });
-    this.orders.created(result.order.id);
-    return result;
+    if (result.created) this.orders.created(result.order.id);
+    return { order: result.order, cart: result.cart };
   }
 
   // Caller also consumes the checkout session on this SAME transaction connection.
@@ -184,7 +184,21 @@ export class CartService {
     revision: string,
     data: Omit<OrderInput, 'items'>,
   ) {
+    return (await this.checkoutResultIn(db, userId, revision, data)).order;
+  }
+
+  private async checkoutResultIn(db: Prisma.TransactionClient, userId: number,
+    revision: string, data: Omit<OrderInput, 'items'>) {
     const cart = await this.locked(db, userId);
+    if (data.checkoutRequestId) {
+      const previous = await db.order.findUnique({ where: { checkoutRequestId: data.checkoutRequestId },
+        select: { ...orderCreatedSelect, userId: true } });
+      if (previous) {
+        if (previous.userId !== userId) throw new ConflictException('Повторное оформление недоступно');
+        const { userId: _userId, ...order } = previous;
+        return { order, created: false };
+      }
+    }
     if (cart.revision !== revision)
       throw new ConflictException('Корзина уже изменилась. Откройте /cart.');
     const ids = cart.items.map((item) => item.productId);
@@ -202,6 +216,6 @@ export class CartService {
       where: { id: cart.id },
       data: { revision: randomUUID() },
     });
-    return result.order;
+    return { order: result.order, created: result.created };
   }
 }

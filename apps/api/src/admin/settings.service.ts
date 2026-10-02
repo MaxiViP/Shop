@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import type { SettingsInput } from './settings.schema.js';
 import { DbService } from '../db/db.service.js';
 @Injectable()
@@ -22,6 +22,19 @@ export class SettingsService {
         throw new BadRequestException(
           'Общий лимит услуг не может быть меньше лимита цены одной услуги.',
         );
+      if (next.peakModeEnabled && (!next.peakModeStart || !next.peakModeEnd ||
+        new Date(next.peakModeEnd) <= new Date(next.peakModeStart)))
+        throw new BadRequestException('Укажите начало и окончание периода повышенной нагрузки.');
+      if (input.slotCapacity !== undefined && input.slotCapacity < current.slotCapacity) {
+        const bookings = await db.order.groupBy({
+          by: ['scheduledFor'],
+          where: { fulfillmentMode: 'SCHEDULED', scheduledFor: { gte: new Date() },
+            status: { notIn: ['COMPLETED', 'CANCELED'] } },
+          _count: { id: true }, orderBy: { _count: { id: 'desc' } }, take: 1,
+        });
+        if (bookings[0] && bookings[0]._count.id > input.slotCapacity)
+          throw new ConflictException('Новая вместимость меньше числа уже записанных заказов на одно время.');
+      }
       const saved = await db.shopSettings.update({
         where: { id: 1 }, data: { ...input, updatedById },
       });

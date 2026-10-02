@@ -28,14 +28,20 @@ describe('public financial privacy boundary', () => {
     for (const field of privateFields) expect(select).not.toHaveProperty(field);
   });
   it('does not select private snapshots in customer order and staff detail', async () => {
+    const queueDb = {
+      shopSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue({
+        queueThreshold: 4, assemblyFallbackMinutes: 25, assemblyConcurrency: 1, peakModeEnabled: false,
+      }) },
+      order: { findMany: vi.fn().mockResolvedValue([]) },
+    };
     const customerFind = vi.fn().mockResolvedValue({ status: 'NEW', assemblyFinalizedAt: null, extras: [] });
-    const customer = new OrderService({ order: { findFirst: customerFind } } as unknown as DbService,
+    const customer = new OrderService({ ...queueDb, order: { ...queueDb.order, findFirst: customerFind } } as unknown as DbService,
       {} as TelegramService);
     await customer.get('00000000-0000-0000-0000-000000000001', 1);
     const customerSelect = customerFind.mock.calls[0]![0].select.items.select;
     for (const field of privateFields) expect(customerSelect).not.toHaveProperty(field);
     const staffFind = vi.fn().mockResolvedValue({ cancellations: [], items: [], status: 'NEW' });
-    const staff = new StaffService({ order: { findUnique: staffFind } } as unknown as DbService,
+    const staff = new StaffService({ ...queueDb, order: { ...queueDb.order, findUnique: staffFind } } as unknown as DbService,
       {} as NotificationService);
     await staff.get(1);
     const staffSelect = staffFind.mock.calls[0]![0].select.items.select;

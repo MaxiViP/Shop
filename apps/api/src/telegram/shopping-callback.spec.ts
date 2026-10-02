@@ -58,7 +58,7 @@ describe('checkout input uses domain fields', () => {
   });
   it('parses Moscow future schedule and optional fields', () => {
     expect(
-      checkoutInput('TIME', '01.01.2099 12:30', payload()).deliveryAt,
+      checkoutInput('TIME', '01.01.2099 12:30', payload()).scheduledFor,
     ).toBe('2099-01-01T09:30:00.000Z');
     expect(checkoutInput('FLAT', '-', payload()).address?.flat).toBe('');
   });

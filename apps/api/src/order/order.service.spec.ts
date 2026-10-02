@@ -8,7 +8,6 @@ const telegram = { notifyNewOrder: vi.fn().mockResolvedValue(undefined) } as unk
 describe('OrderService creation', () => {
   it.each([
     { type: 'PICKUP', deliveryAt: undefined },
-    { type: 'PICKUP', deliveryAt: '2099-09-05T15:30:00.000Z' },
     { type: 'DELIVERY', deliveryAt: undefined },
   ] as const)(
     'calculates $type totals and saves requested time $deliveryAt',
@@ -23,7 +22,9 @@ describe('OrderService creation', () => {
         shopSettings: {
           findUniqueOrThrow: vi
             .fn()
-            .mockResolvedValue({ weightToleranceBps: 1000, minDeliverySubtotal: 0, deliveryEnabled: true, pickupEnabled: true }),
+            .mockResolvedValue({ weightToleranceBps: 1000, minDeliverySubtotal: 0,
+              deliveryEnabled: true, pickupEnabled: true, queueThreshold: 4,
+              assemblyFallbackMinutes: 25, assemblyConcurrency: 1, peakModeEnabled: false }),
         },
         product: {
           findMany: vi.fn().mockResolvedValue([
@@ -43,7 +44,7 @@ describe('OrderService creation', () => {
             },
           ]),
         },
-        order: { create },
+        order: { create, findMany: vi.fn().mockResolvedValue([]) },
       };
       const db = { ...tx, $transaction: vi.fn((fn: (client: typeof tx) => Promise<unknown>) => fn(tx)) } as unknown as DbService;
       const input = orderSchema.parse({

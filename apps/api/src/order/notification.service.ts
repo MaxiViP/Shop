@@ -5,6 +5,8 @@ import type { BotDelivery } from '../telegram/bot-api.js';
 import { botDelivery } from '../telegram/bot-api.js';
 import { staffBotToken } from '../telegram/bot-config.js';
 import { staffPriceNotice } from '../telegram/staff-price-notice.js';
+import { QueueService, waitRange } from './queue.js';
+import { telegramEvent } from './outbox.js';
 
 // A real provider adapter must explicitly implement this contract. OTP is unrelated.
 export abstract class OrderSmsProvider {
@@ -24,11 +26,12 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
   private sweeping = false;
   private readonly logger = new Logger(NotificationService.name);
+  private readonly queue: QueueService;
   constructor(
     private readonly db: DbService,
     private readonly sms: OrderSmsProvider,
     private readonly telegram: CustomerNotificationService,
-  ) {}
+  ) { this.queue = new QueueService(db); }
   get available() {
     return process.env.ORDER_SMS_ENABLED === 'true' && this.sms.available;
   }
@@ -145,6 +148,9 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
             case 'PAYMENT_READY': valid = order.status === 'READY' && order.payment?.status === 'AWAITING'; break;
             case 'ORDER_CONFIRMED': valid = order.status === 'CONFIRMED'; break;
             case 'ASSEMBLY_STARTED': valid = order.status === 'ASSEMBLING'; break;
+            case 'QUEUE_DELAY': valid = ['NEW', 'CONFIRMED'].includes(order.status) &&
+              order.fulfillmentMode === 'ASAP'; break;
+            case 'ASSEMBLY_SOON': valid = order.status === 'CONFIRMED'; break;
             case 'PAYMENT_RECEIVED': valid = order.payment?.status === 'PAID' && order.status !== 'CANCELED'; break;
             case 'ORDER_COMPLETED': valid = order.status === 'COMPLETED'; break;
             case 'ORDER_CANCELED': valid = order.status === 'CANCELED'; break;
@@ -164,7 +170,8 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
             });
             valid = latest?.id === event.id;
           }
-          if (event.type !== 'ACTION_REQUIRED' && event.type !== 'PAYMENT_READY') valid = valid && Boolean(message);
+          if (!['ACTION_REQUIRED', 'PAYMENT_READY', 'QUEUE_DELAY', 'ASSEMBLY_SOON'].includes(event.type))
+            valid = valid && Boolean(message);
           const identity = order.user?.telegramIdentity;
           const eligible = this.telegram.available && identity?.customerBotStartedAt && !identity.customerBotBlockedAt;
           const claimed = await db.orderNotification.updateMany({
@@ -179,8 +186,10 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
         if (!current) continue;
         let outcome: BotDelivery;
         try {
+          const queue = ['QUEUE_DELAY', 'ASSEMBLY_SOON'].includes(event.type)
+            ? await this.queue.publicView(orderId) : null;
           outcome = await this.telegram.send(current.identity.telegramUserId.toString(), {
-            event, order: current.order, issue: current.issue, message: current.message,
+            event, order: current.order, issue: current.issue, message: current.message, queue,
           });
         } catch { outcome = 'unknown'; }
         // SENDING is deliberately terminal for automatic delivery after an uncertain outcome.
@@ -263,6 +272,18 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     if (this.sweeping) return;
     this.sweeping = true;
     try {
+      const now = new Date();
+      const load = await this.queue.snapshot(this.db, now);
+      for (const [index, waiting] of load.queue.entries()) {
+        if (waitRange(index + 1, load.active, now, load.minutes,
+          load.settings.assemblyConcurrency).max > 15) break;
+        if (waiting.createdAt >= new Date(now.getTime() - 2 * 60_000)) continue;
+        const order = await this.db.order.findUnique({ where: { id: waiting.id }, select: { status: true } });
+        if (order?.status === 'CONFIRMED')
+          await this.db.$transaction(db => telegramEvent(db, {
+            orderId: waiting.id, type: 'ASSEMBLY_SOON', dedupeKey: `assembly-soon:${waiting.id}`,
+          }));
+      }
       // Resume only never-attempted Telegram work. SMS/manual retry behavior is unchanged.
       const rows = await this.db.orderNotification.findMany({
         where: { channel: 'TELEGRAM', status: 'PENDING' }, orderBy: { id: 'asc' },

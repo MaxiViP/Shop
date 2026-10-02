@@ -4,6 +4,7 @@ import type {
   PaymentMethod,
 } from '../db/gen/client.js';
 import type { CartService } from '../cart/cart.service.js';
+import type { OrderService } from '../order/order.service.js';
 import { checkoutPayload, checkoutPrompts, checkoutStep } from './checkout.js';
 import { shoppingData } from './shopping-callback.js';
 import { customerView } from './customer-callback.js';
@@ -21,6 +22,7 @@ const methodNames = { SBP: 'СБП', CARD_TRANSFER: 'На карту', QR: 'QR' 
 export function checkoutScreen(
   session: CustomerTelegramSession,
   basket: Awaited<ReturnType<CartService['get']>> | null,
+  offer?: Awaited<ReturnType<OrderService['offer']>> | null,
 ): Screen | { prompt: string } {
   const data = checkoutPayload.parse(session.payload);
   const step = checkoutStep.parse(session.step);
@@ -63,8 +65,8 @@ export function checkoutScreen(
       ...(data.address
         ? [short(Object.values(data.address).filter(Boolean).join(', '), 650)]
         : []),
-      data.deliveryAt
-        ? 'Время: ' + date(new Date(data.deliveryAt))
+      data.scheduledFor
+        ? 'Подготовить к: ' + date(new Date(data.scheduledFor))
         : 'Как можно скорее',
       ...basket.items
         .slice(0, 5)
@@ -122,7 +124,9 @@ export function checkoutScreen(
     if (!prompt) throw new BadRequestException();
     return {
       prompt:
-        prompt +
+        prompt + (step === 'TIME' && offer?.showScheduledOffer && offer.slots.length
+          ? `\nСейчас высокая загрузка: примерно ${offer.position}-й в очереди, начало через ${offer.wait?.min}–${offer.wait?.max} мин. Можно выбрать время: ДД.ММ.ГГГГ ЧЧ:ММ (Москва). Ближайшие свободные слоты: ${offer.slots.slice(0, 3).map(slot => date(new Date(slot.at))).join(', ')}. Доступность проверим при оформлении.`
+          : '') +
         '\nНажмите «Ответить» на этом сообщении и введите ответ. /resume — восстановить, /cancel — отмена.',
     };
   }

@@ -1,4 +1,4 @@
-import { Body, ConflictException, Controller, Get, Param, Post, Req, Res } from '@nestjs/common';
+import { Body, ConflictException, Controller, Get, Param, Patch, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService, SID } from '../auth/auth.service.js';
 import { GID, GUEST_TTL } from '../common/guest.js';
@@ -9,6 +9,11 @@ import { orderSchema, type OrderInput } from './schema.js';
 import { quoteSchema, type QuoteInput } from './cart-quote.js';
 
 const prod = process.env.NODE_ENV === 'production';
+const scheduleSchema = z.strictObject({ fulfillmentMode: z.enum(['ASAP', 'SCHEDULED']),
+  scheduledFor: z.string().datetime().optional() }).superRefine((data, ctx) => {
+    if ((data.fulfillmentMode === 'SCHEDULED') !== Boolean(data.scheduledFor))
+      ctx.addIssue({ code: 'custom', path: ['scheduledFor'], message: 'Выберите время подготовки' });
+  });
 
 @Controller('orders')
 export class OrderCtrl {
@@ -20,6 +25,18 @@ export class OrderCtrl {
   @Post('quote')
   quote(@Body({ schema: quoteSchema }) body: QuoteInput) {
     return this.order.quote(body);
+  }
+
+  @Get('queue/offer')
+  offer() { return this.order.offer(); }
+
+  @Post('checkout-session')
+  async checkoutSession(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    const result = await this.order.checkoutSession(request.cookies?.[GID]);
+    if (result.token) response.cookie(GID, result.token, {
+      httpOnly: true, secure: prod, sameSite: 'lax', path: '/', maxAge: GUEST_TTL,
+    });
+    return { ready: true };
   }
 
   @Post()
@@ -85,6 +102,20 @@ export class OrderCtrl {
     const user = await this.auth.me(request.cookies?.[SID]);
 
     return this.order.get(publicId, user?.id ?? null, request.cookies?.[GID]);
+  }
+
+  @Get(':publicId/queue')
+  async queue(@Req() request: Request, @Param('publicId', { schema: z.uuid() }) publicId: string) {
+    const user = await this.auth.me(request.cookies?.[SID]);
+    return this.order.queueFor(publicId, user?.id ?? null, request.cookies?.[GID]);
+  }
+
+  @Patch(':publicId/fulfillment')
+  async schedule(@Req() request: Request, @Param('publicId', { schema: z.uuid() }) publicId: string,
+    @Body({ schema: scheduleSchema }) body: z.infer<typeof scheduleSchema>) {
+    const user = await this.auth.me(request.cookies?.[SID]);
+    return this.order.schedule(publicId, user?.id ?? null, request.cookies?.[GID],
+      body.fulfillmentMode, body.scheduledFor);
   }
 
   @Post(':publicId/payment/report')

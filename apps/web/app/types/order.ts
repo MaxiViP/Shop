@@ -8,6 +8,17 @@ export type OrderStatus =
   | 'CANCELED'
 
 export type OrderType = 'DELIVERY' | 'PICKUP'
+export type FulfillmentMode = 'ASAP' | 'SCHEDULED'
+export interface QueueOffer {
+  queueLength: number
+  position: number | null
+  wait: { min: number; max: number } | null
+  estimatedAssemblyMinutes: number
+  assemblyConcurrency: number
+  showScheduledOffer: boolean
+  peakModeActive: boolean
+  slots: { at: string; reserved: number; capacity: number }[]
+}
 
 export type Unit = 'GRAM' | 'PIECE' | 'BUNCH' | 'PACK'
 
@@ -46,6 +57,10 @@ export interface YandexQuote {
 }
 
 export interface StaffOrder {
+  fulfillmentMode: FulfillmentMode
+  scheduledFor: string | null
+  queueRank: number | null
+  preparationMinutes: number
   cancellations: Cancellation[]
   restoreProblem: string | null
   issues?: { id: number; status: string }[]
@@ -82,6 +97,8 @@ export interface StaffOrder {
 }
 
 export interface OrderCreated {
+  fulfillmentMode: FulfillmentMode
+  scheduledFor: string | null
   id: number
   publicId: string
   type: OrderType
@@ -102,6 +119,8 @@ export interface OrderCreated {
 }
 
 export interface OrderSummary {
+  fulfillmentMode: FulfillmentMode
+  scheduledFor: string | null
   issues?: { id: number; status: string }[]
   customerUnread?: number
   subtotal: number
@@ -125,6 +144,10 @@ export interface OrderSummary {
 }
 
 export interface OrderDetail {
+  fulfillmentMode: FulfillmentMode
+  scheduledFor: string | null
+  assemblyStartedAt: string | null
+  queue: QueueOffer | null
   extras?: OrderExtra[]
   issues: {
     orderItemId: number
@@ -206,6 +229,7 @@ export interface OrderExtra {
 }
 
 export interface StaffOrderDetail extends OrderDetail {
+  preparationMinutes: number
   cancellations: Cancellation[]
   restoreProblem: string | null
   delivery: StaffDelivery | null

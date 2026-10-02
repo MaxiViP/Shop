@@ -28,6 +28,9 @@ export const cartCheckoutSchema = base.extend({
   customerPhone: z.string().trim().min(1).max(30),
   address: addressSchema.optional(),
   deliveryAt: z.string().datetime().optional(),
+  fulfillmentMode: z.enum(['ASAP', 'SCHEDULED']).optional(),
+  scheduledFor: z.string().datetime().optional(),
+  checkoutRequestId: z.uuid().optional(),
   quoteToken: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
 export type CartCheckoutInput = z.infer<typeof cartCheckoutSchema>;

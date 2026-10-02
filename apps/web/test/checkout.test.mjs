@@ -34,12 +34,14 @@ async function fixture(t, authenticated = false, preserveDefault = false) {
   const quoteError = ref("");
   const settings = ref({ deliveryEnabled: true, pickupEnabled: true, minDeliverySubtotal: 0 });
   const settingsError = ref(null);
+  const queueOffer = ref({ queueLength: 0, position: 1, wait: { min: 0, max: 10 },
+    showScheduledOffer: false, peakModeActive: false, slots: [] });
   const address = { id: 2, isDefault: true, label: "Home", city: "City", street: "Street",
     house: "10", flat: "2", entrance: "3", floor: "4", intercom: "5", comment: "Call" };
   const user = authenticated
     ? { id: 1, role: "USER", name: "User", phone: "+79990000000", telegram: null }
     : null;
-  const state = { token: "confirmed", refreshFail: false, requests: [], navigation: [],
+  const state = { token: "confirmed", refreshFail: false, requests: [], sessionCalls: 0, navigation: [],
     remembered: false, post: async () => authenticated
       ? { order: { publicId: "created-order" }, cart: emptySnapshot() }
       : { publicId: "created-order" }, addressOptions: null };
@@ -69,6 +71,7 @@ async function fixture(t, authenticated = false, preserveDefault = false) {
     useAuthStore: () => ({ loggedIn: authenticated, user }),
     useApi: async (path, options) => {
       if (path === "/shop/settings") return { data: settings, error: settingsError, refresh: async () => {} };
+      if (path === "/orders/queue/offer") return { data: queueOffer, refresh: async () => {} };
       if (path === "/order-phones") {
         state.phoneOptions = options;
         return { data: ref(authenticated
@@ -93,6 +96,12 @@ async function fixture(t, authenticated = false, preserveDefault = false) {
       },
     }),
     useApiClient: () => async (path, options) => {
+      if (path === "/orders/checkout-session") {
+        assert.equal(authenticated, false);
+        assert.equal(options.method, "POST");
+        state.sessionCalls++;
+        return { ready: true };
+      }
       assert.equal(path, authenticated ? "/cart/checkout" : "/orders");
       state.requests.push({ path, ...options });
       return state.post();
@@ -110,7 +119,7 @@ async function fixture(t, authenticated = false, preserveDefault = false) {
   const result = await setup(...Object.values(context));
   Object.assign(result.recipient.value, { name: "Recipient", ...(preserveDefault ? {} : { phone: "+79990000000" }) });
   if (!authenticated) Object.assign(result.recipient.value, { city: "City", street: "Street", house: "10", comment: "Call" });
-  return { ...result, cart, pending, state, settings, settingsError, address, user };
+  return { ...result, cart, pending, state, settings, settingsError, queueOffer, address, user };
 }
 
 test("direct /checkout middleware redirects to /cart without browser globals or a loop", async () => {
@@ -166,13 +175,16 @@ for (const authenticated of [false, true]) {
     assert.equal(request.body.type, "DELIVERY");
     assert.equal(request.body.customerName, "Recipient");
     assert.equal(request.body.customerPhone, "+79990000000");
+    assert.match(request.body.checkoutRequestId, /^[0-9a-f-]{36}$/i);
     assert.equal(request.body.address.comment, "Call");
     if (authenticated) {
       assert.equal(request.path, "/cart/checkout");
+      assert.equal(f.state.sessionCalls, 0);
       assert.equal(request.body.revision, "00000000-0000-4000-8000-000000000001");
       assert.equal(Object.hasOwn(request.body, "items"), false);
     } else {
       assert.equal(request.path, "/orders");
+      assert.equal(f.state.sessionCalls, 1);
       assert.deepEqual(request.body.items, [{ productId: 1, qty: 500 }]);
     }
     assert.equal(Object.hasOwn(request.body, "subtotal"), false);
@@ -186,6 +198,58 @@ for (const authenticated of [false, true]) {
     assert.deepEqual(f.state.navigation, ["/order/created-order"]);
   });
 }
+
+test("scheduled choice appears only with a queue offer and sends an authoritative slot request", async t => {
+  const f = await fixture(t);
+  assert.match(page, /v-if="queueOffer\?\.showScheduledOffer"/);
+  assert.equal(f.queueOffer.value.showScheduledOffer, false);
+  const slot = "2099-01-01T12:00:00.000Z";
+  f.queueOffer.value = { queueLength: 4, position: 5, wait: { min: 30, max: 45 },
+    showScheduledOffer: true, peakModeActive: false, slots: [{ at: slot, reserved: 0, capacity: 1 }] };
+  await nextTick();
+  f.form.pickupTiming = "scheduled";
+  f.form.pickupAt = slot;
+  await f.submit();
+  const body = f.state.requests[0].body;
+  assert.equal(body.fulfillmentMode, "SCHEDULED");
+  assert.equal(body.scheduledFor, slot);
+  assert.equal(Object.hasOwn(body, "queuePosition"), false);
+  assert.equal(Object.hasOwn(body, "wait"), false);
+});
+
+test("a slot that fills during checkout is removed from the selection", async t => {
+  const f = await fixture(t);
+  assert.match(page, /:disabled="!queueOffer\.slots\.length"/);
+  const slot = "2099-01-01T12:00:00.000Z";
+  f.queueOffer.value = { ...f.queueOffer.value, showScheduledOffer: true,
+    slots: [{ at: slot, reserved: 0, capacity: 1 }] };
+  await nextTick();
+  f.form.pickupTiming = "scheduled";
+  f.form.pickupAt = slot;
+  f.queueOffer.value = { ...f.queueOffer.value, slots: [] };
+  await nextTick();
+  assert.equal(f.form.pickupAt, "");
+  await f.submit();
+  assert.equal(f.state.requests.length, 0);
+  assert.ok(f.errors.deliveryAt);
+});
+
+test("a failed checkout keeps its requestId for a deliberate retry", async t => {
+  const f = await fixture(t);
+  let first = true;
+  f.state.post = async () => {
+    if (first) { first = false; throw new Error("Response lost"); }
+    return { publicId: "created-order" };
+  };
+  await f.submit();
+  assert.equal(f.cart.count, 1);
+  await f.submit();
+  assert.equal(f.state.requests.length, 2);
+  assert.equal(f.state.requests[0].body.checkoutRequestId,
+    f.state.requests[1].body.checkoutRequestId);
+  assert.equal(f.state.sessionCalls, 2);
+  assert.deepEqual(f.state.navigation, ["/order/created-order"]);
+});
 
 test("changed quote token or quote failure prevents POST and keeps cart", async t => {
   for (const failure of ["token", "quote"]) {

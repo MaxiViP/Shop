@@ -16,6 +16,34 @@
     </header>
 
     <OrderProgress :status="order.status" :type="order.type" />
+    <section v-if="['NEW', 'CONFIRMED'].includes(order.status)" class="order-queue" aria-live="polite">
+      <template v-if="order.fulfillmentMode === 'SCHEDULED' && order.scheduledFor">
+        <strong>Подготовим к {{ slotLabel(order.scheduledFor) }} (МСК)</strong>
+        <p>Время ориентировочное. Заказ появится у продавца заранее.</p>
+      </template>
+      <template v-else-if="order.queue?.position">
+        <strong>Вы примерно {{ order.queue.position }}-й в очереди</strong>
+        <p v-if="order.queue.wait">Ориентировочное начало сборки через {{ order.queue.wait.min }}–{{ order.queue.wait.max }} минут.</p>
+      </template>
+      <UButton
+        v-if="order.fulfillmentMode === 'SCHEDULED' || order.queue?.showScheduledOffer"
+        type="button" variant="soft" size="sm" @click="openSchedule">
+        {{ order.fulfillmentMode === 'SCHEDULED' ? 'Изменить время' : 'Выбрать время' }}
+      </UButton>
+      <div v-if="scheduleOpen" class="order-queue__edit">
+        <label for="order-slot">Подготовить к (Москва)</label>
+        <select id="order-slot" v-model="selectedSlot" class="order-queue__select" :disabled="scheduleBusy">
+          <option value="">Выберите доступное время</option>
+          <option v-for="slot in scheduleOptions?.slots ?? []" :key="slot.at" :value="slot.at">{{ slotLabel(slot.at) }}</option>
+        </select>
+        <p v-if="scheduleOptions && !scheduleOptions.slots.length" class="text-muted">Свободных слотов сейчас нет. Попробуйте позже.</p>
+        <div class="order-queue__actions">
+          <UButton type="button" size="sm" :disabled="!selectedSlot || scheduleBusy" :loading="scheduleBusy" @click="saveSchedule">Сохранить</UButton>
+          <UButton v-if="order.fulfillmentMode === 'SCHEDULED'" type="button" size="sm" variant="soft" :disabled="scheduleBusy" @click="saveAsap">Как можно скорее</UButton>
+        </div>
+        <p v-if="scheduleError" role="alert" class="text-error">{{ scheduleError }}</p>
+      </div>
+    </section>
     <OrderSections :links="customerSections" initial-hash="#order-items" />
 
     <div class="order__layout">
@@ -184,9 +212,8 @@
 </template>
 
 <script setup lang="ts">
-import type {
-  OrderDetail,
-} from '~/types/order'
+import type { OrderDetail, QueueOffer } from '~/types/order'
+import { apiError } from '~/utils/api-error'
 import {
   isActiveOrder,
 } from '~/utils/order'
@@ -240,6 +267,38 @@ watch(() => auth.user?.id, async userId => {
 const order = computed(
   () => data.value!,
 )
+const api = useApiClient()
+const scheduleOpen = ref(false)
+const scheduleBusy = ref(false)
+const scheduleError = ref('')
+const scheduleOptions = ref<QueueOffer | null>(null)
+const selectedSlot = ref('')
+const slotLabel = (value: string) => new Date(value).toLocaleString('ru-RU', {
+  timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+})
+async function openSchedule() {
+  scheduleOpen.value = !scheduleOpen.value
+  if (!scheduleOpen.value) return
+  try {
+    scheduleOptions.value = await api<QueueOffer>(`/orders/${id}/queue`)
+  } catch (cause) { scheduleError.value = apiError(cause) }
+}
+async function updateSchedule(mode: 'ASAP' | 'SCHEDULED') {
+  scheduleBusy.value = true
+  scheduleError.value = ''
+  try {
+    await api(`/orders/${id}/fulfillment`, { method: 'PATCH', body: {
+      fulfillmentMode: mode, scheduledFor: mode === 'SCHEDULED' ? selectedSlot.value : undefined,
+    } })
+    scheduleOpen.value = false
+    await refreshOrder()
+  } catch (cause) {
+    scheduleError.value = apiError(cause)
+    try { scheduleOptions.value = await api<QueueOffer>(`/orders/${id}/queue`) } catch { /* Keep the saved error visible. */ }
+  } finally { scheduleBusy.value = false }
+}
+function saveSchedule() { void updateSchedule('SCHEDULED') }
+function saveAsap() { void updateSchedule('ASAP') }
 
 const active = computed(
   () => isActiveOrder(order.value.status),
@@ -313,6 +372,18 @@ useSeoMeta({
 </script>
 
 <style scoped>
+.order-queue {
+  display: grid;
+  justify-items: start;
+  gap: 0.4rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 40%, var(--ui-border));
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--ui-primary) 6%, var(--ui-bg));
+}
+.order-queue__edit { display: grid; gap: 0.5rem; width: min(100%, 25rem); }
+.order-queue__select { width: 100%; min-height: var(--touch-target); padding: 0.5rem; border: 1px solid var(--ui-border); border-radius: 0.5rem; background: var(--ui-bg); }
+.order-queue__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .order {
   max-width: 60rem;
   min-width: 0;

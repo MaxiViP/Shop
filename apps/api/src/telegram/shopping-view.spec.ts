@@ -110,6 +110,17 @@ describe('checkout presentation', () => {
       expect(screen.prompt).not.toContain('???');
     }
   });
+  it('offers a preparation time in Telegram only when load is high and a slot is free', () => {
+    const normal = checkoutScreen(session('TIME'), null);
+    expect('prompt' in normal && normal.prompt).not.toContain('Можно выбрать время');
+    const peak = checkoutScreen(session('TIME'), null, {
+      queueLength: 4, position: 5, wait: { min: 30, max: 45 },
+      estimatedAssemblyMinutes: 25, showScheduledOffer: true, peakModeActive: true,
+      slots: [{ at: '2099-01-01T12:00:00.000Z', reserved: 0, capacity: 1 }],
+    });
+    expect('prompt' in peak && peak.prompt).toContain('Можно выбрать время');
+    expect('prompt' in peak && peak.prompt).toContain('30–45 мин');
+  });
   it('cancel buttons carry the exact current revision; IDs never appear in visible text', () => {
     const s = session('TYPE'),
       screen = checkoutScreen(s, null);

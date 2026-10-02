@@ -19,6 +19,8 @@ import type { PaymentMethod, Prisma } from '../db/gen/client.js';
 import { issueSummary, message } from './coordination.js';
 import { checkoutLimits } from './limits.js';
 import { assertMarketTime } from '../admin/shop-hours.js';
+import { QueueService } from './queue.js';
+import { telegramEvent } from './outbox.js';
 import {
   cartProductSelect,
   cartQuantities,
@@ -26,12 +28,27 @@ import {
   type QuoteInput,
 } from './cart-quote.js';
 
+export const orderCreatedSelect = {
+  id: true,
+  publicId: true,
+  type: true,
+  status: true,
+  fulfillmentMode: true,
+  scheduledFor: true,
+  subtotal: true,
+  deliveryPrice: true,
+  total: true,
+  createdAt: true,
+  items: { select: { id: true, productName: true, qty: true, total: true } },
+} satisfies Prisma.OrderSelect;
+
 @Injectable()
 export class OrderService {
+  private readonly queue: QueueService;
   constructor(
     private readonly db: DbService,
     private readonly telegram: TelegramService,
-  ) {}
+  ) { this.queue = new QueueService(db); }
 
   async quote(data: QuoteInput, db: Prisma.TransactionClient = this.db) {
     const quantities = cartQuantities(data.items);
@@ -48,7 +65,7 @@ export class OrderService {
     data: OrderInput,
   ) {
     const result = await this.db.$transaction((db) => this.save(db, userId, guestToken, data));
-    this.created(result.order.id);
+    if (result.created) this.created(result.order.id);
     return result;
   }
 
@@ -60,8 +77,63 @@ export class OrderService {
 
   created(orderId: number) { void this.telegram.notifyNewOrder(orderId); }
 
+  async checkoutSession(guestToken?: string) {
+    return this.db.$transaction(db => this.ensureGuest(guestToken, db));
+  }
+
+  offer() { return this.queue.publicView(undefined, this.db, new Date(), true); }
+
+  async queueFor(publicId: string, userId: number | null, guestToken?: string) {
+    const where = await this.access(publicId, userId, guestToken);
+    const order = await this.db.order.findFirst({ where,
+      select: { id: true, status: true, fulfillmentMode: true } });
+    if (!order) throw new NotFoundException('Заказ не найден');
+    return ['NEW', 'CONFIRMED'].includes(order.status) ?
+      this.queue.publicView(order.id, this.db, new Date(), true, order.fulfillmentMode === 'SCHEDULED') : null;
+  }
+
+  async schedule(publicId: string, userId: number | null, guestToken: string | undefined,
+    mode: 'ASAP' | 'SCHEDULED', requested?: string) {
+    const access = await this.access(publicId, userId, guestToken);
+    const now = new Date();
+    return this.db.$transaction(async db => {
+      // Same settings mutex as checkout: two callers cannot reserve the last slot.
+      await db.$queryRaw`SELECT id FROM "ShopSettings" WHERE id = 1 FOR UPDATE`;
+      const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
+      await db.$queryRaw`SELECT id FROM "Order" WHERE "publicId" = ${publicId}::uuid FOR UPDATE`;
+      const order = await db.order.findFirst({ where: access,
+        select: { id: true, status: true, fulfillmentMode: true, scheduledFor: true,
+          assemblyStartedAt: true, payment: { select: { status: true } } } });
+      if (!order) throw new NotFoundException('Заказ не найден');
+      const at = requested ? new Date(requested) : null;
+      if (order.fulfillmentMode === mode && order.scheduledFor?.getTime() === (at?.getTime() ?? undefined))
+        return { fulfillmentMode: order.fulfillmentMode, scheduledFor: order.scheduledFor };
+      if (!['NEW', 'CONFIRMED'].includes(order.status) || order.assemblyStartedAt ||
+        ['PAID', 'REPORTED'].includes(order.payment?.status ?? ''))
+        throw new ConflictException('Время подготовки уже нельзя изменить');
+      if (mode === 'SCHEDULED') await this.queue.reserve(db, at!, settings, now, order.id,
+        order.fulfillmentMode === 'SCHEDULED');
+      return db.order.update({ where: { id: order.id }, data: {
+        fulfillmentMode: mode, scheduledFor: mode === 'SCHEDULED' ? at : null,
+      }, select: { fulfillmentMode: true, scheduledFor: true } });
+    });
+  }
+
   private async save(db: Prisma.TransactionClient, userId: number | null,
     guestToken: string | undefined, data: OrderInput) {
+    if (data.checkoutRequestId) {
+      await db.$queryRaw`SELECT 1::int AS locked FROM pg_advisory_xact_lock(hashtext(${data.checkoutRequestId}))`;
+      const previous = await db.order.findUnique({ where: { checkoutRequestId: data.checkoutRequestId },
+        select: { ...orderCreatedSelect, userId: true, guestSessionId: true } });
+      if (previous) {
+        const guestId = userId ? null : await this.findGuest(guestToken, db);
+        if ((userId && previous.userId === userId) || (guestId && previous.guestSessionId === guestId)) {
+          const { userId: _userId, guestSessionId: _guestSessionId, ...order } = previous;
+          return { order, guestToken: undefined, created: false };
+        }
+        throw new ConflictException('Повторное оформление недоступно в этой сессии');
+      }
+    }
     const productIds = [...new Set(data.items.map(item => item.productId))].sort((a, b) => a - b);
     for (const id of productIds)
       await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${id} FOR SHARE`;
@@ -100,9 +172,16 @@ export class OrderService {
       };
     });
 
-    await assertMarketTime(db, new Date(), data.deliveryAt ? new Date(data.deliveryAt) : undefined);
+    const now = new Date();
     const subtotal = quote.subtotal!;
+    // Serializes slot reservations, settings changes and concurrent checkout offers.
+    await db.$queryRaw`SELECT id FROM "ShopSettings" WHERE id = 1 FOR UPDATE`;
+    await assertMarketTime(db, now, data.deliveryAt ? new Date(data.deliveryAt) : undefined);
     const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
+    const load = await this.queue.snapshot(db, now);
+    const mode = data.fulfillmentMode ?? 'ASAP';
+    const scheduledFor = mode === 'SCHEDULED' ? new Date(data.scheduledFor!) : null;
+    if (scheduledFor) await this.queue.reserve(db, scheduledFor, settings, now);
     checkoutLimits(data.type, subtotal, settings);
 
     const deliveryPrice = data.type === 'PICKUP' ? 0 : null;
@@ -124,6 +203,9 @@ export class OrderService {
       data: {
         weightToleranceBps: settings.weightToleranceBps,
         type: data.type,
+        fulfillmentMode: mode,
+        scheduledFor,
+        checkoutRequestId: data.checkoutRequestId,
 
         customerName: data.customerName.trim(),
 
@@ -152,30 +234,16 @@ export class OrderService {
         },
       },
 
-      select: {
-        id: true,
-        publicId: true,
-        type: true,
-        status: true,
-        subtotal: true,
-        deliveryPrice: true,
-        total: true,
-        createdAt: true,
-
-        items: {
-          select: {
-            id: true,
-            productName: true,
-            qty: true,
-            total: true,
-          },
-        },
-      },
+      select: orderCreatedSelect,
     });
+
+    if (load.showScheduledOffer && mode === 'ASAP')
+      await telegramEvent(db, { orderId: order.id, type: 'QUEUE_DELAY', dedupeKey: `queue-delay:${order.id}` });
 
     return {
       order,
       guestToken: newGuestToken,
+      created: true,
     };
   }
 
@@ -191,6 +259,8 @@ export class OrderService {
           publicId: true,
           type: true,
           status: true,
+          fulfillmentMode: true,
+          scheduledFor: true,
           total: true,
           finalTotal: true,
           subtotal: true,
@@ -232,6 +302,8 @@ export class OrderService {
         publicId: true,
         type: true,
         status: true,
+        fulfillmentMode: true,
+        scheduledFor: true,
         total: true,
         finalTotal: true,
         subtotal: true,
@@ -327,6 +399,9 @@ export class OrderService {
         publicId: true,
         type: true,
         status: true,
+        fulfillmentMode: true,
+        scheduledFor: true,
+        assemblyStartedAt: true,
 
         customerName: true,
         customerPhone: true,
@@ -400,6 +475,8 @@ export class OrderService {
 
     return {
       ...order,
+      queue: order.status === 'NEW' || order.status === 'CONFIRMED'
+        ? await this.queue.publicView(order.id) : null,
       extras: order.extras,
       paymentDetails:
         order.assemblyFinalizedAt && order.status !== 'CANCELED'

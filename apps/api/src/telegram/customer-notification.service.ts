@@ -10,13 +10,14 @@ export type CustomerNotice = {
   order: { id: number; publicId: string; finalSubtotal: number | null; finalTotal: number | null; delivery: { status: DeliveryStatus } | null };
   issue: Pick<OrderIssue, 'type'> | null;
   message: { text: string } | null;
+  queue?: { position: number | null; wait: { min: number; max: number } | null } | null;
 };
 @Injectable()
 export class CustomerNotificationService {
   get available() { return Boolean(customerBotToken()) && customerWebhookReady(); }
 
   async send(chatId: string, notice: CustomerNotice) {
-    const { event, order, issue, message } = notice;
+    const { event, order, issue, message, queue } = notice;
     const headings = {
       ORDER_CONFIRMED: 'Заказ подтверждён',
       ASSEMBLY_STARTED: 'Началась сборка заказа',
@@ -28,10 +29,17 @@ export class CustomerNotificationService {
       ORDER_CANCELED: 'Заказ отменён',
       CHAT_MESSAGE: 'Новое сообщение от продавца',
       ITEM_PRICE_CHANGED: 'Цена товара изменена',
+      QUEUE_DELAY: 'Сейчас высокая загрузка',
+      ASSEMBLY_SOON: 'Скоро начнём сборку',
     };
     const text = 'Заказ №' + order.id + '\n' + headings[event.type] +
       (event.type === 'PAYMENT_READY' ? '\nТовары: ' + amount(order.finalSubtotal) + '\nИтого: ' + amount(order.finalTotal) : '') +
-      (event.type === 'CHAT_MESSAGE' && message ? '\n\n' + (message.text || '📷 Фото по заказу') :
+      (event.type === 'QUEUE_DELAY' ?
+        `\n${queue?.position ? `Вы примерно ${queue.position}-й в очереди.\n` : ''}` +
+        `${queue?.wait ? `Ориентировочное начало сборки через ${queue.wait.min}–${queue.wait.max} мин.\n` : ''}` +
+        'Можно подождать или выбрать удобное время в заказе.' :
+        event.type === 'ASSEMBLY_SOON' ? '\nПроверьте заказ: сборка начнётся в ближайшее время.' :
+        event.type === 'CHAT_MESSAGE' && message ? '\n\n' + (message.text || '📷 Фото по заказу') :
         event.type === 'ACTION_REQUIRED' ? '\n\n' + (message?.text ?? 'Откройте вопрос, чтобы проверить товар и выбрать действие.') : '');
     const url = webAppUrl('/order/' + order.publicId);
     const rows: Button[][] = [

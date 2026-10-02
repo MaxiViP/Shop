@@ -29,10 +29,11 @@
     </nav>
 
     <div v-if="visibleOrders.length" class="queue__list">
-      <article
+        <article
         v-for="order in visibleOrders"
         :key="order.id"
         class="order-card"
+        :class="{ 'order-card--scheduled': order.fulfillmentMode === 'SCHEDULED' }"
         role="link"
         tabindex="0"
         :aria-label="`Открыть заказ №${order.id}`"
@@ -57,6 +58,8 @@
           <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_CUSTOMER')" color="warning">Нужен ответ покупателя</UBadge>
           <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_SELLER')" color="error">Нужно действие продавца</UBadge>
           <UBadge v-if="order.staffUnread" color="info">Обновлений в чате: {{ order.staffUnread }}</UBadge>
+          <UBadge v-if="order.queueRank === 1 && ['NEW', 'CONFIRMED'].includes(order.status)" color="primary">Следующий к сборке</UBadge>
+          <UBadge v-if="order.fulfillmentMode === 'SCHEDULED'" :color="due(order) ? 'warning' : 'info'">К {{ slotTime(order.scheduledFor!) }} · {{ due(order) ? 'пора собирать' : 'по расписанию' }}</UBadge>
           <UButton
             v-if="order.staffUnread"
             :to="`/staff/orders/${order.id}#order-chat`"
@@ -67,7 +70,7 @@
         </header>
 
         <div class="order-card__meta">
-          <UBadge v-if="order.type === 'PICKUP' && order.deliveryAt === null && ['NEW', 'CONFIRMED', 'ASSEMBLING'].includes(order.status)" color="info" variant="soft">Собирать сразу</UBadge>
+          <UBadge v-if="order.fulfillmentMode === 'ASAP' && ['NEW', 'CONFIRMED', 'ASSEMBLING'].includes(order.status)" color="info" variant="soft">Как можно скорее</UBadge>
           <UBadge color="neutral" variant="soft">
             {{ order.type === 'DELIVERY' ? 'Доставка' : 'Самовывоз' }}
           </UBadge>
@@ -88,9 +91,9 @@
         <dl class="order-card__details">
           <div v-if="order.payment"><dt>Оплата товаров</dt><dd>{{ paymentLabels[order.payment.status] }} · {{ knownMoney(order.payment.amount) }}</dd></div>
           <div>
-            <dt>{{ order.type === 'PICKUP' ? 'Самовывоз' : 'Желаемое время' }}</dt>
+            <dt>{{ order.fulfillmentMode === 'SCHEDULED' ? 'Подготовить к' : order.type === 'PICKUP' ? 'Самовывоз' : 'Желаемое время' }}</dt>
             <dd>
-              {{ order.type === 'PICKUP' ? (order.deliveryAt ? `К ${pickupTime(order.deliveryAt)} (МСК)` : 'Собирать сразу') : (order.deliveryAt ? date(order.deliveryAt) : 'Не указано') }}
+              {{ order.scheduledFor ? `${slotTime(order.scheduledFor)} (МСК)` : order.type === 'PICKUP' ? 'Собирать сразу' : order.deliveryAt ? date(order.deliveryAt) : 'Не указано' }}
             </dd>
           </div>
 
@@ -141,7 +144,7 @@
             v-if="order.status === 'CONFIRMED'"
             size="lg"
             :loading="loading === key(order.id, 'assembly')"
-            :disabled="busy(order.id)"
+            :disabled="busy(order.id) || (order.fulfillmentMode === 'SCHEDULED' && !due(order))"
             @click="startAssembly(order.id)"
           >
             Начать сборку
@@ -220,7 +223,6 @@ import { deliveryStatus } from '~/utils/delivery'
 import { isActiveOrder } from '~/utils/order'
 import { knownMoney } from '~/utils/money'
 import { compareQueue } from '~/utils/queue'
-import { pickupTime } from '~/utils/pickup'
 import { cardClickNavigates, cardKeyNavigates } from '~/utils/order-card'
 import { staffTabs, staffTab, tabForStatus } from '~/utils/staff-tabs'
 
@@ -257,6 +259,16 @@ async function setTab(tab: string) {
 const loading = ref<string | null>(null)
 
 const orders = computed(() => data.value ?? [])
+const clock = ref(Date.now())
+let timer: ReturnType<typeof setInterval> | undefined
+onMounted(() => { timer = setInterval(() => { clock.value = Date.now(); void refresh() }, 30_000) })
+onBeforeUnmount(() => { if (timer) clearInterval(timer) })
+const slotTime = (value: string) => new Date(value).toLocaleString('ru-RU', {
+  timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+})
+function due(order: StaffOrder) {
+  return !!order.scheduledFor && Date.parse(order.scheduledFor) - order.preparationMinutes * 60_000 <= clock.value
+}
 
 const activeCount = computed(
   () => orders.value.filter((order) => isActiveOrder(order.status)).length,
@@ -457,6 +469,9 @@ useSeoMeta({
   border-radius: 1rem;
   cursor: pointer;
   transition: border-color 0.18s, background-color 0.18s, transform 0.18s;
+}
+.order-card--scheduled {
+  border-color: color-mix(in srgb, var(--ui-info) 45%, var(--ui-border));
 }
 
 .order-card:hover,

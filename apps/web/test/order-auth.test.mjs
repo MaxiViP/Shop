@@ -46,6 +46,7 @@ async function page({ user = null, response = null, failure = null, afterLogin =
       calls.push(path);
       return { data, error: apiError, refresh };
     },
+    useApiClient: () => async () => { throw new Error("Unexpected mutation"); },
     createError: value => value,
     showError: value => { shownError = value; },
     onMounted: fn => { mounted = fn; },

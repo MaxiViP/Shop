@@ -212,6 +212,11 @@ enum OrderStatus {
   CANCELED
 }
 
+enum FulfillmentMode {
+  ASAP
+  SCHEDULED
+}
+
 enum DeliveryProvider {
   YANDEX
   OTHER
@@ -232,8 +237,12 @@ model Order {
   publicId      String              @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
   type                OrderType
-  status              OrderStatus   @default(NEW)
-  weightToleranceBps  Int           @default(1000)
+  status              OrderStatus     @default(NEW)
+  fulfillmentMode     FulfillmentMode @default(ASAP)
+  scheduledFor        DateTime?
+  assemblyStartedAt   DateTime?
+  checkoutRequestId   String?         @unique @db.Uuid
+  weightToleranceBps  Int             @default(1000)
   assemblyFinalizedAt DateTime?
   completedAt         DateTime?
   payment             OrderPayment?
@@ -290,6 +299,8 @@ model Order {
   @@index([status])
   @@index([createdAt])
   @@index([status, completedAt])
+  @@index([fulfillmentMode, status, scheduledFor])
+  @@index([assemblyFinalizedAt, assemblyStartedAt])
 }
 
 enum ExtraStatus {
@@ -456,19 +467,27 @@ model Favorite {
 }
 
 model ShopSettings {
-  minDeliverySubtotal     Int      @default(300000)
-  maxOrderExtraUnitPrice  Int      @default(500000)
-  maxOrderExtrasTotal     Int      @default(1000000)
-  deliveryEnabled         Boolean  @default(true)
-  pickupEnabled           Boolean  @default(true)
-  partner1Name            String   @default("Партнёр 1") @db.VarChar(80)
-  partner2Name            String   @default("Партнёр 2") @db.VarChar(80)
-  id                      Int      @id @default(1)
-  weightToleranceBps      Int      @default(1000)
-  customerResponseMinutes Int      @default(10)
-  updatedAt               DateTime @updatedAt
+  minDeliverySubtotal     Int       @default(300000)
+  maxOrderExtraUnitPrice  Int       @default(500000)
+  maxOrderExtrasTotal     Int       @default(1000000)
+  deliveryEnabled         Boolean   @default(true)
+  pickupEnabled           Boolean   @default(true)
+  partner1Name            String    @default("Партнёр 1") @db.VarChar(80)
+  partner2Name            String    @default("Партнёр 2") @db.VarChar(80)
+  id                      Int       @id @default(1)
+  weightToleranceBps      Int       @default(1000)
+  customerResponseMinutes Int       @default(10)
+  queueThreshold          Int       @default(4)
+  assemblyFallbackMinutes Int       @default(25)
+  assemblyConcurrency     Int       @default(1)
+  peakModeEnabled         Boolean   @default(false)
+  peakModeStart           DateTime?
+  peakModeEnd             DateTime?
+  slotIntervalMinutes     Int       @default(30)
+  slotCapacity            Int       @default(1)
+  updatedAt               DateTime  @updatedAt
   updatedById             Int?
-  updatedBy               User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedBy               User?     @relation(fields: [updatedById], references: [id], onDelete: SetNull)
 }
 
 model ShopHours {
@@ -686,6 +705,8 @@ model OrderChatImageRevision {
 }
 
 enum NotificationType {
+  QUEUE_DELAY
+  ASSEMBLY_SOON
   ACTION_REQUIRED
   PAYMENT_READY
   ORDER_CONFIRMED

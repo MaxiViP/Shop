@@ -26,14 +26,20 @@ import type { ExtraInput } from './extra.js';
 import { extraLimits } from '../order/limits.js';
 import { assertStaffActor, recordStaffAudit, type StaffActor } from './audit.js';
 import { adminPriceRecipients } from './price.js';
+import { QueueService } from '../order/queue.js';
 
 
 @Injectable()
 export class StaffService {
   private readonly logger = new Logger(StaffService.name);
-  constructor(private readonly db: DbService, private readonly notifications: NotificationService) {}
+  private readonly queue: QueueService;
+  constructor(private readonly db: DbService, private readonly notifications: NotificationService) {
+    this.queue = new QueueService(db);
+  }
 
   async list(status?: OrderStatus) {
+    const queue = await this.queue.snapshot();
+    const rank = new Map(queue.queue.map((row, index) => [row.id, index + 1]));
     const orders = await this.db.order.findMany({
       where: status ? { status } : undefined,
       select: {
@@ -43,6 +49,8 @@ export class StaffService {
         publicId: true,
         type: true,
         status: true,
+        fulfillmentMode: true,
+        scheduledFor: true,
         issues: issueSummary,
         staffUnread: true,
 
@@ -85,7 +93,9 @@ export class StaffService {
         createdAt: 'desc',
       },
     });
-    return orders.map(order => ({ ...order, restoreProblem: restoreProblem(order, order.cancellations[0]) }));
+    return orders.map(order => ({ ...order, queueRank: rank.get(order.id) ?? null,
+      preparationMinutes: queue.minutes,
+      restoreProblem: restoreProblem(order, order.cancellations[0]) }));
   }
 
   async newSummary() {
@@ -123,6 +133,9 @@ export class StaffService {
         publicId: true,
         type: true,
         status: true,
+        fulfillmentMode: true,
+        scheduledFor: true,
+        assemblyStartedAt: true,
 
         customerName: true,
         customerPhone: true,
@@ -199,7 +212,9 @@ export class StaffService {
       throw new NotFoundException('Заказ не найден');
     }
 
-    return { ...order, restoreProblem: restoreProblem(order, order.cancellations[0]) };
+    const preparationMinutes = (await this.queue.snapshot()).minutes;
+    return { ...order, preparationMinutes,
+      restoreProblem: restoreProblem(order, order.cancellations[0]) };
   }
 
   async item(orderId: number, itemId: number, data: ItemInput, userId: number | null = null, actor?: StaffActor) {
@@ -617,7 +632,16 @@ export class StaffService {
   async restore(id: number, userId: number, role: UserRole, cancellationId: number, actor?: StaffActor) {
     assertStaffActor(actor, userId, role);
     const saved = await this.db.$transaction(async db => {
-      await this.lockedOrder(db, id);
+      // Match checkout/reschedule lock order before reactivating a released slot.
+      await db.$queryRaw`SELECT id FROM "ShopSettings" WHERE id = 1 FOR UPDATE`;
+      const order = await this.lockedOrder(db, id);
+      if (order.status === 'CANCELED' && order.fulfillmentMode === 'SCHEDULED' && order.scheduledFor) {
+        const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
+        const booked = await db.order.count({ where: { fulfillmentMode: 'SCHEDULED',
+          scheduledFor: order.scheduledFor, status: { notIn: ['COMPLETED', 'CANCELED'] } } });
+        if (booked >= settings.slotCapacity)
+          throw new ConflictException('Время подготовки уже занято. Восстановление сейчас недоступно.');
+      }
       const saved = await restoreOrder(db, id, userId, role, cancellationId);
       await recordStaffAudit(db, id, actor, 'RESTORE');
       return saved;
@@ -826,9 +850,17 @@ export class StaffService {
 
       if (next === 'COMPLETED') requirePaid(order);
 
+      if (next === 'ASSEMBLING' && order.fulfillmentMode === 'SCHEDULED' && order.scheduledFor) {
+        const load = await this.queue.snapshot(db);
+        if (order.scheduledFor.getTime() - load.minutes * 60_000 > Date.now())
+          throw new ConflictException('К этому заказу ещё рано приступать. Время начала видно в очереди.');
+      }
+
       const saved = await db.order.update({
         where: { id },
-        data: { status: next, ...(next === 'COMPLETED' ? { completedAt: new Date() } : {}) },
+        data: { status: next,
+          ...(next === 'ASSEMBLING' ? { assemblyStartedAt: new Date() } : {}),
+          ...(next === 'COMPLETED' ? { completedAt: new Date() } : {}) },
       });
       await message(db, id, next === 'CONFIRMED' ? 'Заказ подтверждён.' : next === 'ASSEMBLING' ? 'Началась сборка заказа.' : 'Заказ выдан. Спасибо за покупку!',
         'SYSTEM', actor?.userId ?? null, null, 'customer', next === 'CONFIRMED' ? 'ORDER_CONFIRMED' : next === 'ASSEMBLING' ? 'ASSEMBLY_STARTED' : 'ORDER_COMPLETED');
@@ -859,6 +891,8 @@ export class StaffService {
         id: true,
         type: true,
         status: true,
+        fulfillmentMode: true,
+        scheduledFor: true,
         deliveryPrice: true,
         subtotal: true,
         finalSubtotal: true,

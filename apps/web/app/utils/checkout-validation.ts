@@ -1,4 +1,3 @@
-import { pickupDate } from "./pickup.ts";
 
 export type CheckoutField = "name" | "phone" | "city" | "street" | "house" | "deliveryAt";
 export type CheckoutErrors = Record<CheckoutField, string>;
@@ -35,15 +34,13 @@ export function checkoutErrors(
     if (!recipient.city.trim()) errors.city = "Введите город";
     if (!recipient.street.trim()) errors.street = "Введите улицу";
     if (!recipient.house.trim()) errors.house = "Введите дом";
-  } else if (selection.pickupTiming === "scheduled") {
-    const date = pickupDate(selection.pickupAt);
-    if (!date || date.getTime() <= now)
-      errors.deliveryAt = "Укажите дату и время в будущем";
   }
+  if (selection.pickupTiming === "scheduled" &&
+    (!Number.isFinite(Date.parse(selection.pickupAt)) || Date.parse(selection.pickupAt) <= now))
+    errors.deliveryAt = "Выберите доступное время подготовки";
   return errors;
 }
 
 export const checkoutFieldOrder: CheckoutField[] = [
   "name", "phone", "city", "street", "house", "deliveryAt",
 ];
-

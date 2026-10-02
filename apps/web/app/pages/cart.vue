@@ -288,46 +288,25 @@
         <section v-else class="section">
           <h2 class="section__title">Самовывоз</h2>
           <OrderPickupPoint />
-          <fieldset class="pickup-time">
-            <legend class="section__title">Когда подготовить?</legend>
-            <label class="pickup-time__option">
-              <input
-                v-model="form.pickupTiming"
-                type="radio"
-                value="asap"
-                name="pickup-timing"
-              >
-              <span>Начать собирать сразу</span>
-            </label>
-            <p v-if="form.pickupTiming === 'asap'" class="section__hint">
-              Начнём подготовку заказа сразу после его принятия.
-            </p>
-            <label class="pickup-time__option">
-              <input
-                v-model="form.pickupTiming"
-                type="radio"
-                value="scheduled"
-                name="pickup-timing"
-              >
-              <span>Ко времени</span>
-            </label>
-            <UFormField
-              v-if="form.pickupTiming === 'scheduled'"
-              label="Дата и время (Москва)"
-              :error="errors.deliveryAt"
-              class="form__field"
-              data-checkout-field="deliveryAt"
-              :class="fieldClass('deliveryAt')"
-              required
-            >
-              <UInput
-                v-model="form.pickupAt"
-                type="datetime-local"
-                :aria-invalid="Boolean(errors.deliveryAt)"
-                size="lg"
-              />
-            </UFormField>
-          </fieldset>
+        </section>
+
+        <section v-if="queueOffer?.showScheduledOffer" class="section queue-offer">
+          <h2 class="section__title">Сейчас высокая загрузка</h2>
+          <p>Вы примерно {{ queueOffer.position }}-й в очереди. Ориентировочное начало сборки через {{ queueOffer.wait?.min }}–{{ queueOffer.wait?.max }} минут.</p>
+          <p class="section__hint">{{ queueOffer.slots.length ? 'Можете подождать или выбрать удобное время подготовки.' : 'Свободных слотов сейчас нет, заказ можно оставить в обычной очереди.' }} Время ориентировочное.</p>
+          <div class="queue-offer__actions" role="group" aria-label="Время подготовки">
+            <UButton type="button" :variant="form.pickupTiming === 'asap' ? 'solid' : 'soft'" @click="form.pickupTiming = 'asap'">Оставить как есть</UButton>
+            <UButton type="button" :variant="form.pickupTiming === 'scheduled' ? 'solid' : 'soft'" :disabled="!queueOffer.slots.length" @click="form.pickupTiming = 'scheduled'">Выбрать время</UButton>
+          </div>
+          <UFormField
+            v-if="form.pickupTiming === 'scheduled'" label="Подготовить к (Москва)"
+            :error="errors.deliveryAt" class="form__field" data-checkout-field="deliveryAt"
+            :class="fieldClass('deliveryAt')" required>
+            <select v-model="form.pickupAt" class="queue-offer__select" :aria-invalid="Boolean(errors.deliveryAt)">
+              <option value="">Выберите доступное время</option>
+              <option v-for="slot in queueOffer.slots" :key="slot.at" :value="slot.at">{{ slotLabel(slot.at) }}</option>
+            </select>
+          </UFormField>
         </section>
 
         <section class="section">
@@ -398,11 +377,10 @@
 <script setup lang="ts">
 import type { CartItem, ServerCartSnapshot } from "~/utils/cart";
 import type { Address } from "~/types/address";
-import type { OrderCreated, OrderType } from "~/types/order";
+import type { OrderCreated, OrderType, QueueOffer } from "~/types/order";
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
-import { pickupDate } from "~/utils/pickup";
 import { recipientDefaults, recipientDraft } from "~/utils/checkout-recipient";
 import { checkoutErrors, checkoutFieldOrder, type CheckoutField } from "~/utils/checkout-validation";
 import type { OrderPhone, OrderPhoneSnapshot } from "~/types/order-phone";
@@ -415,6 +393,7 @@ const {
   error: settingsError,
   refresh: refreshSettings,
 } = await useApi<PublicShopSettings>("/shop/settings");
+const { data: queueOffer, refresh: refreshQueueOffer } = await useApi<QueueOffer>("/orders/queue/offer");
 
 const auth = useAuthStore();
 const cart = useCartStore();
@@ -480,6 +459,21 @@ const form = reactive({
   pickupTiming: "asap",
   pickupAt: "",
 });
+const checkoutRequestId = ref<string | null>(null);
+const requestQuoteToken = ref<string | null>(null);
+watch(() => cart.quote?.token, token => {
+  if (requestQuoteToken.value && token !== requestQuoteToken.value) {
+    checkoutRequestId.value = null;
+    requestQuoteToken.value = null;
+  }
+});
+watch(queueOffer, offer => {
+  if (!offer?.showScheduledOffer) { form.pickupTiming = 'asap'; form.pickupAt = ''; }
+  else if (form.pickupAt && !offer.slots.some(slot => slot.at === form.pickupAt)) form.pickupAt = '';
+});
+const slotLabel = (value: string) => new Date(value).toLocaleString('ru-RU', {
+  timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+});
 const recipientMode = ref<"self" | "other">("self");
 const defaults = recipientDefaults(auth.user, name.value);
 const self = reactive(recipientDraft(defaults.name, defaults.phone, "Москва"));
@@ -543,7 +537,7 @@ async function clearCart() {
     notice.show({ target: 'cart', text: 'Корзина очищена' });
 }
 async function retryQuote() {
-  await Promise.all([refreshQuote(), refreshSettings()]);
+  await Promise.all([refreshQuote(), refreshSettings(), refreshQueueOffer()]);
 }
 watch(
   eligibility,
@@ -699,11 +693,15 @@ async function submit() {
   try {
     const previousToken = cart.quote?.token;
     const requestedType = form.type;
-    const [refreshed] = await Promise.all([refreshQuote(), refreshSettings()]);
+    const requestedTiming = form.pickupTiming;
+    const requestedSlot = form.pickupAt;
+    const [refreshed] = await Promise.all([refreshQuote(), refreshSettings(), refreshQueueOffer()]);
     if (!refreshed || settingsError.value || !cart.quote?.valid) return;
     if (
       previousToken !== cart.quote.token ||
       requestedType !== form.type ||
+      requestedTiming !== form.pickupTiming ||
+      requestedSlot !== form.pickupAt ||
       !(form.type === "DELIVERY"
         ? eligibility.value?.delivery
         : eligibility.value?.pickup)
@@ -716,10 +714,9 @@ async function submit() {
     const body = {
       type: form.type,
       quoteToken: cart.quote.token ?? undefined,
-      deliveryAt:
-        form.type === "PICKUP" && form.pickupTiming === "scheduled"
-          ? pickupDate(form.pickupAt)?.toISOString()
-          : undefined,
+      fulfillmentMode: form.pickupTiming === 'scheduled' ? 'SCHEDULED' : 'ASAP',
+      scheduledFor: form.pickupTiming === 'scheduled' ? form.pickupAt : undefined,
+      checkoutRequestId: checkoutRequestId.value ?? crypto.randomUUID(),
       customerName: recipientData.name.trim(),
       customerPhone: recipientData.phone.trim(),
       address: form.type === "DELIVERY"
@@ -735,6 +732,8 @@ async function submit() {
           }
         : undefined,
     };
+    checkoutRequestId.value = body.checkoutRequestId;
+    requestQuoteToken.value = body.quoteToken ?? null;
     let order: OrderCreated;
     if (cart.mode === "server") {
       const userId = auth.user?.id;
@@ -747,6 +746,7 @@ async function submit() {
       cart.applyServer(result.cart, userId);
       order = result.order;
     } else {
+      await api('/orders/checkout-session', { method: 'POST' });
       order = await api<OrderCreated>("/orders", {
         method: "POST",
         body: {
@@ -959,19 +959,24 @@ useSeoMeta({
   outline-offset: 2px;
 }
 
-.pickup-time {
-  display: grid;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-  min-width: 0;
+.queue-offer {
+  border-color: color-mix(in srgb, var(--ui-primary) 45%, var(--ui-border));
+  background: color-mix(in srgb, var(--ui-primary) 7%, var(--ui-bg));
 }
 
-.pickup-time__option {
+.queue-offer__actions {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+.queue-offer__select {
+  width: 100%;
   min-height: var(--touch-target);
-  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--ui-border);
+  border-radius: 0.5rem;
+  background: var(--ui-bg);
 }
 
 .checkout__head {

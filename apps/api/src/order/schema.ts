@@ -27,6 +27,9 @@ export const orderSchema = z
     address: addressSchema.optional(),
 
     deliveryAt: z.string().datetime().optional(),
+    fulfillmentMode: z.enum(['ASAP', 'SCHEDULED']).optional(),
+    scheduledFor: z.string().datetime().optional(),
+    checkoutRequestId: z.uuid().optional(),
 
     quoteToken: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 
@@ -42,6 +45,10 @@ export const orderSchema = z
       .max(50),
   })
   .superRefine((data, ctx) => {
+    if ((data.fulfillmentMode === 'SCHEDULED') !== Boolean(data.scheduledFor))
+      ctx.addIssue({ code: 'custom', path: ['scheduledFor'], message: 'Выберите время подготовки заказа' });
+    if (data.type === 'PICKUP' && data.deliveryAt)
+      ctx.addIssue({ code: 'custom', path: ['deliveryAt'], message: 'Для самовывоза выберите время подготовки заказа' });
     if (
       data.deliveryAt !== undefined &&
       (!Number.isFinite(Date.parse(data.deliveryAt)) ||

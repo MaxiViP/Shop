@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { compareQueue } from '../app/utils/queue.ts'
 import { pickupDate, pickupTime } from '../app/utils/pickup.ts'
 
@@ -21,4 +22,19 @@ test('pickup input is Moscow time and invalid calendar dates are rejected', () =
     assert.equal(pickupDate(value), null)
   }
   assert.match(pickupTime('2099-09-05T15:30:00.000Z'), /18:30/)
+})
+
+test('staff queue follows backend rank and flags a scheduled order only when preparation is due', async () => {
+  const base = { type: 'PICKUP', deliveryAt: null, createdAt: '2026-10-02T09:00:00Z' }
+  const orders = [
+    { ...base, id: 1, status: 'NEW', queueRank: 2 },
+    { ...base, id: 2, status: 'CONFIRMED', queueRank: null, scheduledFor: '2026-10-03T12:00:00Z' },
+    { ...base, id: 3, status: 'CONFIRMED', queueRank: 1, scheduledFor: '2026-10-02T10:00:00Z' },
+    { ...base, id: 4, status: 'ASSEMBLING', queueRank: null },
+  ]
+  assert.deepEqual(orders.sort(compareQueue).map(order => order.id), [4, 3, 1, 2])
+  const queue = await readFile(new URL('../app/pages/staff/orders/index.vue', import.meta.url), 'utf8')
+  assert.match(queue, /order\.queueRank === 1/)
+  assert.match(queue, /order\.fulfillmentMode === 'SCHEDULED' && !due\(order\)/)
+  assert.match(queue, /timer = setInterval\(\(\) => \{ clock\.value = Date\.now\(\); void refresh\(\) \}, 30_000\)/)
 })

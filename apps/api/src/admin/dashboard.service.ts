@@ -3,12 +3,14 @@ import { DbService } from '../db/db.service.js';
 import { FinanceService } from './finance.service.js';
 import { ScheduleService } from './schedule.service.js';
 import { addDays, localInstant, moscowDay } from './shop-hours.js';
+import { QueueService } from '../order/queue.js';
 @Injectable()
 export class DashboardService {
+  private readonly queue: QueueService;
   constructor(private readonly db: DbService, private readonly finance: FinanceService,
-    private readonly schedule: ScheduleService) {}
+    private readonly schedule: ScheduleService) { this.queue = new QueueService(db); }
   async get() {
-    const [today, week, market, statuses, latest, upcomingException, ordersToday] = await Promise.all([
+    const [today, week, market, statuses, latest, upcomingException, ordersToday, load] = await Promise.all([
       this.finance.report({ period: 'today' }),
       this.finance.report({ period: 'week' }),
       this.schedule.status(),
@@ -21,7 +23,12 @@ export class DashboardService {
         orderBy: { date: 'asc' } }),
       this.db.order.count({ where: { createdAt: { gte: localInstant(moscowDay(new Date()), 0),
         lt: localInstant(addDays(moscowDay(new Date()), 1), 0) } } }),
+      this.queue.publicView(undefined, this.db, new Date(), true, true, true),
     ]);
-    return { today, ordersToday, week: week.days, market, statuses, latest, upcomingException };
+    const scheduledOrders = await this.db.order.count({ where: {
+      fulfillmentMode: 'SCHEDULED', status: { in: ['NEW', 'CONFIRMED'] },
+    } });
+    return { today, ordersToday, week: week.days, market, statuses, latest, upcomingException,
+      queue: { ...load, scheduledOrders } };
   }
 }
