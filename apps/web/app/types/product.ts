@@ -35,6 +35,8 @@ export interface Product extends ProductListItem {
 }
 
 export interface ProductListResponse {
+  currentCategory?: { slug: string; name: string } | null;
+  groupTotals?: { current: number; others: number };
   items: ProductListItem[];
   total: number;
   page: number;

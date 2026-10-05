@@ -50,6 +50,10 @@
             />
           </UFormField>
 
+          <UFormField label="Корпус / строение">
+            <UInput v-model="form.buildingPart" placeholder="к. 2 или стр. 1" maxlength="50" size="lg" />
+          </UFormField>
+
           <UFormField label="Квартира">
             <UInput
               v-model="form.flat"
@@ -147,6 +151,7 @@ const form = reactive({
   city: 'Москва',
   street: '',
   house: '',
+  buildingPart: '',
   flat: '',
   entrance: '',
   floor: '',
@@ -176,6 +181,7 @@ function fill() {
   form.city = address?.city ?? 'Москва'
   form.street = address?.street ?? ''
   form.house = address?.house ?? ''
+  form.buildingPart = address?.buildingPart ?? ''
   form.flat = address?.flat ?? ''
   form.entrance = address?.entrance ?? ''
   form.floor = address?.floor ?? ''
@@ -206,6 +212,7 @@ async function save() {
     city: form.city,
     street: form.street,
     house: form.house,
+    buildingPart: form.buildingPart.trim(),
 
     flat: form.flat || undefined,
     entrance: form.entrance || undefined,

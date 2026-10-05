@@ -5,9 +5,14 @@ import { ProductService } from './product.service.js';
 function setup(items: object[] = [], total = items.length) {
   const findMany = vi.fn().mockResolvedValue(items);
   const count = vi.fn().mockResolvedValue(total);
-  const db = {
+  const model = {
     product: { findMany, count },
-    $transaction: vi.fn((queries: Promise<unknown>[]) => Promise.all(queries)),
+    category: { findUnique: vi.fn().mockResolvedValue({ slug: 'fruits', name: 'Фрукты' }) },
+  };
+  const db = {
+    ...model,
+    $transaction: vi.fn((queries: Promise<unknown>[] | ((db: typeof model) => Promise<unknown>)) =>
+      typeof queries === 'function' ? queries(model) : Promise.all(queries)),
   } as unknown as DbService;
 
   return { count, findMany, service: new ProductService(db) };
@@ -56,7 +61,7 @@ describe('ProductService list', () => {
     );
   });
 
-  it('normalizes whitespace and combines category with search', async () => {
+  it('normalizes whitespace and searches both current and other categories', async () => {
     const { findMany, service } = setup();
 
     await service.list(query({ category: ' fruits ', q: '  спелый   плод  ' }));
@@ -78,14 +83,17 @@ describe('ProductService list', () => {
         }),
       }),
     );
+    expect(findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: expect.objectContaining({ category: { slug: { not: 'fruits' } } }),
+    }));
   });
 
   it.each([
-    ['recommended', [{ sort: 'asc' }, { name: 'asc' }]],
-    ['price_asc', [{ price: 'asc' }, { name: 'asc' }]],
-    ['price_desc', [{ price: 'desc' }, { name: 'asc' }]],
-    ['newest', [{ createdAt: 'desc' }, { name: 'asc' }]],
-    ['name', [{ name: 'asc' }]],
+    ['recommended', [{ sort: 'asc' }, { name: 'asc' }, { id: 'asc' }]],
+    ['price_asc', [{ price: 'asc' }, { name: 'asc' }, { id: 'asc' }]],
+    ['price_desc', [{ price: 'desc' }, { name: 'asc' }, { id: 'asc' }]],
+    ['newest', [{ createdAt: 'desc' }, { name: 'asc' }, { id: 'asc' }]],
+    ['name', [{ name: 'asc' }, { id: 'asc' }]],
   ] as const)('applies %s sorting', async (sort, orderBy) => {
     const { findMany, service } = setup();
 

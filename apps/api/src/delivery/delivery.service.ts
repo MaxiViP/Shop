@@ -1,3 +1,4 @@
+import { formatAddress } from '../common/address.js';
 import {
   BadGatewayException,
   BadRequestException,
@@ -730,7 +731,7 @@ export class DeliveryService {
         customerPhone: true,
         city: true,
         street: true,
-        house: true,
+        house: true, buildingPart: true,
         flat: true,
         entrance: true,
         floor: true,
@@ -793,10 +794,10 @@ export class DeliveryService {
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       address: {
-        fullname: [order.city, order.street, order.house].join(', '),
+        fullname: formatAddress(order, false),
         city: order.city,
         street: order.street,
-        building: order.house,
+        building: [order.house, order.buildingPart].filter(Boolean).join(', '),
         porch: order.entrance ?? undefined,
         floor: order.floor ?? undefined,
         flat: order.flat ?? undefined,

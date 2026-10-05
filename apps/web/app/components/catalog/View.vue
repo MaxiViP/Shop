@@ -69,7 +69,13 @@
     <template v-else>
       <p class="catalog__total">Найдено: {{ total }}</p>
 
-      <ProductGrid v-if="items.length" :items="items" />
+      <div v-if="groups.length" class="catalog__groups" aria-live="polite">
+        <section v-for="group in groups" :key="group.key" class="catalog__group">
+          <h2 class="catalog__group-title">{{ group.label }}</h2>
+          <ProductGrid :items="group.items" />
+        </section>
+      </div>
+      <ProductGrid v-else-if="items.length" :items="items" />
 
       <div v-else class="catalog__empty">
         <h2 class="catalog__empty-title">Ничего не найдено</h2>
@@ -102,10 +108,11 @@ const { title, category = undefined, categories } = defineProps<{
   categories: Category[];
 }>();
 
+const router = useRouter();
 const breadcrumbs = computed(() => [
   { label: "Главная", to: "/" },
-  { label: "Каталог", to: "/catalog" },
-  ...(category ? [{ label: title, to: '/catalog/' + encodeURIComponent(category) }] : []),
+  { label: "Каталог", to: router.resolve({ path: "/catalog", query: categoryQuery.value }).href },
+  ...(category ? [{ label: title, to: router.resolve({ path: '/catalog/' + encodeURIComponent(category), query: categoryQuery.value }).href }] : []),
 ]);
 
 const toast = useToast();
@@ -115,6 +122,7 @@ const {
   sort,
   categoryQuery,
   items,
+  groups,
   total,
   status,
   error,
@@ -139,6 +147,8 @@ async function showMore() {
 </script>
 
 <style scoped>
+.catalog__groups { display: grid; gap: 1.75rem; }
+.catalog__group-title { margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--ui-border); font-size: var(--section-title); font-weight: 700; }
 .catalog {
   min-width: 0;
   padding-block: var(--page-start) var(--page-end);

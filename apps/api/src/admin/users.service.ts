@@ -102,7 +102,7 @@ export class AdminUsersService {
             label: true,
             city: true,
             street: true,
-            house: true,
+            house: true, buildingPart: true,
             flat: true,
             entrance: true,
             floor: true,

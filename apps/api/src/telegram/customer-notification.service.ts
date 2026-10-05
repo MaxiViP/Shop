@@ -36,6 +36,8 @@ export class CustomerNotificationService {
       ITEM_PRICE_CHANGED: 'Цена товара изменена',
       QUEUE_DELAY: 'Сейчас высокая загрузка',
       ASSEMBLY_SOON: 'Скоро начнём сборку',
+      ORDER_STATUS_CHANGED: 'Статус заказа изменён',
+      SCHEDULE_CHANGED: 'Время подготовки изменено',
     };
     const text = 'Заказ №' + order.id + '\n' + headings[event.type] +
       (event.type === 'PAYMENT_READY' ? '\nТовары: ' + amount(order.finalSubtotal) + '\nИтого: ' + amount(order.finalTotal) : '') +

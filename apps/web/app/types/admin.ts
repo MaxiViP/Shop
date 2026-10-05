@@ -63,6 +63,7 @@ export interface AdminUserDetail extends Omit<AdminUser, "orders"> {
     city: string;
     street: string;
     house: string;
+  buildingPart?: string | null;
     flat: string | null;
     entrance: string | null;
     floor: string | null;

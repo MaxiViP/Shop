@@ -1,3 +1,4 @@
+import { formatAddress } from '../common/address.js';
 import type { StaffService } from '../staff/staff.service.js';
 import { clean, money, quantity, staffData } from './staff-bot.js';
 import { orderChatPath } from './chat-notice.js';
@@ -30,8 +31,7 @@ export function dashboard(order: OrderView, url?: string): { text: string; keybo
     order.type === 'PICKUP' ? 'Самовывоз' : 'Доставка',
   ];
   if (order.type === 'DELIVERY')
-    lines.push(clean([order.city, order.street, order.house, order.flat &&
-      'кв. ' + order.flat].filter(Boolean).join(', '), 200));
+    lines.push(clean(formatAddress(order), 200));
   if (order.comment) lines.push('Комментарий: ' + clean(order.comment, 300));
   lines.push('Товары: ' + money(order.subtotal), 'Доставка: ' + money(order.deliveryPrice),
     'Запрошено: ' + money(order.total));

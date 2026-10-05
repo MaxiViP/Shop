@@ -2,7 +2,7 @@ import { newOrderMessage, type TelegramOrder } from './message.js';
 
 const order: TelegramOrder = {
   id: 154, status: 'NEW', type: 'DELIVERY', customerName: 'Максим <&_*[]>', customerPhone: '+70000000000',
-  city: 'Москва', street: 'Рыночная', house: '1', flat: '2', entrance: '3',
+  city: 'Москва', street: 'Рыночная', house: '1', buildingPart: 'к. 2', flat: '2', entrance: '3',
   floor: '4', intercom: '5', comment: 'Позвонить <before> & [arrival]',
   deliveryAt: null, subtotal: 69000, deliveryPrice: null, total: null,
   items: [{ productName: 'Томаты', unit: 'GRAM', qty: 1000, total: 45000 }],
@@ -12,7 +12,7 @@ describe('Telegram new order text', () => {
   it('uses saved money, optional address details and plain user text', () => {
     const text = newOrderMessage(order);
     for (const part of ['Новый заказ #154', order.customerName, order.comment!,
-      'Москва, Рыночная, 1', 'Кв.: 2', 'Подъезд: 3', 'Этаж: 4', 'Домофон: 5',
+      'Москва, Рыночная, д. 1, к. 2', 'Кв.: 2', 'Подъезд: 3', 'Этаж: 4', 'Домофон: 5',
       'Томаты — 1 кг', '450 ₽', 'Товары: 690 ₽', 'Доставка: рассчитывается', 'Итого: уточняется']) {
       expect(text).toContain(part);
     }

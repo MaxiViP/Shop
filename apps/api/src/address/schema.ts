@@ -9,6 +9,7 @@ export const addressSchema = z.object({
   city: text(100),
   street: text(150),
   house: text(30),
+  buildingPart: optional(50),
 
   flat: optional(20),
   entrance: optional(20),

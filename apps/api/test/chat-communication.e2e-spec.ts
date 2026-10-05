@@ -46,7 +46,7 @@ describe.skipIf(!process.env.DATABASE_URL)('chat communication / local PostgreSQ
     request(app.getHttpServer()).post(`${path}/messages/${messageId}/revisions`).set('Cookie', cookie)
       .field('requestId', requestId).field('text', 'Вот этот')
       .attach('file', image, { filename: 'marked.png', contentType: 'image/png' });
-  const events = () => db.orderNotification.findMany({ where: { orderId: order.id }, orderBy: { id: 'asc' } });
+  const events = () => db.orderNotification.findMany({ where: { orderId: order.id, channel: { not: 'IN_APP' } }, orderBy: { id: 'asc' } });
   const sent = () => fetcher.mock.calls.map(([, options]) => JSON.parse(String(options?.body)) as {
     chat_id: string; text: string; reply_markup: { inline_keyboard: { text: string; url?: string; web_app?: { url: string } }[][] };
   });
@@ -247,6 +247,28 @@ describe.skipIf(!process.env.DATABASE_URL)('chat communication / local PostgreSQ
     expect(await events()).toHaveLength(3);
   });
 
+  it('in-app image revision events keep the original focus target and dedupe independently of Telegram', async () => {
+    const original = await photo(staffPath(), seller.cookie).expect(201); await settled();
+    await db.orderNotification.updateMany({ where: { channel: 'IN_APP' }, data: { seenAt: new Date() } });
+    const key = randomUUID();
+    for (let i = 0; i < 2; i++) await revise(customerPath(), customer.cookie, original.body.id, key).expect(201);
+    const customerFeed = await request(app.getHttpServer()).get('/api/notifications').set('Cookie', customer.cookie).expect(200);
+    expect(customerFeed.body.events).toEqual([]);
+    for (const staff of [seller, admin]) {
+      const feed = await request(app.getHttpServer()).get('/api/notifications').set('Cookie', staff.cookie).expect(200);
+      expect(feed.body.events).toHaveLength(1);
+      expect(feed.body.events[0]).toMatchObject({ kind: 'CHAT_IMAGE_REVISION',
+        to: `/staff/orders/${order.id}?chatMessage=${original.body.id}#order-chat` });
+    }
+    await revise(staffPath(), admin.cookie, original.body.id).expect(201);
+    const reverse = await request(app.getHttpServer()).get('/api/notifications').set('Cookie', customer.cookie).expect(200);
+    expect(reverse.body.events).toHaveLength(1);
+    expect(reverse.body.events[0]).toMatchObject({ kind: 'CHAT_IMAGE_REVISION',
+      to: `/order/${order.publicId}?chatMessage=${original.body.id}#order-chat` });
+    expect(await db.orderChatMessage.count()).toBe(1);
+    expect(await db.orderChatImageRevision.count()).toBe(3);
+  });
+
   it('loads an old exact message outside the initial 30 with the latest photo revision and protects access', async () => {
     const original = await photo(staffPath(), seller.cookie).expect(201); await settled();
     await revise(customerPath(), customer.cookie, original.body.id).expect(201);
@@ -270,5 +292,19 @@ describe.skipIf(!process.env.DATABASE_URL)('chat communication / local PostgreSQ
     const foreign = await db.order.create({ data: { type: 'PICKUP', customerName: 'Другой', customerPhone: '+79990000000', subtotal: 0 } });
     const message = await db.orderChatMessage.create({ data: { orderId: foreign.id, text: 'Private', authorType: 'CUSTOMER' } });
     await request(app.getHttpServer()).get(staffPath() + `/messages?around=${message.id}`).set('Cookie', seller.cookie).expect(404);
+  });
+
+  it('a staff revision of a CUSTOMER-authored photo is still a customer event, while its staff author gets none', async () => {
+    const original = await photo(customerPath(), customer.cookie).expect(201);
+    await db.orderNotification.updateMany({ where: { channel: 'IN_APP' }, data: { seenAt: new Date() } });
+    const key = randomUUID();
+    for (let i = 0; i < 2; i++) await revise(staffPath(), admin.cookie, original.body.id, key).expect(201);
+    const feed = await request(app.getHttpServer()).get('/api/notifications').set('Cookie', customer.cookie).expect(200);
+    expect(feed.body.events).toHaveLength(1);
+    expect(feed.body.events[0]).toMatchObject({ kind: 'CHAT_IMAGE_REVISION',
+      to: `/order/${order.publicId}?chatMessage=${original.body.id}#order-chat` });
+    const own = await request(app.getHttpServer()).get('/api/notifications').set('Cookie', admin.cookie).expect(200);
+    expect(own.body.events).toEqual([]);
+    expect(await db.orderChatMessage.count()).toBe(1);
   });
 });

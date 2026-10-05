@@ -309,7 +309,7 @@ test("recipient tabs retain independent drafts and other recipient owns no accou
   f.self.phone = "+79990000003";
   f.recipientMode.value = "other";
   Object.assign(f.other, { name: "Друг", phone: "+79990000004", city: "Москва",
-    street: "Новая", house: "7", flat: "3", entrance: "1", floor: "2",
+    street: "Новая", house: "7", buildingPart: "стр. 1", flat: "3", entrance: "1", floor: "2",
     intercom: "12", comment: "У двери" });
   await nextTick();
   assert.equal(f.recipient.value.name, "Друг");
@@ -324,7 +324,7 @@ test("recipient tabs retain independent drafts and other recipient owns no accou
   assert.equal(request.body.customerName, "Друг");
   assert.equal(request.body.customerPhone, "+79990000004");
   assert.deepEqual(request.body.address, {
-    city: "Москва", street: "Новая", house: "7", flat: "3",
+    city: "Москва", street: "Новая", house: "7", buildingPart: "стр. 1", flat: "3",
     entrance: "1", floor: "2", intercom: "12", comment: "У двери",
   });
   assert.equal(Object.hasOwn(request.body, "userId"), false);
@@ -345,6 +345,18 @@ test("pickup for another recipient sends no address; self edits do not mutate pr
   assert.equal(f.state.requests[0].body.customerName, "Pickup friend");
   assert.equal(f.state.requests[0].body.address, undefined);
   assert.deepEqual(f.user, account);
+});
+
+test("selecting a saved building part includes it in checkout; a legacy saved address clears it", async t => {
+  const f = await fixture(t, true);
+  assert.equal(f.self.buildingPart, "");
+  f.selectAddress({ ...f.address, buildingPart: "корпус 3" });
+  assert.equal(f.self.buildingPart, "корпус 3");
+  f.selectAddress(f.address);
+  assert.equal(f.self.buildingPart, "");
+  f.selectAddress({ ...f.address, buildingPart: "корпус 3" });
+  await f.submit();
+  assert.equal(f.state.requests[0].body.address.buildingPart, "корпус 3");
 });
 
 test("saved primary phone prefills self, selecting another saved phone stays order-only", async t => {

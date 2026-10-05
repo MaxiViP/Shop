@@ -32,8 +32,10 @@ export async function useCatalog(category?: string) {
   const page = ref(1);
   const items = ref<ProductListItem[]>([]);
   const total = ref(0);
+  const currentCategory = ref<ProductListResponse['currentCategory']>();
   const pages = ref(0);
   const loadingMore = ref(false);
+  let generation = 0;
   const sort = computed<ProductSort>({
     get: () => querySort(route.query.sort),
     set: (value) => {
@@ -69,15 +71,17 @@ export async function useCatalog(category?: string) {
   watch(
     () => `${q.value}\u0000${sort.value}`,
     async () => {
+      const current = ++generation;
       if (search.value !== q.value) search.value = q.value;
       page.value = 1;
       items.value = [];
       await refresh();
-      if (!error.value) apply(data.value);
+      if (current === generation && !error.value) apply(data.value);
     },
   );
 
   function apply(response: ProductListResponse) {
+    currentCategory.value = response.currentCategory;
     items.value = response.items;
     total.value = response.total;
     page.value = response.page;
@@ -134,6 +138,10 @@ export async function useCatalog(category?: string) {
   }
 
   return {
+    groups: computed(() => q.value && category ? [
+      { key: 'current', label: currentCategory.value?.name ?? category, items: items.value.filter(item => item.category.slug === category) },
+      { key: 'others', label: 'Везде', items: items.value.filter(item => item.category.slug !== category) },
+    ].filter(group => group.items.length) : []),
     search,
     q,
     sort,

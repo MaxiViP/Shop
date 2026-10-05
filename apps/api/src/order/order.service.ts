@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { phone } from '../common/phone.js';
+import { randomUUID } from 'node:crypto';
 import { DbService } from '../db/db.service.js';
 import { TelegramService } from '../telegram/telegram.service.js';
 import {
@@ -20,7 +21,7 @@ import { issueSummary, message } from './coordination.js';
 import { checkoutLimits } from './limits.js';
 import { assertMarketTime } from '../admin/shop-hours.js';
 import { QueueService } from './queue.js';
-import { telegramEvent } from './outbox.js';
+import { inAppEvent, telegramEvent } from './outbox.js';
 import {
   cartProductSelect,
   cartQuantities,
@@ -113,9 +114,16 @@ export class OrderService {
         throw new ConflictException('Время подготовки уже нельзя изменить');
       if (mode === 'SCHEDULED') await this.queue.reserve(db, at!, settings, now, order.id,
         order.fulfillmentMode === 'SCHEDULED');
-      return db.order.update({ where: { id: order.id }, data: {
+      const saved = await db.order.update({ where: { id: order.id }, data: {
         fulfillmentMode: mode, scheduledFor: mode === 'SCHEDULED' ? at : null,
       }, select: { fulfillmentMode: true, scheduledFor: true } });
+      const staff = await db.user.findMany({ where: { role: { in: ['SELLER', 'ADMIN'] },
+        ...(userId ? { id: { not: userId } } : {}) }, select: { id: true } });
+      const eventId = randomUUID();
+      for (const recipient of staff) await inAppEvent(db, { orderId: order.id, type: 'SCHEDULE_CHANGED',
+        dedupeKey: `schedule:${order.id}:${eventId}:${recipient.id}`,
+        eventData: { fulfillmentMode: mode, scheduledFor: saved.scheduledFor?.toISOString() ?? null } }, recipient.id);
+      return saved;
     });
   }
 
@@ -214,6 +222,7 @@ export class OrderService {
         city: address?.city,
         street: address?.street,
         house: address?.house,
+        buildingPart: address?.buildingPart || null,
         flat: address?.flat,
         entrance: address?.entrance,
         floor: address?.floor,
@@ -408,7 +417,7 @@ export class OrderService {
 
         city: true,
         street: true,
-        house: true,
+        house: true, buildingPart: true,
         flat: true,
         entrance: true,
         floor: true,
@@ -533,6 +542,12 @@ export class OrderService {
     // Only the first committed report signals staff; never retry on display failure.
     if (changedId !== undefined) void this.telegram.notifyPaymentReported(changedId);
     return result;
+  }
+
+  async customerOrders(userId: number | null, guestToken?: string): Promise<Prisma.OrderWhereInput | null> {
+    if (userId) return { userId };
+    const guestSessionId = await this.findGuest(guestToken);
+    return guestSessionId ? { guestSessionId } : null;
   }
 
   private async findGuest(token?: string, db: Prisma.TransactionClient = this.db) {

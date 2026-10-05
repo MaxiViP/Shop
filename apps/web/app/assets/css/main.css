@@ -49,6 +49,12 @@ fieldset {
   min-width: 0;
 }
 
+.order-toasts {
+  top: calc(var(--header-height) + max(0.5rem, var(--safe-top)));
+  left: max(0.5rem, var(--safe-left));
+  width: min(22rem, calc(100vw - max(0.5rem, var(--safe-left)) - max(0.5rem, var(--safe-right)) - 4.5rem));
+}
+
 h1,
 h2,
 h3 {
@@ -64,6 +70,17 @@ video {
 @media (min-width: 48rem) {
   :root {
     --header-height: 4.5rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 1024px) and (pointer: coarse) {
+  :root {
+    --header-height: 0rem;
+    --page-x: max(1rem, var(--safe-left), var(--safe-right));
+    --page-start: 0.5rem;
+    --page-end: 1rem;
+    --section-gap: 0.75rem;
+    --card-padding: 0.75rem;
   }
 }
 

@@ -5,6 +5,8 @@ import { TelegramModule } from '../telegram/telegram.module.js';
 import { CustomerNotificationService } from '../telegram/customer-notification.service.js';
 import { OrderCtrl } from './order.ctrl.js';
 import { OrderService } from './order.service.js';
+import { InAppCtrl } from './in-app.ctrl.js';
+import { InAppService } from './in-app.service.js';
 import { CoordinationService } from './coordination.service.js';
 import { ChatImagesService } from './chat-images.service.js';
 import { ChatTempCleanupInterceptor } from './chat-temp.interceptor.js';
@@ -15,8 +17,8 @@ import { NotificationService, OrderSmsProvider, DisabledOrderSms } from './notif
 @Module({
   imports: [AuthModule, DbModule, TelegramModule],
 
-  controllers: [OrderCtrl, CustomerCoordinationCtrl, StaffCoordinationCtrl],
-  providers: [OrderService, CoordinationService, ChatImagesService, ChatTempCleanupInterceptor, ChatCleanupService, NotificationService, CustomerNotificationService, { provide: OrderSmsProvider, useClass: DisabledOrderSms }],
+  controllers: [OrderCtrl, CustomerCoordinationCtrl, StaffCoordinationCtrl, InAppCtrl],
+  providers: [InAppService, OrderService, CoordinationService, ChatImagesService, ChatTempCleanupInterceptor, ChatCleanupService, NotificationService, CustomerNotificationService, { provide: OrderSmsProvider, useClass: DisabledOrderSms }],
   exports: [NotificationService, OrderService, CoordinationService],
 })
 export class OrderModule {}

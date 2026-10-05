@@ -180,6 +180,8 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
             case 'DELIVERY_CHANGED':
               valid = Boolean(order.delivery && !['CANCELED', 'COMPLETED'].includes(order.status));
               break;
+            case 'ORDER_STATUS_CHANGED':
+            case 'SCHEDULE_CHANGED':
             case 'ITEM_PRICE_CHANGED': valid = false; break;
           }
           if (event.recipientUserId)

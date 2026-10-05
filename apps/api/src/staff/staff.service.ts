@@ -18,7 +18,7 @@ import {
 } from '../order/pricing.js';
 import { checkIssues, syncIssue, issueSummary, compositionQty, compositionMoney } from '../order/coordination.js';
 import { cancelOrder, restoreOrder, restoreProblem, cancellationHistory } from '../order/cancel.js';
-import { telegramEvent } from '../order/outbox.js';
+import { inAppEvent, telegramEvent } from '../order/outbox.js';
 import { NotificationService } from '../order/notification.service.js';
 import { paymentSelect, requirePaid } from '../order/payment.js';
 import { message } from '../order/coordination.js';
@@ -59,7 +59,7 @@ export class StaffService {
 
         city: true,
         street: true,
-        house: true,
+        house: true, buildingPart: true,
 
         deliveryAt: true,
 
@@ -143,7 +143,7 @@ export class StaffService {
 
         city: true,
         street: true,
-        house: true,
+        house: true, buildingPart: true,
         flat: true,
         entrance: true,
         floor: true,
@@ -343,9 +343,11 @@ export class StaffService {
         reason, actorId: actor.userId,
       } });
       await recordStaffAudit(db, orderId, actor, 'ITEM_PRICE_CHANGE', 'ITEM', itemId);
-      await message(db, orderId,
+      const notice = await message(db, orderId,
         `${item.productName}: цена изменена ${compositionMoney(previousPrice)} → ${compositionMoney(data.price)} за ${compositionQty(item.priceQty, item.unit)}.`,
         'SYSTEM', actor.userId, null, 'customer', 'CHAT_MESSAGE');
+      await inAppEvent(db, { orderId, type: 'ITEM_PRICE_CHANGED', priceChangeId: change.id,
+        messageId: notice.id, dedupeKey: `message:${notice.id}` });
       const recipients = await adminPriceRecipients(db);
       if (recipients.length) await db.orderNotification.createMany({
         data: recipients.map(recipientUserId => ({
@@ -491,7 +493,8 @@ export class StaffService {
       });
 
       await db.orderNotification.create({ data: { orderId: id, type: 'PAYMENT_READY', dedupeKey: `payment:${payment.id}:${payment.updatedAt.toISOString()}` } });
-      await telegramEvent(db, { orderId: id, type: 'PAYMENT_READY', dedupeKey: `payment:${payment.id}:${payment.updatedAt.toISOString()}` });
+      await telegramEvent(db, { orderId: id, type: 'PAYMENT_READY', dedupeKey: `payment:${payment.id}:${payment.updatedAt.toISOString()}`,
+        eventData: { actorUserId: actor?.userId ?? null } });
       const saved = await db.order.update({
         where: { id },
 
@@ -539,7 +542,7 @@ export class StaffService {
           finalTotal: null,
         },
       });
-      await db.orderNotification.updateMany({ where: { orderId: id, channel: 'TELEGRAM', type: 'PAYMENT_READY', status: 'PENDING' }, data: { status: 'CANCELED' } });
+      await db.orderNotification.updateMany({ where: { orderId: id, channel: { in: ['TELEGRAM', 'IN_APP'] }, type: 'PAYMENT_READY', status: 'PENDING' }, data: { status: 'CANCELED' } });
       await message(db, id, 'Заказ возвращён к сборке.', 'SYSTEM', actor?.userId ?? null, null, 'customer', 'ASSEMBLY_STARTED');
       await recordStaffAudit(db, id, actor, 'REOPEN');
       return saved;

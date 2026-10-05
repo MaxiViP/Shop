@@ -135,16 +135,17 @@ model User {
 }
 
 model Address {
-  id       Int     @id @default(autoincrement())
-  label    String
-  city     String
-  street   String
-  house    String
-  flat     String?
-  entrance String?
-  floor    String?
-  intercom String?
-  comment  String?
+  id           Int     @id @default(autoincrement())
+  label        String
+  city         String
+  street       String
+  house        String
+  buildingPart String? @db.VarChar(50)
+  flat         String?
+  entrance     String?
+  floor        String?
+  intercom     String?
+  comment      String?
 
   lat    Float?
   lng    Float?
@@ -250,14 +251,15 @@ model Order {
   customerName  String
   customerPhone String
 
-  city     String?
-  street   String?
-  house    String?
-  flat     String?
-  entrance String?
-  floor    String?
-  intercom String?
-  comment  String?
+  city         String?
+  street       String?
+  house        String?
+  buildingPart String? @db.VarChar(50)
+  flat         String?
+  entrance     String?
+  floor        String?
+  intercom     String?
+  comment      String?
 
   deliveryAt DateTime?
 
@@ -712,6 +714,8 @@ model OrderChatImageRevision {
 }
 
 enum NotificationType {
+  ORDER_STATUS_CHANGED
+  SCHEDULE_CHANGED
   QUEUE_DELAY
   ASSEMBLY_SOON
   ACTION_REQUIRED
@@ -731,6 +735,7 @@ enum NotificationChannel {
   SMS
   TELEGRAM
   STAFF_TELEGRAM
+  IN_APP
 }
 
 enum NotificationStatus {
@@ -743,6 +748,9 @@ enum NotificationStatus {
 }
 
 model OrderNotification {
+  audience        String                  @default("CUSTOMER") @db.VarChar(8)
+  seenAt          DateTime?
+  eventData       Json?
   imageRevisionId Int?
   imageRevision   OrderChatImageRevision? @relation(fields: [imageRevisionId], references: [id], onDelete: SetNull)
   channel         NotificationChannel     @default(SMS)
@@ -773,6 +781,7 @@ model OrderNotification {
   @@index([channel, status, id])
   @@index([priceChangeId])
   @@index([recipientUserId])
+  @@index([channel, seenAt, id])
 }
 
 model TelegramIdentity {

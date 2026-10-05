@@ -80,8 +80,7 @@
       <template #body>
         <div class="delete">
           <p v-if="selected">
-            {{ selected.label }} — {{ selected.street }},
-            {{ selected.house }}
+            {{ selected.label }} — {{ formatAddress(selected) }}
           </p>
 
           <div class="delete__actions">
@@ -104,6 +103,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatAddress } from "~/utils/address";
 import type { Address } from "~/types/address";
 import type { OrderPhoneSnapshot } from "~/types/order-phone";
 import { useAuthStore } from "~/stores/auth";

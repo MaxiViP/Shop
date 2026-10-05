@@ -1,5 +1,6 @@
 <template>
-  <UApp :locale="ru" :scroll-body="{ padding: 0, margin: 0 }">
+  <UApp :locale="ru" :scroll-body="{ padding: 0, margin: 0 }" :toaster="{ position: 'top-left', max: 2, expand: false, ui: { viewport: 'order-toasts' } }">
+    <AppOrderNotices />
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>

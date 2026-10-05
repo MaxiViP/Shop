@@ -1,8 +1,9 @@
+import { formatAddress } from '../common/address.js';
 import type { Prisma, Unit } from '../db/gen/client.js';
 
 export const telegramOrderSelect = {
   id: true, status: true, type: true, customerName: true, customerPhone: true,
-  city: true, street: true, house: true, flat: true, entrance: true,
+  city: true, street: true, house: true, buildingPart: true, flat: true, entrance: true,
   floor: true, intercom: true, comment: true, deliveryAt: true,
   subtotal: true, deliveryPrice: true, total: true,
   items: {
@@ -43,8 +44,7 @@ export function newOrderMessage(order: TelegramOrder): string {
     order.type === 'PICKUP' ? 'Самовывоз' : 'Доставка',
   ];
   if (order.type === 'DELIVERY') {
-    const address = [order.city, order.street, order.house].filter(Boolean)
-      .map(value => clip(value!, 150)).join(', ');
+    const address = clip(formatAddress(order, false), 400);
     if (address) header.push(address);
     for (const [label, value] of [
       ['Кв.', order.flat], ['Подъезд', order.entrance],

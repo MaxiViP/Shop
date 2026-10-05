@@ -569,6 +569,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatAddress } from "~/utils/address";
 import type {
   DeliveryProvider,
   OrderItemStatus,
@@ -770,10 +771,7 @@ const yandexEta = computed(() => {
 
 const address = computed(() =>
   [
-    order.value.city,
-    order.value.street,
-    order.value.house ? `д. ${order.value.house}` : null,
-    order.value.flat ? `кв. ${order.value.flat}` : null,
+    formatAddress(order.value),
     order.value.entrance ? `подъезд ${order.value.entrance}` : null,
     order.value.floor ? `этаж ${order.value.floor}` : null,
     order.value.intercom ? `домофон ${order.value.intercom}` : null,
@@ -787,9 +785,7 @@ const courierText = computed(() =>
     `Получатель: ${order.value.customerName}`,
     `Телефон: ${order.value.customerPhone}`,
     order.value.city || order.value.street || order.value.house
-      ? `Адрес: ${[order.value.city, order.value.street, order.value.house]
-          .filter(Boolean)
-          .join(', ')}`
+      ? `Адрес: ${formatAddress(order.value, false)}`
       : null,
     order.value.flat ? `Квартира: ${order.value.flat}` : null,
     order.value.entrance ? `Подъезд: ${order.value.entrance}` : null,

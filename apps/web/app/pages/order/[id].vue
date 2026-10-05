@@ -212,6 +212,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatAddress } from "~/utils/address";
 import type { OrderDetail, QueueOffer } from '~/types/order'
 import { apiError } from '~/utils/api-error'
 import {
@@ -315,22 +316,7 @@ const customerSections = computed(() => [
 ])
 
 
-const address = computed(() =>
-  [
-    order.value.city,
-    order.value.street,
-
-    order.value.house
-      ? `д. ${order.value.house}`
-      : null,
-
-    order.value.flat
-      ? `кв. ${order.value.flat}`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(', '),
-)
+const address = computed(() => formatAddress(order.value))
 
 const replacementIds = computed(() => new Set(order.value.issues.map(issue => issue.replacementItemId).filter(id => id !== null)))
 const issueByItem = computed(() => new Map(order.value.issues.map(issue => [issue.orderItemId, issue])))

@@ -43,6 +43,7 @@ export interface AdminOrderDetail extends AdminOrderRow {
     total: number; actualTotal: number | null; status: string; unit: string;
     price: number; actualPrice: number | null; priceQty: number }[];
   city: string | null; street: string | null; house: string | null;
+  buildingPart?: string | null;
   flat: string | null; comment: string | null;
   deliveryPrice: number | null; finalSubtotal: number | null;
   purchaser: { id: number; name: string | null; phone: string | null } | null;

@@ -8,6 +8,7 @@ import type {
 } from '../db/gen/client.js';
 import { telegramEvent } from './outbox.js';
 import { message, actionNotification } from './coordination.js';
+import { inAppEvent } from './outbox.js';
 
 export const cancellationHistory = {
   orderBy: { id: 'desc' },
@@ -246,7 +247,7 @@ export async function restoreOrder(
       },
     });
   }
-  await message(
+  const notice = await message(
     db,
     id,
     'Заказ восстановлен.',
@@ -255,5 +256,7 @@ export async function restoreOrder(
     null,
     'customer',
   );
+  await inAppEvent(db, { orderId: id, type: 'ORDER_STATUS_CHANGED', messageId: notice.id,
+    dedupeKey: `message:${notice.id}`, eventData: { status: saved.status } });
   return saved;
 }

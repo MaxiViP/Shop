@@ -44,8 +44,7 @@
             }}{{ address.isDefault ? " · Основной" : "" }}</strong
           >
           <p>
-            {{ address.city }}, {{ address.street }}, {{ address.house
-            }}{{ address.flat ? `, кв. ${address.flat}` : "" }}
+            {{ formatAddress(address) }}
           </p>
           <p>
             Подъезд: {{ address.entrance ?? "—" }} · Этаж:
@@ -73,6 +72,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatAddress } from "~/utils/address";
 import type { AdminUserDetail } from "~/types/admin";
 const props = defineProps<{ id: number }>();
 const open = defineModel<boolean>("open", { required: true });

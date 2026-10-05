@@ -247,6 +247,10 @@
                 <UInput v-model="recipient.house" placeholder="Номер дома" :aria-invalid="Boolean(errors.house)" />
               </UFormField>
 
+              <UFormField label="Корпус / строение">
+                <UInput v-model="recipient.buildingPart" placeholder="к. 2 или стр. 1" maxlength="50" />
+              </UFormField>
+
               <UFormField label="Квартира">
                 <UInput v-model="recipient.flat" placeholder="Номер квартиры" />
               </UFormField>
@@ -375,6 +379,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatAddress } from "~/utils/address";
 import type { CartItem, ServerCartSnapshot } from "~/utils/cart";
 import type { Address } from "~/types/address";
 import type { OrderCreated, OrderType, QueueOffer } from "~/types/order";
@@ -588,6 +593,7 @@ function selectAddress(address: Address) {
   self.city = address.city;
   self.street = address.street;
   self.house = address.house;
+  self.buildingPart = address.buildingPart ?? "";
   self.flat = address.flat ?? "";
   self.entrance = address.entrance ?? "";
   self.floor = address.floor ?? "";
@@ -601,6 +607,7 @@ function manualAddress() {
   self.city = "Москва";
   self.street = "";
   self.house = "";
+  self.buildingPart = "";
   self.flat = "";
   self.entrance = "";
   self.floor = "";
@@ -724,6 +731,7 @@ async function submit() {
             city: recipientData.city.trim(),
             street: recipientData.street.trim(),
             house: recipientData.house.trim(),
+            buildingPart: recipientData.buildingPart.trim() || undefined,
             flat: recipientData.flat.trim() || undefined,
             entrance: recipientData.entrance.trim() || undefined,
             floor: recipientData.floor.trim() || undefined,
@@ -772,17 +780,7 @@ async function submit() {
   }
 }
 
-function addressText(address: Address) {
-  return [
-    address.city,
-    address.street,
-    `д. ${address.house}`,
-
-    address.flat ? `кв. ${address.flat}` : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
-}
+function addressText(address: Address) { return formatAddress(address); }
 
 function getMessage(cause: unknown) {
   if (typeof cause === "object" && cause && "data" in cause) {

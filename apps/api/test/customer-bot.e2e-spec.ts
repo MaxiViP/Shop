@@ -130,7 +130,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     return { user, telegramId, identity, order, actor: { publicId: order.publicId, userId: user.id } };
   }
   const events = (orderId: number, type?: NotificationType) => db.orderNotification.findMany({
-    where: { orderId, ...(type ? { type } : {}) }, orderBy: { id: 'asc' },
+    where: { orderId, channel: { not: 'IN_APP' }, ...(type ? { type } : {}) }, orderBy: { id: 'asc' },
   });
   async function waiting() {
     const f = await fixture();
@@ -279,13 +279,16 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
       [legacyRows.map(row => row.id)])).rows;
     expect(rows).toHaveLength(6);
     for (const [index, row] of rows.entries()) {
-      const { channel, messageId, priceChangeId, recipientUserId, imageRevisionId, retryAt, ...original } = row;
+      const { channel, messageId, priceChangeId, recipientUserId, imageRevisionId, retryAt, audience, seenAt, eventData, ...original } = row;
       expect(channel).toBe('SMS');
       expect(messageId).toBeNull();
       expect(priceChangeId).toBeNull();
       expect(recipientUserId).toBeNull();
       expect(imageRevisionId).toBeNull();
       expect(retryAt).toBeNull();
+      expect(audience).toBe('CUSTOMER');
+      expect(seenAt).toBeNull();
+      expect(eventData).toBeNull();
       expect(original).toEqual(legacyRows[index]);
     }
     // An old API's single-column conflict target is intentionally no longer compatible.
@@ -304,7 +307,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
       await telegramEvent(tx, data);
     });
     await Promise.all([enqueue(), enqueue()]);
-    const saved = await db.orderNotification.findMany({ where: { dedupeKey: data.dedupeKey } });
+    const saved = await db.orderNotification.findMany({ where: { dedupeKey: data.dedupeKey, channel: { not: 'IN_APP' } } });
     expect(saved).toHaveLength(2);
     expect(saved.map(e => e.channel).sort()).toEqual(['SMS', 'TELEGRAM']);
     await expect(db.orderNotification.create({ data: { ...data, channel: 'SMS' } })).rejects.toMatchObject({ code: 'P2002' });
@@ -676,9 +679,12 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     const f = await fixture();
     const message = await coordination.post({ orderId: f.order.id, ...seller }, 'Уточните удобное время');
     await notices.dispatchTelegram(f.order.id);
-    const rows = await events(f.order.id, 'CHAT_MESSAGE');
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ messageId: message.id, channel: 'TELEGRAM', status: 'SENT' });
+    // post() starts durable delivery after commit; a second sweep can observe SENDING.
+    await vi.waitFor(async () => {
+      const rows = await events(f.order.id, 'CHAT_MESSAGE');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ messageId: message.id, channel: 'TELEGRAM', status: 'SENT' });
+    }, { timeout: 5000 });
     expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).customerUnread).toBe(1);
     await makeBot().handle(callback(f.telegramId, customerView('m', f.order.publicId)));
     expect((await db.order.findUniqueOrThrow({ where: { id: f.order.id } })).customerUnread).toBe(0);

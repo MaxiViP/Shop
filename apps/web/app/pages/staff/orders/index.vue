@@ -216,6 +216,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatAddress } from "~/utils/address";
 import type { OrderStatus, StaffOrder } from '~/types/order'
 import { useAuthStore } from '~/stores/auth'
 import { apiError } from '~/utils/api-error'
@@ -389,11 +390,7 @@ function date(value: string) {
   })
 }
 
-function address(order: StaffOrder) {
-  return [order.city, order.street, order.house ? `д. ${order.house}` : null]
-    .filter(Boolean)
-    .join(', ')
-}
+function address(order: StaffOrder) { return formatAddress(order, false) }
 
 useSeoMeta({
   title: 'Очередь заказов',

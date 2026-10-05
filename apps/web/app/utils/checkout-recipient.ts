@@ -20,7 +20,7 @@ export function recipientDefaults(user: User | null, guestName = "", primaryPhon
 export function recipientDraft(name = "", phone = "", city = "") {
   return {
     name, phone, city,
-    street: "", house: "", flat: "", entrance: "",
+    street: "", house: "", buildingPart: "", flat: "", entrance: "",
     floor: "", intercom: "", comment: "",
   };
 }

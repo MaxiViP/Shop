@@ -78,6 +78,7 @@ export interface StaffOrder {
   city: string | null
   street: string | null
   house: string | null
+  buildingPart?: string | null;
 
   deliveryAt: string | null
 
@@ -178,6 +179,7 @@ export interface OrderDetail {
   city: string | null
   street: string | null
   house: string | null
+  buildingPart?: string | null;
   flat: string | null
   entrance: string | null
   floor: string | null

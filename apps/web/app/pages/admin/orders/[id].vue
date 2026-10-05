@@ -14,7 +14,7 @@
           <p>Покупатель: {{ data.purchaser?.name ?? `Аккаунт №${data.userId ?? 'гость'}` }}</p>
           <p>Получатель: {{ data.customerName }} · {{ data.customerPhone }}</p>
           <p>{{ data.type === 'PICKUP' ? 'Самовывоз' : 'Доставка' }} · {{ data.deliveryAt ? date(data.deliveryAt) : 'Как можно скорее' }}</p>
-          <p v-if="data.type === 'DELIVERY'">{{ [data.city, data.street, data.house, data.flat].filter(Boolean).join(', ') }}</p>
+          <p v-if="data.type === 'DELIVERY'">{{ formatAddress(data) }}</p>
           <p v-if="data.comment" class="text-muted">{{ data.comment }}</p>
           <p>Создан: {{ date(data.createdAt) }} · Завершён: {{ data.completedAt ? date(data.completedAt) : '—' }}</p>
           <p>Оплата: {{ data.payment?.status ?? '—' }}</p>
@@ -70,6 +70,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import { formatAddress } from "~/utils/address";
 import type { AdminOrderDetail } from '~/types/admin-ops';
 definePageMeta({ middleware: 'admin', layout: 'admin' });
 const route = useRoute();

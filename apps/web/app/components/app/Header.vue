@@ -279,6 +279,7 @@
 
     <AuthModal v-model:open="loginOpen" />
   </header>
+  <div class="header-spacer" aria-hidden="true" />
 
   <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ notice.current?.text ?? "" }}</span>
 </template>
@@ -290,6 +291,7 @@ import { useFavoritesStore } from "~/stores/favorites";
 import { headerAccount } from "~/utils/header-account";
 import { money } from "~/utils/money";
 import { customerBotUrl } from "~/utils/customer-bot-url";
+import { createHeaderScroll, mobileLandscapeQuery } from "~/utils/header-scroll";
 
 const route = useRoute();
 const customerTelegramUrl = computed(() =>
@@ -327,10 +329,11 @@ const staff = computed(
 );
 
 const narrow = ref(false);
+const landscape = ref(false);
 const scrolled = ref(false);
 const mobileHeaderHidden = computed(
-  () => narrow.value && scrolled.value && !mobileOpen.value && !loginOpen.value &&
-    notice.current?.target !== "favorites",
+  () => narrow.value && (landscape.value || (scrolled.value && notice.current?.target !== "favorites")) &&
+    !mobileOpen.value && !loginOpen.value,
 );
 const floatingCartVisible = computed(
   () => mobileHeaderHidden.value && (cart.count > 0 || notice.current?.target === "cart"),
@@ -339,16 +342,14 @@ const floatingCartVisible = computed(
 let stopScroll = () => {};
 onMounted(() => {
   const media = window.matchMedia("(width < 768px)");
+  const landscapeMedia = window.matchMedia(mobileLandscapeQuery);
+  const scroll = createHeaderScroll();
   let frame = 0;
 
   function syncScroll() {
     if (!narrow.value) {
       scrolled.value = false;
-    } else if (window.scrollY <= 24) {
-      scrolled.value = false;
-    } else if (window.scrollY >= 72) {
-      scrolled.value = true;
-    }
+    } else scrolled.value = scroll.sample(window.scrollY);
   }
 
   function onScroll() {
@@ -360,17 +361,21 @@ onMounted(() => {
   }
 
   function syncWidth() {
-    narrow.value = media.matches;
+    landscape.value = landscapeMedia.matches;
+    narrow.value = media.matches || landscape.value;
+    scrolled.value = scroll.reset(window.scrollY);
     syncScroll();
   }
 
   syncWidth();
   window.addEventListener("scroll", onScroll, { passive: true });
   media.addEventListener("change", syncWidth);
+  landscapeMedia.addEventListener("change", syncWidth);
   const stopWatch = watch([() => route.path, mobileOpen, loginOpen], syncScroll);
   stopScroll = () => {
     window.removeEventListener("scroll", onScroll);
     media.removeEventListener("change", syncWidth);
+    landscapeMedia.removeEventListener("change", syncWidth);
     window.cancelAnimationFrame(frame);
     stopWatch();
   };
@@ -394,6 +399,7 @@ function closeMenuLink(event: MouseEvent) {
 </script>
 
 <style scoped>
+.header-spacer { display: none; }
 .header {
   position: sticky;
   top: 0;
@@ -647,8 +653,12 @@ function closeMenuLink(event: MouseEvent) {
 
 @media (width < 768px) {
   .header {
+    position: fixed;
+    width: 100%;
+    padding-top: env(safe-area-inset-top, 0px);
     transition: transform 180ms ease;
   }
+  .header-spacer { display: block; height: calc(var(--header-height) + env(safe-area-inset-top, 0px)); }
 
   .header--hidden {
     transform: translateY(-100%);
@@ -816,6 +826,12 @@ function closeMenuLink(event: MouseEvent) {
   .floating-cart-anchor {
     display: none;
   }
+}
+
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 1024px) and (pointer: coarse) {
+  .header { position: fixed; width: 100%; transform: translateY(-100%); }
+  .header-spacer { display: none; }
+  .floating-cart-anchor { display: block; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -64,6 +64,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatAddress } from "~/utils/address";
 import type { Address } from '~/types/address'
 
 const { address } = defineProps<{
@@ -76,18 +77,7 @@ defineEmits<{
   default: [address: Address]
 }>()
 
-const fullAddress = computed(() =>
-  [
-    address.city,
-    address.street,
-    `д. ${address.house}`,
-    address.flat
-      ? `кв. ${address.flat}`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(', '),
-)
+const fullAddress = computed(() => formatAddress(address))
 
 const details = computed(() =>
   [
