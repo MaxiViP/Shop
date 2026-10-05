@@ -279,11 +279,13 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
       [legacyRows.map(row => row.id)])).rows;
     expect(rows).toHaveLength(6);
     for (const [index, row] of rows.entries()) {
-      const { channel, messageId, priceChangeId, recipientUserId, ...original } = row;
+      const { channel, messageId, priceChangeId, recipientUserId, imageRevisionId, retryAt, ...original } = row;
       expect(channel).toBe('SMS');
       expect(messageId).toBeNull();
       expect(priceChangeId).toBeNull();
       expect(recipientUserId).toBeNull();
+      expect(imageRevisionId).toBeNull();
+      expect(retryAt).toBeNull();
       expect(original).toEqual(legacyRows[index]);
     }
     // An old API's single-column conflict target is intentionally no longer compatible.

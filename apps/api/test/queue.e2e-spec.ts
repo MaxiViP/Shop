@@ -32,7 +32,7 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
   let staff: StaffService;
   let productId: number;
   let customerA: number, customerB: number, sellerId: number;
-  let ownerCookie: string, otherCookie: string, adminCookie: string;
+  let ownerCookie: string, otherCookie: string, adminCookie: string, sellerCookie: string;
   let created = false;
   const input = (requestId = randomUUID()) => ({
     type: 'PICKUP' as const, customerName: 'Покупатель', customerPhone: '+79990000777',
@@ -87,6 +87,7 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
     const admin = await session('ADMIN', '+79990000704');
     customerA = a.id; customerB = b.id; sellerId = s.id;
     ownerCookie = a.cookie; otherCookie = b.cookie; adminCookie = admin.cookie;
+    sellerCookie = s.cookie;
     const category = await db.category.create({ data: { name: 'Очередь', slug: 'queue-fixture' } });
     productId = (await db.product.create({ data: { categoryId: category.id, name: 'Яблоко',
       slug: 'queue-apple', unit: 'PIECE', price: 10000, priceQty: 1, min: 1, step: 1,
@@ -101,6 +102,7 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
       minDeliverySubtotal: 0, queueThreshold: 4, assemblyFallbackMinutes: 25, assemblyConcurrency: 1,
       slotIntervalMinutes: 30, slotCapacity: 1, peakModeEnabled: false,
       peakModeStart: null, peakModeEnd: null,
+      peakAssemblyConcurrency: null, peakAssemblyMinutes: null, peakQueueThreshold: null, peakSlotCapacity: null,
     } });
   });
   afterAll(async () => {
@@ -117,7 +119,7 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
       peakModeStart: new Date(Date.now() - 60_000), peakModeEnd: new Date(Date.now() + 3600_000) } });
   }
 
-  it('moves ASAP positions after cancellation and assembly, then uses recent median', async () => {
+  it('moves ASAP positions and keeps the configured estimate while observing the recent median', async () => {
     const first = (await place(customerA)).order;
     const second = (await place(customerB)).order;
     const third = (await place(customerA)).order;
@@ -135,7 +137,71 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
         customerPhone: '+79990000000', subtotal: 1,
         assemblyStartedAt: new Date(Date.now() - (minutes + 1) * 60_000),
         assemblyFinalizedAt: new Date(Date.now() - 60_000) } });
-    expect((await queue.publicView()).estimatedAssemblyMinutes).toBe(15);
+    expect((await queue.snapshot()).observedMinutes).toBe(15);
+    expect((await queue.publicView()).estimatedAssemblyMinutes).toBe(25);
+  });
+
+  it('keeps queue configuration and load overview ADMIN-only, including SELLER rejection', async () => {
+    for (const cookie of [ownerCookie, sellerCookie]) {
+      await request(app.getHttpServer()).get('/api/admin/settings/queue').set('Cookie', cookie).expect(403);
+      await request(app.getHttpServer()).patch('/api/admin/settings').set('Cookie', cookie)
+        .send({ peakAssemblyConcurrency: 4, peakAssemblyMinutes: 10 }).expect(403);
+    }
+    const view = await request(app.getHttpServer()).get('/api/admin/settings/queue').set('Cookie', adminCookie).expect(200);
+    expect(view.body.effective.mode).toBe('NORMAL'); expect(view.body.effective.assemblyConcurrency).toBe(1);
+  });
+
+  it('switches profiles at start/end, applies threshold, concurrency and configured average to ETA', async () => {
+    for (let i = 0; i < 5; i++) await place(customerA);
+    const now = new Date();
+    const start = new Date(now.getTime() + 60_000), end = new Date(now.getTime() + 120_000);
+    await request(app.getHttpServer()).patch('/api/admin/settings').set('Cookie', adminCookie).send({
+      assemblyConcurrency: 2, assemblyFallbackMinutes: 15, queueThreshold: 6, slotCapacity: 2,
+      peakAssemblyConcurrency: 4, peakAssemblyMinutes: 10, peakQueueThreshold: 3, peakSlotCapacity: 4,
+      peakModeEnabled: true, peakModeStart: start.toISOString(), peakModeEnd: end.toISOString(),
+    }).expect(200);
+    const normal = await queue.publicView(undefined, db as unknown as DbService, new Date(start.getTime() - 1));
+    const peak = await queue.publicView(undefined, db as unknown as DbService, start);
+    const after = await queue.publicView(undefined, db as unknown as DbService, end);
+    expect(normal).toMatchObject({ estimatedAssemblyMinutes: 15, assemblyConcurrency: 2, showScheduledOffer: false });
+    expect(peak).toMatchObject({ estimatedAssemblyMinutes: 10, assemblyConcurrency: 4, showScheduledOffer: true, peakModeActive: true });
+    expect(peak.wait!.max).toBeLessThan(normal.wait!.max);
+    expect(after).toMatchObject({ estimatedAssemblyMinutes: 15, assemblyConcurrency: 2, showScheduledOffer: false, peakModeActive: false });
+    await db.shopSettings.update({ where: { id: 1 }, data: { peakModeEnabled: false } });
+    expect((await queue.snapshot(db as unknown as DbService, start)).effective.queueThreshold).toBe(6);
+    await db.shopSettings.update({ where: { id: 1 }, data: { queueThreshold: 4 } });
+    expect((await queue.publicView()).showScheduledOffer).toBe(true);
+  });
+
+  it('uses the profile at the future slot time and protects accepted bookings when either profile changes', async () => {
+    const at = tomorrow();
+    await request(app.getHttpServer()).patch('/api/admin/settings').set('Cookie', adminCookie).send({
+      slotCapacity: 1, peakSlotCapacity: 2, peakAssemblyMinutes: 10, peakModeEnabled: true,
+      peakModeStart: new Date(at.getTime() - 3600_000).toISOString(), peakModeEnd: new Date(at.getTime() + 3600_000).toISOString(),
+      queueThreshold: 1,
+    }).expect(200);
+    await place(customerA);
+    const selected = { fulfillmentMode: 'SCHEDULED' as const, scheduledFor: at.toISOString() };
+    const first = (await place(customerA, { ...input(), ...selected })).order;
+    await place(customerB, { ...input(), ...selected });
+    const view = await queue.adminView();
+    expect(view.effective.mode).toBe('NORMAL');
+    expect(view.upcoming.map(row => row.id)).toContain(first.id);
+    await request(app.getHttpServer()).patch('/api/admin/settings').set('Cookie', adminCookie).send({ peakSlotCapacity: 1 }).expect(409);
+    await request(app.getHttpServer()).patch('/api/admin/settings').set('Cookie', adminCookie).send({ peakModeEnabled: false }).expect(409);
+    await request(app.getHttpServer()).patch('/api/admin/settings').set('Cookie', adminCookie)
+      .send({ slotCapacity: 2, peakModeEnabled: false }).expect(200);
+    expect((await db.order.findUniqueOrThrow({ where: { id: first.id } })).scheduledFor).toEqual(at);
+    expect(await db.order.count({ where: { scheduledFor: at } })).toBe(2);
+  });
+
+  it('rejects invalid profile parameters and periods without partial writes', async () => {
+    for (const body of [{ peakAssemblyConcurrency: 0 }, { peakAssemblyMinutes: 181 },
+      { peakQueueThreshold: -1 }, { peakSlotCapacity: 0 },
+      { peakModeEnabled: true, peakModeStart: tomorrow().toISOString(), peakModeEnd: tomorrow().toISOString() }])
+      await request(app.getHttpServer()).patch('/api/admin/settings').set('Cookie', adminCookie).send(body).expect(400);
+    const saved = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
+    expect(saved.peakModeEnabled).toBe(false); expect(saved.assemblyConcurrency).toBe(1);
   });
 
   it('uses ADMIN configured parallel assembly for ETA without changing ordinal rank', async () => {
@@ -381,6 +447,29 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
     expect(listed.find(row => row.id === scheduled.id)?.queueRank).toBe(1);
     await staff.startAssembly(scheduled.id, { userId: sellerId, role: 'SELLER' });
     expect((await staff.list()).find(row => row.id === scheduled.id)?.queueRank).toBeNull();
+  });
+
+  it('uses the booked-time profile for scheduled preparation before a future peak starts', async () => {
+    const clock = Date.now();
+    await db.shopSettings.update({ where: { id: 1 }, data: {
+      assemblyFallbackMinutes: 15, peakModeEnabled: true,
+      peakModeStart: new Date(clock + 10 * 60_000), peakModeEnd: new Date(clock + 60 * 60_000),
+      peakAssemblyMinutes: 40,
+    } });
+    const saved = (await place(customerA)).order;
+    const ready = new Date(clock + 30 * 60_000);
+    await db.order.update({ where: { id: saved.id }, data: {
+      status: 'CONFIRMED', fulfillmentMode: 'SCHEDULED', scheduledFor: ready,
+    } });
+    expect((await queue.snapshot()).effective.mode).toBe('NORMAL');
+    expect((await staff.list()).find(row => row.id === saved.id)).toMatchObject({
+      queueRank: 1, preparationMinutes: 40,
+    });
+    expect(await staff.get(saved.id)).toMatchObject({ scheduledFor: ready, preparationMinutes: 40 });
+    await staff.startAssembly(saved.id, { userId: sellerId, role: 'SELLER' });
+    expect(await db.order.findUniqueOrThrow({ where: { id: saved.id } })).toMatchObject({
+      status: 'ASSEMBLING', scheduledFor: ready,
+    });
   });
 
   it('keeps committed order after uncertain Telegram delivery and never blind-retries it', async () => {

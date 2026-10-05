@@ -20,7 +20,7 @@ export default defineCachedEventHandler(async (event) => {
     if (!Number.isInteger(first.pages) || first.pages < 0 || first.pages > 834 || first.total + categories.length + 3 > 50000) {
       throw new Error("Catalog needs a sitemap index");
     }
-    const urls = new Set(["/", "/catalog", "/delivery"]);
+    const urls = new Set(["/", "/catalog", "/delivery", "/how-it-works"]);
     for (const category of categories) {
       if (category.indexable !== false) urls.add(`/catalog/${encodeURIComponent(category.slug)}`);
     }

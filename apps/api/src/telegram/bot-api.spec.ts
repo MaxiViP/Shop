@@ -100,7 +100,7 @@ it.each(['timeout', 'reset', '500', '502', '503', '504', 'malformed', 'missing-i
   },
 );
 it.each([
-  [403, {}, 'blocked'], [400, {}, 'rejected'], [401, {}, 'rejected'], [429, {}, 'rejected'],
+  [403, {}, 'blocked'], [400, {}, 'rejected'], [401, {}, 'rejected'], [429, {}, 'retryable'],
   [200, { ok: false, error_code: 403 }, 'blocked'], [200, { ok: false, error_code: 400 }, 'rejected'],
   [200, { ok: false }, 'unknown'],
 ])('preserves gateway rejection classification %#', async (status, body, expected) => {
@@ -114,6 +114,22 @@ it('message helpers preserve the real sent Message ID', async () => {
   expect(await botSendMessageId(customer, {})).toBe(91);
   expect(await botMessage(customer, 'sendMessage', {})).toBe(true);
   expect(await botMessage(customer, 'editMessageText', {})).toBe(true);
+});
+it.each([200, 429])('preserves Telegram retry_after through gateway HTTP %s', async status => {
+  vi.stubEnv('TELEGRAM_CUSTOMER_GATEWAY_URL', gateway);
+  fetcher.mockResolvedValueOnce(Response.json({ ok: false, error_code: 429,
+    description: customer, parameters: { retry_after: 1800 } }, { status }));
+  expect(await botDelivery(customer, {})).toEqual({ status: 'retryable', retryAfter: 1800 });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it.each([null, '1800', -1, 0, 1.5, Number.MAX_SAFE_INTEGER])('ignores invalid retry_after %#', async retry_after => {
+  fetcher.mockResolvedValueOnce(Response.json({ ok: false, error_code: 429, parameters: { retry_after } }, { status: 429 }));
+  expect(await botDelivery(customer, {})).toBe('retryable');
+});
+it('keeps a definite HTTP 429 retryable with an unreadable body', async () => {
+  fetcher.mockResolvedValueOnce(new Response('not JSON', { status: 429 }));
+  expect(await botDelivery(customer, {})).toBe('retryable');
+  expect(fetcher).toHaveBeenCalledTimes(1);
 });
 it.each([undefined, null, true, {}, { message_id: '91' }, { message_id: 0 }, { message_id: -1 },
   { message_id: 1.5 }, { message_id: Number.MAX_SAFE_INTEGER + 1 }])(

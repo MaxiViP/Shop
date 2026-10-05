@@ -149,7 +149,7 @@ test("queue and customer unread CTA use the chat anchor; shared chat renders pho
     component("components/order/Coordination.vue"),
     component("components/order/Markup.vue"),
     component("components/order/ChatImage.vue"),
-    component("pages/index.vue"),
+    component("components/home/HeroCarousel.vue"),
   ]);
   assert.match(queue, /role="link"[\s\S]*tabindex="0"[\s\S]*@click="cardClick/);
   assert.match(queue, /data-card-action/);
@@ -174,7 +174,7 @@ test("queue and customer unread CTA use the chat anchor; shared chat renders pho
   assert.match(chat, /revisionThrough/);
   assert.match(chat, /photoVisible\(target\.messageId\)/);
   assert.match(chat, /\[data-message-id=.*\.chat-image__thumb/);
-  assert.match(chat, /target\.scrollIntoView/);
+  assert.match(chat, /viewport\.value\.scrollTo/);
   assert.match(chat, /@ready="imageReady/);
   assert.match(chat, /v-if="photo \|\| markupSource"/);
   assert.match(chat, /@send="sendMarked"/);

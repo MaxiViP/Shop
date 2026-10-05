@@ -11,7 +11,7 @@
       </div>
       <div class="grid gap-4 lg:grid-cols-2">
         <UCard>
-          <template #header><h3 class="font-semibold">Очередь и время подготовки</h3></template>
+          <template #header><h3 class="font-semibold">Очередь и нагрузка</h3></template>
           <p>Сейчас ожидают: <strong>{{ data.queue.queueLength }}</strong> · оценка сборки: {{ data.queue.estimatedAssemblyMinutes }} мин. · в расчёте {{ data.queue.assemblyConcurrency }} сборщ.</p>
           <p>Заказов ко времени: <strong>{{ data.queue.scheduledOrders }}</strong></p>
           <p>Режим высокой нагрузки: {{ data.queue.peakModeActive ? 'активен' : 'не активен' }}</p>
@@ -19,7 +19,7 @@
             Ближайшие слоты:
             <span v-for="slot in data.queue.slots.slice(0, 4)" :key="slot.at" class="block">{{ dayTime(slot.at) }} · {{ slot.reserved }}/{{ slot.capacity }} занято</span>
           </div>
-          <UButton to="/admin/settings" variant="link">Настроить нагрузку</UButton>
+          <UButton to="/admin/queue" variant="link">Открыть очередь и нагрузку</UButton>
         </UCard>
         <UCard>
           <template #header><h3 class="font-semibold">Рынок</h3></template>

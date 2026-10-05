@@ -43,6 +43,7 @@ export interface ChatMessage {
   id: number;
   issueId: number | null;
   authorType: "CUSTOMER" | "SELLER" | "ADMIN" | "SYSTEM";
+  recipient?: 'staff' | 'customer' | 'both';
   text: string;
   image: boolean;
   imageExpired: boolean;
@@ -53,6 +54,8 @@ export interface ChatMessage {
   createdAt: string;
 }
 export interface MessagePage {
+  unreadMessage: ChatMessage | null;
+  readThrough: number;
   messages: ChatMessage[];
   revisions: (Pick<ChatMessage, 'id' | 'imageRevision' | 'imageExpired' | 'revisionText' | 'revisionActor' | 'revisionAt'>)[];
   unreadRevision: { id: number; messageId: number; version: number; message: ChatMessage } | null;

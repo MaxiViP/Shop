@@ -20,6 +20,7 @@ import { imageChatSchema, imageRevisionSchema } from './coordination.schema.js';
 import { ChatImagesService } from './chat-images.service.js';
 import type { ChatUploadFile } from './chat-images.service.js';
 import { imageExpiry } from './chat-cleanup.service.js';
+import { chatEvent } from './outbox.js';
 import type {
   cursorSchema,
   decisionSchema,
@@ -35,7 +36,7 @@ type ImageRevisionView = { version: number; caption: string; actorType: MessageA
 const latestRevision = { orderBy: { version: 'desc' }, take: 1,
   select: { version: true, caption: true, actorType: true, createdAt: true } } as const;
 const chatMessageSelect = {
-  id: true, issueId: true, authorType: true, text: true,
+  id: true, issueId: true, authorType: true, recipient: true, text: true,
   imageKey: true, imageRevision: true, imageDeletedAt: true,
   createdAt: true, imageRevisions: latestRevision,
 } satisfies Prisma.OrderChatMessageSelect;
@@ -373,6 +374,9 @@ export class CoordinationService {
       const seenIds = query.seen?.split(',').map(Number) ?? [];
       if (seenIds.length > 500 || seenIds.some(value => !Number.isSafeInteger(value) || value <= 0))
         throw new BadRequestException('Слишком много фото для обновления');
+      if (query.around && !await db.orderChatMessage.findFirst({
+        where: { orderId: id, id: query.around }, select: { id: true },
+      })) throw new NotFoundException('Сообщение не найдено');
       const rows = await db.orderChatMessage.findMany({
         where: {
           orderId: id,
@@ -380,9 +384,11 @@ export class CoordinationService {
             ? { gt: query.after }
             : query.before
               ? { lt: query.before }
+              : query.around
+                ? { gte: query.around }
               : undefined,
         },
-        orderBy: { id: query.after ? 'asc' : 'desc' },
+        orderBy: { id: query.after || query.around ? 'asc' : 'desc' },
         take: query.limit + 1,
         select: chatMessageSelect,
       });
@@ -396,7 +402,14 @@ export class CoordinationService {
       const staff = 'orderId' in actor;
       const order = await db.order.findUniqueOrThrow({ where: { id }, select: {
         staffReadImageRevisionId: true, customerReadImageRevisionId: true,
+        staffReadMessageId: true, customerReadMessageId: true,
       } });
+      const readThrough = staff ? order.staffReadMessageId : order.customerReadMessageId;
+      const unreadMessage = await db.orderChatMessage.findFirst({
+        where: { orderId: id, id: { gt: readThrough },
+          recipient: { in: [staff ? 'staff' : 'customer', 'both'] } },
+        orderBy: { id: 'asc' }, select: chatMessageSelect,
+      });
       const unreadRevision = await db.orderChatImageRevision.findFirst({
         where: { id: { gt: staff ? order.staffReadImageRevisionId : order.customerReadImageRevisionId },
           version: { gt: 0 }, actorType: staff ? 'CUSTOMER' : { in: ['SELLER', 'ADMIN'] },
@@ -406,13 +419,17 @@ export class CoordinationService {
           message: { select: chatMessageSelect } },
       });
       return {
-        messages: (query.after ? page : page.reverse()).map(chatMessageView),
+        messages: (query.after || query.around ? page : page.reverse()).map(chatMessageView),
         revisions: seen.map(row => ({ id: row.id, imageRevision: row.imageRevision,
           imageExpired: Boolean(row.imageDeletedAt), ...revisionFields(row.imageRevisions[0]) })),
         unreadRevision: unreadRevision && { id: unreadRevision.id,
           messageId: unreadRevision.messageId, version: unreadRevision.version,
           message: chatMessageView(unreadRevision.message) },
-        hasMore, orderId: id,
+        unreadMessage: unreadMessage && chatMessageView(unreadMessage), readThrough,
+        hasMore: query.around ? Boolean(await db.orderChatMessage.findFirst({
+          where: { orderId: id, id: { lt: query.around } }, select: { id: true },
+        })) : hasMore,
+        orderId: id,
       };
     });
   }
@@ -433,9 +450,20 @@ export class CoordinationService {
 
   private saveChat(actor: OrderActor, text: string,
     reply?: { sessionId: string; identityId: number; promptMessageId: number },
-    image?: { key: string; issueId?: number; evidence?: boolean; requestId?: string }) {
+    image?: { key: string; issueId?: number; evidence?: boolean; requestId?: string }, requestId?: string) {
     text = image ? imageChatSchema.parse({ text }).text : chatSchema.parse({ text }).text;
     return this.locked(actor, async (db, id) => {
+      if (requestId) {
+        const previous = await db.orderChatMessage.findUnique({
+          where: { orderId_requestId: { orderId: id, requestId } },
+        });
+        if (previous) {
+          const author = 'orderId' in actor ? actor.role : 'CUSTOMER';
+          if (previous.authorUserId !== actor.userId || previous.authorType !== author || previous.text !== text)
+            throw new ConflictException('Ключ отправки сообщения уже использован');
+          return previous;
+        }
+      }
       if (reply) {
         if ('orderId' in actor || !actor.userId) throw new NotFoundException('Ответ недоступен');
         const claimed = await db.customerTelegramSession.deleteMany({ where: {
@@ -476,6 +504,7 @@ export class CoordinationService {
           completedAt: order.completedAt, canceledAt: order.cancellations[0]?.canceledAt ?? null,
           orderUpdatedAt: order.updatedAt, issue,
         }), requestId: image.requestId } : undefined,
+        requestId,
       );
     });
   }
@@ -503,6 +532,8 @@ export class CoordinationService {
   }
 
   private async notifyChat(actor: OrderActor, orderId: number) {
+    if ('publicId' in actor)
+      void this.notifications.dispatchStaffChat(orderId).catch(() => {});
     if ('orderId' in actor) {
       // The chat message, unread count and TELEGRAM outbox row have committed.
       // The dispatcher claims PENDING atomically; the sweep remains a crash fallback.
@@ -511,8 +542,8 @@ export class CoordinationService {
     }
   }
 
-  async post(actor: OrderActor, text: string, reply?: { sessionId: string; identityId: number; promptMessageId: number }) {
-    const saved = await this.saveChat(actor, text, reply);
+  async post(actor: OrderActor, text: string, reply?: { sessionId: string; identityId: number; promptMessageId: number }, requestId?: string) {
+    const saved = await this.saveChat(actor, text, reply, undefined, requestId ?? reply?.sessionId);
     await this.notifyChat(actor, saved.orderId);
     return publicChatMessage(saved);
   }
@@ -619,6 +650,8 @@ export class CoordinationService {
           ? { customerUnread: { increment: 1 } }
           : { staffUnread: { increment: 1 } },
         });
+        await chatEvent(db, { orderId: id, messageId, imageRevisionId: revision.id,
+          actorType: staff ? actor.role : 'CUSTOMER', actorUserId: actor.userId });
         return { message: publicChatMessage(updated, revision), used: true };
       });
     } catch (error) {
@@ -627,6 +660,7 @@ export class CoordinationService {
     }
     if (!result.used)
       await this.images.remove(imageKey).catch((cause: unknown) => this.logger.error('Could not remove duplicate chat revision', cause));
+    if (result.used) await this.notifyChat(actor, result.message.orderId);
     return result.message;
   }
 
@@ -677,7 +711,19 @@ export class CoordinationService {
           ? { staffReadMessageId: cursor, staffReadImageRevisionId: revisionCursor, staffUnread: unread }
           : { customerReadMessageId: cursor, customerReadImageRevisionId: revisionCursor, customerUnread: unread },
       });
-      return { unread };
+      const nextMessage = await db.orderChatMessage.findFirst({
+        where: { orderId: id, id: { gt: cursor }, recipient: { in: [staff ? 'staff' : 'customer', 'both'] } },
+        orderBy: { id: 'asc' }, select: chatMessageSelect,
+      });
+      const nextRevision = await db.orderChatImageRevision.findFirst({
+        where: { id: { gt: revisionCursor }, version: { gt: 0 },
+          actorType: staff ? 'CUSTOMER' : { in: ['SELLER', 'ADMIN'] }, message: { orderId: id } },
+        orderBy: { id: 'asc' }, select: { id: true, messageId: true, version: true,
+          message: { select: chatMessageSelect } },
+      });
+      return { unread, readThrough: cursor, unreadMessage: nextMessage && chatMessageView(nextMessage),
+        unreadRevision: nextRevision && { id: nextRevision.id, messageId: nextRevision.messageId,
+          version: nextRevision.version, message: chatMessageView(nextRevision.message) } };
     });
   }
 

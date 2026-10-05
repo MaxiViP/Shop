@@ -27,7 +27,7 @@ import {
 } from './coordination.service.js';
 import {
   recordId,
-  chatSchema,
+  chatPostSchema,
   imageChatSchema,
   imageRevisionSchema,
   cursorSchema,
@@ -84,9 +84,9 @@ export class CustomerCoordinationCtrl {
   async post(
     @Param('publicId', { schema: z.string().uuid() }) id: string,
     @Req() request: Request,
-    @Body({ schema: chatSchema }) body: z.infer<typeof chatSchema>,
+    @Body({ schema: chatPostSchema }) body: z.infer<typeof chatPostSchema>,
   ) {
-    return this.service.post(await this.actor(id, request), body.text);
+    return this.service.post(await this.actor(id, request), body.text, undefined, body.requestId);
   }
   @Post('messages/image')
   @UseInterceptors(ChatTempCleanupInterceptor, imageUpload)
@@ -182,9 +182,9 @@ export class StaffCoordinationCtrl {
   post(
     @Param('id', { schema: recordId }) id: number,
     @Req() request: AuthRequest,
-    @Body({ schema: chatSchema }) body: z.infer<typeof chatSchema>,
+    @Body({ schema: chatPostSchema }) body: z.infer<typeof chatPostSchema>,
   ) {
-    return this.service.post(this.actor(id, request), body.text);
+    return this.service.post(this.actor(id, request), body.text, undefined, body.requestId);
   }
   @Post('messages/image')
   @UseInterceptors(ChatTempCleanupInterceptor, imageUpload)

@@ -79,6 +79,7 @@
 
 <script setup lang="ts">
 import { MAX_CHAT_PHOTO_BYTES } from "~/utils/chat-photo";
+import { drawMarkup, type MarkupStroke } from '~/utils/chat-markup';
 const props = withDefaults(defineProps<{ file: File; revision?: boolean; sending?: boolean;
   retry?: boolean; submitError?: string }>(), { revision: false, sending: false, retry: false, submitError: '' });
 const emit = defineEmits<{ send: [file: File]; retry: [] }>();
@@ -92,12 +93,12 @@ const colors = [
   { value: "#f43f5e", label: "Красный" },
   { value: "#facc15", label: "Жёлтый" },
   { value: "#38bdf8", label: "Голубой" },
+  { value: "#111111", label: "Чёрный" },
 ];
 const color = ref(colors[0]!.value);
-const width = ref(6);
+const width = ref(3);
 type Point = { x: number; y: number };
-type Stroke = { points: Point[]; color: string; width: number };
-const strokes = ref<Stroke[]>([]);
+const strokes = ref<MarkupStroke[]>([]);
 let photo: HTMLImageElement | null = null;
 let drawing = false;
 let generation = 0;
@@ -137,26 +138,7 @@ function redraw() {
   if (!target || !context || !photo) return;
   context.clearRect(0, 0, target.width, target.height);
   context.drawImage(photo, 0, 0, target.width, target.height);
-  for (const stroke of strokes.value) {
-    if (stroke.points.length === 1) {
-      const point = stroke.points[0]!;
-      context.beginPath();
-      context.fillStyle = stroke.color;
-      context.arc(point.x, point.y, stroke.width / 2, 0, Math.PI * 2);
-      context.fill();
-      continue;
-    }
-    context.beginPath();
-    context.strokeStyle = stroke.color;
-    context.lineWidth = stroke.width;
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    for (const [index, point] of stroke.points.entries()) {
-      if (index === 0) context.moveTo(point.x, point.y);
-      else context.lineTo(point.x, point.y);
-    }
-    context.stroke();
-  }
+  for (const stroke of strokes.value) drawMarkup(context, stroke);
 }
 
 function point(event: PointerEvent): Point {
@@ -204,6 +186,7 @@ async function send() {
   error.value = "";
   try {
     const target = canvas.value;
+    redraw();
     let blob = await new Promise<Blob>((resolve, reject) =>
       target.toBlob(
         (value) => (value ? resolve(value) : reject(new Error("canvas"))),

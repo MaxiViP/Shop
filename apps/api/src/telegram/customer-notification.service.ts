@@ -4,12 +4,13 @@ import { botDelivery } from './bot-api.js';
 import { customerBotToken, customerWebhookReady } from './bot-config.js';
 import { customerView } from './customer-callback.js';
 import { amount, short, webAppUrl, deliveryStatus, type Button } from './customer-view.js';
+import { chatNotice } from './chat-notice.js';
 
 export type CustomerNotice = {
   event: Pick<OrderNotification, 'type'>;
   order: { id: number; publicId: string; finalSubtotal: number | null; finalTotal: number | null; delivery: { status: DeliveryStatus } | null };
   issue: Pick<OrderIssue, 'type'> | null;
-  message: { text: string } | null;
+  message: { id?: number; text: string } | null;
   queue?: { position: number | null; wait: { min: number; max: number } | null } | null;
 };
 @Injectable()
@@ -18,6 +19,9 @@ export class CustomerNotificationService {
 
   async send(chatId: string, notice: CustomerNotice) {
     const { event, order, issue, message, queue } = notice;
+    if (message?.id && ['CHAT_MESSAGE', 'CHAT_IMAGE_REVISION'].includes(event.type))
+      return botDelivery(customerBotToken(), { chat_id: chatId,
+        ...chatNotice(order, { id: message.id, text: message.text }, false, event.type === 'CHAT_IMAGE_REVISION') });
     const headings = {
       ORDER_CONFIRMED: 'Заказ подтверждён',
       ASSEMBLY_STARTED: 'Началась сборка заказа',
@@ -28,6 +32,7 @@ export class CustomerNotificationService {
       ORDER_COMPLETED: 'Заказ завершён',
       ORDER_CANCELED: 'Заказ отменён',
       CHAT_MESSAGE: 'Новое сообщение от продавца',
+      CHAT_IMAGE_REVISION: 'Продавец отметил фото',
       ITEM_PRICE_CHANGED: 'Цена товара изменена',
       QUEUE_DELAY: 'Сейчас высокая загрузка',
       ASSEMBLY_SOON: 'Скоро начнём сборку',

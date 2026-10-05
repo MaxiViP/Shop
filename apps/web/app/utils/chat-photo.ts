@@ -80,7 +80,7 @@ export async function prepareChatPhoto(file: File, signal?: AbortSignal): Promis
 
 export function chatRequest(text: string, file: File | null, evidence = false, issueId?: number, requestId?: string) {
   const value = text.trim();
-  if (!file) return { path: "/messages", body: { text: value } };
+  if (!file) return { path: "/messages", body: { text: value, ...(requestId ? { requestId } : {}) } };
   const body = new FormData();
   body.append("text", value);
   if (evidence) body.append("evidence", "true");

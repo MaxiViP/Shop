@@ -56,8 +56,8 @@ export function siteUrl(path: string) {
 }
 export function webAppUrl(path: string): string | undefined {
   // Matches the customer-only returnTo allowlist on the WebApp entry page.
-  const customerPage = ['/', '/catalog', '/orders', '/profile', '/cart', '/favorites', '/delivery'].includes(path);
-  const order = /^\/order\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path);
+  const customerPage = ['/', '/catalog', '/orders', '/profile', '/cart', '/favorites', '/delivery', '/how-it-works'].includes(path);
+  const order = /^\/order\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\?chatMessage=[1-9][0-9]{0,9})?(?:#order-chat)?$/i.test(path);
   const slug = /^\/(?:catalog|product)\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path);
   return path.length <= 189 && (customerPage || order || slug)
     ? siteUrl('/telegram?returnTo=' + encodeURIComponent(path))

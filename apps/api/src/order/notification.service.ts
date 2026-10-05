@@ -5,8 +5,20 @@ import type { BotDelivery } from '../telegram/bot-api.js';
 import { botDelivery } from '../telegram/bot-api.js';
 import { staffBotToken } from '../telegram/bot-config.js';
 import { staffPriceNotice } from '../telegram/staff-price-notice.js';
+import { chatNotice } from '../telegram/chat-notice.js';
 import { QueueService, waitRange } from './queue.js';
 import { telegramEvent } from './outbox.js';
+
+function telegramResult(outcome: BotDelivery, attempts: number) {
+  const status = typeof outcome === 'string' ? outcome : outcome.status;
+  if (status === 'sent') return { status: 'SENT' as const, sentAt: new Date(), error: null, retryAt: null };
+  if (status === 'unknown') return { status: 'SENDING' as const, error: 'TELEGRAM_OUTCOME_UNKNOWN', retryAt: null };
+  const backoff = Math.min(15 * 60_000, 60_000 * 2 ** Math.max(0, attempts - 1));
+  const delay = Math.max(backoff, typeof outcome === 'object' ? outcome.retryAfter * 1000 : 0);
+  return { status: 'FAILED' as const,
+    error: status === 'blocked' ? 'TELEGRAM_BLOCKED' : status === 'retryable' ? 'TELEGRAM_RETRYABLE' : 'TELEGRAM_REJECTED',
+    retryAt: status === 'retryable' ? new Date(Date.now() + delay) : null };
+}
 
 // A real provider adapter must explicitly implement this contract. OTP is unrelated.
 export abstract class OrderSmsProvider {
@@ -138,6 +150,9 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
               ...(event.type === 'CHAT_MESSAGE' ? { recipient: { in: ['customer', 'both'] } } : {}),
             },
           }) : null;
+          const revision = event.imageRevisionId ? await db.orderChatImageRevision.findFirst({
+            where: { id: event.imageRevisionId, messageId: event.messageId ?? 0, version: { gt: 0 } },
+          }) : null;
           let valid: boolean;
           switch (event.type) {
             case 'ACTION_REQUIRED':
@@ -158,11 +173,18 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
               valid = Boolean(message && ['SELLER', 'ADMIN', 'SYSTEM'].includes(message.authorType) &&
                 message.id > order.customerReadMessageId);
               break;
+            case 'CHAT_IMAGE_REVISION':
+              valid = Boolean(message && revision && ['SELLER', 'ADMIN'].includes(revision.actorType) &&
+                revision.id > order.customerReadImageRevisionId && revision.actorUserId !== order.userId);
+              break;
             case 'DELIVERY_CHANGED':
               valid = Boolean(order.delivery && !['CANCELED', 'COMPLETED'].includes(order.status));
               break;
             case 'ITEM_PRICE_CHANGED': valid = false; break;
           }
+          if (event.recipientUserId)
+            valid = valid && event.recipientUserId === order.userId &&
+              (event.type !== 'CHAT_MESSAGE' || message?.authorUserId !== event.recipientUserId);
           // Returning to ASSEMBLING must not revive a pending notice from an earlier cycle.
           if (valid && (event.type === 'ASSEMBLY_STARTED' || event.type === 'DELIVERY_CHANGED')) {
             const latest = await db.orderNotification.findFirst({
@@ -196,9 +218,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
         // A crash after send or before recording success must never cause a blind resend.
         await this.db.orderNotification.update({
           where: { id: event.id },
-          data: outcome === 'sent' ? { status: 'SENT', sentAt: new Date(), error: null } :
-            outcome === 'unknown' ? { status: 'SENDING', error: 'TELEGRAM_OUTCOME_UNKNOWN' } :
-              { status: 'FAILED', error: outcome === 'blocked' ? 'TELEGRAM_BLOCKED' : 'TELEGRAM_REJECTED' },
+          data: telegramResult(outcome, event.attempts + 1),
         });
         if (outcome === 'blocked') await this.db.telegramIdentity.updateMany({
           where: { id: current.identity.id, customerBotStartedAt: { lte: current.identity.customerBotStartedAt! } },
@@ -206,6 +226,74 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
         });
       }
     } catch { this.logger.warn('Customer notification dispatch failed'); }
+  }
+
+  async dispatchStaffChat(orderId: number) {
+    try {
+      const events = await this.db.orderNotification.findMany({
+        where: { orderId, channel: 'STAFF_TELEGRAM', type: { in: ['CHAT_MESSAGE', 'CHAT_IMAGE_REVISION'] }, status: 'PENDING' },
+        orderBy: { id: 'asc' }, take: 50,
+      });
+      for (const pending of events) {
+        const current = await this.db.$transaction(async db => {
+          const event = await db.orderNotification.findUnique({ where: { id: pending.id }, include: {
+            message: true, imageRevision: true,
+            order: { select: { id: true, publicId: true, staffReadMessageId: true, staffReadImageRevisionId: true } },
+            recipientUser: { select: { id: true, role: true, staffTelegramIdentity: true } },
+          } });
+          const revision = event?.imageRevision;
+          const message = event?.message;
+          const valid = Boolean(event && message && message.orderId === orderId &&
+            (event.type === 'CHAT_IMAGE_REVISION'
+              ? revision && revision.messageId === message.id && revision.actorType === 'CUSTOMER' &&
+                revision.id > event.order.staffReadImageRevisionId && revision.actorUserId !== event.recipientUserId
+              : message.authorType === 'CUSTOMER' && message.id > event.order.staffReadMessageId &&
+                message.authorUserId !== event.recipientUserId));
+          const identity = event?.recipientUser?.staffTelegramIdentity;
+          const eligible = Boolean(event?.recipientUser && ['SELLER', 'ADMIN'].includes(event.recipientUser.role) &&
+            identity?.botStartedAt && !identity.blockedAt && staffBotToken());
+          const claimed = await db.orderNotification.updateMany({
+            where: { id: pending.id, channel: 'STAFF_TELEGRAM', status: 'PENDING' },
+            data: { status: !valid ? 'CANCELED' : eligible ? 'SENDING' : 'UNCONFIGURED',
+              ...(valid && eligible ? { attempts: { increment: 1 } } : {}) },
+          });
+          return claimed.count && valid && eligible && event && message && identity ? { event, message, identity } : null;
+        });
+        if (!current) continue;
+        let outcome: BotDelivery;
+        try {
+          outcome = await botDelivery(staffBotToken(), {
+            chat_id: current.identity.telegramUserId.toString(),
+            ...chatNotice(current.event.order, current.message, true, current.event.type === 'CHAT_IMAGE_REVISION'),
+          });
+        } catch { outcome = 'unknown'; }
+        await this.db.orderNotification.update({ where: { id: pending.id },
+          data: telegramResult(outcome, pending.attempts + 1),
+        });
+        if (outcome === 'blocked') await this.db.staffTelegramIdentity.updateMany({
+          where: { id: current.identity.id, botStartedAt: { lte: current.identity.botStartedAt! } },
+          data: { blockedAt: new Date() },
+        });
+      }
+    } catch { this.logger.warn('Staff chat notification dispatch failed'); }
+  }
+
+  private async retryTelegram() {
+    // Only explicit provider rate-limit rejections are safe to retry. Unknown sends stay SENDING.
+    const now = new Date();
+    const failed = await this.db.orderNotification.findMany({ where: {
+      channel: { in: ['TELEGRAM', 'STAFF_TELEGRAM'] }, status: 'FAILED',
+      error: 'TELEGRAM_RETRYABLE', attempts: { lt: 6 },
+      OR: [{ retryAt: { lte: now } }, { retryAt: null }],
+    }, orderBy: { id: 'asc' }, take: 100 });
+    for (const event of failed) {
+      const delay = Math.min(15 * 60_000, 60_000 * 2 ** Math.max(0, event.attempts - 1));
+      if (!event.retryAt && now.getTime() - event.updatedAt.getTime() < delay) continue;
+      await this.db.orderNotification.updateMany({
+        where: { id: event.id, status: 'FAILED', error: 'TELEGRAM_RETRYABLE', updatedAt: event.updatedAt },
+        data: { status: 'PENDING', error: null, retryAt: null },
+      });
+    }
   }
 
   async dispatchStaffPrice(orderId: number) {
@@ -249,9 +337,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
         } catch { outcome = 'unknown'; }
         await this.db.orderNotification.update({
           where: { id: pending.id },
-          data: outcome === 'sent' ? { status: 'SENT', sentAt: new Date(), error: null } :
-            outcome === 'unknown' ? { status: 'SENDING', error: 'TELEGRAM_OUTCOME_UNKNOWN' } :
-              { status: 'FAILED', error: outcome === 'blocked' ? 'TELEGRAM_BLOCKED' : 'TELEGRAM_REJECTED' },
+          data: telegramResult(outcome, pending.attempts + 1),
         });
         if (outcome !== 'sent') this.logger.warn('Staff price notification delivery failed');
         if (outcome === 'blocked') await this.db.staffTelegramIdentity.updateMany({
@@ -272,11 +358,12 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     if (this.sweeping) return;
     this.sweeping = true;
     try {
+      await this.retryTelegram();
       const now = new Date();
       const load = await this.queue.snapshot(this.db, now);
       for (const [index, waiting] of load.queue.entries()) {
         if (waitRange(index + 1, load.active, now, load.minutes,
-          load.settings.assemblyConcurrency).max > 15) break;
+        load.effective.assemblyConcurrency).max > 15) break;
         if (waiting.createdAt >= new Date(now.getTime() - 2 * 60_000)) continue;
         const order = await this.db.order.findUnique({ where: { id: waiting.id }, select: { status: true } });
         if (order?.status === 'CONFIRMED')
@@ -295,6 +382,11 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
         orderBy: { id: 'asc' }, take: 50, select: { orderId: true },
       });
       for (const orderId of new Set(staffRows.map(row => row.orderId))) await this.dispatchStaffPrice(orderId);
+      const chatRows = await this.db.orderNotification.findMany({
+        where: { channel: 'STAFF_TELEGRAM', type: { in: ['CHAT_MESSAGE', 'CHAT_IMAGE_REVISION'] }, status: 'PENDING' },
+        orderBy: { id: 'asc' }, take: 50, select: { orderId: true },
+      });
+      for (const orderId of new Set(chatRows.map(row => row.orderId))) await this.dispatchStaffChat(orderId);
       const expired = await this.db.customerTelegramSession.findMany({
         where: { expiresAt: { lte: new Date() } }, orderBy: { expiresAt: 'asc' }, take: 100, select: { id: true },
       });

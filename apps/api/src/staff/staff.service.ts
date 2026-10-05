@@ -26,7 +26,7 @@ import type { ExtraInput } from './extra.js';
 import { extraLimits } from '../order/limits.js';
 import { assertStaffActor, recordStaffAudit, type StaffActor } from './audit.js';
 import { adminPriceRecipients } from './price.js';
-import { QueueService } from '../order/queue.js';
+import { effectiveQueue, QueueService } from '../order/queue.js';
 
 
 @Injectable()
@@ -94,7 +94,8 @@ export class StaffService {
       },
     });
     return orders.map(order => ({ ...order, queueRank: rank.get(order.id) ?? null,
-      preparationMinutes: queue.minutes,
+      preparationMinutes: order.scheduledFor
+        ? effectiveQueue(queue.settings, order.scheduledFor).assemblyMinutes : queue.minutes,
       restoreProblem: restoreProblem(order, order.cancellations[0]) }));
   }
 
@@ -212,7 +213,9 @@ export class StaffService {
       throw new NotFoundException('Заказ не найден');
     }
 
-    const preparationMinutes = (await this.queue.snapshot()).minutes;
+    const load = await this.queue.snapshot();
+    const preparationMinutes = order.scheduledFor
+      ? effectiveQueue(load.settings, order.scheduledFor).assemblyMinutes : load.minutes;
     return { ...order, preparationMinutes,
       restoreProblem: restoreProblem(order, order.cancellations[0]) };
   }
@@ -639,7 +642,7 @@ export class StaffService {
         const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
         const booked = await db.order.count({ where: { fulfillmentMode: 'SCHEDULED',
           scheduledFor: order.scheduledFor, status: { notIn: ['COMPLETED', 'CANCELED'] } } });
-        if (booked >= settings.slotCapacity)
+        if (booked >= effectiveQueue(settings, order.scheduledFor).slotCapacity)
           throw new ConflictException('Время подготовки уже занято. Восстановление сейчас недоступно.');
       }
       const saved = await restoreOrder(db, id, userId, role, cancellationId);
@@ -852,7 +855,8 @@ export class StaffService {
 
       if (next === 'ASSEMBLING' && order.fulfillmentMode === 'SCHEDULED' && order.scheduledFor) {
         const load = await this.queue.snapshot(db);
-        if (order.scheduledFor.getTime() - load.minutes * 60_000 > Date.now())
+        const lead = effectiveQueue(load.settings, order.scheduledFor).assemblyMinutes;
+        if (order.scheduledFor.getTime() - lead * 60_000 > Date.now())
           throw new ConflictException('К этому заказу ещё рано приступать. Время начала видно в очереди.');
       }
 

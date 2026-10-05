@@ -1,9 +1,28 @@
-import { actionableQueue, assemblyMinutes, peakActive, waitRange } from './queue.js';
+import { actionableQueue, assemblyMinutes, effectiveQueue, peakActive, waitRange } from './queue.js';
 
 const now = new Date('2026-10-02T10:00:00.000Z');
 const row = (id: number, minute: number, scheduledFor: Date | null = null) => ({
   id, createdAt: new Date(now.getTime() + minute * 60_000),
   fulfillmentMode: scheduledFor ? 'SCHEDULED' as const : 'ASAP' as const, scheduledFor,
+});
+
+it('selects independent profiles at both boundaries and uses their concurrency and assembly time for ETA', () => {
+  const settings = { peakModeEnabled: true, peakModeStart: now, peakModeEnd: new Date(now.getTime() + 3600_000),
+    assemblyConcurrency: 2, assemblyFallbackMinutes: 15, queueThreshold: 4, slotCapacity: 2, slotIntervalMinutes: 30,
+    peakAssemblyConcurrency: 4, peakAssemblyMinutes: 10, peakQueueThreshold: 8, peakSlotCapacity: 5 };
+  const normal = effectiveQueue(settings, new Date(now.getTime() - 1));
+  const peak = effectiveQueue(settings, now);
+  expect(normal).toMatchObject({ mode: 'NORMAL', assemblyConcurrency: 2, assemblyMinutes: 15, queueThreshold: 4, slotCapacity: 2 });
+  expect(peak).toMatchObject({ mode: 'PEAK', assemblyConcurrency: 4, assemblyMinutes: 10, queueThreshold: 8, slotCapacity: 5 });
+  expect(effectiveQueue(settings, settings.peakModeEnd)).toEqual(normal);
+  const beforeStart = new Date(now.getTime() - 5 * 60_000);
+  const peakOrder = row(8, -30, new Date(now.getTime() + 10 * 60_000));
+  const longerPeak = { ...settings, peakAssemblyMinutes: 30 };
+  expect(actionableQueue([peakOrder], beforeStart, 15, longerPeak).map(item => item.id)).toEqual([8]);
+  const normalOrder = row(9, -30, new Date(settings.peakModeEnd.getTime() + 20 * 60_000));
+  expect(actionableQueue([normalOrder], new Date(settings.peakModeEnd.getTime() - 5 * 60_000), 30, longerPeak)).toEqual([]);
+  expect(waitRange(5, [], now, peak.assemblyMinutes, peak.assemblyConcurrency).max)
+    .toBeLessThan(waitRange(5, [], now, normal.assemblyMinutes, normal.assemblyConcurrency).max);
 });
 
 describe('queue estimation and fairness', () => {

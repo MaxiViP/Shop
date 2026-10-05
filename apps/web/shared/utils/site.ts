@@ -7,7 +7,7 @@ export const site = {
   locale: "ru_RU",
   title: "Доставка продуктов с рынка по Москве — KorzinaMarket",
   description: "Свежие овощи, фрукты, зелень и другие продукты с рынка с доставкой по Москве. Быстрая доставка доступна в районе Багратионовской, Фили-Давыдково и ближайших районах.",
-  about: "KorzinaMarket — интернет-магазин свежих продуктов с рынка с доставкой по Москве.",
+  about: "KorzinaMarket — аутентичный поход на московский рынок: реальный продавец, актуальный прилавок и ваш выбор по фото и в прямом чате.",
   delivery: {
     city: "Москва",
     priorityAreas: ["район метро Багратионовская", "Фили-Давыдково"],
@@ -25,7 +25,7 @@ export function canonicalUrl(path = "/") {
 }
 
 export function isPublicPage(path: string) {
-  return /^\/(?:catalog(?:\/[^/]+)?|product\/[^/]+|delivery)?\/?$/.test(path);
+  return /^\/(?:catalog(?:\/[^/]+)?|product\/[^/]+|delivery|how-it-works)?\/?$/.test(path);
 }
 
 export function pageRobots(path: string, query: Record<string, unknown> = {}) {

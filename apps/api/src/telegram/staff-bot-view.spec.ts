@@ -18,6 +18,14 @@ function buttons(view: { keyboard: { inline_keyboard: ({ text: string; callback_
   return view.keyboard.inline_keyboard.flat();
 }
 
+it('places Refresh, customer chat and web order links in that order', () => {
+  const order = fixture();
+  order.customerName = 'Тест'; order.customerPhone = '+79990000000';
+  const actions = buttons(dashboard(order, 'https://shop.example/staff/orders/6'));
+  expect(actions.slice(-3).map(button => button.text)).toEqual(['🔄 Обновить', 'Чат с покупателем', 'Открыть заказ на сайте']);
+  expect(actions.at(-2)).toEqual({ text: 'Чат с покупателем', url: 'https://shop.example/staff/orders/6#order-chat' });
+});
+
 describe('STAFF position list', () => {
   it('shows requested quantity, unit and state for all positions', () => {
     const view = itemPage(fixture(), 0);

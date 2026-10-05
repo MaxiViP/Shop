@@ -1,6 +1,11 @@
 <template>
   <section class="space-y-6">
     <h2 class="text-2xl font-semibold">Настройки</h2>
+    <UCard>
+      <h3 class="font-semibold">Очередь и нагрузка</h3>
+      <p class="text-muted mt-2">Обычный и пиковый режимы, сборщики, время сборки и запись заказов ко времени.</p>
+      <UButton to="/admin/queue" class="mt-3" icon="i-lucide-gauge">Открыть раздел</UButton>
+    </UCard>
     <UAlert v-if="error" color="error" title="Не удалось загрузить настройки" />
     <p v-if="pending">Загрузка…</p>
     <UCard v-else-if="data">
@@ -61,31 +66,6 @@
           От 1 до 120 минут. После этого продавцу предлагается позвонить
           покупателю. Автоматических повторных SMS нет.
         </p>
-        <h3 class="font-semibold">Очередь и заказ ко времени</h3>
-        <UFormField label="Порог очереди для предложения времени" required>
-          <UInput v-model.number="queueThreshold" type="number" min="1" max="100" :disabled="busy" />
-        </UFormField>
-        <UFormField label="Оценка сборки без истории, мин." required>
-          <UInput v-model.number="assemblyFallbackMinutes" type="number" min="5" max="180" :disabled="busy" />
-        </UFormField>
-        <UFormField label="Сборщиков для расчёта ожидания" required>
-          <UInput v-model.number="assemblyConcurrency" type="number" min="1" max="30" :disabled="busy" />
-        </UFormField>
-        <p class="text-muted">Плановая параллельная сборка; число сотрудников онлайн не определяется автоматически.</p>
-        <UFormField label="Шаг слотов, мин." required>
-          <select v-model.number="slotIntervalMinutes" class="settings__select" :disabled="busy">
-            <option :value="15">15</option><option :value="30">30</option><option :value="60">60</option>
-          </select>
-        </UFormField>
-        <UFormField label="Заказов на один слот" required>
-          <UInput v-model.number="slotCapacity" type="number" min="1" max="30" :disabled="busy" />
-        </UFormField>
-        <USwitch v-model="peakModeEnabled" label="Режим высокой нагрузки" :disabled="busy" />
-        <p class="text-muted">После окончания периода предложение времени отключится автоматически, если очередь ниже порога.</p>
-        <div v-if="peakModeEnabled" class="settings__period">
-          <UFormField label="Начало (Москва)" required><UInput v-model="peakModeStart" type="datetime-local" :disabled="busy" /></UFormField>
-          <UFormField label="Окончание (Москва)" required><UInput v-model="peakModeEnd" type="datetime-local" :disabled="busy" /></UFormField>
-        </div>
         <h3 class="font-semibold">Партнёры · 50/50</h3>
         <UFormField label="Партнёр 1"><UInput v-model="partner1Name" maxlength="80" class="w-full" /></UFormField>
         <UFormField label="Партнёр 2"><UInput v-model="partner2Name" maxlength="80" class="w-full" /></UFormField>
@@ -96,7 +76,6 @@
 </template>
 
 <script setup lang="ts">
-import { pickupDate } from '~/utils/pickup';
 definePageMeta({ layout: "admin", middleware: "admin" });
 const { data, pending, error, refresh } = await useApi<{
   weightToleranceBps: number;
@@ -108,14 +87,6 @@ const { data, pending, error, refresh } = await useApi<{
   pickupEnabled: boolean;
   partner1Name: string;
   partner2Name: string;
-  queueThreshold: number;
-  assemblyFallbackMinutes: number;
-  assemblyConcurrency: number;
-  peakModeEnabled: boolean;
-  peakModeStart: string | null;
-  peakModeEnd: string | null;
-  slotIntervalMinutes: number;
-  slotCapacity: number;
 }>("/admin/settings");
 const moneyFields = [
   {
@@ -150,16 +121,6 @@ const percent = ref(
   data.value ? bpsPercent(data.value.weightToleranceBps) : "",
 );
 const responseMinutes = ref(data.value?.customerResponseMinutes ?? 10);
-const queueThreshold = ref(data.value?.queueThreshold ?? 4);
-const assemblyFallbackMinutes = ref(data.value?.assemblyFallbackMinutes ?? 25);
-const assemblyConcurrency = ref(data.value?.assemblyConcurrency ?? 1);
-const slotIntervalMinutes = ref(data.value?.slotIntervalMinutes ?? 30);
-const slotCapacity = ref(data.value?.slotCapacity ?? 1);
-const peakModeEnabled = ref(data.value?.peakModeEnabled ?? false);
-const moscowInput = (value: string | null | undefined) => value
-  ? new Date(Date.parse(value) + 3 * 60 * 60 * 1000).toISOString().slice(0, 16) : '';
-const peakModeStart = ref(moscowInput(data.value?.peakModeStart));
-const peakModeEnd = ref(moscowInput(data.value?.peakModeEnd));
 const api = useApiClient();
 const toast = useToast();
 const busy = ref(false);
@@ -212,12 +173,6 @@ async function save() {
     });
     return;
   }
-  const start = pickupDate(peakModeStart.value);
-  const end = pickupDate(peakModeEnd.value);
-  if (peakModeEnabled.value && (!start || !end || end <= start)) {
-    toast.add({ title: 'Укажите начало и окончание периода высокой нагрузки', color: 'error' });
-    return;
-  }
   busy.value = true;
   try {
     await api("/admin/settings", {
@@ -232,14 +187,6 @@ async function save() {
         pickupEnabled: pickupEnabled.value,
         partner1Name: partner1Name.value.trim(),
         partner2Name: partner2Name.value.trim(),
-        queueThreshold: queueThreshold.value,
-        assemblyFallbackMinutes: assemblyFallbackMinutes.value,
-        assemblyConcurrency: assemblyConcurrency.value,
-        slotIntervalMinutes: slotIntervalMinutes.value,
-        slotCapacity: slotCapacity.value,
-        peakModeEnabled: peakModeEnabled.value,
-        peakModeStart: start?.toISOString() ?? null,
-        peakModeEnd: end?.toISOString() ?? null,
       },
     });
     await refresh();
@@ -252,8 +199,3 @@ async function save() {
   }
 }
 </script>
-
-<style scoped>
-.settings__period { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); }
-.settings__select { width: 100%; min-height: var(--touch-target); padding: 0.5rem; border: 1px solid var(--ui-border); border-radius: 0.5rem; background: var(--ui-bg); }
-</style>

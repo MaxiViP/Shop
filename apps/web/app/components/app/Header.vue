@@ -39,12 +39,12 @@
           <UIcon name="i-lucide-layout-grid" aria-hidden="true" />
         </NuxtLink>
         <NuxtLink
-          to="/delivery"
+          to="/how-it-works"
           class="header__nav-link"
           :class="{ 'header__nav-link--active': deliveryActive }"
           :aria-current="deliveryActive ? 'page' : undefined"
-          aria-label="Доставка"
-          title="Доставка"
+          aria-label="Как это работает"
+          title="Как это работает"
         >
           <UIcon name="i-lucide-truck" aria-hidden="true" />
         </NuxtLink>
@@ -163,9 +163,9 @@
               <span>Каталог</span>
             </NuxtLink>
 
-            <NuxtLink to="/delivery" class="mobile-nav__link">
+            <NuxtLink to="/how-it-works" class="mobile-nav__link">
               <UIcon name="i-lucide-truck" />
-              <span>Доставка</span>
+              <span>Как это работает</span>
             </NuxtLink>
 
             <a
@@ -303,7 +303,7 @@ const { sceneKey, sceneState } = useBasketScene();
 const catalogActive = computed(() =>
   route.path.startsWith("/catalog") || route.path.startsWith("/product/"),
 );
-const deliveryActive = computed(() => route.path === "/delivery");
+const deliveryActive = computed(() => ["/how-it-works", "/delivery"].includes(route.path));
 const cartLabel = computed(() =>
   !cart.count
     ? "Корзина"

@@ -162,7 +162,7 @@ async function telegramStart(path) {
     calls.push({ target, init });
     return { url: "https://oauth.telegram.org/auth?fixture=1" };
   };
-  const route = { path };
+  const route = { path: path.split(/[?#]/)[0], fullPath: path };
   const browser = { location: { assign: url => navigation.push(url) } };
   const fn = new Function("api", "route", "loading", "telegramAvailable", "telegramLoading", "error", "window",
     telegramCode + "\nreturn telegramLogin;");
@@ -179,6 +179,8 @@ test("Telegram modal sends exact order returnTo and no token in start payload", 
   assert.equal(result.navigation.length, 1);
   const upper = await telegramStart('/order/ABCDEF12-1234-4234-8234-ABCDEF123456');
   assert.equal(upper.calls[0].init.body.returnTo, '/order/ABCDEF12-1234-4234-8234-ABCDEF123456');
+  const exact = '/order/' + id + '?chatMessage=21#order-chat';
+  assert.equal((await telegramStart(exact)).calls[0].init.body.returnTo, exact);
 });
 
 test("Telegram modal omits external or malformed returnTo", async () => {

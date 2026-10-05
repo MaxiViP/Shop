@@ -175,12 +175,23 @@ describe('Telegram website OIDC', () => {
     expect((await callback()).returnTo).toBe(target);
     expect(service.destination(false, target)).toBe('https://shop.example' + target);
   });
+  it('keeps the exact chat message and anchor through authenticated login', async () => {
+    const target = '/order/12345678-1234-4234-8234-123456789abc?chatMessage=21#order-chat';
+    start = service.start(target);
+    url = new URL(start.url);
+    claims.nonce = url.searchParams.get('nonce');
+    const proof = await callback();
+    expect(proof.returnTo).toBe(target);
+    expect(service.destination(false, proof.returnTo)).toBe('https://shop.example' + target);
+  });
   it.each([
     'https://evil.example/order/12345678-1234-4234-8234-123456789abc',
     '//evil.example', 'javascript:alert(1)',
     '/\\\\evil.example/order/12345678-1234-4234-8234-123456789abc',
     '/order/%2f%2fevil.example',
     '/order/12345678-1234-4234-8234-123456789abc?next=//evil.example',
+    '/order/12345678-1234-4234-8234-123456789abc?chatMessage=21&next=//evil.example',
+    '/order/12345678-1234-4234-8234-123456789abc?chatMessage=0#order-chat',
     '/order/not-a-uuid',
   ])('rejects untrusted returnTo %s and keeps the profile destination', async target => {
     start = service.start(target);

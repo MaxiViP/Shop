@@ -141,6 +141,11 @@ useOrderPolling(reload, () => props.poll === false ? 30000 : 4000);
   background: var(--ui-bg-elevated);
 }
 .coordination__issues-title { font-weight: 700; }
+@media (max-width: 39.999rem) {
+  .coordination { padding-inline: 0; border-inline: 0; }
+  .coordination > h2, .coordination__intro { padding-inline: 0.75rem; }
+  .coordination__issues { margin-inline: 0.5rem; }
+}
 @media (min-width: 40rem) {
   .coordination { gap: 1rem; margin-block: 1.5rem; padding: var(--card-padding); }
 }

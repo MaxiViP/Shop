@@ -1,5 +1,6 @@
 import type { StaffService } from '../staff/staff.service.js';
 import { clean, money, quantity, staffData } from './staff-bot.js';
+import { orderChatPath } from './chat-notice.js';
 
 export type OrderView = Awaited<ReturnType<StaffService['get']>>;
 export type Button = { text: string; callback_data: string } | { text: string; url: string };
@@ -80,7 +81,10 @@ export function dashboard(order: OrderView, url?: string): { text: string; keybo
     add('✅ Доставлен', 'c');
   if (!['COMPLETED', 'CANCELED'].includes(order.status)) add('❌ Отменить заказ', 'z');
   add('🔄 Обновить', 'o');
-  if (url) rows.push([{ text: 'Открыть заказ на сайте', url }]);
+  if (url) {
+    rows.push([{ text: 'Чат с покупателем', url: new URL(orderChatPath(id, true), url).href }]);
+    rows.push([{ text: 'Открыть заказ на сайте', url }]);
+  }
   return { text: lines.join('\n').slice(0, 3900), keyboard: { inline_keyboard: rows } };
 }
 

@@ -2,7 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import type { OrderItem, Prisma, MessageAuthor, NotificationType, OrderIssue, IssueResolution, Unit, ChatImageRetention } from '../db/gen/client.js';
 import { outsideTolerance, approvedWeight } from './assembly.js';
 
-import { telegramEvent } from './outbox.js';
+import { chatEvent, telegramEvent } from './outbox.js';
 
 export function customerIssueActions(issue: Pick<OrderIssue, 'status' | 'type' | 'proposedName' | 'proposedSlug' | 'proposedUnit' | 'proposedPrice' | 'proposedPriceQty' | 'proposedQty'>): IssueResolution[] {
   if (issue.status !== 'WAITING_CUSTOMER') return [];
@@ -50,11 +50,12 @@ export async function message(
   recipient: 'customer' | 'staff' | 'both' = 'both',
   notification?: NotificationType,
   image?: { key: string; retention: ChatImageRetention; expiresAt: Date | null; requestId?: string },
+  requestId?: string,
 ) {
   const saved = await db.orderChatMessage.create({
     data: { orderId, text, authorType, authorUserId, issueId, recipient,
       imageKey: image?.key, imageRetention: image?.retention, imageExpiresAt: image?.expiresAt,
-      imageRequestId: image?.requestId },
+      imageRequestId: image?.requestId, requestId },
   });
   if (image) await db.orderChatImageRevision.create({ data: {
     messageId: saved.id, version: 0, imageKey: image.key, requestId: image.requestId,
@@ -67,9 +68,11 @@ export async function message(
       ...(recipient !== 'customer' ? { staffUnread: { increment: 1 } } : {}),
     },
   });
-  const type = notification ?? (authorType === 'SELLER' || authorType === 'ADMIN' ? 'CHAT_MESSAGE' : undefined);
-  if (type && (notification || recipient !== 'staff')) await telegramEvent(db, {
-    orderId, type, messageId: saved.id, dedupeKey: `message:${saved.id}`,
+  if (!notification && authorType !== 'SYSTEM' &&
+    (authorType === 'CUSTOMER' ? recipient !== 'customer' : recipient !== 'staff'))
+    await chatEvent(db, { orderId, messageId: saved.id, actorType: authorType, actorUserId: authorUserId });
+  else if (notification) await telegramEvent(db, {
+    orderId, type: notification, messageId: saved.id, dedupeKey: `message:${saved.id}`,
   });
   return saved;
 }

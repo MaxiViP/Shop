@@ -71,7 +71,9 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     return {
       get: (path: string) => http.get(`/api${path}`).set('Cookie', cookie),
       post: (path: string, body: object = {}) =>
-        http.post(`/api${path}`).set('Cookie', cookie).send(body),
+        http.post(`/api${path}`).set('Cookie', cookie).send({
+          ...(path.endsWith('/messages') ? { requestId: randomUUID() } : {}), ...body,
+        }),
       patch: (path: string, body: object) =>
         http.patch(`/api${path}`).set('Cookie', cookie).send(body),
       put: (path: string, body: object) =>

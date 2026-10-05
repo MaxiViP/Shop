@@ -22,6 +22,8 @@ export class SettingsCtrl {
   ) {
     return this.settings.update(body, request.user.id);
   }
+  @Get('queue')
+  queue() { return this.settings.queue(); }
 }
 
 @Controller('shop/settings')

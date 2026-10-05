@@ -25,7 +25,7 @@ import {
 const issuer = 'https://oauth.telegram.org';
 // Only an exact local order path may be carried through the authenticated flow.
 export const orderReturnTo = (value: unknown): string | undefined =>
-  typeof value === 'string' && /^\/order\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  typeof value === 'string' && /^\/order\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\?chatMessage=[1-9][0-9]{0,9})?(?:#order-chat)?$/i.test(value)
     ? value : undefined;
 const flowSchema = z.object({
   state: z.string().length(43),

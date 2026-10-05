@@ -193,7 +193,7 @@ async function telegramLogin() {
   telegramLoading.value = true;
   error.value = "";
   try {
-    const returnTo = /^\/order\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(route.path) ? route.path : undefined;
+    const returnTo = /^\/order\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\?chatMessage=[1-9][0-9]{0,9})?(?:#order-chat)?$/i.test(route.fullPath) ? route.fullPath : undefined;
     const result = await api<{ url: string }>("/auth/telegram/start", {
       method: "POST", ...(returnTo ? { body: { returnTo } } : {}),
     });

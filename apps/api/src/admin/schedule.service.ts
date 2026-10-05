@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { DbService } from '../db/db.service.js';
 import type { Prisma } from '../db/gen/client.js';
-import { QueueService } from '../order/queue.js';
+import { effectiveQueue } from '../order/queue.js';
 import { isMarketOpenAt, loadCalendar, marketStatusAt } from './shop-hours.js';
 import type { ExceptionInput, WeeklyInput } from './schedule.schema.js';
 
@@ -28,9 +28,10 @@ export class ScheduleService {
       select: { scheduledFor: true } });
     if (!booked.length) return;
     const after = await loadCalendar(db);
-    const { minutes } = await new QueueService(this.db).snapshot(db);
+    const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
     for (const row of booked) {
       const ready = row.scheduledFor!;
+      const minutes = effectiveQueue(settings, ready).assemblyMinutes;
       const start = new Date(ready.getTime() - minutes * 60_000);
       if (isMarketOpenAt(before, ready) && isMarketOpenAt(before, start) &&
         (!isMarketOpenAt(after, ready) || !isMarketOpenAt(after, start)))

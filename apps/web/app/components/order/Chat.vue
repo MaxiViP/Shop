@@ -1,5 +1,5 @@
 <template>
-  <UCard id="order-chat" class="chat">
+  <UCard id="order-chat" class="chat" :ui="{ body: 'chat__body', header: 'chat__header' }">
     <template #header><h3 class="font-semibold">Чат по заказу</h3></template>
     <UAlert v-if="error" color="error" title="Не удалось обновить чат"
       ><template #actions
@@ -12,7 +12,7 @@
       class="chat__messages"
       tabindex="0"
       aria-label="Сообщения по заказу"
-      @scroll="markVisible"
+      @scroll="onScroll"
     >
       <UButton
         v-if="hasOlder"
@@ -29,10 +29,12 @@
         :key="entry.id"
         :data-message-id="entry.id"
         class="chat__message"
+        tabindex="-1"
         :class="{
           'chat__message--system': entry.authorType === 'SYSTEM',
           'chat__message--customer': entry.authorType === 'CUSTOMER',
           'chat__message--unread-photo': unreadRevision?.messageId === entry.id,
+          'chat__message--focused': highlightedId === entry.id,
         }"
       >
         <p v-if="unreadRevision?.messageId === entry.id" class="chat__unread-photo">Непрочитанное обновление фото</p>
@@ -58,6 +60,10 @@
         <p v-if="entry.revisionText" class="chat__revision-text">{{ entry.revisionText }}</p>
       </article>
     </div>
+    <UButton v-if="newUpdates.size" class="chat__new" variant="soft" @click="focusNew">
+      {{ newUpdates.size === 1 ? 'Новое сообщение ↓' : `Новые сообщения · ${newUpdates.size} ↓` }}
+    </UButton>
+    <p class="sr-only" role="status" aria-live="polite">{{ newUpdates.size ? `Новых обновлений: ${newUpdates.size}` : '' }}</p>
     <p v-if="unread" role="status" class="text-primary text-sm">
       Непрочитанных обновлений: {{ unread }}
     </p>
@@ -138,6 +144,7 @@ import {
   receiveMessages,
 } from "~/utils/chat-messages";
 import { chatPhotoError, chatRequest, isHeicPhoto, prepareChatPhoto } from "~/utils/chat-photo";
+import { chatMessageId, counterpartMessage, chatRectVisible, chatUpdateKey } from '~/utils/chat-focus';
 const props = defineProps<{
   base: string;
   staff: boolean;
@@ -155,6 +162,11 @@ const communicationRevision = useCommunicationRevision();
 const history = reactive(createChatHistory());
 const { messages, initialLoaded } = toRefs(history);
 const unreadRevision = ref<MessagePage['unreadRevision']>(null);
+const unreadMessage = ref<ChatMessage | null>(null);
+const newUpdates = reactive(new Map<string, { messageId: number; version: number }>());
+const highlightedId = ref<number | null>(null);
+let highlightTimer: ReturnType<typeof setTimeout> | undefined;
+let focusing = false;
 const oldestPageId = ref<number>();
 const readyImages = reactive(new Map<number, number>());
 const text = ref("");
@@ -171,6 +183,7 @@ const revisionAttempt = ref<{ messageId: number; file: File; text: string; reque
 const revisionSending = ref(false);
 const revisionError = ref('');
 const requestId = ref("");
+let textAttempt: { text: string; requestId: string } | null = null;
 const sendError = ref("");
 const photoError = ref("");
 const loading = ref(false);
@@ -207,68 +220,109 @@ function photoVisible(messageId: number) {
   if (!frame || !image) return false;
   const photo = image.getBoundingClientRect();
   if (!photo.width || !photo.height) return false;
-  const visible = Math.min(photo.bottom, frame.bottom, window.innerHeight) -
-    Math.max(photo.top, frame.top, 0);
-  return visible >= Math.min(48, photo.height / 2);
+  return chatRectVisible(photo, frame, window.innerHeight);
 }
+function messageVisible(entry: ChatMessage) {
+  const frame = viewport.value?.getBoundingClientRect();
+  const card = viewport.value?.querySelector<HTMLElement>(`[data-message-id="${entry.id}"]`);
+  if (!frame || !card || !chatRectVisible(card.getBoundingClientRect(), frame, window.innerHeight)) return false;
+  return !entry.image || entry.imageExpired ||
+    (readyImages.get(entry.id) === entry.imageRevision && photoVisible(entry.id));
+}
+function onScroll() { void markVisible(); }
 function imageReady(messageId: number, revision: number) {
   readyImages.set(messageId, revision);
   void markVisible();
 }
 async function markVisible() {
-  const through = bottom() ? history.cursor ?? 0 : 0;
+  if (!active || focusing || reading || !inView || document.visibilityState !== 'visible') return;
+  for (const [key, update] of newUpdates) {
+    const entry = messages.value.find(row => row.id === update.messageId);
+    if (entry && messageVisible(entry) && (!update.version || (entry.imageRevision >= update.version &&
+      readyImages.get(entry.id) === entry.imageRevision))) newUpdates.delete(key);
+  }
+  // A cursor cannot represent holes: acknowledge the oldest unread message only after seeing it.
+  const through = unreadMessage.value
+    ? messageVisible(unreadMessage.value) ? unreadMessage.value.id : 0
+    : Math.max(0, ...messages.value.filter(entry => entry.id <= (history.cursor ?? 0) && messageVisible(entry)).map(entry => entry.id));
   const target = unreadRevision.value;
   const revisionThrough = target && readyImages.get(target.messageId) === target.message.imageRevision &&
     photoVisible(target.messageId) ? target.id : undefined;
   if (
-    !active ||
-    reading ||
-    !inView ||
-    document.visibilityState !== "visible" ||
     (through <= Math.max(lastRead, props.readThrough) &&
       (!revisionThrough || revisionThrough <= lastReadRevision))
   )
     return;
   reading = true;
+  let acknowledged = false;
   try {
-    await api(`${props.base}/messages/read`, {
+    const result = await api<Pick<MessagePage, 'unreadMessage' | 'unreadRevision' | 'readThrough'>>(`${props.base}/messages/read`, {
       method: "POST",
       body: { through, ...(revisionThrough ? { revisionThrough } : {}) },
     });
     if (active) {
       lastRead = Math.max(lastRead, through);
+      unreadMessage.value = result.unreadMessage;
       if (revisionThrough) {
         lastReadRevision = Math.max(lastReadRevision, revisionThrough);
-        if (unreadRevision.value?.id === revisionThrough) unreadRevision.value = null;
       }
+      unreadRevision.value = result.unreadRevision;
       communicationRevision.value++;
       emit("read");
+      acknowledged = true;
     }
   } catch {
     /* Polling retries; read failure must not interrupt writing a message. */
   } finally {
     reading = false;
   }
+  // Several visible messages/revisions can be acknowledged in cursor order without another poll.
+  if (acknowledged && (unreadMessage.value && messageVisible(unreadMessage.value) ||
+    unreadRevision.value && readyImages.get(unreadRevision.value.messageId) === unreadRevision.value.message.imageRevision &&
+    photoVisible(unreadRevision.value.messageId))) void markVisible();
+}
+function scrollAnchor() {
+  const frame = viewport.value?.getBoundingClientRect();
+  const cards = viewport.value?.querySelectorAll<HTMLElement>('[data-message-id]');
+  const card = frame && cards && [...cards].find(entry => entry.getBoundingClientRect().bottom > frame.top);
+  return card ? { id: card.dataset.messageId, top: card.getBoundingClientRect().top } : null;
+}
+function restoreAnchor(anchor: ReturnType<typeof scrollAnchor>) {
+  const card = anchor && viewport.value?.querySelector<HTMLElement>(`[data-message-id="${anchor.id}"]`);
+  if (card && viewport.value) viewport.value.scrollTop += card.getBoundingClientRect().top - anchor!.top;
 }
 async function load() {
   if (loading.value || !active) return;
   loading.value = true;
   const wasBottom = bottom();
   const wasInitial = !initialLoaded.value;
+  const anchor = wasBottom ? null : scrollAnchor();
   try {
-    const after = history.cursor;
+    const around = wasInitial ? chatMessageId(route.query.chatMessage) : undefined;
+    const after = around ? undefined : history.cursor;
     const seen = messages.value.filter(entry => entry.image).slice(-500).map(entry => entry.id).join(',');
     const page = await api<MessagePage>(`${props.base}/messages`, {
-      query: { ...(after ? { after } : {}), ...(seen ? { seen } : {}) },
+      query: { ...(around ? { around } : after ? { after } : {}), ...(seen ? { seen } : {}) },
     });
     if (!active) return;
     if (!after) {
       hasOlder.value = page.hasMore;
       oldestPageId.value = page.messages[0]?.id;
     }
+    if (!wasInitial) {
+      const known = new Map(messages.value.map(entry => [entry.id, entry.imageRevision]));
+      for (const entry of page.messages) if (!known.has(entry.id) && counterpartMessage(entry, props.staff) &&
+        entry.id > Math.max(lastRead, props.readThrough))
+        newUpdates.set(chatUpdateKey(entry.id), { messageId: entry.id, version: 0 });
+      const updates = [...(page.revisions ?? []), ...(page.unreadRevision ? [page.unreadRevision.message] : [])];
+      for (const update of updates) if (update.imageRevision > (known.get(update.id) ?? -1) &&
+        update.revisionActor && (props.staff ? update.revisionActor === 'CUSTOMER' : ['SELLER', 'ADMIN'].includes(update.revisionActor)))
+        newUpdates.set(chatUpdateKey(update.id, update.imageRevision), { messageId: update.id, version: update.imageRevision });
+    }
     const changed = receiveMessages(history, page.messages);
     const revised = applyImageRevisions(history, page.revisions ?? []);
-    const newUnread = page.unreadRevision && page.unreadRevision.id !== unreadRevision.value?.id;
+    unreadMessage.value = page.unreadMessage;
+    lastRead = Math.max(lastRead, page.readThrough);
     unreadRevision.value = page.unreadRevision;
     if (page.messages.length && wasBottom && messages.value.length > 500) {
       messages.value = messages.value.slice(-500);
@@ -279,10 +333,13 @@ async function load() {
       messages.value = mergeMessages(messages.value, [page.unreadRevision.message]);
     error.value = false;
     await nextTick();
-    if (newUnread && !wasInitial && route.hash === '#order-chat') await focusChat();
-    else if ((changed || revised) && wasBottom && viewport.value)
-      viewport.value.scrollTop = viewport.value.scrollHeight;
-    await markVisible();
+    if (wasInitial && !around && viewport.value) viewport.value.scrollTop = viewport.value.scrollHeight;
+    else if ((changed || revised || page.unreadRevision) && wasBottom && inView && newUpdates.size) {
+      const first = newUpdates.values().next().value;
+      if (first?.version) await focusMessage(first.messageId, false);
+      else viewport.value?.scrollTo({ top: viewport.value.scrollHeight, behavior: scrollBehavior() });
+    } else restoreAnchor(anchor);
+    if (!wasInitial) await markVisible();
   } catch {
     if (active) error.value = true;
   } finally {
@@ -317,7 +374,12 @@ async function send() {
   sending.value = true;
   sendError.value = "";
   try {
-    if (photo.value && !requestId.value) requestId.value = crypto.randomUUID();
+    if (!requestId.value) requestId.value = crypto.randomUUID();
+    if (!photo.value) {
+      if (!textAttempt || textAttempt.text !== text.value.trim())
+        textAttempt = { text: text.value.trim(), requestId: crypto.randomUUID() };
+      requestId.value = textAttempt.requestId;
+    }
     const issueId = /^\d+$/.test(photoContext.value) ? Number(photoContext.value) : undefined;
     const request = chatRequest(text.value, photo.value, photoContext.value === 'evidence', issueId, requestId.value);
     const entry = await api<ChatMessage>(`${props.base}${request.path}`, {
@@ -325,6 +387,7 @@ async function send() {
     });
     if (active) {
       text.value = "";
+      textAttempt = null;
       removePhoto();
       messages.value = mergeMessages(messages.value, [entry]);
       await nextTick();
@@ -444,17 +507,63 @@ function markImage(value: { id: number; file: File }) {
   revisionError.value = '';
   markupOpen.value = true;
 }
-async function focusChat() {
-  if (route.hash !== '#order-chat') return;
+function scrollBehavior(): ScrollBehavior {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+}
+async function ensureMessage(messageId: number) {
+  if (messages.value.some(entry => entry.id === messageId)) return;
+  const page = await api<MessagePage>(`${props.base}/messages`, { query: { around: messageId } });
+  if (!active) return;
+  // Start a contiguous window at the target; polling continues from its last fetched message.
+  messages.value = page.messages;
+  history.cursor = page.messages.at(-1)?.id;
+  unreadMessage.value = page.unreadMessage;
+  unreadRevision.value = page.unreadRevision;
+  hasOlder.value = page.hasMore;
+  oldestPageId.value = page.messages[0]?.id;
+}
+async function focusMessage(messageId: number, keyboard = true, behavior: ScrollBehavior = 'auto') {
   await nextTick();
-  document.getElementById('order-chat')?.scrollIntoView({ block: 'start' });
-  const target = unreadRevision.value && viewport.value?.querySelector<HTMLElement>(
-    `[data-message-id="${unreadRevision.value.messageId}"]`);
-  if (target) {
-    target.scrollIntoView({ block: 'center' });
-    void markVisible();
-  } else if (window.matchMedia('(min-width: 40rem)').matches)
-    document.querySelector<HTMLTextAreaElement>('#order-chat textarea')?.focus({ preventScroll: true });
+  const target = viewport.value?.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
+  if (!target || !viewport.value) return;
+  const frame = viewport.value.getBoundingClientRect();
+  const card = target.getBoundingClientRect();
+  viewport.value.scrollTo({ top: viewport.value.scrollTop + card.top - frame.top -
+    Math.max(0, (viewport.value.clientHeight - card.height) / 2), behavior });
+  if (keyboard) target.focus({ preventScroll: true });
+  highlightedId.value = messageId;
+  if (highlightTimer) clearTimeout(highlightTimer);
+  highlightTimer = setTimeout(() => { highlightedId.value = null; }, 2500);
+}
+async function focusNew() {
+  const target = newUpdates.values().next().value;
+  if (!target) return;
+  focusing = true;
+  try {
+    await ensureMessage(target.messageId);
+    await focusMessage(target.messageId, true, scrollBehavior());
+  } catch { error.value = true; }
+  finally { focusing = false; }
+  void markVisible();
+}
+async function focusChat() {
+  if (route.hash !== '#order-chat' && !chatMessageId(route.query.chatMessage)) { void markVisible(); return; }
+  focusing = true;
+  try {
+    const photo = unreadRevision.value;
+    const first = unreadMessage.value;
+    const target = chatMessageId(route.query.chatMessage) ??
+      (photo && (!first || Date.parse(photo.message.revisionAt ?? photo.message.createdAt) < Date.parse(first.createdAt))
+        ? photo.messageId : first?.id);
+    if (target) await ensureMessage(target);
+    await nextTick();
+    document.getElementById('order-chat')?.scrollIntoView({ block: 'start' });
+    if (target) await focusMessage(target);
+    else if (window.matchMedia('(min-width: 40rem)').matches)
+      document.querySelector<HTMLTextAreaElement>('#order-chat textarea')?.focus({ preventScroll: true });
+  } catch { error.value = true; }
+  finally { focusing = false; }
+  void markVisible();
 }
 function onKeydown(event: KeyboardEvent) {
   if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
@@ -474,9 +583,10 @@ onBeforeUnmount(() => {
   active = false;
   cancelPhotoPreparation();
   observer?.disconnect();
+  if (highlightTimer) clearTimeout(highlightTimer);
   if (preview.value) URL.revokeObjectURL(preview.value);
 });
-watch(() => route.hash, () => { void focusChat() });
+watch(() => [route.hash, route.query.chatMessage], () => { void focusChat() });
 watch(() => props.unread, () => { void markVisible() });
 watch(markupOpen, (open) => {
   if (!open) {
@@ -510,6 +620,7 @@ useOrderPolling(load, () => props.poll === false ? 30000 : 4000);
   border-radius: 0.875rem;
   background: var(--ui-bg-muted);
   overscroll-behavior: contain;
+  overflow-anchor: none;
 }
 .chat__messages:focus-visible {
   outline: 2px solid var(--ui-primary);
@@ -542,6 +653,9 @@ useOrderPolling(load, () => props.poll === false ? 30000 : 4000);
   background: var(--ui-bg-elevated);
 }
 .chat__message--unread-photo { border-color: var(--ui-primary); }
+.chat__message--focused { outline: 3px solid var(--ui-primary); outline-offset: -3px; background: color-mix(in srgb, var(--ui-primary) 18%, var(--ui-bg)); }
+.chat__message:focus-visible { outline: 3px solid var(--ui-primary); outline-offset: -3px; }
+.chat__new { display: flex; justify-content: center; width: 100%; margin-top: 0.5rem; min-height: var(--touch-target); }
 .chat__text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -584,5 +698,15 @@ useOrderPolling(load, () => props.poll === false ? 30000 : 4000);
   .chat__message {
     max-width: 82%;
   }
+}
+@media (max-width: 39.999rem) {
+  .chat { border-inline: 0; border-radius: 0.75rem; }
+  .chat :deep(.chat__body) { padding: 0; }
+  .chat :deep(.chat__header) { padding: 0.75rem; }
+  .chat__messages { padding: 0.25rem; border-inline: 0; border-radius: 0; }
+  .chat__message { max-width: 100%; }
+  .chat__message:has(.chat-image) { width: 100%; }
+  .chat__form { padding-inline: max(0.5rem, env(safe-area-inset-left)) max(0.5rem, env(safe-area-inset-right)); }
+  .chat__retention select { min-width: 0; }
 }
 </style>

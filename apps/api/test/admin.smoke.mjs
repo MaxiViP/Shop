@@ -19,6 +19,8 @@ const schema = `admin_smoke_${randomUUID().replaceAll('-', '')}`;
 assert.match(schema, /^admin_smoke_[a-f0-9]{32}$/);
 const directory = await mkdtemp(join(tmpdir(), 'shop-admin-smoke-'));
 process.env.NODE_ENV = 'development';
+process.env.OTP_DELIVERY_MODE = 'DEV';
+process.env.TEST_PHONE_AUTH_ENABLED = 'false';
 process.env.ADMIN_PHONE = '+79990000001';
 process.env.ADMIN_PASSWORD = randomBytes(32).toString('hex');
 process.env.AUTH_SECRET = randomBytes(32).toString('hex');
@@ -288,6 +290,7 @@ try {
     'POST',
     { phone: '+79990000002', code: otp.devCode },
     201,
+    '',
   );
   const userCookie = shopper.response.headers.getSetCookie()[0].split(';')[0];
   await api('/admin/products', 'GET', undefined, 403, userCookie);
@@ -307,6 +310,7 @@ try {
     'POST',
     { phone: shopper.data.phone, code: sellerCode.devCode },
     201,
+    '',
   );
   assert.equal(sellerLogin.data.role, 'SELLER');
   console.log(
@@ -428,15 +432,19 @@ try {
   console.log(
     'PASS authenticated Nuxt SSR products, edit, create, users; login and USER redirects',
   );
-  // localStorage cannot be known to SSR, for either a guest or a signed-in buyer.
+  // Legacy checkout redirects to the shared cart; SSR must wait for its browser restore.
   for (const session of ['', userCookie]) {
     const checkout = await fetch(`${webBase}/checkout`, {
       headers: session ? { Cookie: session } : {}, redirect: 'manual',
     });
-    assert.equal(checkout.status, 200, 'Direct checkout must not redirect before cart restore');
-    assert.equal(checkout.headers.has('location'), false);
-    const html = (await checkout.text()).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
-    assert.ok(html.includes('Восстанавливаем корзину и проверяем актуальные цены'));
+    assert.equal(checkout.status, 302);
+    assert.equal(checkout.headers.get('location'), '/cart');
+    const cart = await fetch(`${webBase}/cart`, {
+      headers: session ? { Cookie: session } : {}, redirect: 'manual',
+    });
+    assert.equal(cart.status, 200);
+    const html = (await cart.text()).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+    assert.ok(html.includes('Восстанавливаем корзину'));
     assert.ok(!html.includes('Корзина пустая'));
     assert.ok(!html.includes('До доставки осталось'));
     assert.ok(!html.includes('≈ 0'));
@@ -444,11 +452,18 @@ try {
   const cartShell = await (await fetch(`${webBase}/cart`, { redirect: 'manual' })).text();
   assert.ok(cartShell.includes('Восстанавливаем корзину'));
   assert.ok(!cartShell.includes('Корзина пустая'));
-  console.log('PASS M1 guest/USER direct checkout SSR: 200, stable restore shell, no empty/zero-price redirect');
+  console.log('PASS guest/USER legacy checkout redirects to cart with stable SSR restore shell');
   const productHtml = await (
     await fetch(`${webBase}/product/${product.slug}`)
   ).text();
-  const phaseOrder = (await api('/orders', 'POST', { type: 'PICKUP', customerName: 'Phase smoke', customerPhone: shopper.data.phone, items: [{ productId: product.id, qty: 1000 }] }, 201, userCookie)).data;
+  const initialCart = (await api('/cart', 'GET', undefined, 200, userCookie)).data;
+  const checkoutCart = (await api('/cart/change', 'POST', {
+    revision: initialCart.revision, kind: 'set', productId: product.id, qty: 1000,
+  }, 201, userCookie)).data;
+  const phaseOrder = (await api('/cart/checkout', 'POST', {
+    revision: checkoutCart.revision, checkoutRequestId: randomUUID(), type: 'PICKUP',
+    customerName: 'Phase smoke', customerPhone: shopper.data.phone,
+  }, 201, userCookie)).data.order;
   await api(`/staff/orders/${phaseOrder.id}/confirm`, 'POST', undefined, 201);
   await api(`/staff/orders/${phaseOrder.id}/assembly/start`, 'POST', undefined, 201);
   await api(`/staff/orders/${phaseOrder.id}/extras`, 'POST', { title: 'Нарезка — smoke', comment: 'Помыть и нарезать', quantity: 1, unitPrice: 50000 }, 201);
@@ -464,6 +479,7 @@ try {
   assert.ok(issueHtml.includes('Нарезка — smoke'));
   const issueStaffHtml = await (await fetch(`${webBase}/staff/orders/${phaseOrder.id}`, { headers: { Cookie: cookie } })).text();
   assert.ok(issueStaffHtml.includes('Позвонить покупателю'));
+  assert.ok(issueStaffHtml.includes('За единицу до'));
   await api(`/orders/${phaseOrder.publicId}/issues/${issue.id}/decision`, 'POST', { version: issue.version, action: 'ACCEPT_ACTUAL' }, 201, userCookie);
   await api(`/staff/orders/${phaseOrder.id}/assembly/finish`, 'POST', undefined, 201);
   const paymentHtml = await (await fetch(`${webBase}/order/${phaseOrder.publicId}`, { headers: { Cookie: userCookie } })).text();
@@ -481,7 +497,6 @@ try {
   console.log('PASS PHASE 2 customer issue SSR, exact approval, staff phone fallback and chat shell');
   console.log('PASS PHASE 2.1 extras visible during assembly, explicit final bill, no customer report action, Header messages SSR');
   assert.ok(staffHtml.includes('aria-label="Заказы"'));
-  assert.ok(staffHtml.includes('Максимум за единицу:'));
   const settingsHtml = await (await fetch(`${webBase}/admin/settings`, { headers: { Cookie: cookie } })).text();
   assert.ok(settingsHtml.includes('Минимальная сумма заказа для доставки'));
   assert.ok(settingsHtml.includes('Максимальная сумма дополнительных услуг'));
@@ -508,6 +523,7 @@ try {
   assert.ok(restoredCustomer.includes('Нарезка — smoke'));
   console.log('PASS PHASE 2.2 new-order Header, separate canceled/completed SSR, private reason and safe READY/payment restore');
   // Remove this disposable order before the existing unreferenced-file cleanup check.
+  await db.orderStaffAudit.deleteMany({ where: { orderId: phaseOrder.id } });
   await db.order.delete({ where: { id: phaseOrder.id } });
   assert.ok(productHtml.includes('gallery__rail'));
   assert.ok(productHtml.includes('Показать фото 2'));

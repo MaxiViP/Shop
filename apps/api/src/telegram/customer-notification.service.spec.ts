@@ -15,7 +15,7 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 it.each([
   [200, { ok: true, result: { message_id: 123 } }, 'sent'], [400, {}, 'rejected'], [401, {}, 'rejected'],
-  [403, {}, 'blocked'], [429, {}, 'rejected'], [500, {}, 'unknown'],
+  [403, {}, 'blocked'], [429, {}, 'retryable'], [500, {}, 'unknown'],
   [200, { ok: false, error_code: 403 }, 'blocked'], [200, { garbage: true }, 'unknown'],
 ])('classifies HTTP %s safely without returning provider data', async (status, body, expected) => {
   fetcher.mockResolvedValueOnce(Response.json(body, { status }));

@@ -34,6 +34,7 @@ const navigation = [
   { to: '/admin/payouts', label: 'Выплаты', icon: 'i-lucide-wallet' },
   { to: '/admin/users', label: 'Пользователи', icon: 'i-lucide-users' },
   { to: '/admin/schedule', label: 'Режим работы', icon: 'i-lucide-clock' },
+  { to: '/admin/queue', label: 'Очередь и нагрузка', icon: 'i-lucide-gauge' },
   { to: '/admin/settings', label: 'Настройки', icon: 'i-lucide-settings' },
 ];
 const auth = useAuthStore();

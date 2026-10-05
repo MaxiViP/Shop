@@ -480,6 +480,10 @@ model ShopSettings {
   queueThreshold          Int       @default(4)
   assemblyFallbackMinutes Int       @default(25)
   assemblyConcurrency     Int       @default(1)
+  peakAssemblyConcurrency Int?
+  peakAssemblyMinutes     Int?
+  peakQueueThreshold      Int?
+  peakSlotCapacity        Int?
   peakModeEnabled         Boolean   @default(false)
   peakModeStart           DateTime?
   peakModeEnd             DateTime?
@@ -673,6 +677,7 @@ model OrderChatMessage {
   authorUserId   Int?
   authorUser     User?                    @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
   text           String                   @db.VarChar(2000)
+  requestId      String?                  @db.Uuid
   imageRequestId String?                  @db.Uuid
   imageKey       String?                  @unique @db.Uuid
   imageRevision  Int                      @default(0)
@@ -682,22 +687,24 @@ model OrderChatMessage {
   createdAt      DateTime                 @default(now())
 
   @@unique([orderId, imageRequestId])
+  @@unique([orderId, requestId])
   @@index([orderId, id])
   @@index([imageExpiresAt])
 }
 
 model OrderChatImageRevision {
-  id          Int              @id @default(autoincrement())
-  messageId   Int
-  message     OrderChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  version     Int
-  imageKey    String           @unique @db.Uuid
-  requestId   String?          @db.Uuid
-  actorType   MessageAuthor
-  actorUserId Int?
-  actorUser   User?            @relation("ChatImageRevisionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
-  caption     String           @default("") @db.VarChar(2000)
-  createdAt   DateTime         @default(now())
+  notifications OrderNotification[]
+  id            Int                 @id @default(autoincrement())
+  messageId     Int
+  message       OrderChatMessage    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  version       Int
+  imageKey      String              @unique @db.Uuid
+  requestId     String?             @db.Uuid
+  actorType     MessageAuthor
+  actorUserId   Int?
+  actorUser     User?               @relation("ChatImageRevisionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  caption       String              @default("") @db.VarChar(2000)
+  createdAt     DateTime            @default(now())
 
   @@unique([messageId, version])
   @@unique([messageId, requestId])
@@ -716,6 +723,7 @@ enum NotificationType {
   ORDER_COMPLETED
   ORDER_CANCELED
   CHAT_MESSAGE
+  CHAT_IMAGE_REVISION
   ITEM_PRICE_CHANGED
 }
 
@@ -735,27 +743,30 @@ enum NotificationStatus {
 }
 
 model OrderNotification {
-  channel         NotificationChannel   @default(SMS)
+  imageRevisionId Int?
+  imageRevision   OrderChatImageRevision? @relation(fields: [imageRevisionId], references: [id], onDelete: SetNull)
+  channel         NotificationChannel     @default(SMS)
   messageId       Int?
-  message         OrderChatMessage?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  message         OrderChatMessage?       @relation(fields: [messageId], references: [id], onDelete: SetNull)
   priceChangeId   Int?
-  priceChange     OrderItemPriceChange? @relation(fields: [priceChangeId], references: [id], onDelete: SetNull)
+  priceChange     OrderItemPriceChange?   @relation(fields: [priceChangeId], references: [id], onDelete: SetNull)
   recipientUserId Int?
-  recipientUser   User?                 @relation("StaffPriceRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
-  id              Int                   @id @default(autoincrement())
+  recipientUser   User?                   @relation("StaffPriceRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+  id              Int                     @id @default(autoincrement())
   orderId         Int
-  order           Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order           Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   issueId         Int?
-  issue           OrderIssue?           @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  issue           OrderIssue?             @relation(fields: [issueId], references: [id], onDelete: SetNull)
   issueVersion    Int?
   type            NotificationType
-  status          NotificationStatus    @default(PENDING)
+  status          NotificationStatus      @default(PENDING)
   dedupeKey       String
-  attempts        Int                   @default(0)
+  attempts        Int                     @default(0)
   error           String?
+  retryAt         DateTime?
   sentAt          DateTime?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
 
   @@unique([channel, dedupeKey])
   @@index([orderId, status])

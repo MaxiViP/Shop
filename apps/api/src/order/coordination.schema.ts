@@ -17,7 +17,9 @@ export const proposalSchema = z.strictObject({
 });
 export const chatSchema = z.strictObject({
   text: z.string().trim().min(1).max(2000),
+  requestId: z.string().uuid().optional(),
 });
+export const chatPostSchema = chatSchema.required({ requestId: true });
 export const imageChatSchema = z.strictObject({
   text: z.string().trim().max(2000).default(''),
   issueId: z.coerce.number().int().positive().optional(),
@@ -32,10 +34,11 @@ export const cursorSchema = z
   .object({
     after: recordId.optional(),
     before: recordId.optional(),
+    around: recordId.optional(),
     limit: z.coerce.number().int().min(1).max(50).default(30),
     seen: z.string().max(6000).regex(/^\d+(,\d+)*$/).optional(),
   })
-  .refine((value) => !(value.after && value.before));
+  .refine((value) => [value.after, value.before, value.around].filter(Boolean).length <= 1);
 export const readSchema = z.strictObject({
   through: z.number().int().min(0),
   revisionThrough: recordId.optional(),

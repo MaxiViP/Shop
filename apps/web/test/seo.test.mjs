@@ -25,6 +25,7 @@ test('private routes and filtered catalog are noindex; tracking URLs keep canoni
     assert.equal(pageRobots(path), 'noindex, follow', path);
   }
   assert.equal(pageRobots('/catalog/new-category'), 'index, follow');
+  assert.equal(pageRobots('/how-it-works'), 'index, follow');
   assert.equal(pageRobots('/catalog', { sort: 'price_asc' }), 'noindex, follow');
   assert.equal(pageRobots('/catalog', { q: 'test' }), 'noindex, follow');
   assert.equal(pageRobots('/catalog', { utm_source: 'test' }), 'index, follow');

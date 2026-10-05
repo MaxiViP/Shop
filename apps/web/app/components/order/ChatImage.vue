@@ -166,5 +166,9 @@ onBeforeUnmount(() => {
 .chat-image__open { display: block; max-width: 100%; border-radius: 0.5rem; cursor: zoom-in; overflow: hidden; }
 .chat-image__open:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }
 .chat-image__thumb { display: block; max-width: min(100%, 18rem); max-height: 16rem; object-fit: contain; }
+@media (max-width: 39.999rem) {
+  .chat-image__open { width: 100%; }
+  .chat-image__thumb { width: 100%; max-width: 100%; max-height: 24rem; }
+}
 .chat-image__full-view { display: grid; justify-items: center; gap: 0.75rem; }
 </style>

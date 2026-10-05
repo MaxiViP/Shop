@@ -3,7 +3,17 @@ import { customerBotToken, staffBotToken } from './bot-config.js';
 const methods = ['sendMessage', 'answerCallbackQuery', 'editMessageReplyMarkup', 'editMessageText'] as const;
 export type BotMethod = typeof methods[number];
 
-export type BotDelivery = 'sent' | 'rejected' | 'blocked' | 'unknown';
+type DeliveryStatus = 'sent' | 'rejected' | 'blocked' | 'retryable' | 'unknown';
+export type BotDelivery = DeliveryStatus | { status: 'retryable'; retryAfter: number };
+
+function retryAfter(body: unknown): number | undefined {
+  if (!body || typeof body !== 'object' || !('parameters' in body)) return;
+  const params = body.parameters;
+  if (!params || typeof params !== 'object' || !('retry_after' in params)) return;
+  const seconds = params.retry_after;
+  return typeof seconds === 'number' && Number.isSafeInteger(seconds) && seconds > 0 && seconds <= 2_147_483_647
+    ? seconds : undefined;
+}
 
 // One destination is selected before sending. A failed gateway request must NEVER
 // fall back to Telegram: the first request may already have reached the bot.
@@ -35,7 +45,7 @@ async function request(
   method: BotMethod,
   payload: object,
   timeout: number,
-): Promise<{ ok: boolean; result?: unknown; failure?: Exclude<BotDelivery, 'sent'> }> {
+): Promise<{ ok: boolean; result?: unknown; failure?: Exclude<DeliveryStatus, 'sent'>; retryAfter?: number }> {
   if (!token) return { ok: false, failure: 'rejected' };
   const url = destination(token, method);
   if (!url) return { ok: false, failure: 'rejected' };
@@ -48,6 +58,11 @@ async function request(
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
+      if (response.status === 429) {
+        // A definite rejection remains retryable even if its optional JSON body is malformed.
+        const body: unknown = await response.json().catch(() => null);
+        return { ok: false, failure: 'retryable', retryAfter: retryAfter(body) };
+      }
       await response.body?.cancel();
       return { ok: false, failure: response.status === 403 ? 'blocked' :
         response.status >= 400 && response.status < 500 ? 'rejected' : 'unknown' };
@@ -55,6 +70,7 @@ async function request(
     const body: unknown = await response.json();
     if (!body || typeof body !== 'object' || !('ok' in body) || body.ok !== true) {
       const code = body && typeof body === 'object' && 'error_code' in body ? body.error_code : null;
+      if (code === 429) return { ok: false, failure: 'retryable', retryAfter: retryAfter(body) };
       return { ok: false, failure: code === 403 ? 'blocked' :
         typeof code === 'number' && Number.isInteger(code) && code >= 400 && code < 500 ? 'rejected' : 'unknown' };
     }
@@ -72,6 +88,8 @@ function sentMessageId(result: unknown): number | null {
 
 export async function botDelivery(token: string, payload: object): Promise<BotDelivery> {
   const response = await request(token, 'sendMessage', payload, 7000);
+  if (response.failure === 'retryable' && response.retryAfter)
+    return { status: 'retryable', retryAfter: response.retryAfter };
   // ok:true without the sent Message is an unknown outcome, never proof of delivery.
   return response.ok ? sentMessageId(response.result) ? 'sent' : 'unknown' : response.failure ?? 'unknown';
 }
