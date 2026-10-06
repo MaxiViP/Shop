@@ -48,6 +48,16 @@
         >
           <UIcon name="i-lucide-truck" aria-hidden="true" />
         </NuxtLink>
+        <NuxtLink
+          to="/market-map"
+          class="header__nav-link"
+          :class="{ 'header__nav-link--active': route.path.startsWith('/market-map') }"
+          :aria-current="route.path.startsWith('/market-map') ? 'page' : undefined"
+          aria-label="Карта рынка"
+          title="Карта рынка"
+        >
+          <UIcon name="i-lucide-map" aria-hidden="true" />
+        </NuxtLink>
         <a
           v-if="customerTelegramUrl"
           :href="customerTelegramUrl"
@@ -163,6 +173,10 @@
               <span>Каталог</span>
             </NuxtLink>
 
+            <NuxtLink to="/market-map" class="mobile-nav__link">
+              <UIcon name="i-lucide-map" aria-hidden="true" />
+              <span>Карта рынка</span>
+            </NuxtLink>
             <NuxtLink to="/how-it-works" class="mobile-nav__link">
               <UIcon name="i-lucide-truck" />
               <span>Как это работает</span>

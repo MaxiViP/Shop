@@ -30,6 +30,7 @@ const navigation = [
   { to: '/admin', label: 'Обзор', icon: 'i-lucide-layout-dashboard' },
   { to: '/admin/orders', label: 'Заказы', icon: 'i-lucide-clipboard-list' },
   { to: '/admin/products', label: 'Товары и категории', icon: 'i-lucide-package' },
+  { to: '/admin/market-map', label: 'Карта рынка', icon: 'i-lucide-map' },
   { to: '/admin/finance', label: 'Отчёты', icon: 'i-lucide-chart-no-axes-combined' },
   { to: '/admin/payouts', label: 'Выплаты', icon: 'i-lucide-wallet' },
   { to: '/admin/users', label: 'Пользователи', icon: 'i-lucide-users' },

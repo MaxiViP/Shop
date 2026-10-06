@@ -12,10 +12,12 @@ import { OrderModule } from './order/order.module.js';
 import { OrderPhoneModule } from './order-phone/order-phone.module.js';
 import { ProductModule } from './product/product.module.js';
 import { StaffModule } from './staff/staff.module.js';
+import { MarketMapModule } from './market-map/market-map.module.js';
 
 @Module({
   imports: [
     AdminModule,
+    MarketMapModule,
     StaffModule,
     AddressModule,
     AuthModule,

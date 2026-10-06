@@ -35,6 +35,7 @@
           <template #header><h3 class="font-semibold">Самовывоз с рынка</h3></template>
           <p class="market__text">Выберите самовывоз при оформлении. Продавец соберёт и согласует заказ, а вы заберёте готовые продукты в точке выдачи.</p>
           <OrderPickupPoint />
+          <UButton to="/market-map" icon="i-lucide-map" variant="link">Посмотреть карту рынка</UButton>
         </UCard>
         <UCard>
           <template #header><h3 class="font-semibold">Сборка и очередь</h3></template>

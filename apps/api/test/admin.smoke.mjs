@@ -15,6 +15,8 @@ import { Test } from '@nestjs/testing';
 import { StandardSchemaValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 
+assert.ok(process.env.DATABASE_URL, 'Local DATABASE_URL required');
+assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(new URL(process.env.DATABASE_URL).hostname), 'Local test database required');
 const schema = `admin_smoke_${randomUUID().replaceAll('-', '')}`;
 assert.match(schema, /^admin_smoke_[a-f0-9]{32}$/);
 const directory = await mkdtemp(join(tmpdir(), 'shop-admin-smoke-'));
@@ -27,6 +29,7 @@ process.env.AUTH_SECRET = randomBytes(32).toString('hex');
 for (const key of ['PAYMENT_PHONE', 'PAYMENT_BANK_NAME', 'PAYMENT_RECIPIENT_NAME', 'PAYMENT_CARD_NUMBER', 'PAYMENT_QR_IMAGE_URL']) process.env[key] = '';
 process.env.PAYMENT_SBP_LINK = 'https://example.test/payment';
 process.env.ORDER_SMS_ENABLED = 'false';
+for (const key of ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_STAFF_BOT_TOKEN', 'TELEGRAM_CUSTOMER_BOT_TOKEN', 'TELEGRAM_ADMIN_CHAT_IDS']) process.env[key] = '';
 process.env.UPLOAD_DIR = directory;
 const connection = new pg.Client({
   connectionString: process.env.DATABASE_URL,
@@ -409,6 +412,7 @@ try {
     '/admin/products/new',
     '/admin/users',
     '/admin/settings',
+    '/admin/market-map',
   ]) {
     const response = await fetch(`${webBase}${path}`, {
       headers: { Cookie: cookie },
@@ -432,6 +436,35 @@ try {
   console.log(
     'PASS authenticated Nuxt SSR products, edit, create, users; login and USER redirects',
   );
+  const marketResponse = await fetch(`${webBase}/market-map`);
+  assert.equal(marketResponse.status, 200);
+  const marketHtml = await marketResponse.text();
+  const marketMarkup = marketHtml.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  assert.equal((marketMarkup.match(/class="map__entry-zone"/g) ?? []).length, 2);
+  assert.ok(marketMarkup.includes('href="/market-map/entry-butterbrot"'));
+  assert.ok(marketMarkup.includes('href="/market-map/entry-stairs"'));
+  assert.ok(marketHtml.includes('Аутентичный поход на рынок'));
+  assert.ok(marketHtml.includes('Вход на 2 этаж'));
+  assert.ok(marketHtml.includes('href="/market-map/fresh-bar"'));
+  const pointResponse = await fetch(`${webBase}/market-map/fresh-bar`);
+  assert.equal(pointResponse.status, 200);
+  const pointHtml = await pointResponse.text();
+  assert.ok(pointHtml.includes('Фото точки появится позже'));
+  assert.ok(pointHtml.includes('Ассортимент может меняться'));
+  assert.ok(pointHtml.includes('Открыть мои заказы и чат'));
+  const mapAsset = await fetch(`${webBase}/images/market/floor2.svg`);
+  assert.equal(mapAsset.status, 200);
+  assert.ok((await mapAsset.text()).includes('Схема второго этажа'));
+  const draftPoint = (await api('/admin/market-map/points', 'POST', {
+    name: 'Smoke draft point', slug: 'smoke-draft-point', kind: 'STALL', mapX: 50, mapY: 50,
+  }, 201)).data;
+  assert.equal(draftPoint.isPublished, false);
+  assert.equal((await fetch(`${webBase}/market-map/${draftPoint.slug}`)).status, 404);
+  const deniedMap = await fetch(`${webBase}/admin/market-map`, {
+    headers: { Cookie: userCookie }, redirect: 'manual',
+  });
+  assert.equal(deniedMap.status, 302);
+  console.log('PASS market map/detail/admin Nuxt SSR, own SVG asset, draft 404 and USER redirect');
   // Legacy checkout redirects to the shared cart; SSR must wait for its browser restore.
   for (const session of ['', userCookie]) {
     const checkout = await fetch(`${webBase}/checkout`, {

@@ -32,6 +32,35 @@ enum SettlementMode {
   NO_MARKUP
 }
 
+enum MarketPointKind {
+  STALL
+  STORE
+  FOODCOURT
+  SERVICE
+  OTHER
+  ENTRY
+}
+
+model MarketPoint {
+  id               Int             @id @default(autoincrement())
+  slug             String          @unique @db.VarChar(180)
+  name             String          @db.VarChar(160)
+  unitNumber       String?         @db.VarChar(40)
+  kind             MarketPointKind
+  description      String?         @db.VarChar(3000)
+  sampleAssortment String?         @db.VarChar(2000)
+  photoUrl         String?
+  floor            Int             @default(2)
+  mapX             Float
+  mapY             Float
+  isPublished      Boolean         @default(false)
+  sortOrder        Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([floor, isPublished, sortOrder, id])
+}
+
 model Category {
   id     Int     @id @default(autoincrement())
   name   String
