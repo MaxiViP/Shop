@@ -41,7 +41,7 @@
           </UFormField>
         </div>
 
-        <div class="form__row form__row--small">
+        <div class="form__row">
           <UFormField label="Дом">
             <UInput
               v-model="form.house"
@@ -53,7 +53,9 @@
           <UFormField label="Корпус / строение">
             <UInput v-model="form.buildingPart" placeholder="к. 2 или стр. 1" maxlength="50" size="lg" />
           </UFormField>
+        </div>
 
+        <div class="form__row form__row--small">
           <UFormField label="Квартира">
             <UInput
               v-model="form.flat"
@@ -255,12 +257,18 @@ async function save() {
 <style scoped>
 .form {
   display: grid;
+  min-width: 0;
   gap: 1rem;
 }
 
 .form__row {
   display: grid;
+  min-width: 0;
   gap: 1rem;
+}
+
+.form__row--small {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .form__actions {
@@ -286,7 +294,7 @@ async function save() {
   }
 
   .form__row--small {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .form__actions {

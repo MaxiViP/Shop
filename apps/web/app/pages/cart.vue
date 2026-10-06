@@ -242,7 +242,7 @@
               </UFormField>
             </div>
 
-            <div class="form__grid">
+            <div class="form__row">
               <UFormField class="form__field" label="Дом" :error="errors.house" data-checkout-field="house" :class="fieldClass('house')">
                 <UInput v-model="recipient.house" placeholder="Номер дома" :aria-invalid="Boolean(errors.house)" />
               </UFormField>
@@ -250,7 +250,9 @@
               <UFormField label="Корпус / строение">
                 <UInput v-model="recipient.buildingPart" placeholder="к. 2 или стр. 1" maxlength="50" />
               </UFormField>
+            </div>
 
+            <div class="form__grid">
               <UFormField label="Квартира">
                 <UInput v-model="recipient.flat" placeholder="Номер квартиры" />
               </UFormField>
@@ -930,7 +932,7 @@ useSeoMeta({
   padding: 0.75rem max(var(--page-x), var(--safe-right))
     max(0.75rem, var(--safe-bottom)) max(var(--page-x), var(--safe-left));
   border-top: 1px solid var(--ui-border);
-  background: var(--ui-bg);
+  background: color-mix(in srgb, var(--ui-success) 8%, var(--ui-bg));
 }
 
 .summary__submit-total {
@@ -1148,6 +1150,7 @@ useSeoMeta({
   padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;
+  background: var(--ui-bg-elevated);
 }
 
 .summary__title {
@@ -1171,8 +1174,10 @@ useSeoMeta({
 
 .summary__total {
   margin-block: 1.25rem;
-  padding-top: 1.25rem;
+  padding: 1rem;
   border-top: 1px solid var(--ui-border);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--ui-success) 12%, var(--ui-bg));
   font-size: var(--section-title);
 }
 
@@ -1203,9 +1208,12 @@ useSeoMeta({
 
 @media (min-width: 40rem) {
   .type,
-  .form__row,
-  .form__grid {
+  .form__row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .form__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -1214,9 +1222,6 @@ useSeoMeta({
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .form__grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 @media (min-width: 64rem) {

@@ -1,4 +1,4 @@
-export const mobileLandscapeQuery = '(orientation: landscape) and (max-height: 500px) and (max-width: 1024px) and (pointer: coarse)';
+export const mobileLandscapeQuery = '(orientation: landscape) and (pointer: coarse)';
 
 export function createHeaderScroll() {
   let previous = 0, direction = 0, distance = 0, hidden = false;

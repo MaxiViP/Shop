@@ -2,7 +2,7 @@
 @import "@nuxt/ui";
 
 :root {
-  --page-x: clamp(0.75rem, 0.4rem + 1.5vw, 2rem);
+  --page-x: max(clamp(0.75rem, 0.4rem + 1.5vw, 2rem), var(--safe-left), var(--safe-right));
   --page-start: clamp(1.25rem, 0.75rem + 2vw, 3rem);
   --page-end: clamp(2rem, 1rem + 3vw, 5rem);
   --section-gap: clamp(1.5rem, 0.9rem + 3vw, 4rem);
@@ -73,9 +73,14 @@ video {
   }
 }
 
-@media (orientation: landscape) and (max-height: 500px) and (max-width: 1024px) and (pointer: coarse) {
+@media (orientation: landscape) and (pointer: coarse) {
   :root {
-    --header-height: 0rem;
+    --header-height: 4rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  :root {
     --page-x: max(1rem, var(--safe-left), var(--safe-right));
     --page-start: 0.5rem;
     --page-end: 1rem;

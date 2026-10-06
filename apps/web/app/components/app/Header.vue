@@ -329,11 +329,10 @@ const staff = computed(
 );
 
 const narrow = ref(false);
-const landscape = ref(false);
 const scrolled = ref(false);
 const mobileHeaderHidden = computed(
-  () => narrow.value && (landscape.value || (scrolled.value && notice.current?.target !== "favorites")) &&
-    !mobileOpen.value && !loginOpen.value,
+  () => narrow.value && scrolled.value && !mobileOpen.value && !loginOpen.value &&
+    notice.current?.target !== "favorites",
 );
 const floatingCartVisible = computed(
   () => mobileHeaderHidden.value && (cart.count > 0 || notice.current?.target === "cart"),
@@ -361,8 +360,7 @@ onMounted(() => {
   }
 
   function syncWidth() {
-    landscape.value = landscapeMedia.matches;
-    narrow.value = media.matches || landscape.value;
+    narrow.value = media.matches || landscapeMedia.matches;
     scrolled.value = scroll.reset(window.scrollY);
     syncScroll();
   }
@@ -515,7 +513,6 @@ function closeMenuLink(event: MouseEvent) {
 .header__profile.router-link-active,
 .header__orders :deep(.orders-action__button.router-link-active),
 .header__favorites.router-link-active,
-.cart-control.router-link-active,
 .header__admin-action.router-link-active {
   background: color-mix(in srgb, var(--ui-primary) 12%, transparent);
   color: var(--ui-primary);
@@ -567,13 +564,16 @@ function closeMenuLink(event: MouseEvent) {
   justify-content: flex-end;
   gap: 0.375rem;
   padding: 0.125rem;
+  border: 1px solid color-mix(in srgb, var(--ui-success) 28%, var(--ui-border));
   border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--ui-success) 12%, var(--ui-bg));
   color: var(--ui-text);
   text-decoration: none;
 }
 
-.cart-control:hover {
-  background: var(--ui-bg-elevated);
+.cart-control:hover,
+.cart-control.router-link-active {
+  background: color-mix(in srgb, var(--ui-success) 20%, var(--ui-bg));
 }
 
 .cart-control__scene {
@@ -590,9 +590,9 @@ function closeMenuLink(event: MouseEvent) {
   align-items: center;
   justify-content: center;
   padding: 0.125rem 0.25rem;
-  border: 1px solid color-mix(in srgb, var(--ui-success) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 28%, transparent);
   border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+  background: color-mix(in srgb, var(--ui-success) 18%, var(--ui-bg));
   color: var(--ui-text-highlighted);
   font-size: clamp(0.8125rem, calc(0.75rem + 0.2vw), 0.875rem);
   font-weight: 600;
@@ -608,8 +608,8 @@ function closeMenuLink(event: MouseEvent) {
 }
 
 .cart-control__amount--stale {
-  border-color: color-mix(in srgb, var(--ui-success) 12%, transparent);
-  background: color-mix(in srgb, var(--ui-success) 6%, transparent);
+  border-color: color-mix(in srgb, var(--ui-success) 22%, transparent);
+  background: color-mix(in srgb, var(--ui-success) 12%, var(--ui-bg));
   color: var(--ui-text-muted);
 }
 
@@ -624,6 +624,9 @@ function closeMenuLink(event: MouseEvent) {
 
 .mobile-nav__amount {
   max-width: 8rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--ui-success) 12%, var(--ui-bg));
   text-align: right;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -645,20 +648,18 @@ function closeMenuLink(event: MouseEvent) {
 .header__action--floating .cart-control {
   min-height: 3.25rem;
   padding: 0.25rem 0.5rem;
-  border: 1px solid var(--ui-border);
   border-radius: 1rem;
-  background: var(--ui-bg);
   box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
 }
 
-@media (width < 768px) {
+@media (width < 768px), (orientation: landscape) and (pointer: coarse) {
   .header {
     position: fixed;
     width: 100%;
     padding-top: env(safe-area-inset-top, 0px);
     transition: transform 180ms ease;
   }
-  .header-spacer { display: block; height: calc(var(--header-height) + env(safe-area-inset-top, 0px)); }
+  .header-spacer { display: block; height: calc(var(--header-height) + env(safe-area-inset-top, 0px) + 1px); }
 
   .header--hidden {
     transform: translateY(-100%);
@@ -828,9 +829,10 @@ function closeMenuLink(event: MouseEvent) {
   }
 }
 
-@media (orientation: landscape) and (max-height: 500px) and (max-width: 1024px) and (pointer: coarse) {
-  .header { position: fixed; width: 100%; transform: translateY(-100%); }
-  .header-spacer { display: none; }
+@media (orientation: landscape) and (pointer: coarse) {
+  .header__inner { gap: 0; }
+  .header__menu { display: inline-flex; }
+  .header__nav, .header__profile { display: none; }
   .floating-cart-anchor { display: block; }
 }
 
