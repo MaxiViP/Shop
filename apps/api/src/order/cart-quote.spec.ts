@@ -23,6 +23,7 @@ const product = {
   portionQty: 500,
   images: [],
   category: { name: 'Фрукты', slug: 'fruit' },
+  marketPoint: null,
 };
 const calculate = (qty = 1100, changes = {}) =>
   cartQuote(new Map([[1, qty]]), [{ ...product, ...changes }]);
@@ -40,24 +41,24 @@ describe('Current server cart quote', () => {
     expect(body).toEqual({ items: [{ productId: 1, qty: 1100 }] });
     expect(await service.quote(body)).toMatchObject({
       valid: true,
-      subtotal: 385000,
+      subtotal: 423500,
     });
     expect(findMany).toHaveBeenCalledTimes(1);
     expect(findMany.mock.calls[0]![0]).toMatchObject({
       where: { active: true, id: { in: [1] } },
     });
     findMany.mockResolvedValue([{ ...product, price: 250000 }]);
-    expect(await service.quote(body)).toMatchObject({ subtotal: 275000 });
+    expect(await service.quote(body)).toMatchObject({ subtotal: 302500 });
   });
   it('priceQty and price changes affect exact totals and fingerprint', () => {
     const first = calculate();
     const second = calculate(1100, { priceQty: 500 });
-    expect(second.subtotal).toBe(770000);
+    expect(second.subtotal).toBe(847000);
     expect(second.token).not.toBe(first.token);
   });
   it.each([
-    { price: 15000, priceQty: 500, totals: [15000, 30000, 45000] },
-    { price: 19900, priceQty: 1000, totals: [9950, 19900, 29850] },
+    { price: 15000, priceQty: 500, totals: [16500, 33000, 49500] },
+    { price: 19900, priceQty: 1000, totals: [10945, 21890, 32835] },
   ])('prices quantities in base units for $price/$priceQty', ({ price, priceQty, totals }) => {
     for (const [index, qty] of [500, 1000, 1500].entries()) {
       expect(calculate(qty, { price, priceQty, step: 100 }).subtotal).toBe(totals[index]);
@@ -121,7 +122,7 @@ describe('Current server cart quote', () => {
       calculate(1000000, {
         min: 1,
         step: 1,
-        price: 2147483647,
+        price: 1952257861,
         priceQty: 1000000,
       }).subtotal,
     ).toBe(2147483647);
@@ -131,7 +132,7 @@ describe('Current server cart quote', () => {
       valid: false,
       items: [{ status: 'PRICE_OVERFLOW' }],
     });
-    const p = { ...product, min: 1, step: 1, price: 2147483647, priceQty: 1 };
+    const p = { ...product, min: 1, step: 1, price: 1500000000, priceQty: 1 };
     expect(
       cartQuote(
         new Map([

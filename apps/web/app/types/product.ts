@@ -19,6 +19,8 @@ export interface ProductListItem {
   min: number;
   portionQty: number;
 
+  marketPoint: { slug: string; name: string } | null;
+
   category: {
     name: string;
     slug: string;

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DbService } from '../db/db.service.js';
-import { productListSelect } from '../product/select.js';
+import { customerProduct, productListSelect } from '../product/select.js';
 import type { FavoriteSyncInput } from './schema.js';
 
 @Injectable()
@@ -19,7 +19,7 @@ export class FavoriteService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return { items: favorites.map(({ product }) => product) };
+    return { items: favorites.map(({ product }) => customerProduct(product)) };
   }
 
   async add(userId: number, productId: number) {

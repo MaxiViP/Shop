@@ -15,6 +15,7 @@ import {
 } from '../common/guest.js';
 import type { OrderInput } from './schema.js';
 import { totalWithDelivery } from './pricing.js';
+import { SERVICE_MARKUP_PERCENT } from '../product/pricing.js';
 import { paymentSelect, paymentDetails } from './payment.js';
 import type { PaymentMethod, Prisma } from '../db/gen/client.js';
 import { issueSummary, message } from './coordination.js';
@@ -173,6 +174,7 @@ export class OrderService {
         productSlug: product.slug,
         image: product.images[0]?.url,
         price: product.price,
+        serviceMarkupPercentSnapshot: SERVICE_MARKUP_PERCENT,
         priceQty: product.priceQty,
         unit: product.unit,
         qty: item.qty,

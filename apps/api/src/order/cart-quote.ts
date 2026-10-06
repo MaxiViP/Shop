@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
 import type { Prisma } from '../db/gen/client.js';
-import { productListSelect } from '../product/select.js';
+import { customerProduct, productListSelect } from '../product/select.js';
 import { validQuantity } from './assembly.js';
 import { goodsLine, goodsSum } from './pricing.js';
 
@@ -53,20 +53,22 @@ export function cartQuote(
 ) {
   const byId = new Map(products.map((product) => [product.id, product]));
   const items = [...quantities].map(([productId, qty]) => {
-    const product = byId.get(productId) ?? null;
+    const source = byId.get(productId);
+    let product: ReturnType<typeof customerProduct<CartProduct>> | null = null;
     let status: LineStatus = 'UNAVAILABLE';
     let lineTotal: number | null = null;
-    if (product) {
-      status = cartQuantityValid(qty, product.min, product.step)
+    if (source) {
+      status = cartQuantityValid(qty, source.min, source.step)
         ? 'AVAILABLE'
         : 'INVALID_QUANTITY';
-      if (status === 'AVAILABLE') {
-        try {
+      try {
+        product = customerProduct(source);
+        if (status === 'AVAILABLE') {
           lineTotal = goodsLine(product.price, qty, product.priceQty);
-        } catch (error) {
-          if (!(error instanceof BadRequestException)) throw error;
-          status = 'PRICE_OVERFLOW';
         }
+      } catch (error) {
+        if (!(error instanceof BadRequestException)) throw error;
+        status = 'PRICE_OVERFLOW';
       }
     }
     return { productId, qty, product, status, lineTotal };

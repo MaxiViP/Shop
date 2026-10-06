@@ -50,7 +50,7 @@
           ><h2 class="font-semibold">Цена и количество</h2></template
         >
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <UFormField label="Цена, ₽" required
+          <UFormField label="Цена продавца, ₽" required help="Исходная цена без сервиса KorzinaMarket."
             ><UInput
               v-model="rubles"
               inputmode="decimal"
@@ -102,6 +102,12 @@
               class="w-full"
           /></UFormField>
         </div>
+        <dl v-if="pricing" class="mt-4 grid grid-cols-2 gap-2 text-sm max-w-md" aria-live="polite">
+          <dt>Цена продавца</dt><dd>{{ money(pricing.sellerPrice) }}</dd>
+          <dt>Сервис {{ pricing.serviceMarkupPercent }}%</dt><dd>{{ money(pricing.serviceMarkup) }}</dd>
+          <dt>Цена покупателя</dt><dd>{{ money(pricing.customerPrice) }}</dd>
+        </dl>
+        <p v-else-if="rublesToKopecks(rubles) !== null" class="mt-4 text-sm text-muted" aria-live="polite">{{ pricingError ? 'Не удалось рассчитать цену покупателя.' : 'Цена покупателя рассчитывается…' }}</p>
         <div v-if="preview" class="mt-4 space-y-1 text-sm text-muted" aria-live="polite">
           <h3 class="font-semibold text-default">Настройки количества</h3>
           <p>Минимум: {{ qtyText(form.unit, form.min) }} · Шаг: {{ qtyText(form.unit, form.step) }} · Быстро добавить: {{ qtyText(form.unit, form.portionQty) }}</p>
@@ -130,6 +136,21 @@
           </template>
           <UAlert v-else-if="settlementMode === 'NO_MARKUP'" color="neutral" title="Товар не участвует в распределении наценки." />
           <UAlert v-else color="warning" title="Финансовый расчёт товара ещё не настроен." />
+        </div>
+      </UCard>
+      <UCard>
+        <template #header><h2 class="font-semibold">Где покупаем и источник цены</h2></template>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <UFormField label="Торговая точка">
+            <USelect v-model="form.marketPointId" :items="pointItems" class="w-full" />
+          </UFormField>
+          <UFormField label="Проверено">
+            <UInput v-model="checkedDate" type="date" class="w-full" />
+          </UFormField>
+          <UFormField label="Источник цены продавца" class="sm:col-span-2">
+            <UInput v-model="form.sourceUrl" type="url" maxlength="2000" placeholder="https://…" class="w-full" />
+            <a v-if="source?.sourceUrl" :href="source.sourceUrl" target="_blank" rel="noopener noreferrer" class="text-sm text-primary underline">Открыть источник</a>
+          </UFormField>
         </div>
       </UCard>
       <UCard>
@@ -173,7 +194,8 @@
 </template>
 
 <script setup lang="ts">
-import type { AdminProduct, AdminCategory } from "~/types/admin";
+import type { AdminProduct, AdminCategory, ProductPricing } from "~/types/admin";
+import type { MarketPoint } from "~/types/market-map";
 import type { Unit } from "~/types/product";
 import { MAX_QTY, manualQuantity, quantityErrors, quickQuantity } from "~/utils/assembly";
 import { qtyText } from "~/utils/qty";
@@ -188,6 +210,8 @@ const form = reactive({
   slug: source?.slug ?? "",
   description: source?.description ?? "",
   categoryId: source?.categoryId ?? (undefined as number | undefined),
+  marketPointId: source?.marketPointId ?? 0,
+  sourceUrl: source?.sourceUrl ?? "",
   priceQty: source?.priceQty ?? 1,
   unit: source?.unit ?? ("PIECE" as Unit),
   min: source?.min ?? 1,
@@ -197,6 +221,14 @@ const form = reactive({
   sort: source?.sort ?? 0,
 });
 const rubles = ref(source ? kopecksToRubles(source.price) : "");
+const checkedDate = ref(source?.sourceCheckedAt?.slice(0, 10) ?? "");
+const pricing = ref<ProductPricing | null>(source ?? null);
+const pricingError = ref(false);
+const { data: marketPoints } = await useApi<MarketPoint[]>("/admin/market-map/points");
+const pointItems = computed(() => [
+  { label: "Без торговой точки", value: 0 },
+  ...(marketPoints.value ?? []).filter(point => point.kind !== "ENTRY").map(point => ({ label: point.name, value: point.id })),
+]);
 const settlementMode = ref<AdminProduct["settlementMode"]>(source?.settlementMode ?? "UNSET");
 const baseRubles = ref(source?.basePrice ? kopecksToRubles(source.basePrice) : "");
 const settlementOptions = [
@@ -205,7 +237,7 @@ const settlementOptions = [
   { label: "Без наценки", value: "NO_MARKUP" },
 ];
 const settlementPreview = computed(() => {
-  const sale = rublesToKopecks(rubles.value);
+  const sale = pricing.value?.customerPrice ?? null;
   const base = rublesToKopecks(baseRubles.value);
   if (settlementMode.value !== "SHARED_MARKUP" || sale === null || base === null) return null;
   const markup = sale - base;
@@ -248,6 +280,22 @@ function generateSlug() {
   if (!manualSlug.value) form.slug = productSlug(form.name);
 }
 const api = useApiClient();
+watch(rubles, (value, _previous, onCleanup) => {
+  pricing.value = null;
+  pricingError.value = false;
+  const price = rublesToKopecks(value);
+  if (price === null) return;
+  let active = true;
+  const timer = setTimeout(async () => {
+    try {
+      const result = await api<ProductPricing>("/admin/products/pricing", { method: "POST", body: { price } });
+      if (active) pricing.value = result;
+    } catch {
+      if (active) pricingError.value = true;
+    }
+  }, 200);
+  onCleanup(() => { active = false; clearTimeout(timer); });
+});
 const toast = useToast();
 const busy = ref(false);
 const error = ref("");
@@ -284,6 +332,9 @@ async function save() {
           name: form.name.trim(),
           description: form.description.trim() || null,
           price,
+          marketPointId: form.marketPointId || null,
+          sourceUrl: form.sourceUrl.trim() || null,
+          sourceCheckedAt: checkedDate.value ? `${checkedDate.value}T00:00:00.000Z` : null,
           settlementMode: settlementMode.value,
           basePrice,
         },

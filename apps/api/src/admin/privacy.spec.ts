@@ -10,6 +10,8 @@ import type { DbService } from '../db/db.service.js';
 const privateFields = [
   'basePrice', 'settlementMode', 'basePriceSnapshot', 'settlementModeSnapshot',
   'sharedMarkup', 'partner1Share', 'partner2Share',
+  'sellerPrice', 'serviceMarkup', 'serviceMarkupPercent', 'customerPrice',
+  'sourceUrl', 'sourceCheckedAt', 'marketPointId',
 ];
 describe('public financial privacy boundary', () => {
   it('excludes settlement fields from catalog, detail, cart, favorites and Telegram selectors', () => {
@@ -21,7 +23,7 @@ describe('public financial privacy boundary', () => {
     }
   });
   it('uses the explicit safe selector for public product detail', async () => {
-    const findFirst = vi.fn().mockResolvedValue({ id: 1, name: 'Помидоры' });
+    const findFirst = vi.fn().mockResolvedValue({ id: 1, name: 'Помидоры', price: 10000, marketPoint: null });
     const service = new ProductService({ product: { findFirst } } as unknown as DbService);
     await service.get('tomatoes');
     const select = findFirst.mock.calls[0]![0].select;

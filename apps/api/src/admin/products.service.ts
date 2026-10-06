@@ -5,6 +5,11 @@ import type { ProductInput, ProductQuery } from './schema.js';
 import { dbError } from './errors.js';
 import { ImagesService } from './images.service.js';
 import { quantityErrors, type ProductQuantity } from '../order/assembly.js';
+import { priceBreakdown } from '../product/pricing.js';
+
+function adminProduct<T extends { price: number }>(product: T) {
+  return { ...product, ...priceBreakdown(product.price) };
+}
 
 function validateQuantity(product: ProductQuantity) {
   const errors = Object.values(quantityErrors(product));
@@ -23,6 +28,7 @@ function settlement(mode: SettlementMode | undefined, basePrice: number | null |
 
 const include = {
   category: true,
+  marketPoint: { select: { id: true, slug: true, name: true } },
   images: { orderBy: [{ sort: 'asc' }, { id: 'asc' }] },
 } satisfies Prisma.ProductInclude;
 @Injectable()
@@ -57,7 +63,7 @@ export class AdminProductsService {
       this.db.product.count({ where }),
       this.db.product.count({ where: { settlementMode: 'UNSET' } }),
     ]);
-    return { items, total, unsetCount, page, limit, pages: Math.ceil(total / limit) };
+    return { items: items.map(adminProduct), total, unsetCount, page, limit, pages: Math.ceil(total / limit) };
   }
   async get(id: number) {
     const product = await this.db.product.findUnique({
@@ -65,8 +71,9 @@ export class AdminProductsService {
       include,
     });
     if (!product) throw new NotFoundException('Товар не найден');
-    return product;
+    return adminProduct(product);
   }
+  pricing(price: number) { return priceBreakdown(price); }
   async create(data: ProductInput, actorId?: number) {
     validateQuantity(data);
     const values = settlement(data.settlementMode, data.basePrice);
@@ -77,7 +84,7 @@ export class AdminProductsService {
           actorId, action: 'PRODUCT_SETTLEMENT_CREATED', entity: 'PRODUCT',
           entityId: String(product.id), newValue: values,
         } });
-        return product;
+        return adminProduct(product);
       });
     } catch (error) {
       return dbError(error);
@@ -100,7 +107,7 @@ export class AdminProductsService {
             actorId, action: 'PRODUCT_SETTLEMENT_CHANGED', entity: 'PRODUCT',
             entityId: String(id), oldValue: before, newValue: after,
           } });
-          return product;
+          return adminProduct(product);
         },
         { isolationLevel: 'Serializable' },
       );

@@ -79,7 +79,7 @@ describe('FavoriteService', () => {
   it('lists only active favorites of the current user', async () => {
     const { favorite, service } = setup();
 
-    await expect(service.list(7)).resolves.toEqual({ items: [product] });
+    await expect(service.list(7)).resolves.toEqual({ items: [{ ...product, price: 16390, marketPoint: null }] });
     expect(favorite.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: 7, product: { active: true } },

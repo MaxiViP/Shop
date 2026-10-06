@@ -15,6 +15,7 @@ import { NotificationService } from './notification.service.js';
 import { actionNotification, chatUnread, message, customerIssueActions, compositionQty, compositionMoney } from './coordination.js';
 import { cancelOrder } from './cancel.js';
 import { goodsLine } from './pricing.js';
+import { customerPrice, SERVICE_MARKUP_PERCENT } from '../product/pricing.js';
 import { chatSchema } from './coordination.schema.js';
 import { imageChatSchema, imageRevisionSchema } from './coordination.schema.js';
 import { ChatImagesService } from './chat-images.service.js';
@@ -240,6 +241,8 @@ export class CoordinationService {
           select: { settlementMode: true, basePrice: true },
         });
         if (!product) throw stale();
+        const original = await db.orderItem.findUniqueOrThrow({ where: { id: issue.orderItemId },
+          select: { serviceMarkupPercentSnapshot: true } });
         const replacement = await db.orderItem.create({
           data: {
             orderId: id,
@@ -250,6 +253,7 @@ export class CoordinationService {
             productSlug: issue.proposedSlug,
             unit: issue.proposedUnit,
             price: issue.proposedPrice,
+            serviceMarkupPercentSnapshot: original.serviceMarkupPercentSnapshot ?? SERVICE_MARKUP_PERCENT,
             priceQty: issue.proposedPriceQty,
             qty: issue.proposedQty,
             image: issue.proposedImageUrl,
@@ -333,7 +337,13 @@ export class CoordinationService {
         throw new BadRequestException(
           'Товар недоступен или количество не соответствует шагу продажи',
         );
-      const total = goodsLine(product.price, data.qty, product.priceQty);
+      const original = await db.orderItem.findUniqueOrThrow({ where: { id: issue.orderItemId },
+        select: { serviceMarkupPercentSnapshot: true } });
+      const percent = original.serviceMarkupPercentSnapshot ?? SERVICE_MARKUP_PERCENT;
+      if (original.serviceMarkupPercentSnapshot === null)
+        await db.orderItem.update({ where: { id: issue.orderItemId }, data: { serviceMarkupPercentSnapshot: percent } });
+      const price = customerPrice(product.price, percent);
+      const total = goodsLine(price, data.qty, product.priceQty);
       const updated = await db.orderIssue.update({
         where: { id: issue.id },
         data: {
@@ -345,7 +355,7 @@ export class CoordinationService {
           proposedProductId: product.id,
           proposedName: product.name,
           proposedSlug: product.slug,
-          proposedPrice: product.price,
+          proposedPrice: price,
           proposedPriceQty: product.priceQty,
           proposedQty: data.qty,
           proposedUnit: product.unit,

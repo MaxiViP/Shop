@@ -11,6 +11,7 @@ import { OrderService, orderCreatedSelect } from '../order/order.service.js';
 import { orderSchema, type OrderInput } from '../order/schema.js';
 import { cartProductSelect, cartQuantityValid } from '../order/cart-quote.js';
 import { manualQuantity } from '../order/assembly.js';
+import { customerProduct } from '../product/select.js';
 
 export type CartChange =
   | { kind: 'add' | 'set'; productId: number; qty: number }
@@ -50,7 +51,7 @@ export class CartService {
       where: { id: { in: cart.items.map((item) => item.productId) } },
       select: cartProductSelect,
     });
-    return { revision: cart.revision, ...quote, products };
+    return { revision: cart.revision, ...quote, products: products.map(customerProduct) };
   }
   getIn(db: Prisma.TransactionClient, userId: number) {
     return this.locked(db, userId).then((cart) => this.snapshot(db, cart));

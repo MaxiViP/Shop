@@ -58,6 +58,8 @@ model MarketPoint {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
+  products Product[]
+
   @@index([floor, isPublished, sortOrder, id])
 }
 
@@ -86,6 +88,7 @@ model Product {
   slug        String  @unique
   description String?
 
+  // Original seller price in kopecks; service markup is calculated on the backend.
   price          Int
   settlementMode SettlementMode @default(UNSET)
   basePrice      Int?
@@ -106,12 +109,18 @@ model Product {
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id])
 
+  marketPointId   Int?
+  marketPoint     MarketPoint? @relation(fields: [marketPointId], references: [id], onDelete: SetNull)
+  sourceUrl       String?
+  sourceCheckedAt DateTime?
+
   images ProductImage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([categoryId])
+  @@index([marketPointId])
   @@index([settlementMode])
 }
 
@@ -421,12 +430,13 @@ model OrderItem {
   productSlug String
   image       String?
 
-  price                  Int
-  actualPrice            Int?
-  settlementModeSnapshot SettlementMode?
-  basePriceSnapshot      Int?
-  priceQty               Int
-  unit                   Unit
+  price                        Int
+  actualPrice                  Int?
+  serviceMarkupPercentSnapshot Int?
+  settlementModeSnapshot       SettlementMode?
+  basePriceSnapshot            Int?
+  priceQty                     Int
+  unit                         Unit
 
   status OrderItemStatus @default(PENDING)
 
@@ -459,6 +469,7 @@ model OrderItemPriceChange {
   requestId     String              @db.Uuid
   previousPrice Int
   newPrice      Int
+  sellerPrice   Int?
   reason        String?             @db.VarChar(500)
   actorId       Int
   actor         User                @relation("ItemPriceActor", fields: [actorId], references: [id], onDelete: Restrict)

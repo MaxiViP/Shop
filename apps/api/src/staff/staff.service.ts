@@ -27,6 +27,16 @@ import { extraLimits } from '../order/limits.js';
 import { assertStaffActor, recordStaffAudit, type StaffActor } from './audit.js';
 import { adminPriceRecipients } from './price.js';
 import { effectiveQueue, QueueService } from '../order/queue.js';
+import { customerPrice, SERVICE_MARKUP_PERCENT } from '../product/pricing.js';
+
+const lastPriceChange = { orderBy: { id: 'desc' }, take: 1,
+  select: { sellerPrice: true, newPrice: true } } satisfies Prisma.OrderItemPriceChangeFindManyArgs;
+
+function actualSellerPrice(item: { price: number; actualPrice: number | null;
+  priceChanges?: { sellerPrice: number | null; newPrice: number }[] }) {
+  const change = item.priceChanges?.[0];
+  return change && change.newPrice === (item.actualPrice ?? item.price) ? change.sellerPrice : null;
+}
 
 
 @Injectable()
@@ -190,6 +200,8 @@ export class StaffService {
 
             price: true,
             actualPrice: true,
+            serviceMarkupPercentSnapshot: true,
+            priceChanges: lastPriceChange,
             priceQty: true,
             unit: true,
 
@@ -216,7 +228,10 @@ export class StaffService {
     const load = await this.queue.snapshot();
     const preparationMinutes = order.scheduledFor
       ? effectiveQueue(load.settings, order.scheduledFor).assemblyMinutes : load.minutes;
-    return { ...order, preparationMinutes,
+    return { ...order, items: order.items.map(item => {
+      const { priceChanges: _changes, ...fields } = item;
+      return { ...fields, actualSellerPrice: actualSellerPrice(item) };
+    }), preparationMinutes,
       restoreProblem: restoreProblem(order, order.cancellations[0]) };
   }
 
@@ -314,37 +329,45 @@ export class StaffService {
         where: { orderId_requestId: { orderId, requestId: data.requestId } },
       });
       if (earlier) {
-        if (earlier.itemId !== itemId || earlier.newPrice !== data.price ||
+        if (earlier.itemId !== itemId || earlier.sellerPrice !== data.sellerPrice ||
           earlier.actorId !== actor.userId || earlier.reason !== reason)
           throw new ConflictException('Этот запрос уже использован для другого изменения цены');
-        const item = await db.orderItem.findFirst({ where: { id: itemId, orderId } });
+        const item = await db.orderItem.findFirst({ where: { id: itemId, orderId }, include: { priceChanges: lastPriceChange } });
         if (!item) throw new NotFoundException('Позиция не найдена');
         return { item, changed: false };
       }
       if (order.status !== 'ASSEMBLING' || order.assemblyFinalizedAt ||
         ['REPORTED', 'PAID'].includes(order.payment?.status ?? ''))
         throw new ConflictException('Цену можно менять только во время сборки до оплаты');
-      const item = await db.orderItem.findFirst({ where: { id: itemId, orderId } });
+      const item = await db.orderItem.findFirst({ where: { id: itemId, orderId }, include: { priceChanges: lastPriceChange } });
       if (!item) throw new NotFoundException('Позиция не найдена');
       if (item.status === 'MISSING') throw new ConflictException('Отсутствующему товару нельзя изменить цену');
       const issue = await db.orderIssue.findUnique({ where: { orderItemId: item.id } });
       if (issue?.replacementItemId || (issue?.status === 'RESOLVED' && issue.resolution === 'REMOVE_ITEM'))
         throw new ConflictException('Исходный товар уже заменён или удалён из заказа');
       const previousPrice = item.actualPrice ?? item.price;
-      if (previousPrice === data.price) return { item, changed: false };
+      const percent = item.serviceMarkupPercentSnapshot ?? SERVICE_MARKUP_PERCENT;
+      const price = customerPrice(data.sellerPrice, percent);
+      if (previousPrice === price) {
+        const saved = item.serviceMarkupPercentSnapshot === null
+          ? await db.orderItem.update({ where: { id: item.id }, data: { serviceMarkupPercentSnapshot: percent },
+            include: { priceChanges: lastPriceChange } }) : item;
+        return { item: saved, changed: false };
+      }
       // Validate even a pending item before persisting a price that cannot be assembled.
-      goodsLine(data.price, item.status === 'PICKED' ? item.actualQty! : item.qty, item.priceQty);
+      goodsLine(price, item.status === 'PICKED' ? item.actualQty! : item.qty, item.priceQty);
       const updated = await db.orderItem.update({ where: { id: item.id }, data: {
-        actualPrice: data.price === item.price ? null : data.price,
-        ...(item.status === 'PICKED' ? { actualTotal: goodsLine(data.price, item.actualQty!, item.priceQty) } : {}),
+        actualPrice: price === item.price ? null : price,
+        serviceMarkupPercentSnapshot: percent,
+        ...(item.status === 'PICKED' ? { actualTotal: goodsLine(price, item.actualQty!, item.priceQty) } : {}),
       } });
       const change = await db.orderItemPriceChange.create({ data: {
-        orderId, itemId, requestId: data.requestId, previousPrice, newPrice: data.price,
+        orderId, itemId, requestId: data.requestId, previousPrice, newPrice: price, sellerPrice: data.sellerPrice,
         reason, actorId: actor.userId,
       } });
       await recordStaffAudit(db, orderId, actor, 'ITEM_PRICE_CHANGE', 'ITEM', itemId);
       const notice = await message(db, orderId,
-        `${item.productName}: цена изменена ${compositionMoney(previousPrice)} → ${compositionMoney(data.price)} за ${compositionQty(item.priceQty, item.unit)}.`,
+        `${item.productName}: цена изменена ${compositionMoney(previousPrice)} → ${compositionMoney(price)} за ${compositionQty(item.priceQty, item.unit)}.`,
         'SYSTEM', actor.userId, null, 'customer', 'CHAT_MESSAGE');
       await inAppEvent(db, { orderId, type: 'ITEM_PRICE_CHANGED', priceChangeId: change.id,
         messageId: notice.id, dedupeKey: `message:${notice.id}` });
@@ -356,15 +379,15 @@ export class StaffService {
           dedupeKey: `price:${change.id}:${recipientUserId}`,
         })), skipDuplicates: true,
       });
-      return { item: updated, changed: true };
+      return { item: { ...updated, priceChanges: [change] }, changed: true };
     });
     if (result.changed) {
       void this.notifications.dispatchStaffPrice(orderId).catch(() => this.logger.warn('Staff price notification dispatch failed'));
       void this.notifications.dispatchTelegram(orderId).catch(() => {});
       await this.notifications.dispatch(orderId);
     }
-    const { settlementModeSnapshot: _mode, basePriceSnapshot: _base, ...publicItem } = result.item;
-    return publicItem;
+    const { settlementModeSnapshot: _mode, basePriceSnapshot: _base, priceChanges: _changes, ...publicItem } = result.item;
+    return { ...publicItem, actualSellerPrice: actualSellerPrice(result.item) };
   }
 
   // The same snapshot-price and audit path serves manual, one-tap and bulk picking.

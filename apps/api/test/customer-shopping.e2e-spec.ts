@@ -377,7 +377,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         where: { id: f.product.id },
         data: { price: 70000 },
       });
-      expect((await cart.get(f.user.id)).subtotal).toBe(35000);
+      expect((await cart.get(f.user.id)).subtotal).toBe(38500);
       await db.product.update({
         where: { id: f.product.id },
         data: { active: false },
@@ -427,14 +427,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
           guestSessionId: null,
           type,
           status: 'NEW',
-          subtotal: 17500,
+          subtotal: 19250,
         });
         expect(saved.items[0]).toMatchObject({
-          price: 35000,
+          price: 38500,
           priceQty: 1000,
           unit: 'GRAM',
           qty: 500,
-          total: 17500,
+          total: 19250,
           settlementModeSnapshot: 'SHARED_MARKUP',
           basePriceSnapshot: 25000,
         });
@@ -743,7 +743,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const next = await checkout.resume(f.actor);
       await expect(checkout.confirm(f.actor, s.id)).rejects.toThrow();
       const order = await checkout.confirm(f.actor, next!.id);
-      expect(order.subtotal).toBe(20000);
+      expect(order.subtotal).toBe(22000);
     });
 
     it('AWAITING displays configured requisites but callback/logs contain no payment data', async () => {

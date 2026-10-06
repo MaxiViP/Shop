@@ -620,7 +620,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     await makeBot().handle(callback(f.telegramId, customerDecision(f.order.publicId, issue.id, proposed.version, 'p')));
     const detail = await orders.get(f.order.publicId, f.user.id);
     expect(detail.items).toHaveLength(2);
-    expect(detail.items.find(item => item.productSlug === product.slug)).toMatchObject({ qty: 500, price: 20000, total: 10000 });
+    expect(detail.items.find(item => item.productSlug === product.slug)).toMatchObject({ qty: 500, price: 22000, total: 11000 });
     expect(detail.issues).toMatchObject([{ resolution: 'ACCEPT_REPLACEMENT', status: 'RESOLVED', replacementItemId: expect.any(Number) }]);
   });
   it('stale version rejects and duplicate identical decisions do not create another chat event', async () => {

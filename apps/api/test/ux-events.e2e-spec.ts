@@ -111,7 +111,7 @@ describe.skipIf(!process.env.DATABASE_URL)('storefront UX / local PostgreSQL', (
     expect(result.body.groupTotals).toEqual({ current: 1, others: 1 });
     const ids = result.body.items.map((item: { id: number }) => item.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(result.body.items[0].price).toBe(10000);
+    expect(result.body.items[0].price).toBe(11000);
     const elsewhere = await call('').get('/products?category=fruit-ux&q=груша').expect(200);
     expect(elsewhere.body.items.map((item: { id: number }) => item.id)).toEqual([pear]);
     expect(elsewhere.body.groupTotals).toEqual({ current: 0, others: 1 });
@@ -182,13 +182,13 @@ describe.skipIf(!process.env.DATABASE_URL)('storefront UX / local PostgreSQL', (
     await call(seller.cookie).post(`/staff/orders/${order.id}/confirm`).expect(201);
     await call(seller.cookie).post(`/staff/orders/${order.id}/assembly/start`).expect(201);
     const item = await db.orderItem.findFirstOrThrow({ where: { orderId: order.id } });
-    const price = { price: 10500, requestId: randomUUID() };
+    const price = { sellerPrice: 10500, requestId: randomUUID() };
     for (let i = 0; i < 2; i++) await call(seller.cookie).patch(`/staff/orders/${order.id}/items/${item.id}/price`, price).expect(200);
     await call(seller.cookie).patch(`/staff/orders/${order.id}/items/${item.id}`, { status: 'PICKED', actualQty: 1 }).expect(200);
     await call(seller.cookie).post(`/staff/orders/${order.id}/assembly/finish`).expect(201);
     const events = (await feed(owner.cookie)).events;
     expect(events.map(event => event.kind)).toEqual(['ORDER_STATUS_CHANGED', 'ASSEMBLY_STARTED', 'ITEM_PRICE_CHANGED', 'ORDER_UPDATED', 'ORDER_READY']);
-    expect(events[2]?.title).toContain('100 ₽ → 105 ₽');
+    expect(events[2]?.title).toContain('110 ₽ → 115,50 ₽');
     expect(events[2]?.to).toBe(`/order/${order.publicId}#order-items`);
     expect(events[4]?.to).toBe(`/order/${order.publicId}#order-payment`);
     expect(JSON.stringify(events)).not.toMatch(/actorId|basePrice|settlement|token|phone|cookie/);

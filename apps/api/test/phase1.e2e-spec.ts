@@ -271,7 +271,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       const old = (await checkout('DELIVERY')).body.order;
       await call(admin).patch('/admin/settings', { minDeliverySubtotal: 400000 }).expect(200);
       await checkout('DELIVERY', 2500, 400);
-      expect((await call(owner).get(`/orders/${old.publicId}`).expect(200)).body.subtotal).toBe(250000);
+      expect((await call(owner).get(`/orders/${old.publicId}`).expect(200)).body.subtotal).toBe(275000);
       await call(admin).patch('/admin/settings', { deliveryEnabled: false }).expect(200);
       await checkout('DELIVERY', 5000, 400);
       await call(admin).patch('/admin/settings', { deliveryEnabled: true, pickupEnabled: false }).expect(200);
@@ -367,7 +367,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
         expect(saved.assemblyFinalizedAt).not.toBeNull();
         expect(saved.payment).toMatchObject({
           status: 'AWAITING',
-          amount: 110000,
+          amount: 121000,
         });
       } else {
         expect(response.body.message).toContain(
@@ -456,7 +456,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     );
     expect(
       await db.orderPayment.findUnique({ where: { orderId: order.id } }),
-    ).toMatchObject({ status: 'AWAITING', amount: 103700 });
+    ).toMatchObject({ status: 'AWAITING', amount: 114070 });
     const booking = `/staff/orders/${order.id}/delivery/yandex/order`;
     const otherDelivery = () =>
       call(seller)
@@ -521,11 +521,11 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
           where: { orderId: order.id },
         })
       ).amount,
-    ).toBe(103700);
+    ).toBe(114070);
     expect(
       (await db.order.findUniqueOrThrow({ where: { id: order.id } }))
         .finalTotal,
-    ).toBe(148700);
+    ).toBe(159070);
     await call(owner).post(report, { method: 'SBP' }).expect(201);
   });
 
@@ -649,7 +649,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
         await db.orderPayment.findUniqueOrThrow({
           where: { orderId: order.id },
         }),
-      ).toMatchObject({ status: 'AWAITING', amount: actualQty * 100 });
+      ).toMatchObject({ status: 'AWAITING', amount: actualQty * 110 });
       await call(order.cookie)
         .post(`/orders/${order.publicId}/payment/report`, { method: 'SBP' })
         .expect(201);
@@ -769,9 +769,9 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       where: { id: resolved.replacementItemId! },
     });
     expect(replacement).toMatchObject({
-      price: 100000,
+      price: 110000,
       qty: 500,
-      total: 50000,
+      total: 55000,
       status: 'PENDING',
       settlementModeSnapshot: 'SHARED_MARKUP',
       basePriceSnapshot: 32000,
@@ -800,7 +800,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
           where: { orderId: order.id },
         })
       ).amount,
-    ).toBe(50000);
+    ).toBe(55000);
     await db.product.update({ where: { id: productId },
       data: { settlementMode: 'UNSET', basePrice: null } });
     const remove = await phase2Order(1200);
@@ -1355,8 +1355,8 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     await call(seller).patch(`/staff/orders/${other.id}/extras/${extra.id}`, { ...input, version: extra.version }).expect(404);
     await call(seller).post(`/staff/orders/${order.id}/assembly/finish`).expect(201);
     let detail = (await call(owner).get(`/orders/${order.publicId}`).expect(200)).body;
-    expect(detail.finalSubtotal).toBe(150000);
-    expect(detail.payment).toMatchObject({ amount: 150000, status: 'AWAITING' });
+    expect(detail.finalSubtotal).toBe(160000);
+    expect(detail.payment).toMatchObject({ amount: 160000, status: 'AWAITING' });
     expect(detail.extras).toHaveLength(1);
     await call(seller).patch(`${path}/${extra.id}`, { ...input, version: extra.version }).expect(409);
     await call(seller).post(`/staff/orders/${order.id}/assembly/reopen`).expect(201);
@@ -1364,8 +1364,8 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     expect((await db.orderExtra.findUniqueOrThrow({ where: { id: extra.id } })).status).toBe('CANCELED');
     await call(seller).post(`/staff/orders/${order.id}/assembly/finish`).expect(201);
     detail = (await call(owner).get(`/orders/${order.publicId}`)).body;
-    expect(detail.finalSubtotal).toBe(100000);
-    expect(detail.payment).toMatchObject({ amount: 100000, status: 'AWAITING' });
+    expect(detail.finalSubtotal).toBe(110000);
+    expect(detail.payment).toMatchObject({ amount: 110000, status: 'AWAITING' });
     expect(detail.extras).toEqual([]);
     await call(owner).post(`/staff/orders/${order.id}/payment/confirm`).expect(403);
     await call(seller).post(`/staff/orders/${order.id}/payment/confirm`).expect(201);
@@ -1389,14 +1389,14 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     expect(failure.status).toBe(502);
     const paid = await db.orderPayment.findUniqueOrThrow({ where: { orderId: order.id } });
     expect(paid.status).toBe('PAID');
-    expect(paid.amount).toBe(150000);
+    expect(paid.amount).toBe(160000);
     expect(paid.confirmedAt).not.toBeNull();
     await call(admin).post(endpoint).expect(201);
     const retried = await db.orderPayment.findUniqueOrThrow({ where: { orderId: order.id } });
     expect(retried.confirmedAt).toEqual(paid.confirmedAt);
     expect(retried.confirmedById).toBe(paid.confirmedById);
-    expect(retried.amount).toBe(150000);
-    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).finalTotal).toBe(195000);
+    expect(retried.amount).toBe(160000);
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).finalTotal).toBe(205000);
     expect(await db.orderChatMessage.count({ where: { orderId: order.id, text: 'Оплата получена. Оформляем доставку.' } })).toBe(1);
   });
 
@@ -1419,7 +1419,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     expect(await db.orderChatMessage.count({ where: { orderId: order.id, text: 'Оплата получена.' } })).toBe(1);
     await call(seller).post(`${path}/${extra.id}/cancel`, { version: updated.version }).expect(409);
     const payment = await db.orderPayment.findUniqueOrThrow({ where: { orderId: order.id } });
-    expect(payment).toMatchObject({ status: 'PAID', amount: 160000 });
+    expect(payment).toMatchObject({ status: 'PAID', amount: 170000 });
     expect(await db.orderIssue.count({ where: { orderId: order.id } })).toBe(0);
   });
 
@@ -1711,7 +1711,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       try { await call(seller).post(order.endpoint).expect(502); }
       finally { await cleanup?.(); }
       const paid = await db.orderPayment.findUniqueOrThrow({ where: { orderId: order.id } });
-      expect(paid).toMatchObject({ status: 'PAID', amount: 100000 });
+      expect(paid).toMatchObject({ status: 'PAID', amount: 110000 });
       const pending = await db.deliveryAttempt.findUniqueOrThrow({ where: { orderId: order.id } });
       expect(pending.requestId).toBe(order.publicId);
       expect(pending.requestBody).toBe('{"offer_payload":"snapshot"}');
@@ -1859,14 +1859,14 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
       }).expect(200);
       const first = await checkout(2000);
       const oldItem = await db.orderItem.findFirstOrThrow({ where: { orderId: first.id } });
-      expect(oldItem).toMatchObject({ price: 45000, settlementModeSnapshot: 'SHARED_MARKUP', basePriceSnapshot: 30000 });
+      expect(oldItem).toMatchObject({ price: 49500, settlementModeSnapshot: 'SHARED_MARKUP', basePriceSnapshot: 30000 });
       await assemble(first, 1800);
       await call(seller).post(`/staff/orders/${first.id}/assembly/finish`).expect(201);
       await call(seller).post(`/staff/orders/${first.id}/payment/confirm`).expect(201);
       await call(seller).post(`/staff/orders/${first.id}/pickup/complete`).expect(201);
       const finished = await db.order.findUniqueOrThrow({ where: { id: first.id }, include: { items: true } });
       expect(finished.completedAt).not.toBeNull();
-      expect(finished.items[0]).toMatchObject({ actualQty: 1800, actualTotal: 81000 });
+      expect(finished.items[0]).toMatchObject({ actualQty: 1800, actualTotal: 89100 });
       await call(admin).patch(`/admin/products/${productId}`, { basePrice: 32000 }).expect(200);
       const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow',
         year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -1875,7 +1875,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
         totals: { partner1Share: number; partner2Share: number };
       }[];
       expect(day.find(row => row.id === first.id)?.lines[0]).toMatchObject({
-        saleAmount: 81000, baseAmount: 54000, sharedMarkup: 27000,
+        saleAmount: 89100, baseAmount: 54000, sharedMarkup: 35100,
       });
       const next = await checkout(1000);
       expect(await db.orderItem.findFirstOrThrow({ where: { orderId: next.id } }))
@@ -1894,7 +1894,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
         id: number; totals: { noMarkupRevenue: number; sharedMarkup: number };
       }[];
       expect(latest.find(row => row.id === excluded.id)?.totals)
-        .toMatchObject({ noMarkupRevenue: 45000, sharedMarkup: 0 });
+        .toMatchObject({ noMarkupRevenue: 49500, sharedMarkup: 0 });
       expect((await db.orderItem.findUniqueOrThrow({ where: { id: oldItem.id } })).basePriceSnapshot).toBe(30000);
     } finally {
       await db.product.update({ where: { id: productId }, data: {

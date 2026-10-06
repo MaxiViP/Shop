@@ -231,6 +231,10 @@ export interface OrderExtra {
 }
 
 export interface StaffOrderDetail extends OrderDetail {
+  items: (OrderDetail['items'][number] & {
+    actualSellerPrice: number | null
+    serviceMarkupPercentSnapshot: number | null
+  })[]
   preparationMinutes: number
   cancellations: Cancellation[]
   restoreProblem: string | null

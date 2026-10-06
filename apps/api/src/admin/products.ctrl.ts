@@ -23,6 +23,7 @@ import {
   productPatch,
   productQuery,
   imageSchema,
+  pricePreviewSchema,
   type ProductInput,
   type ProductQuery,
   type ImageInput,
@@ -46,6 +47,10 @@ export class AdminProductsCtrl {
   @Post()
   create(@Body({ schema: productSchema }) body: ProductInput, @Req() request: AuthRequest) {
     return this.products.create(body, request.user.id);
+  }
+  @Post('pricing')
+  pricing(@Body({ schema: pricePreviewSchema }) body: { price: number }) {
+    return this.products.pricing(body.price);
   }
   @Patch(':id')
   update(

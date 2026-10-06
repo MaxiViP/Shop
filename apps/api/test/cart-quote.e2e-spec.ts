@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { customerPrice } from '../src/product/pricing.js';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
@@ -185,7 +186,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(seenByWeb.body).toMatchObject({
         revision: fromBot.revision,
         items: [{ productId, qty: 1000, status: 'AVAILABLE' }],
-        subtotal: 350000,
+        subtotal: 385000,
       });
       const fromWeb = await request(app.getHttpServer()).post('/api/cart/change')
         .set('Cookie', cookie)
@@ -360,6 +361,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const result = await connection.query('SELECT * FROM "Product" WHERE id < 0 ORDER BY id');
       expect(result.rows).toEqual(legacyProducts.map((product) => ({
         ...product, portionQty: product.min, settlementMode: 'UNSET', basePrice: null,
+        marketPointId: null, sourceUrl: null, sourceCheckedAt: null,
       })));
       const column = await connection.query<{ is_nullable: string }>(
         `SELECT is_nullable FROM information_schema.columns
@@ -380,7 +382,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         ],
       });
       const result = await quote().expect(201);
-      expect(result.body.subtotal).toBe(350000);
+      expect(result.body.subtotal).toBe(385000);
       expect(result.headers['set-cookie']).toBeUndefined();
       expect(result.body.items[0].product.images).toEqual([
         { url: '/uploads/products/visible.webp', alt: null },
@@ -398,6 +400,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           'step',
           'category',
           'images',
+          'marketPoint',
         ].sort(),
       );
       expect(await db.order.count()).toBe(before);
@@ -412,21 +415,21 @@ describe.skipIf(!process.env.DATABASE_URL)(
     it('price decrease updates quote, blocks delivery below minimum but permits guest pickup', async () => {
       await quote()
         .expect(201)
-        .expect((result) => expect(result.body.subtotal).toBe(350000));
+        .expect((result) => expect(result.body.subtotal).toBe(385000));
       await db.product.update({
         where: { id: productId },
         data: { price: 250000 },
       });
       const current = await quote().expect(201);
-      expect(current.body.subtotal).toBe(250000);
+      expect(current.body.subtotal).toBe(275000);
       await order('DELIVERY', current.body.token as string).expect(400);
       const pickup = await order('PICKUP', current.body.token as string).expect(
         201,
       );
       expect(pickup.body).toMatchObject({
-        subtotal: 250000,
+        subtotal: 275000,
         deliveryPrice: 0,
-        total: 250000,
+        total: 275000,
       });
     });
     it('price increase updates quote and makes delivery eligible for a guest', async () => {
@@ -434,7 +437,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         where: { id: productId },
         data: { price: 250000 },
       });
-      expect((await quote()).body.subtotal).toBe(250000);
+      expect((await quote()).body.subtotal).toBe(275000);
       await db.product.update({
         where: { id: productId },
         data: { price: 350000 },
@@ -445,7 +448,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         current.body.token as string,
       ).expect(201);
       expect(result.body).toMatchObject({
-        subtotal: 350000,
+        subtotal: 385000,
         deliveryPrice: null,
         total: null,
       });
@@ -493,7 +496,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await order('DELIVERY').expect(400);
       await order('PICKUP')
         .expect(201)
-        .expect((result) => expect(result.body.subtotal).toBe(250000));
+        .expect((result) => expect(result.body.subtotal).toBe(275000));
       await db.shopSettings.update({
         where: { id: 1 },
         data: { minDeliverySubtotal: 0 },
@@ -511,8 +514,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await order('PICKUP').expect(400);
     });
     it.each([
-      { price: 15000, priceQty: 500, expected: [15000, 30000, 45000] },
-      { price: 19900, priceQty: 1000, expected: [9950, 19900, 29850] },
+      { price: 15000, priceQty: 500, expected: [16500, 33000, 49500] },
+      { price: 19900, priceQty: 1000, expected: [10945, 21890, 32835] },
     ])('quote and persisted order agree for price=$price / priceQty=$priceQty', async ({ price, priceQty, expected }) => {
       await db.product.update({ where: { id: productId }, data: { min: 500, step: 100, portionQty: 500, price, priceQty } });
       for (const [index, qty] of [500, 1000, 1500].entries()) {
@@ -526,7 +529,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         }).expect(201);
         const saved = await db.order.findUniqueOrThrow({ where: { publicId: created.body.publicId as string }, include: { items: true } });
         expect(saved).toMatchObject({ subtotal: expected[index], total: expected[index] });
-        expect(saved.items[0]).toMatchObject({ qty, price, priceQty, unit: 'GRAM', total: expected[index] });
+        expect(saved.items[0]).toMatchObject({ qty, price: customerPrice(price), priceQty, unit: 'GRAM', total: expected[index] });
         await db.product.update({ where: { id: productId }, data: { price: price + 100 } });
         expect((await db.orderItem.findUniqueOrThrow({ where: { id: saved.items[0]!.id } })).total).toBe(expected[index]);
         await db.product.update({ where: { id: productId }, data: { price } });
@@ -545,7 +548,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(await db.order.count()).toBe(before);
       const created = await checkout(700).expect(201);
       const saved = await db.order.findUniqueOrThrow({ where: { publicId: created.body.publicId as string }, include: { items: true } });
-      expect(saved.items[0]).toMatchObject({ qty: 700, total: 13930 });
+      expect(saved.items[0]).toMatchObject({ qty: 700, total: 15323 });
     });
     it.each(['hidden', 'deleted'])(
       '%s product is a structured unavailable line without disclosing its data',

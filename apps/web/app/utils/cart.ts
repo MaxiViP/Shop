@@ -152,6 +152,8 @@ function storedItem(value: unknown): CartItem | null {
       portionQty: p.portionQty === undefined ? p.min : p.portionQty as number,
       unit: p.unit as Unit,
       category: { name: p.category.name, slug: p.category.slug },
+      marketPoint: record(p.marketPoint) && typeof p.marketPoint.name === 'string' && typeof p.marketPoint.slug === 'string'
+        ? { name: p.marketPoint.name, slug: p.marketPoint.slug } : null,
       images: p.images
         .filter(record)
         .filter((image) => typeof image.url === "string")

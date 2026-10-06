@@ -15,7 +15,13 @@ export interface AdminCategory {
   parentId: number | null;
   _count?: { products: number; children: number };
 }
-export interface AdminProduct {
+export interface ProductPricing {
+  sellerPrice: number;
+  serviceMarkupPercent: number;
+  serviceMarkup: number;
+  customerPrice: number;
+}
+export interface AdminProduct extends ProductPricing {
   id: number;
   name: string;
   slug: string;
@@ -29,6 +35,10 @@ export interface AdminProduct {
   min: number;
   portionQty: number;
   categoryId: number;
+  marketPointId: number | null;
+  marketPoint: { id: number; slug: string; name: string } | null;
+  sourceUrl: string | null;
+  sourceCheckedAt: string | null;
   active: boolean;
   sort: number;
   category: AdminCategory;

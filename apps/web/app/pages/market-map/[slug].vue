@@ -21,6 +21,10 @@
         </div>
       </section>
     </div>
+    <section v-if="products?.items.length" class="market-point__products" aria-labelledby="market-products">
+      <h2 id="market-products" class="market-point__heading">Продукты этой точки</h2>
+      <ProductGrid :items="products.items" />
+    </section>
     <section v-if="point.kind !== 'ENTRY'" class="market-point__chat" aria-labelledby="market-chat">
       <div>
         <h2 id="market-chat" class="market-point__heading">Настоящий прилавок. Ваш выбор.</h2>
@@ -44,6 +48,7 @@
 
 <script setup lang="ts">
 import type { MarketPoint } from '~/types/market-map';
+import type { ProductListResponse } from '~/types/product';
 import { marketKindLabels } from '~/utils/market-map';
 import { breadcrumbSchema } from '~/utils/seo';
 const route = useRoute();
@@ -52,6 +57,9 @@ const { data: point, error } = await useApi<MarketPoint>(() => `/market-map/${en
 if (error.value || !point.value) throw createError({ statusCode: error.value?.statusCode === 404 ? 404 : 503,
   statusMessage: error.value?.statusCode === 404 ? 'Точка не найдена' : 'Не удалось загрузить точку рынка' });
 const asset = useAsset();
+const { data: products } = await useApi<ProductListResponse>('/products', {
+  query: computed(() => ({ marketPoint: slug.value, limit: 60 })),
+});
 const breadcrumbs = computed(() => [{ label: 'Главная', to: '/' },
   { label: 'Карта рынка', to: '/market-map' }, { label: point.value?.name ?? '', to: `/market-map/${slug.value}` }]);
 usePageSeo(() => ({ title: `${point.value?.name} — Карта рынка · KorzinaMarket`,
@@ -77,6 +85,7 @@ useJsonLd(computed(() => breadcrumbSchema(breadcrumbs.value)));
 .market-point__chat { display: grid; justify-items: start; gap: 1rem; margin-top: 1.5rem; padding: 1.25rem; border-radius: 1rem; border: 1px solid var(--ui-border); background: color-mix(in srgb, var(--ui-primary) 7%, var(--ui-bg-elevated)); }
 .market-point__chat p, .market-point__flow p { margin-top: .5rem; }
 .market-point__flow { margin-top: 1.5rem; }
+.market-point__products { display: grid; gap: 1rem; margin-top: 1.5rem; }
 .market-point__steps { display: grid; gap: .65rem; margin: .75rem 0; padding-left: 1.5rem; list-style: decimal; color: var(--ui-text-muted); line-height: 1.5; }
 .market-point__link { display: inline-flex; align-items: center; min-height: 44px; color: var(--ui-primary); }
 .market-point__link:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }

@@ -54,7 +54,9 @@
               <th class="p-3">Фото</th>
               <th>Название</th>
               <th>Категория</th>
-              <th>Цена / ед.</th>
+              <th>Цена продавца / ед.</th>
+              <th>Сервис</th>
+              <th>Цена покупателя</th>
               <th>Режим</th>
               <th>Базовая цена</th>
               <th>Наценка</th>
@@ -89,9 +91,11 @@
                 {{ money(product.price) }} / {{ product.priceQty }}
                 {{ labels[product.unit] }}
               </td>
+              <td class="pr-3 whitespace-nowrap">{{ product.serviceMarkupPercent }}% · {{ money(product.serviceMarkup) }}</td>
+              <td class="pr-3 whitespace-nowrap">{{ money(product.customerPrice) }}</td>
               <td class="pr-3"><UBadge :color="product.settlementMode === 'UNSET' ? 'warning' : product.settlementMode === 'SHARED_MARKUP' ? 'success' : 'neutral'">{{ modeLabel[product.settlementMode] }}</UBadge></td>
               <td class="pr-3 whitespace-nowrap">{{ product.basePrice === null ? '—' : money(product.basePrice) }}</td>
-              <td class="pr-3 whitespace-nowrap">{{ product.basePrice === null ? '—' : money(product.price - product.basePrice) }}</td>
+              <td class="pr-3 whitespace-nowrap">{{ product.basePrice === null ? '—' : money(product.customerPrice - product.basePrice) }}</td>
               <td class="pr-3">
                 <UBadge :color="product.active ? 'success' : 'neutral'">{{
                   product.active ? "Опубликован" : "Скрыт"

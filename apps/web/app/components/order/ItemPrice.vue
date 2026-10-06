@@ -5,7 +5,7 @@
     </UButton>
     <form v-if="editable && editing" class="item-price__form" @submit.prevent="save">
       <p class="item-price__original">Цена заказа {{ money(item.price) }} / {{ qtyText(item.unit, item.priceQty) }}</p>
-      <UFormField label="Фактическая цена, ₽" class="item-price__field">
+      <UFormField label="Фактическая цена продавца, ₽" help="Введите цену продавца без сервиса. Сервис KorzinaMarket рассчитается автоматически." class="item-price__field">
         <UInput v-model="rubles" type="text" inputmode="decimal" :disabled="busy || Boolean(retry)" maxlength="12" />
       </UFormField>
       <UFormField label="Причина (необязательно)" class="item-price__reason">
@@ -21,14 +21,14 @@
 </template>
 
 <script setup lang="ts">
-import type { OrderDetail } from '~/types/order';
+import type { StaffOrderDetail } from '~/types/order';
 import { apiError } from '~/utils/api-error';
 import { kopecksToRubles, money, rublesToKopecks } from '~/utils/money';
 import { qtyText } from '~/utils/qty';
 
 const props = defineProps<{
   orderId: number;
-  item: OrderDetail['items'][number];
+  item: StaffOrderDetail['items'][number];
   editable: boolean;
   disabled: boolean;
 }>();
@@ -39,10 +39,10 @@ const editing = ref(false);
 const busy = ref(false);
 const rubles = ref('');
 const reason = ref('');
-const retry = ref<{ price: number; reason?: string; requestId: string } | null>(null);
+const retry = ref<{ sellerPrice: number; reason?: string; requestId: string } | null>(null);
 
 function open() {
-  rubles.value = kopecksToRubles(props.item.actualPrice ?? props.item.price);
+  rubles.value = props.item.actualSellerPrice == null ? '' : kopecksToRubles(props.item.actualSellerPrice);
   reason.value = '';
   retry.value = null;
   editing.value = true;
@@ -53,13 +53,13 @@ function cancel() {
   emit('refresh');
 }
 async function save() {
-  const price = rublesToKopecks(rubles.value);
-  if (!retry.value && price === null) {
+  const sellerPrice = rublesToKopecks(rubles.value);
+  if (!retry.value && sellerPrice === null) {
     toast.add({ title: 'Укажите положительную цену до 1 000 000 ₽', color: 'error' });
     return;
   }
   const body = retry.value ?? {
-    price: price!, reason: reason.value.trim() || undefined, requestId: crypto.randomUUID(),
+    sellerPrice: sellerPrice!, reason: reason.value.trim() || undefined, requestId: crypto.randomUUID(),
   };
   busy.value = true;
   emit('busy', true);

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import type { ProductQuery, ProductSort } from './schema.js';
-import { productListSelect } from './select.js';
+import { customerProduct, productListSelect } from './select.js';
 
 @Injectable()
 export class ProductService {
@@ -12,6 +12,7 @@ export class ProductService {
     if (query.q && query.category) return this.prioritySearch(query);
     const where: Prisma.ProductWhereInput = {
       active: true,
+      marketPoint: query.marketPoint ? { slug: query.marketPoint, isPublished: true } : undefined,
       category: query.category ? { slug: query.category } : undefined,
       id: query.ids ? { in: query.ids } : undefined,
       OR: query.q
@@ -33,7 +34,7 @@ export class ProductService {
     ]);
 
     return {
-      items,
+      items: items.map(customerProduct),
       total,
       page: query.page,
       limit: query.limit,
@@ -58,7 +59,7 @@ export class ProductService {
       throw new NotFoundException('Product not found');
     }
 
-    return product;
+    return customerProduct(product);
   }
 
   private prioritySearch(query: ProductQuery) {
@@ -66,6 +67,7 @@ export class ProductService {
       const category = await db.category.findUnique({ where: { slug: query.category! },
         select: { slug: true, name: true } });
       const match: Prisma.ProductWhereInput = { active: true,
+        marketPoint: query.marketPoint ? { slug: query.marketPoint, isPublished: true } : undefined,
         id: query.ids ? { in: query.ids } : undefined,
         OR: [{ name: { contains: query.q, mode: 'insensitive' } },
           { description: { contains: query.q, mode: 'insensitive' } }] };
@@ -78,7 +80,7 @@ export class ProductService {
       const otherItems = await db.product.findMany({ ...options, where: others });
       const currentTotal = await db.product.count({ where: current });
       const otherTotal = await db.product.count({ where: others });
-      return { items: [...currentItems, ...otherItems], total: currentTotal + otherTotal,
+      return { items: [...currentItems, ...otherItems].map(customerProduct), total: currentTotal + otherTotal,
         page: query.page, limit: query.limit, pages: Math.ceil(Math.max(currentTotal, otherTotal) / query.limit),
         currentCategory: category, groupTotals: { current: currentTotal, others: otherTotal } };
     }, { isolationLevel: 'RepeatableRead' });

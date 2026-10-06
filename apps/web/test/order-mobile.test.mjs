@@ -79,7 +79,8 @@ test('changed order item price is visible to customer before payment', async () 
   assert.match(staff, /Цена изменена:/);
   assert.match(customer, /Цена изменена:/);
   assert.match(customer, /изменения цены войдут в итог после сборки/);
-  assert.match(price, /Фактическая цена, ₽/);
+  assert.match(price, /Фактическая цена продавца, ₽/);
+  assert.match(price, /Сервис KorzinaMarket рассчитается автоматически/);
   assert.match(price, /requestId: crypto\.randomUUID\(\)/);
   assert.match(price, /retry\.value \?\?/);
 });

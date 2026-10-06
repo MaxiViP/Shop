@@ -36,6 +36,8 @@
         </h3>
       </NuxtLink>
 
+      <ProductOrigin :point="product.marketPoint" />
+
       <div class="card__bottom">
         <ProductPrice :product="product" />
 

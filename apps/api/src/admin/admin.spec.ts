@@ -114,6 +114,25 @@ describe('Admin products', () => {
       price: 19950,
     });
   });
+  it('edits seller price and metadata without persisting or accumulating the service markup', async () => {
+    const local = fixture();
+    let current = { id: 1, ...product, price: 10000, settlementMode: 'UNSET', basePrice: null };
+    local.product.findUnique.mockImplementation(() => current);
+    local.product.update.mockImplementation(({ data }: { data: Partial<typeof current> }) => {
+      current = { ...current, ...data };
+      return current;
+    });
+    const products = new AdminProductsService(local as unknown as DbService, images as unknown as ImagesService);
+    expect(products.pricing(10000)).toMatchObject({ sellerPrice: 10000, serviceMarkup: 1000, customerPrice: 11000 });
+    for (let i = 0; i < 3; i++) {
+      const saved = await products.update(1, { price: current.price });
+      expect(saved).toMatchObject({ price: 10000, sellerPrice: 10000, customerPrice: 11000 });
+      expect(current.price).toBe(10000);
+    }
+    expect(await products.update(1, { sourceUrl: 'https://cezoni.com/collection/all' }))
+      .toMatchObject({ price: 10000, customerPrice: 11000 });
+    expect(await products.update(1, { price: 22000 })).toMatchObject({ price: 22000, customerPrice: 24200 });
+  });
   it('updates and archives product without removing history', async () => {
     db.product.findUnique.mockResolvedValue(product);
     db.product.update.mockResolvedValue({ ...product, active: false });

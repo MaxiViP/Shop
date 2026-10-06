@@ -64,9 +64,9 @@ describe('OrderService creation', () => {
       const { order } = await new OrderService(db, telegram).create(42, undefined, input);
       expect(order).toMatchObject({
         customerName: 'Александр',
-        subtotal: 45_000,
+        subtotal: 49_500,
         deliveryPrice: type === 'PICKUP' ? 0 : null,
-        total: type === 'PICKUP' ? 45_000 : null,
+        total: type === 'PICKUP' ? 49_500 : null,
         deliveryAt: deliveryAt ? new Date(deliveryAt) : null,
       });
       expect(input).not.toHaveProperty('deliveryPrice');
@@ -75,6 +75,7 @@ describe('OrderService creation', () => {
       expect(create.mock.calls[0]?.[0].data).not.toHaveProperty('status');
       expect(create.mock.calls[0]?.[0].data.items.create[0]).toMatchObject({
         settlementModeSnapshot: 'SHARED_MARKUP', basePriceSnapshot: 30_000,
+        price: 49_500, total: 49_500, serviceMarkupPercentSnapshot: 10,
       });
       expect(create.mock.calls[0]?.[0].select.items.select).not.toHaveProperty('basePriceSnapshot');
       if (type === 'PICKUP')

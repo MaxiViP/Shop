@@ -23,11 +23,11 @@
       <div class="market-map__layout">
         <MarketMap :points="mapPoints" :selected-id="focused?.id" />
         <section class="market-map__directory" aria-labelledby="market-points">
-          <h2 id="market-points" class="market-map__heading">{{ query.trim() || kind ? 'Найденные точки' : 'Лавки и магазины' }} <span class="market-map__count">{{ visible.length }}</span></h2>
+          <h2 id="market-points" class="market-map__heading">{{ query.trim() || kindFilter ? 'Найденные точки' : 'Лавки и магазины' }} <span class="market-map__count">{{ visible.length }}</span></h2>
           <p v-if="!points.length" class="market-map__empty">Список лавок готовится. Скоро здесь появятся опубликованные точки рынка.</p>
           <div v-else-if="!visible.length" class="market-map__empty" role="status">
             <p>Точки не найдены. Попробуйте другое название или тип.</p>
-            <UButton variant="link" @click="query = ''; kind = ''">Сбросить поиск</UButton>
+            <UButton variant="link" @click="resetFilters">Сбросить поиск</UButton>
           </div>
           <ul v-else class="market-map__list">
             <li v-for="point in visible" :key="point.id">
@@ -64,13 +64,24 @@ import { filterMarketPoints, marketKinds, marketKindLabels } from '~/utils/marke
 import { breadcrumbSchema } from '~/utils/seo';
 const breadcrumbs = [{ label: 'Главная', to: '/' }, { label: 'Карта рынка', to: '/market-map' }];
 const route = useRoute();
-const query = ref('');
-const kind = ref('');
-const kinds = [{ value: '', label: 'Все точки' }, ...marketKinds.filter(item => item.value !== 'ENTRY')];
+const router = useRouter();
+const kinds = [{ value: 'all' as const, label: 'Все точки' }, ...marketKinds.filter(item => item.value !== 'ENTRY')];
+const query = computed({
+  get: () => typeof route.query.q === 'string' ? route.query.q : '',
+  set: value => { void router.replace({ query: { ...route.query, q: value || undefined } }); },
+});
+const kind = computed({
+  get: () => kinds.find(item => item.value === route.query.kind)?.value ?? 'all',
+  set: value => { void router.replace({ query: { ...route.query, kind: value === 'all' ? undefined : value } }); },
+});
+const kindFilter = computed(() => kind.value === 'all' ? '' : kind.value);
+function resetFilters() {
+  void router.replace({ query: { ...route.query, q: undefined, kind: undefined } });
+}
 const { data, error, refresh } = await useApi<MarketPoint[]>('/market-map', { query: { floor: 2 } });
 const points = computed(() => data.value ?? []);
 const entrances = computed(() => points.value.filter(point => point.kind === 'ENTRY'));
-const visible = computed(() => filterMarketPoints(points.value, query.value, kind.value));
+const visible = computed(() => filterMarketPoints(points.value, query.value, kindFilter.value));
 const mapPoints = computed(() => [...visible.value, ...entrances.value]);
 const focused = computed(() => points.value.find(point => point.slug === route.query.point));
 usePageSeo({ title: 'Карта Багратионовского рынка · 2 этаж — KorzinaMarket',

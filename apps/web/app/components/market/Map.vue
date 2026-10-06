@@ -75,12 +75,32 @@ onMounted(() => {
   if (viewport.value) observer.observe(viewport.value);
 });
 onBeforeUnmount(() => observer?.disconnect());
-function changeZoom(delta: number) {
-  zoom.value = Math.max(1, Math.min(maxZoom, zoom.value + delta));
+async function changeZoom(delta: number) {
+  const nextZoom = Math.max(1, Math.min(maxZoom, zoom.value + delta));
+  if (nextZoom === zoom.value) return;
+  const element = viewport.value;
+  const width = fitWidth.value * zoom.value;
+  const scale = width / mapSize.width;
+  const center = element ? {
+    x: (element.scrollLeft + element.clientWidth / 2 - Math.max(0, (element.clientWidth - width) / 2)) / scale,
+    y: (element.scrollTop + element.clientHeight / 2) / scale,
+  } : undefined;
+  zoom.value = nextZoom;
+  await nextTick();
+  if (!element || !center) return;
+  const nextWidth = fitWidth.value * zoom.value;
+  const nextScale = nextWidth / mapSize.width;
+  element.scrollLeft = Math.max(0, Math.min(element.scrollWidth - element.clientWidth,
+    center.x * nextScale + Math.max(0, (element.clientWidth - nextWidth) / 2) - element.clientWidth / 2));
+  element.scrollTop = Math.max(0, Math.min(element.scrollHeight - element.clientHeight,
+    center.y * nextScale - element.clientHeight / 2));
 }
-function reset() {
+async function reset() {
   zoom.value = 1;
-  viewport.value?.scrollTo({ left: 0, top: 0 });
+  await nextTick();
+  if (!viewport.value) return;
+  viewport.value.scrollLeft = 0;
+  viewport.value.scrollTop = 0;
 }
 function place(event: MouseEvent) {
   if (!props.editable || !props.placing || !drawing.value) return;

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { parse, compileScript } from 'vue/compiler-sfc';
-import { createSSRApp, defineComponent, h, ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { createSSRApp, defineComponent, h, ref, reactive, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import ts from 'typescript';
 import * as utils from '../app/utils/market-map.ts';
@@ -21,9 +21,9 @@ const code = ts.transpileModule(compiled.content, {
 }).outputText;
 const nodeRequire = createRequire(import.meta.url);
 const module = { exports: {} };
-new Function('require', 'exports', 'module', 'ref', 'computed', 'onMounted', 'onBeforeUnmount', code)(
+new Function('require', 'exports', 'module', 'ref', 'computed', 'nextTick', 'onMounted', 'onBeforeUnmount', code)(
   id => id === '~/utils/market-map' ? utils : nodeRequire(id),
-  module.exports, module, ref, computed, onMounted, onBeforeUnmount,
+  module.exports, module, ref, computed, nextTick, onMounted, onBeforeUnmount,
 );
 const MapComponent = module.exports.default;
 async function render(props = {}) {
@@ -31,6 +31,107 @@ async function render(props = {}) {
   app.component('UButton', defineComponent({ setup: (_, { slots }) => () => h('button', slots.default?.()) }));
   return renderToString(app);
 }
+
+const pageSource = await readFile(new URL('../app/pages/market-map/index.vue', import.meta.url), 'utf8');
+const pageScript = compileScript(parse(pageSource, { filename: 'MarketMapPage.vue' }).descriptor,
+  { id: 'market-map-page-test', inlineTemplate: true });
+const pageCode = ts.transpileModule(pageScript.content, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+}).outputText;
+const { SelectRoot, SelectContent, SelectItem, SelectItemText } = createRequire(import.meta.resolve('@nuxt/ui'))('reka-ui');
+
+async function renderPage(params = {}) {
+  const route = reactive({ query: { ...params } }), controls = {}, requests = [], warnings = [];
+  const module = { exports: {} };
+  const context = {
+    require: id => id === '~/utils/market-map' ? utils : id === '~/utils/seo' ? { breadcrumbSchema() {} } : nodeRequire(id),
+    exports: module.exports, module, ref, computed, useRoute: () => route,
+    useRouter: () => ({ replace: async ({ query }) => {
+      route.query = Object.fromEntries(Object.entries(query).filter(([, value]) => value !== undefined));
+    } }),
+    useApi: async (path, options) => {
+      requests.push({ path, options });
+      return { data: ref([point, entrance, { ...point, id: 10, slug: 'shop', kind: 'STORE' }]), error: ref(null), refresh() {} };
+    },
+    usePageSeo() {}, useJsonLd() {}, apiError: () => '',
+  };
+  new Function(...Object.keys(context), pageCode)(...Object.values(context));
+  const app = createSSRApp(module.exports.default);
+  const wrapper = defineComponent({ setup: (_, { slots }) => () => h('div', slots.default?.()) });
+  for (const name of ['UContainer', 'UFormField', 'AppBreadcrumbs', 'UButton', 'UAlert']) app.component(name, wrapper);
+  app.component('UIcon', defineComponent({ setup: () => () => h('span') }));
+  app.component('NuxtLink', defineComponent({ props: ['to'], setup: (props, { slots }) => () => h('a', { href: props.to }, slots.default?.()) }));
+  app.component('UInput', defineComponent({ props: ['modelValue'], emits: ['update:modelValue'], setup: (props, { emit }) => {
+    controls.search = value => emit('update:modelValue', value);
+    return () => h('input', { value: props.modelValue });
+  } }));
+  app.component('USelect', defineComponent({ props: ['items', 'modelValue'], emits: ['update:modelValue'], setup: (props, { emit }) => {
+    controls.items = props.items;
+    controls.selected = props.modelValue;
+    controls.select = value => emit('update:modelValue', value);
+    return () => h(SelectRoot, { modelValue: props.modelValue }, {
+      default: () => h(SelectContent, { forceMount: true }, {
+        default: () => props.items.map(item => h(SelectItem, { value: item.value }, {
+          default: () => h(SelectItemText, () => item.label),
+        })),
+      }),
+    });
+  } }));
+  app.component('MarketMap', defineComponent({ props: ['points', 'selectedId'], setup: props => () => {
+    controls.points = props.points;
+    return h(MapComponent, props);
+  } }));
+  app.config.warnHandler = message => warnings.push(message);
+  return { html: await renderToString(app), route, controls, requests, warnings };
+}
+
+test('Market Map page SSR renders default filters with real SelectItem components', async () => {
+  const page = await renderPage();
+  assert.equal(page.controls.selected, 'all');
+  assert.deepEqual(page.warnings, []);
+  assert.ok(page.controls.items.every(item => typeof item.value === 'string' && item.value.length > 0));
+  assert.ok(page.html.includes('Все точки'));
+  assert.ok(page.html.includes('Лавки и магазины'));
+  assert.deepEqual(page.requests, [{ path: '/market-map', options: { query: { floor: 2 } } }]);
+  assert.deepEqual(page.controls.points.map(row => row.slug), ['fresh-bar', 'shop', 'entry-butterbrot']);
+});
+
+test('every Market Map Select option is nonempty and survives selection and hard reload', async () => {
+  const page = await renderPage({ point: point.slug });
+  assert.deepEqual(page.controls.items.map(item => item.value),
+    ['all', ...utils.marketKinds.filter(item => item.value !== 'ENTRY').map(item => item.value)]);
+  for (const item of page.controls.items) {
+    page.controls.select(item.value);
+    const reloaded = await renderPage(page.route.query);
+    assert.equal(reloaded.controls.selected, item.value);
+    assert.deepEqual(reloaded.warnings, []);
+    assert.equal(page.route.query.point, point.slug);
+    if (item.value === 'all') assert.ok(!Object.hasOwn(page.route.query, 'kind'));
+    else {
+      assert.equal(page.route.query.kind, item.value);
+      assert.ok(reloaded.controls.points.every(row => row.kind === item.value || row.kind === 'ENTRY'));
+    }
+    assert.deepEqual(reloaded.requests[0].options.query, { floor: 2 });
+  }
+});
+
+test('all clears the kind filter, keeps the selected point and restores search from the URL', async () => {
+  const page = await renderPage({ point: point.slug, kind: 'FOODCOURT', q: 'Fresh' });
+  assert.equal(page.controls.selected, 'FOODCOURT');
+  assert.match(page.html, /value="Fresh"/);
+  assert.deepEqual(page.controls.points.map(row => row.slug), [point.slug, entrance.slug]);
+  page.controls.select('all');
+  assert.deepEqual(page.route.query, { point: point.slug, q: 'Fresh' });
+  page.controls.search('');
+  assert.deepEqual(page.route.query, { point: point.slug });
+  const reloaded = await renderPage(page.route.query);
+  assert.equal(reloaded.controls.selected, 'all');
+  assert.deepEqual(reloaded.controls.points.map(row => row.slug), [point.slug, 'shop', entrance.slug]);
+  for (const kind of ['', 'all', 'invalid', 'ENTRY', ['STORE', 'STALL']]) {
+    assert.equal((await renderPage({ kind })).controls.selected, 'all');
+  }
+  assert.ok(utils.marketKinds.every(item => item.value.length > 0), 'ADMIN uses the same nonempty types');
+});
 
 test('the original floor asset is present, scalable and self-contained', async () => {
   const svg = await readFile(new URL('../public/images/market/floor2.svg', import.meta.url), 'utf8');
@@ -58,7 +159,7 @@ function interactionFixture(view, editable = true, placing = false) {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   }).outputText;
   let observed = false, disconnected = false;
-  const context = { ...utils, ref, computed,
+  const context = { ...utils, ref, computed, nextTick,
     defineProps: () => ({ points: [point, entrance, secondEntry], editable, placing }),
     withDefaults: (props, defaults) => ({ ...defaults, ...props }),
     defineEmits: () => (name, ...args) => events.push([name, ...args]),
@@ -70,26 +171,109 @@ function interactionFixture(view, editable = true, placing = false) {
     },
   };
   const map = new Function(...Object.keys(context), executable + '\nreturn { viewport, drawing, zoom, fitWidth, changeZoom, reset, fit, place, select, keySelect };')(...Object.values(context));
-  const scrolls = [];
-  map.viewport.value = { clientWidth: view.width, clientHeight: view.height, scrollTo: value => scrolls.push(value) };
+  map.viewport.value = {
+    clientWidth: view.width, clientHeight: view.height, scrollLeft: 0, scrollTop: 0,
+    get scrollWidth() { return Math.max(view.width, map.fitWidth.value * map.zoom.value); },
+    get scrollHeight() { return Math.max(view.height, map.fitWidth.value * map.zoom.value * utils.mapSize.height / utils.mapSize.width); },
+  };
   mounted.forEach(callback => callback());
-  return { map, events, scrolls, observed: () => observed, close: () => { unmounted.forEach(callback => callback()); return disconnected; } };
+  return { map, events, observed: () => observed, close: () => { unmounted.forEach(callback => callback()); return disconnected; } };
 }
 
-test('mobile and desktop fit/zoom/pan reset stay bounded and release their observer', () => {
+test('mobile and desktop fit/zoom/pan reset stay bounded and release their observer', async () => {
   for (const view of [{ width: 320, height: 400 }, { width: 1024, height: 730 }]) {
     const fixture = interactionFixture(view), { map } = fixture;
     assert.ok(map.fitWidth.value <= view.width);
     assert.ok(map.fitWidth.value * utils.mapSize.height / utils.mapSize.width <= view.height + .01);
-    for (let i = 0; i < 20; i++) map.changeZoom(.5);
+    for (let i = 0; i < 20; i++) await map.changeZoom(.5);
     assert.equal(map.zoom.value, 5);
-    for (let i = 0; i < 20; i++) map.changeZoom(-.5);
+    for (let i = 0; i < 20; i++) await map.changeZoom(-.5);
     assert.equal(map.zoom.value, 1);
-    map.changeZoom(1); map.reset();
-    assert.deepEqual(fixture.scrolls, [{ left: 0, top: 0 }]);
+    await map.changeZoom(1); await map.reset();
+    assert.equal(map.zoom.value, 1);
+    assert.equal(map.viewport.value.scrollLeft, 0);
+    assert.equal(map.viewport.value.scrollTop, 0);
     assert.ok(fixture.observed());
     assert.ok(fixture.close());
   }
+});
+
+function logicalCenter(map) {
+  const viewport = map.viewport.value;
+  const width = map.fitWidth.value * map.zoom.value;
+  const left = Math.max(0, (viewport.clientWidth - width) / 2) - viewport.scrollLeft;
+  const top = -viewport.scrollTop;
+  return {
+    x: (viewport.clientWidth / 2 - left) * utils.mapSize.width / width,
+    y: (viewport.clientHeight / 2 - top) * utils.mapSize.width / width,
+  };
+}
+
+function assertCenter(map, expected) {
+  const actual = logicalCenter(map);
+  assert.ok(Math.abs(actual.x - expected.x) < .001, `center x: ${actual.x} vs ${expected.x}`);
+  assert.ok(Math.abs(actual.y - expected.y) < .001, `center y: ${actual.y} vs ${expected.y}`);
+}
+
+test('zoom from 100 to 200 percent preserves the viewport logical center', async () => {
+  for (const view of [{ width: 320, height: 400 }, { width: 1024, height: 730 }]) {
+    const fixture = interactionFixture(view), { map } = fixture;
+    const center = logicalCenter(map);
+    await map.changeZoom(1);
+    assert.equal(map.zoom.value, 2);
+    assertCenter(map, center);
+    fixture.close();
+  }
+});
+
+test('zoom preserves the current center after horizontal and vertical pan', async () => {
+  const fixture = interactionFixture({ width: 390, height: 450 }), { map } = fixture;
+  await map.changeZoom(1);
+  map.viewport.value.scrollLeft = 130;
+  map.viewport.value.scrollTop = 290;
+  const center = logicalCenter(map);
+  await map.changeZoom(1);
+  assert.equal(map.zoom.value, 3);
+  assertCenter(map, center);
+  await map.changeZoom(-.5);
+  assertCenter(map, center);
+  fixture.close();
+});
+
+test('zoom clamps scroll to the available viewport bounds', async () => {
+  const fixture = interactionFixture({ width: 390, height: 450 }), { map } = fixture;
+  await map.changeZoom(2);
+  for (const edge of ['start', 'end']) {
+    const viewport = map.viewport.value;
+    viewport.scrollLeft = edge === 'start' ? 0 : viewport.scrollWidth - viewport.clientWidth;
+    viewport.scrollTop = edge === 'start' ? 0 : viewport.scrollHeight - viewport.clientHeight;
+    await map.changeZoom(-1);
+    assert.equal(viewport.scrollLeft, edge === 'start' ? 0 : viewport.scrollWidth - viewport.clientWidth);
+    assert.equal(viewport.scrollTop, edge === 'start' ? 0 : viewport.scrollHeight - viewport.clientHeight);
+    await map.changeZoom(1);
+  }
+  fixture.close();
+});
+
+test('whole-map reset restores 100 percent zoom and clears pan after layout updates', async () => {
+  const fixture = interactionFixture({ width: 390, height: 450 }), { map } = fixture;
+  await map.changeZoom(2);
+  map.viewport.value.scrollLeft = 180;
+  map.viewport.value.scrollTop = 370;
+  await map.reset();
+  assert.equal(map.zoom.value, 1);
+  assert.equal(map.viewport.value.scrollLeft, 0);
+  assert.equal(map.viewport.value.scrollTop, 0);
+  fixture.close();
+});
+
+test('infrastructure landmarks are static SVG labels without point navigation', async () => {
+  const svg = await readFile(new URL('../public/images/market/floor2.svg', import.meta.url), 'utf8');
+  assert.match(svg, /<text\b[^>]*>Эскалатор<\/text>/);
+  assert.match(svg, /<text\b[^>]*>Лифт<\/text>/);
+  assert.ok(!/<a\b|href=|data-point/.test(svg));
+  assert.deepEqual(utils.filterMarketPoints([point, entrance, secondEntry], 'Эскалатор'), []);
+  assert.deepEqual(utils.filterMarketPoints([point, entrance, secondEntry], 'Лифт'), []);
 });
 
 test('ENTRY placement uses the real screen transform after pan/zoom and keyboard selects the point', () => {

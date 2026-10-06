@@ -26,6 +26,7 @@ const product = {
   portionQty: 500,
   images: [],
   category: { name: "Фрукты", slug: "fruit" },
+  marketPoint: null,
 };
 
 test("quick-add starts with a product name and a formatted portion in its accessible label", () => {

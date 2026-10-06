@@ -11,6 +11,7 @@ const slug = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug: латинские буквы, цифры и дефисы');
 const sort = z.number().int().min(-1_000_000).max(1_000_000);
 const qty = z.number().int().positive().max(MAX_QTY);
+export const pricePreviewSchema = z.strictObject({ price: z.number().int().positive().max(100_000_000) });
 const productFields = z.strictObject({
   name,
   slug,
@@ -24,6 +25,9 @@ const productFields = z.strictObject({
   min: qty,
   portionQty: qty,
   categoryId: z.number().int().positive(),
+  marketPointId: idSchema.nullable().optional(),
+  sourceUrl: z.url({ protocol: /^https?$/ }).max(2000).nullable().optional(),
+  sourceCheckedAt: z.iso.datetime().nullable().optional(),
   active: z.boolean(),
   sort,
 });

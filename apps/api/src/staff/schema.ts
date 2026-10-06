@@ -18,7 +18,7 @@ export const itemSchema = z.discriminatedUnion('status', [
 ]);
 
 export const itemPriceSchema = z.object({
-  price: z.number().int().min(1).max(100_000_000),
+  sellerPrice: z.number().int().min(1).max(100_000_000),
   reason: z.string().trim().max(500).optional(),
   requestId: z.uuid(),
 }).strict();

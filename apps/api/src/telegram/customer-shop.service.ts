@@ -8,6 +8,7 @@ import { DbService } from '../db/db.service.js';
 import { CartService } from '../cart/cart.service.js';
 import { OrderService } from '../order/order.service.js';
 import { cartProductSelect, cartQuantityValid } from '../order/cart-quote.js';
+import { customerProduct } from '../product/select.js';
 import { goodsLine } from '../order/pricing.js';
 import { manualQuantity } from '../order/assembly.js';
 import { CustomerCheckoutService } from './customer-checkout.service.js';
@@ -84,13 +85,13 @@ export class CustomerShopService {
       select: { name: true },
     });
     if (!category) throw new NotFoundException('Категория недоступна');
-    const rows = await this.db.product.findMany({
+    const rows = (await this.db.product.findMany({
       where: { active: true, categoryId },
       select: cartProductSelect,
       orderBy: [{ sort: 'asc' }, { id: 'asc' }],
       skip: page * 6,
       take: 7,
-    });
+    })).map(customerProduct);
     const buttons: Button[][] = rows.slice(0, 6).map((p) => [
       {
         text: short(p.name, 45) + ' · ' + amount(p.price),
@@ -139,11 +140,12 @@ export class CustomerShopService {
     productId: number,
     qty: number,
   ) {
-    const p = await this.db.product.findFirst({
+    const source = await this.db.product.findFirst({
       where: { id: productId, active: true, category: { active: true } },
       select: { ...cartProductSelect, categoryId: true },
     });
-    if (!p) throw new NotFoundException('Товар больше недоступен');
+    if (!source) throw new NotFoundException('Товар больше недоступен');
+    const p = customerProduct(source);
     if (!cartQuantityValid(qty, p.min, p.step))
       throw new BadRequestException('Проверьте количество товара');
     const basket = await this.cart.get(identity.userId);

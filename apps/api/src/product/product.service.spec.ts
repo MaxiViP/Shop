@@ -24,7 +24,7 @@ function query(value: unknown = {}) {
 
 describe('ProductService list', () => {
   it('lists active products without a search query', async () => {
-    const { count, findMany, service } = setup([{ id: 1 }], 1);
+    const { count, findMany, service } = setup([{ id: 1, price: 10000, marketPoint: null }], 1);
 
     const result = await service.list(query());
 
@@ -36,7 +36,7 @@ describe('ProductService list', () => {
     expect(count).toHaveBeenCalledWith({
       where: expect.objectContaining({ active: true, OR: undefined }),
     });
-    expect(result.items).toEqual([{ id: 1 }]);
+    expect(result.items).toEqual([{ id: 1, price: 11000, marketPoint: null }]);
   });
 
   it.each([
@@ -103,7 +103,7 @@ describe('ProductService list', () => {
   });
 
   it('returns pagination metadata and applies skip/take', async () => {
-    const { findMany, service } = setup([{ id: 25 }], 49);
+    const { findMany, service } = setup([{ id: 25, price: 10000, marketPoint: null }], 49);
 
     const result = await service.list(query({ page: '2', limit: '24' }));
 
