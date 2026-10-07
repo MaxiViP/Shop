@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { localInstant, moscowDay, moscowMinute } from '../admin/shop-hours.js';
 import { addressSchema, orderSchema } from '../order/schema.js';
 import { phone } from '../common/phone.js';
 
@@ -74,13 +75,13 @@ export function checkoutInput(
       );
       if (!match) throw new Error('INPUT');
       const [, d, m, y, h, min] = match;
-      const iso = y + '-' + m + '-' + d + 'T' + h + ':' + min + ':00+03:00';
-      const date = new Date(iso);
+      const day = y + '-' + m + '-' + d;
+      const minute = Number(h) * 60 + Number(min);
+      const date = localInstant(day, minute);
       if (
         !Number.isFinite(date.getTime()) ||
         date.getTime() <= Date.now() ||
-        new Date(date.getTime() + 10800000).toISOString().slice(0, 16) !==
-          y + '-' + m + '-' + d + 'T' + h + ':' + min
+        moscowDay(date) !== day || moscowMinute(date) !== minute || Number(h) > 23 || Number(min) > 59
       )
         throw new Error('INPUT');
       next.scheduledFor = date.toISOString();

@@ -31,6 +31,10 @@ describe('public financial privacy boundary', () => {
   });
   it('does not select private snapshots in customer order and staff detail', async () => {
     const queueDb = {
+      shopHours: { findMany: vi.fn().mockResolvedValue(Array.from({ length: 7 }, (_, i) => ({
+        weekday: i + 1, enabled: true, openMinutes: 0, closeMinutes: 1440,
+      }))) },
+      shopHoursException: { findMany: vi.fn().mockResolvedValue([]) },
       shopSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue({
         queueThreshold: 4, assemblyFallbackMinutes: 25, assemblyConcurrency: 1, peakModeEnabled: false,
       }) },

@@ -151,6 +151,7 @@ function storedItem(value: unknown): CartItem | null {
       // Old carts keep their quantities; current product data arrives through quote.
       portionQty: p.portionQty === undefined ? p.min : p.portionQty as number,
       unit: p.unit as Unit,
+      priceStatus: p.priceStatus === 'SOURCE' || p.priceStatus === 'AUDITED' ? p.priceStatus : 'ESTIMATED',
       category: { name: p.category.name, slug: p.category.slug },
       marketPoint: record(p.marketPoint) && typeof p.marketPoint.name === 'string' && typeof p.marketPoint.slug === 'string'
         ? { name: p.marketPoint.name, slug: p.marketPoint.slug } : null,

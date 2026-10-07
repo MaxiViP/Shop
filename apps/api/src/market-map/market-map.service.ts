@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { DbService } from '../db/db.service.js';
@@ -48,7 +48,18 @@ export class MarketMapService {
   }
 
   async update(id: number, data: Partial<PointInput>) {
-    try { return await this.db.marketPoint.update({ where: { id }, data: optionalText(data) }); }
+    try {
+      return await this.db.$transaction(async db => {
+        await db.$queryRaw`SELECT id FROM "MarketPoint" WHERE id = ${id} FOR UPDATE`;
+        const current = await db.marketPoint.findUnique({ where: { id }, select: { mapX: true, mapY: true } });
+        if (!current) throw new NotFoundException('Точка не найдена');
+        const x = data.mapX === undefined ? current.mapX : data.mapX;
+        const y = data.mapY === undefined ? current.mapY : data.mapY;
+        if ((x === null) !== (y === null))
+          throw new BadRequestException('Укажите обе координаты или оставьте точку без координат');
+        return db.marketPoint.update({ where: { id }, data: optionalText(data) });
+      });
+    }
     catch (error) { return dbError(error); }
   }
 

@@ -202,4 +202,16 @@ describe.skipIf(!process.env.DATABASE_URL)('Market map / local PostgreSQL', () =
     );
     expect(index.rows[0]?.indexdef.replaceAll('"', '')).toContain('(floor, isPublished, sortOrder, id)');
   });
+
+  it('keeps unlocated points editable and rejects incomplete coordinate patches with 400', async () => {
+    const createdPoint = await admin().post('/api/admin/market-map/points').set('Cookie', `${SID}=ADMIN`)
+      .send({ ...input, slug: 'unlocated-patch-test', mapX: null, mapY: null }).expect(201);
+    const id = createdPoint.body.id as number;
+    await admin().patch(`/api/admin/market-map/points/${id}`).set('Cookie', `${SID}=ADMIN`).send({ mapX: 20 }).expect(400);
+    expect(await db.marketPoint.findUniqueOrThrow({ where: { id } })).toMatchObject({ mapX: null, mapY: null });
+    await admin().patch(`/api/admin/market-map/points/${id}`).set('Cookie', `${SID}=ADMIN`).send({ mapX: 20, mapY: 30 }).expect(200);
+    await admin().patch(`/api/admin/market-map/points/${id}`).set('Cookie', `${SID}=ADMIN`).send({ mapY: null }).expect(400);
+    await admin().patch(`/api/admin/market-map/points/${id}`).set('Cookie', `${SID}=ADMIN`).send({ mapX: null, mapY: null }).expect(200);
+    expect(await db.marketPoint.findUniqueOrThrow({ where: { id } })).toMatchObject({ mapX: null, mapY: null });
+  });
 });

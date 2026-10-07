@@ -10,8 +10,8 @@ export interface MarketPoint {
   sampleAssortment: string | null;
   photoUrl: string | null;
   floor: number;
-  mapX: number;
-  mapY: number;
+  mapX: number | null;
+  mapY: number | null;
   isPublished: boolean;
   sortOrder: number;
   createdAt: string;

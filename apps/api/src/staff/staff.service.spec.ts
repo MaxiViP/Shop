@@ -84,6 +84,10 @@ function setup(order: LockedOrder) {
     shopSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue({
       maxOrderExtraUnitPrice: 1000000, maxOrderExtrasTotal: 1000000,
     }) },
+    shopHours: { findMany: vi.fn().mockResolvedValue(Array.from({ length: 7 }, (_, i) => ({
+      weekday: i + 1, enabled: true, openMinutes: 0, closeMinutes: 1440,
+    }))) },
+    shopHoursException: { findMany: vi.fn().mockResolvedValue([]) },
     orderStaffAudit: { create: vi.fn().mockResolvedValue({ id: 1 }) },
     orderIssue: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), upsert: vi.fn().mockResolvedValue({ id: 1, orderId: order.id, version: 1 }), updateMany: vi.fn() },
     orderNotification: { create: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },

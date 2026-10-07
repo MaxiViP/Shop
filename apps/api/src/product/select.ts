@@ -14,6 +14,7 @@ export const productListSelect = {
   name: true,
   slug: true,
   price: true,
+  priceStatus: true,
   priceQty: true,
   unit: true,
   step: true,

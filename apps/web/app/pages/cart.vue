@@ -297,11 +297,13 @@
         </section>
 
         <section v-if="queueOffer?.showScheduledOffer" class="section queue-offer">
-          <h2 class="section__title">Сейчас высокая загрузка</h2>
-          <p>Вы примерно {{ queueOffer.position }}-й в очереди. Ориентировочное начало сборки через {{ queueOffer.wait?.min }}–{{ queueOffer.wait?.max }} минут.</p>
-          <p class="section__hint">{{ queueOffer.slots.length ? 'Можете подождать или выбрать удобное время подготовки.' : 'Свободных слотов сейчас нет, заказ можно оставить в обычной очереди.' }} Время ориентировочное.</p>
+          <p v-if="queueOffer.preorderRequired" class="section__hint" role="status">{{ preorderLabel(queueOffer) }}</p>
+          <h2 class="section__title">{{ queueOffer.preorderRequired ? 'Предзаказ' : 'Время подготовки' }}</h2>
+          <p v-if="!queueOffer.preorderRequired && queueOffer.queueLength > 0">Вы примерно {{ queueOffer.position }}-й в очереди. Ориентировочное начало сборки через {{ queueOffer.wait?.min }}–{{ queueOffer.wait?.max }} минут.</p>
+          <p v-if="queueOffer.preorderRequired && queueOffer.slots[0]" class="section__hint">Ближайшее время подготовки: {{ slotLabel(queueOffer.slots[0].at) }} (Москва).</p>
+          <p class="section__hint">Выберите удобное доступное время. Время подготовки ориентировочное.</p>
           <div class="queue-offer__actions" role="group" aria-label="Время подготовки">
-            <UButton type="button" :variant="form.pickupTiming === 'asap' ? 'solid' : 'soft'" @click="form.pickupTiming = 'asap'">Оставить как есть</UButton>
+            <UButton v-if="!queueOffer.preorderRequired" type="button" :variant="form.pickupTiming === 'asap' ? 'solid' : 'soft'" @click="form.pickupTiming = 'asap'">Как можно скорее</UButton>
             <UButton type="button" :variant="form.pickupTiming === 'scheduled' ? 'solid' : 'soft'" :disabled="!queueOffer.slots.length" @click="form.pickupTiming = 'scheduled'">Выбрать время</UButton>
           </div>
           <UFormField
@@ -388,6 +390,7 @@ import type { OrderCreated, OrderType, QueueOffer } from "~/types/order";
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
+import { preorderLabel } from '~/utils/preorder';
 import { recipientDefaults, recipientDraft } from "~/utils/checkout-recipient";
 import { checkoutErrors, checkoutFieldOrder, type CheckoutField } from "~/utils/checkout-validation";
 import type { OrderPhone, OrderPhoneSnapshot } from "~/types/order-phone";
@@ -475,9 +478,16 @@ watch(() => cart.quote?.token, token => {
   }
 });
 watch(queueOffer, offer => {
-  if (!offer?.showScheduledOffer) { form.pickupTiming = 'asap'; form.pickupAt = ''; }
-  else if (form.pickupAt && !offer.slots.some(slot => slot.at === form.pickupAt)) form.pickupAt = '';
-});
+  if (!offer) return;
+  if (form.pickupTiming === 'scheduled' && form.pickupAt) {
+    if (!offer.slots.some(slot => slot.at === form.pickupAt)) form.pickupAt = '';
+    return;
+  }
+  if (offer.preorderRequired && offer.slots[0]) {
+    form.pickupTiming = 'scheduled';
+    form.pickupAt = offer.slots[0].at;
+  }
+}, { immediate: true });
 const slotLabel = (value: string) => new Date(value).toLocaleString('ru-RU', {
   timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
 });

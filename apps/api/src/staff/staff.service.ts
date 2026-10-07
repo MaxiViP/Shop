@@ -28,6 +28,7 @@ import { assertStaffActor, recordStaffAudit, type StaffActor } from './audit.js'
 import { adminPriceRecipients } from './price.js';
 import { effectiveQueue, QueueService } from '../order/queue.js';
 import { customerPrice, SERVICE_MARKUP_PERCENT } from '../product/pricing.js';
+import { assertMarketTime } from '../admin/shop-hours.js';
 
 const lastPriceChange = { orderBy: { id: 'desc' }, take: 1,
   select: { sellerPrice: true, newPrice: true } } satisfies Prisma.OrderItemPriceChangeFindManyArgs;
@@ -787,6 +788,7 @@ export class StaffService {
       }
 
       positiveDeliveryPrice(order.delivery.price);
+      await assertMarketTime(db, new Date());
       const totals = deliveryTotals(order, order.delivery.price);
 
       const delivery = await db.delivery.update({
@@ -878,6 +880,8 @@ export class StaffService {
       }
 
       if (next === 'COMPLETED') requirePaid(order);
+      if (next === 'ASSEMBLING' || (next === 'COMPLETED' && order.type === 'PICKUP'))
+        await assertMarketTime(db, new Date());
 
       if (next === 'ASSEMBLING' && order.fulfillmentMode === 'SCHEDULED' && order.scheduledFor) {
         const load = await this.queue.snapshot(db);

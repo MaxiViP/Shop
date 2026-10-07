@@ -61,6 +61,9 @@
           <UFormField label="Единица"
             ><USelect v-model="form.unit" :items="units" class="w-full"
           /></UFormField>
+          <UFormField label="Достоверность цены" help="Статус относится к цене продавца; сервис добавляется автоматически.">
+            <USelect v-model="form.priceStatus" :items="priceStatusItems" class="w-full" />
+          </UFormField>
           <UFormField :label="`Цена за количество (${quantityLabel})`"
             ><UInput
               v-model.number="form.priceQty"
@@ -196,6 +199,7 @@
 <script setup lang="ts">
 import type { AdminProduct, AdminCategory, ProductPricing } from "~/types/admin";
 import type { MarketPoint } from "~/types/market-map";
+import { priceStatusItems } from "~/utils/price-status";
 import type { Unit } from "~/types/product";
 import { MAX_QTY, manualQuantity, quantityErrors, quickQuantity } from "~/utils/assembly";
 import { qtyText } from "~/utils/qty";
@@ -211,6 +215,7 @@ const form = reactive({
   description: source?.description ?? "",
   categoryId: source?.categoryId ?? (undefined as number | undefined),
   marketPointId: source?.marketPointId ?? 0,
+  priceStatus: source?.priceStatus ?? 'ESTIMATED',
   sourceUrl: source?.sourceUrl ?? "",
   priceQty: source?.priceQty ?? 1,
   unit: source?.unit ?? ("PIECE" as Unit),

@@ -13,8 +13,8 @@ const pointFields = z.strictObject({
   description: z.string().trim().max(3000).nullable().optional(),
   sampleAssortment: z.string().trim().max(2000).nullable().optional(),
   floor: z.number().int().min(1).max(20),
-  mapX: z.number().min(0).max(100),
-  mapY: z.number().min(0).max(100),
+  mapX: z.number().min(0).max(100).nullable(),
+  mapY: z.number().min(0).max(100).nullable(),
   isPublished: z.boolean(),
   sortOrder: z.number().int().min(-1000000).max(1000000),
 });
@@ -22,7 +22,7 @@ export const pointSchema = pointFields.extend({
   floor: pointFields.shape.floor.default(2),
   isPublished: pointFields.shape.isPublished.default(false),
   sortOrder: pointFields.shape.sortOrder.default(0),
-});
+}).refine(data => (data.mapX === null) === (data.mapY === null), 'Укажите обе координаты или оставьте точку без координат');
 export const pointPatch = pointFields.partial().refine(
   data => Object.keys(data).length > 0, 'Укажите изменения',
 );

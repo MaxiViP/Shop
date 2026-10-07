@@ -31,6 +31,7 @@ import type { TelegramService } from '../src/telegram/telegram.service.js';
 import * as pricing from '../src/product/pricing.js';
 import { categories, marketProducts, sourceCheckedAt } from '../data/market-products/2026-10-06.js';
 import { importMarketProducts } from '../data/market-products/import.js';
+import { estimatedDataset } from '../data/market-products/2026-10-07-estimated.js';
 
 describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary PostgreSQL', () => {
   const schema = `market_products_test_${randomUUID().replaceAll('-', '')}`;
@@ -104,7 +105,7 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
 
   it('migrates nullable product fields without changing seller prices or historical orders', async () => {
     expect((await connection.query('SELECT * FROM "Product" ORDER BY id')).rows).toEqual(oldProducts.map(row => ({
-      ...row, marketPointId: null, sourceUrl: null, sourceCheckedAt: null,
+      ...row, marketPointId: null, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
     })));
     expect((await connection.query('SELECT * FROM "OrderItem" ORDER BY id')).rows).toEqual(oldItems.map(row => ({
       ...row, serviceMarkupPercentSnapshot: null,
@@ -312,5 +313,44 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
       expect(snapshot.finalSubtotal).not.toBe(30250);
       expect(await db.orderItemPriceChange.count({ where: { itemId: item.id } })).toBe(1);
     } finally { changedRate.mockRestore(); }
+  });
+  it('extends the catalog idempotently, reuses points/categories, exposes status and protects audited seller prices', async () => {
+    const existingPoints = await db.marketPoint.findMany({ where: { slug: { in: ['halal-meat', 'tea-coffee', 'goldfish', 'vkusnaya-stall'] } } });
+    const bakery = await db.marketPoint.create({ data: { name: 'Булочная', slug: 'existing-bakery-counter',
+      kind: 'STORE', floor: 2, mapX: 25, mapY: 25, isPublished: true } });
+    const pickle = await db.category.findUniqueOrThrow({ where: { slug: 'preserves-pickles' } });
+    const before = await db.product.count();
+    const dry = await importMarketProducts(db, true, estimatedDataset);
+    expect(dry).toMatchObject({ ok: true, created: 146, updated: 0, unchanged: 0, pointsCreated: 12 });
+    expect(await db.product.count()).toBe(before);
+    expect(await db.marketPoint.findUnique({ where: { slug: 'bakery' } })).toBeNull();
+    expect(await importMarketProducts(db, false, estimatedDataset)).toMatchObject({ created: 146, updated: 0, unchanged: 0 });
+    expect(await importMarketProducts(db, true, estimatedDataset)).toMatchObject({ created: 0, updated: 0, unchanged: 146, pointsCreated: 0 });
+    const imported = await db.product.findMany({ where: { slug: { in: estimatedDataset.marketProducts.map(row => row.slug) } },
+      include: { marketPoint: true } });
+    for (const row of estimatedDataset.marketProducts) {
+      const product = imported.find(product => product.slug === row.slug)!;
+      expect(product).toMatchObject({ price: row.sellerPrice, priceStatus: row.priceStatus });
+      expect(product.marketPoint?.slug).toBe(row.marketPointSlug === 'bakery' ? bakery.slug : row.marketPointSlug);
+    }
+    expect(await db.marketPoint.findMany({ where: { id: { in: existingPoints.map(point => point.id) } }, orderBy: { id: 'asc' } }))
+      .toEqual(existingPoints.sort((a, b) => a.id - b.id));
+    expect((await db.product.findFirstOrThrow({ where: { slug: 'bakery-wheat-loaf' } })).marketPointId).toBe(bakery.id);
+    expect((await db.product.findFirstOrThrow({ where: { slug: 'domashnie-solenya-salted-cucumbers' } })).categoryId).toBe(pickle.id);
+    expect(await db.category.findUnique({ where: { slug: 'pickles' } })).toBeNull();
+    expect(await db.productImage.count({ where: { product: { slug: { in: estimatedDataset.marketProducts.map(row => row.slug) } } } })).toBe(0);
+    const point = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'romanovskoe-osetrovoe-hozyaystvo' } });
+    expect(point).toMatchObject({ mapX: null, mapY: null, isPublished: true });
+    const customer = await http().get('/api/products/romanovskoe-osetrovoe-hozyaystvo-chilled-sturgeon').expect(200);
+    expect(customer.body).toMatchObject({ price: 209000, priceStatus: 'ESTIMATED', marketPoint: { slug: point.slug } });
+    expect(customer.body).not.toHaveProperty('sellerPrice');
+    expect(customer.body).not.toHaveProperty('sourceUrl');
+    const filtered = await http().get('/api/admin/products').query({ priceStatus: 'ESTIMATED', marketPoint: point.id }).set('Cookie', cookie('ADMIN')).expect(200);
+    expect(filtered.body.total).toBe(3);
+    const fish = await db.product.findUniqueOrThrow({ where: { slug: 'romanovskoe-osetrovoe-hozyaystvo-chilled-sturgeon' } });
+    await http().patch(`/api/admin/products/${fish.id}`).set('Cookie', cookie('ADMIN')).send({ price: 30000, priceStatus: 'AUDITED' }).expect(200);
+    expect((await http().get(`/api/products/${fish.slug}`).expect(200)).body).toMatchObject({ price: 33000, priceStatus: 'AUDITED' });
+    expect(await importMarketProducts(db, false, estimatedDataset)).toMatchObject({ created: 0, updated: 0, unchanged: 146 });
+    expect(await db.product.findUniqueOrThrow({ where: { id: fish.id } })).toMatchObject({ price: 30000, priceStatus: 'AUDITED' });
   });
 });

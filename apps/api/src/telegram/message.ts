@@ -5,6 +5,7 @@ export const telegramOrderSelect = {
   id: true, status: true, type: true, customerName: true, customerPhone: true,
   city: true, street: true, house: true, buildingPart: true, flat: true, entrance: true,
   floor: true, intercom: true, comment: true, deliveryAt: true,
+  fulfillmentMode: true, scheduledFor: true,
   subtotal: true, deliveryPrice: true, total: true,
   items: {
     orderBy: { id: 'asc' },
@@ -55,6 +56,8 @@ export function newOrderMessage(order: TelegramOrder): string {
   }
   if (order.deliveryAt) header.push('Желаемое время (Москва): ' +
     order.deliveryAt.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }));
+  if (order.scheduledFor) header.push('Предзаказ. Подготовить к (Москва): ' +
+    order.scheduledFor.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }));
 
   const footer = [
     '', 'Товары: ' + money(order.subtotal),

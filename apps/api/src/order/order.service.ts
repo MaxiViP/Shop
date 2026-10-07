@@ -113,17 +113,16 @@ export class OrderService {
       if (!['NEW', 'CONFIRMED'].includes(order.status) || order.assemblyStartedAt ||
         ['PAID', 'REPORTED'].includes(order.payment?.status ?? ''))
         throw new ConflictException('Время подготовки уже нельзя изменить');
-      if (mode === 'SCHEDULED') await this.queue.reserve(db, at!, settings, now, order.id,
-        order.fulfillmentMode === 'SCHEDULED');
+      const fulfillment = await this.queue.fulfillment(db, settings, now, mode, requested, order.id);
       const saved = await db.order.update({ where: { id: order.id }, data: {
-        fulfillmentMode: mode, scheduledFor: mode === 'SCHEDULED' ? at : null,
+        ...fulfillment,
       }, select: { fulfillmentMode: true, scheduledFor: true } });
       const staff = await db.user.findMany({ where: { role: { in: ['SELLER', 'ADMIN'] },
         ...(userId ? { id: { not: userId } } : {}) }, select: { id: true } });
       const eventId = randomUUID();
       for (const recipient of staff) await inAppEvent(db, { orderId: order.id, type: 'SCHEDULE_CHANGED',
         dedupeKey: `schedule:${order.id}:${eventId}:${recipient.id}`,
-        eventData: { fulfillmentMode: mode, scheduledFor: saved.scheduledFor?.toISOString() ?? null } }, recipient.id);
+        eventData: { fulfillmentMode: saved.fulfillmentMode, scheduledFor: saved.scheduledFor?.toISOString() ?? null } }, recipient.id);
       return saved;
     });
   }
@@ -186,12 +185,11 @@ export class OrderService {
     const subtotal = quote.subtotal!;
     // Serializes slot reservations, settings changes and concurrent checkout offers.
     await db.$queryRaw`SELECT id FROM "ShopSettings" WHERE id = 1 FOR UPDATE`;
-    await assertMarketTime(db, now, data.deliveryAt ? new Date(data.deliveryAt) : undefined);
+    if (data.deliveryAt) await assertMarketTime(db, now, new Date(data.deliveryAt));
     const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
     const load = await this.queue.snapshot(db, now);
-    const mode = data.fulfillmentMode ?? 'ASAP';
-    const scheduledFor = mode === 'SCHEDULED' ? new Date(data.scheduledFor!) : null;
-    if (scheduledFor) await this.queue.reserve(db, scheduledFor, settings, now);
+    const { fulfillmentMode: mode, scheduledFor } = await this.queue.fulfillment(db, settings, now,
+      data.fulfillmentMode ?? 'ASAP', data.scheduledFor);
     checkoutLimits(data.type, subtotal, settings);
 
     const deliveryPrice = data.type === 'PICKUP' ? 0 : null;

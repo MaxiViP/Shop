@@ -11,12 +11,13 @@ import * as quantity from '../app/utils/assembly.ts';
 import { qtyText } from '../app/utils/qty.ts';
 import { quickAddState } from '../app/utils/quick-add.ts';
 import { nextCartQty, previousCartQty, previewTotal, validCartQty } from '../app/utils/cart.ts';
+import { priceStatusItems } from '../app/utils/price-status.ts';
 import { useProductGallery } from '../app/composables/useProductGallery.ts';
 
 const nodeRequire = createRequire(import.meta.url);
 const source = file => readFile(new URL(`../app/${file}`, import.meta.url), 'utf8');
 const product = { id: 1, name: 'Рис Casa Rinaldi Карнароли 500 г', slug: 'cezoni-market-casa-rinaldi-carnaroli-500g',
-  price: 24200, priceQty: 1, unit: 'PIECE', step: 1, min: 1, portionQty: 1, images: [], description: null,
+  price: 24200, priceStatus: 'SOURCE', priceQty: 1, unit: 'PIECE', step: 1, min: 1, portionQty: 1, images: [], description: null,
   category: { name: 'Макароны и крупы', slug: 'pasta-grains' }, marketPoint: { name: 'Cezoni Market', slug: 'cezoni-market' } };
 const cart = { restored: true, serverBusy: false, quoteReady: true, items: [], qty: () => 0, displayLineTotal: () => null };
 
@@ -27,6 +28,7 @@ const modules = {
   '~/utils/cart': { nextCartQty, previousCartQty, previewTotal, validCartQty },
   '~/stores/cart': { useCartStore: () => cart },
   '~/utils/seo': { breadcrumbSchema() {}, productSchema() {}, productSeo() {} },
+  '~/utils/price-status': { priceStatusItems },
 };
 async function component(file) {
   const { descriptor } = parse(await source(file), { filename: file });
@@ -72,7 +74,7 @@ test('product card renders backend customer price once, market link and a calm n
   assert.ok(html.includes('Где покупаем:'));
   assert.match(html, /href="\/market-map\/cezoni-market"/);
   assert.ok(html.includes('Cezoni Market'));
-  assert.ok(html.includes('Цена ориентировочная. Актуальную цену продавец подтвердит при сборке.'));
+  assert.ok(html.includes('Цена по открытому источнику и может измениться при сборке.'));
   assert.ok(!html.includes('sourceUrl') && !html.includes('220 ₽') && !html.includes('role="alert"'));
 });
 
@@ -81,7 +83,7 @@ test('product detail renders the same customer price, purchase total and market 
   assert.ok(html.includes(product.name));
   assert.ok(html.includes('В корзину · 242 ₽'));
   assert.match(html, /href="\/market-map\/cezoni-market"/);
-  assert.ok(html.includes('Цена ориентировочная. Актуальную цену продавец подтвердит при сборке.'));
+  assert.ok(html.includes('Цена по открытому источнику и может измениться при сборке.'));
 });
 
 test('catalog cards and actual detail gallery display the backend photo URL without depending on staging', async t => {
@@ -105,6 +107,17 @@ test('nullable market relation keeps old cards usable; Grand Bazar gets its own 
   assert.ok(!(await render(Origin)).includes('<a'));
 });
 
+test('estimated and audited product cards render their own price provenance without exposing seller price', async () => {
+  const estimated = await render(Card, { product: { ...product, priceStatus: 'ESTIMATED' } });
+  assert.ok(estimated.includes('Ориентировочная цена. Актуальную стоимость продавец подтвердит при сборке.'));
+  const audited = await render(Card, { product: { ...product, priceStatus: 'AUDITED' } });
+  assert.ok(!audited.includes('Ориентировочная цена') && !audited.includes('Цена по открытому источнику'));
+  for (const html of [estimated, audited]) {
+    assert.ok(html.includes('242 ₽') && !html.includes('220 ₽'));
+    assert.ok(!html.includes('<img'));
+  }
+});
+
 test('market point listing requests associated products and renders the normal product grid', async () => {
   const page = await source('pages/market-map/[slug].vue');
   assert.match(page, /marketPoint: slug\.value/);
@@ -125,7 +138,7 @@ test('admin edits and resaves seller price, and requests customer price from the
     sourceCheckedAt: '2026-10-06T00:00:00.000Z', settlementMode: 'UNSET', basePrice: null, active: true, sort: 1 };
   const requests = [], stops = [];
   t.after(() => stops.forEach(stop => stop()));
-  const context = { ref, reactive, computed, ...money, ...quantity, qtyText,
+  const context = { ref, reactive, computed, ...money, ...quantity, qtyText, priceStatusItems,
     defineProps: () => ({ product: admin, categories: [{ id: 1, name: 'Макароны и крупы', active: true }] }),
     defineEmits: () => () => {},
     watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },

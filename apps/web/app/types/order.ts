@@ -16,6 +16,9 @@ export interface QueueOffer {
   estimatedAssemblyMinutes: number
   assemblyConcurrency: number
   showScheduledOffer: boolean
+  preorderRequired: boolean
+  preparationStartsAt: string | null
+  market: { isOpen: boolean; today: string; nextOpenAt: string | null }
   peakModeActive: boolean
   slots: { at: string; reserved: number; capacity: number }[]
 }

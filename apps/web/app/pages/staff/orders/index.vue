@@ -59,7 +59,7 @@
           <UBadge v-if="order.issues?.some(issue => issue.status === 'WAITING_SELLER')" color="error">Нужно действие продавца</UBadge>
           <UBadge v-if="order.staffUnread" color="info">Обновлений в чате: {{ order.staffUnread }}</UBadge>
           <UBadge v-if="order.queueRank === 1 && ['NEW', 'CONFIRMED'].includes(order.status)" color="primary">Следующий к сборке</UBadge>
-          <UBadge v-if="order.fulfillmentMode === 'SCHEDULED'" :color="due(order) ? 'warning' : 'info'">К {{ slotTime(order.scheduledFor!) }} · {{ due(order) ? 'пора собирать' : 'по расписанию' }}</UBadge>
+          <UBadge v-if="order.fulfillmentMode === 'SCHEDULED'" :color="due(order) ? 'warning' : 'info'">Предзаказ · к {{ slotTime(order.scheduledFor!) }} · {{ due(order) ? 'пора собирать' : 'по расписанию' }}</UBadge>
           <UButton
             v-if="order.staffUnread"
             :to="`/staff/orders/${order.id}#order-chat`"

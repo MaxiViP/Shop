@@ -1,13 +1,16 @@
 <template>
-  <div v-if="point" class="origin">
-    <p>Где покупаем: <NuxtLink :to="`/market-map/${point.slug}`" class="origin__link">{{ point.name }}</NuxtLink></p>
-    <p class="origin__note">Цена ориентировочная. Актуальную цену продавец подтвердит при сборке.</p>
+  <div v-if="point || note" class="origin">
+    <p v-if="point">Где покупаем: <NuxtLink :to="`/market-map/${point.slug}`" class="origin__link">{{ point.name }}</NuxtLink></p>
+    <p v-if="note" class="origin__note">{{ note }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { ProductListItem } from '~/types/product';
-defineProps<{ point?: ProductListItem['marketPoint'] }>();
+const props = defineProps<{ point?: ProductListItem['marketPoint']; priceStatus?: ProductListItem['priceStatus'] }>();
+const note = computed(() => props.priceStatus === 'AUDITED' ? '' : props.priceStatus === 'SOURCE'
+  ? 'Цена по открытому источнику и может измениться при сборке.'
+  : 'Ориентировочная цена. Актуальную стоимость продавец подтвердит при сборке.');
 </script>
 
 <style scoped>

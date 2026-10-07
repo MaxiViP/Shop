@@ -1,9 +1,29 @@
-import { actionableQueue, assemblyMinutes, effectiveQueue, peakActive, waitRange } from './queue.js';
+import { actionableQueue, assemblyMinutes, canPrepareNow, effectiveQueue, peakActive, waitRange } from './queue.js';
+import { localInstant, moscowMinute } from '../admin/shop-hours.js';
 
 const now = new Date('2026-10-02T10:00:00.000Z');
 const row = (id: number, minute: number, scheduledFor: Date | null = null) => ({
   id, createdAt: new Date(now.getTime() + minute * 60_000),
   fulfillmentMode: scheduledFor ? 'SCHEDULED' as const : 'ASAP' as const, scheduledFor,
+});
+
+describe('market hours limit preparation, not order acceptance', () => {
+  const calendar = { weekly: Array.from({ length: 7 }, (_, i) => ({ weekday: i + 1, enabled: true, openMinutes: 540, closeMinutes: 1260 })), exceptions: [] };
+  const settings = { peakModeEnabled: false, peakModeStart: null, peakModeEnd: null,
+    assemblyConcurrency: 1, assemblyFallbackMinutes: 60, queueThreshold: 4, slotCapacity: 2, slotIntervalMinutes: 30,
+    peakAssemblyConcurrency: null, peakAssemblyMinutes: null, peakQueueThreshold: null, peakSlotCapacity: null };
+  it.each([[480, false], [600, true], [1230, false], [1261, false], [1410, false]])(
+    'preparation readiness at Moscow minute %i is %s', (minute, expected) => {
+      expect(canPrepareNow(calendar, settings, localInstant('2026-10-07', minute))).toBe(expected);
+    });
+  it('uses Europe/Moscow in winter and summer with UTC+3 and no seasonal shift', () => {
+    for (const day of ['2026-01-15', '2026-07-15']) {
+      const at = localInstant(day, 600);
+      expect(at.toISOString()).toBe(day + 'T07:00:00.000Z');
+      expect(moscowMinute(at)).toBe(600);
+      expect(canPrepareNow(calendar, settings, at)).toBe(true);
+    }
+  });
 });
 
 it('selects independent profiles at both boundaries and uses their concurrency and assembly time for ETA', () => {

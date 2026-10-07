@@ -46,7 +46,7 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
     const token = randomBytes(32).toString('hex');
     await db.session.create({ data: { userId: user.id,
       tokenHash: createHash('sha256').update(token).digest('hex'),
-      expiresAt: new Date(Date.now() + 3600000) } });
+      expiresAt: localInstant('2026-10-14', 12 * 60) } });
     return { id: user.id, cookie: `${SID}=${token}` };
   }
 
@@ -94,17 +94,22 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
       portionQty: 1 } })).id;
   }, 60000);
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(localInstant('2026-10-07', 10 * 60));
     telegram.notifyNewOrder.mockClear();
     await db.orderStaffAudit.deleteMany();
     await db.order.deleteMany();
     await db.shopHoursException.deleteMany();
+    await db.shopHours.updateMany({ data: { enabled: true, openMinutes: 0, closeMinutes: 1440 } });
     await db.shopSettings.update({ where: { id: 1 }, data: {
-      minDeliverySubtotal: 0, queueThreshold: 4, assemblyFallbackMinutes: 25, assemblyConcurrency: 1,
+      minDeliverySubtotal: 0, deliveryEnabled: true, pickupEnabled: true,
+      queueThreshold: 4, assemblyFallbackMinutes: 25, assemblyConcurrency: 1,
       slotIntervalMinutes: 30, slotCapacity: 1, peakModeEnabled: false,
       peakModeStart: null, peakModeEnd: null,
       peakAssemblyConcurrency: null, peakAssemblyMinutes: null, peakQueueThreshold: null, peakSlotCapacity: null,
     } });
   });
+  afterEach(() => vi.useRealTimers());
   afterAll(async () => {
     await app?.close();
     await db?.$disconnect();
@@ -118,6 +123,128 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
     await db.shopSettings.update({ where: { id: 1 }, data: { peakModeEnabled: true,
       peakModeStart: new Date(Date.now() - 60_000), peakModeEnd: new Date(Date.now() + 3600_000) } });
   }
+
+  describe('24/7 checkout with Moscow market hours', () => {
+    const address = { city: 'Москва', street: 'Барклая', house: '5' };
+    beforeEach(async () => {
+      await db.shopHours.updateMany({ data: { openMinutes: 9 * 60, closeMinutes: 21 * 60 } });
+      await db.shopSettings.update({ where: { id: 1 }, data: { assemblyFallbackMinutes: 60 } });
+    });
+
+    describe.each(['DELIVERY', 'PICKUP'] as const)('%s', type => {
+      it.each([
+        ['08:00', 480, true, '2026-10-07', 600],
+        ['10:00', 600, false, '2026-10-07', 690],
+        ['20:30', 1230, true, '2026-10-08', 600],
+        ['21:01', 1261, true, '2026-10-08', 600],
+        ['23:30', 1410, true, '2026-10-08', 600],
+      ] as const)('%s accepts a quote and guest checkout and offers the first valid slot',
+        async (_clock, minute, preorderRequired, day, readyMinute) => {
+          vi.setSystemTime(localInstant('2026-10-07', minute));
+          const offer = await request(app.getHttpServer()).get('/api/orders/queue/offer').expect(200);
+          const at = localInstant(day, readyMinute);
+          expect(offer.body).toMatchObject({ preorderRequired, showScheduledOffer: true,
+            preparationStartsAt: preorderRequired ? localInstant(day, 9 * 60).toISOString() : null });
+          expect(offer.body.slots[0]).toMatchObject({ at: at.toISOString(), reserved: 0, capacity: 1 });
+          const quote = await request(app.getHttpServer()).post('/api/orders/quote')
+            .send({ items: input().items }).expect(201);
+          expect(quote.body).toMatchObject({ valid: true, subtotal: 11000 });
+          const response = await request(app.getHttpServer()).post('/api/orders').send({
+            ...input(), type, address: type === 'DELIVERY' ? address : undefined, quoteToken: quote.body.token,
+          }).expect(201);
+          expect(response.body).toMatchObject({ type, status: 'NEW',
+            fulfillmentMode: preorderRequired ? 'SCHEDULED' : 'ASAP',
+            scheduledFor: preorderRequired ? at.toISOString() : null });
+          const saved = await db.order.findUniqueOrThrow({ where: { id: response.body.id as number } });
+          expect(saved.subtotal).toBe(11000);
+          expect(saved.total).toBe(type === 'DELIVERY' ? null : 11000);
+          expect((await db.product.findUniqueOrThrow({ where: { id: productId } })).price).toBe(10000);
+          const staffView = await request(app.getHttpServer()).get('/api/staff/orders')
+            .set('Cookie', sellerCookie).expect(200);
+          expect(staffView.body).toEqual(expect.arrayContaining([expect.objectContaining({
+            id: saved.id, fulfillmentMode: saved.fulfillmentMode,
+            scheduledFor: saved.scheduledFor?.toISOString() ?? null,
+          })]));
+        });
+    });
+
+    it('keeps explicit future slots under low load and permits authenticated cart checkout after closing', async () => {
+      vi.setSystemTime(localInstant('2026-10-07', 23 * 60 + 30));
+      const selected = localInstant('2026-10-09', 12 * 60).toISOString();
+      const cart = await request(app.getHttpServer()).get('/api/cart').set('Cookie', ownerCookie).expect(200);
+      const changed = await request(app.getHttpServer()).post('/api/cart/change').set('Cookie', ownerCookie)
+        .send({ revision: cart.body.revision, kind: 'add', productId, qty: 1 }).expect(201);
+      const checked = await request(app.getHttpServer()).post('/api/cart/checkout').set('Cookie', ownerCookie)
+        .send({ ...input(), revision: changed.body.revision, quoteToken: changed.body.token,
+          fulfillmentMode: 'SCHEDULED', scheduledFor: selected }).expect(201);
+      expect(checked.body.order).toMatchObject({ fulfillmentMode: 'SCHEDULED', scheduledFor: selected });
+      expect((await db.order.findUniqueOrThrow({ where: { id: checked.body.order.id as number } })).scheduledFor?.toISOString()).toBe(selected);
+    });
+
+    it('skips full slots and calendar exceptions, uses the future profile, and never overbooks concurrent preorders', async () => {
+      vi.setSystemTime(localInstant('2026-10-07', 23 * 60 + 30));
+      await db.shopHoursException.create({ data: { date: new Date('2026-10-08T00:00:00.000Z'), closed: true } });
+      await db.shopHoursException.create({ data: { date: new Date('2026-10-09T00:00:00.000Z'), closed: false,
+        openMinutes: 11 * 60, closeMinutes: 18 * 60 } });
+      const firstSlot = localInstant('2026-10-09', 11 * 60 + 30);
+      await db.shopSettings.update({ where: { id: 1 }, data: { peakModeEnabled: true,
+        peakModeStart: localInstant('2026-10-09', 11 * 60), peakModeEnd: localInstant('2026-10-09', 18 * 60),
+        peakAssemblyMinutes: 25, peakSlotCapacity: 1 } });
+      const offer = await orders.offer();
+      expect(offer.slots[0]?.at).toBe(firstSlot.toISOString());
+      expect(offer.preparationStartsAt).toBe(localInstant('2026-10-09', 11 * 60 + 5).toISOString());
+      const results = await Promise.all([place(customerA), place(customerB)]);
+      expect(results.map(row => row.order.scheduledFor?.toISOString()).sort()).toEqual([
+        firstSlot.toISOString(), localInstant('2026-10-09', 12 * 60).toISOString(),
+      ]);
+      expect((await orders.offer()).slots[0]?.at).toBe(localInstant('2026-10-09', 12 * 60 + 30).toISOString());
+    });
+
+    it('rejects closed, full, misaligned and too distant explicit slots and keeps delivery rules', async () => {
+      vi.setSystemTime(localInstant('2026-10-07', 23 * 60 + 30));
+      const http = () => request(app.getHttpServer());
+      for (const at of [localInstant('2026-10-08', 8 * 60), localInstant('2026-10-08', 9 * 60 + 30),
+        localInstant('2026-10-08', 21 * 60), localInstant('2026-10-08', 10 * 60 + 5),
+        localInstant('2026-10-14', 10 * 60)]) {
+        await http().post('/api/orders').send({ ...input(), fulfillmentMode: 'SCHEDULED', scheduledFor: at.toISOString() }).expect(409);
+      }
+      const selected = localInstant('2026-10-08', 10 * 60).toISOString();
+      await place(customerA, { ...input(), fulfillmentMode: 'SCHEDULED', scheduledFor: selected });
+      await http().post('/api/orders').send({ ...input(), fulfillmentMode: 'SCHEDULED', scheduledFor: selected }).expect(409);
+      await http().post('/api/orders').send({ ...input(), type: 'DELIVERY' }).expect(400);
+      await db.shopSettings.update({ where: { id: 1 }, data: { minDeliverySubtotal: 11001 } });
+      await http().post('/api/orders').send({ ...input(), type: 'DELIVERY', address }).expect(400);
+      await db.shopSettings.update({ where: { id: 1 }, data: { minDeliverySubtotal: 0, deliveryEnabled: false } });
+      await http().post('/api/orders').send({ ...input(), type: 'DELIVERY', address }).expect(400);
+      await db.shopSettings.update({ where: { id: 1 }, data: { pickupEnabled: false } });
+      await http().post('/api/orders').send(input()).expect(400);
+      expect(await db.order.count()).toBe(1);
+    });
+
+    it('keeps future preorders out of the actionable queue and prevents assembly, pickup and handoff while closed', async () => {
+      vi.setSystemTime(localInstant('2026-10-07', 23 * 60 + 30));
+      const saved = (await place(customerA)).order;
+      const actor = { userId: sellerId, role: 'SELLER' as const };
+      await staff.confirm(saved.id, actor);
+      expect((await staff.get(saved.id))).toMatchObject({ fulfillmentMode: 'SCHEDULED',
+        scheduledFor: localInstant('2026-10-08', 10 * 60), preparationMinutes: 60 });
+      expect((await staff.list()).find(row => row.id === saved.id)?.queueRank).toBeNull();
+      await expect(staff.startAssembly(saved.id, actor)).rejects.toMatchObject({ response: { code: 'SHOP_CLOSED' } });
+      await db.order.update({ where: { id: saved.id }, data: { status: 'READY', assemblyFinalizedAt: new Date(), finalSubtotal: 11000 } });
+      await db.orderPayment.create({ data: { orderId: saved.id, status: 'PAID', amount: 11000 } });
+      await expect(staff.completePickup(saved.id, actor)).rejects.toMatchObject({ response: { code: 'SHOP_CLOSED' } });
+      await db.order.update({ where: { id: saved.id }, data: { type: 'DELIVERY' } });
+      await db.delivery.create({ data: { orderId: saved.id, provider: 'OTHER', status: 'ASSIGNED',
+        price: 50000, publicToken: randomUUID(), courierName: 'Курьер', courierPhone: '+79990000888' } });
+      await expect(staff.handoff(saved.id, actor)).rejects.toMatchObject({ response: { code: 'SHOP_CLOSED' } });
+      expect((await db.order.findUniqueOrThrow({ where: { id: saved.id } })).status).toBe('READY');
+      await db.order.update({ where: { id: saved.id }, data: { status: 'CONFIRMED', type: 'PICKUP', assemblyFinalizedAt: null } });
+      vi.setSystemTime(localInstant('2026-10-08', 9 * 60));
+      expect((await queue.snapshot()).queue.map(row => row.id)).toContain(saved.id);
+      await staff.startAssembly(saved.id, actor);
+      expect((await db.order.findUniqueOrThrow({ where: { id: saved.id } })).status).toBe('ASSEMBLING');
+    });
+  });
 
   it('moves ASAP positions and keeps the configured estimate while observing the recent median', async () => {
     const first = (await place(customerA)).order;
@@ -220,8 +347,9 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
     expect(parallel.wait!.max).toBeLessThan(sequential.wait!.max);
   });
 
-  it('hides scheduled under threshold, honors peak window, and guards ADMIN settings', async () => {
-    expect((await orders.offer()).showScheduledOffer).toBe(false);
+  it('offers future slots under threshold, honors peak window, and guards ADMIN settings', async () => {
+    expect((await orders.offer()).showScheduledOffer).toBe(true);
+    expect((await orders.offer()).peakModeActive).toBe(false);
     await place(customerA); await place(customerB);
     await db.shopSettings.update({ where: { id: 1 }, data: { queueThreshold: 2 } });
     expect((await orders.offer()).showScheduledOffer).toBe(true);
@@ -237,7 +365,8 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
       .send(body).expect(200);
     expect((await orders.offer()).showScheduledOffer).toBe(true);
     await db.shopSettings.update({ where: { id: 1 }, data: { peakModeEnd: new Date(now.getTime() - 1000) } });
-    expect((await orders.offer()).showScheduledOffer).toBe(false);
+    expect((await orders.offer()).peakModeActive).toBe(false);
+    expect((await orders.offer()).showScheduledOffer).toBe(true);
   });
 
   it('checks opening hours, exceptions, slot interval and capacity on the server', async () => {
@@ -313,7 +442,7 @@ describe.skipIf(!process.env.DATABASE_URL)('order queue / local PostgreSQL', () 
       .send({ slotIntervalMinutes: 60, peakModeEnabled: false }).expect(200);
     expect((await db.order.findUniqueOrThrow({ where: { id: booked.id } })).scheduledFor).toEqual(at);
     await expect(place(customerA, { ...input(), fulfillmentMode: 'SCHEDULED',
-      scheduledFor: new Date(at.getTime() + 30 * 60_000).toISOString() })).rejects.toThrow();
+      scheduledFor: new Date(at.getTime() + 15 * 60_000).toISOString() })).rejects.toThrow();
     await orders.schedule(booked.publicId, customerA, undefined, 'SCHEDULED',
       new Date(at.getTime() + 30 * 60_000).toISOString());
     expect((await db.order.findUniqueOrThrow({ where: { id: booked.id } })).scheduledFor)

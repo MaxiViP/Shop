@@ -8,6 +8,13 @@ type Active = { assemblyStartedAt: Date | null };
 const waitingStatus = ['NEW', 'CONFIRMED'] as const;
 const finishedStatus = ['COMPLETED', 'CANCELED'] as const;
 const MINUTE = 60_000;
+const checkoutBufferMinutes = 10;
+
+export function canPrepareNow(calendar: Awaited<ReturnType<typeof loadCalendar>>,
+  settings: Parameters<typeof effectiveQueue>[0], now: Date) {
+  const ready = new Date(now.getTime() + (effectiveQueue(settings, now).assemblyMinutes + checkoutBufferMinutes) * MINUTE);
+  return marketStatusAt(calendar, now).isOpen && marketStatusAt(calendar, ready).isOpen;
+}
 
 export function peakActive(settings: Pick<ShopSettings, 'peakModeEnabled' | 'peakModeStart' | 'peakModeEnd'>, now: Date) {
   return settings.peakModeEnabled && !!settings.peakModeStart && !!settings.peakModeEnd &&
@@ -98,22 +105,48 @@ export class QueueService {
     now = new Date(), includeSlots = false, existingScheduled = false, includeFull = false) {
     const state = await this.snapshot(db, now);
     const position = orderId ? state.queue.findIndex(row => row.id === orderId) + 1 : state.queue.length + 1;
+    const calendar = await loadCalendar(db);
+    const market = marketStatusAt(calendar, now);
+    const preorderRequired = !canPrepareNow(calendar, state.settings, now);
+    const slots = includeSlots || preorderRequired
+      ? await this.slots(db, state.settings, state.minutes, now, includeFull, orderId) : [];
+    const first = slots[0] ? new Date(slots[0].at) : null;
     return { queueLength: state.queueLength, position: position || null,
       wait: position ? waitRange(position, state.active, now, state.minutes,
         state.effective.assemblyConcurrency) : null,
       estimatedAssemblyMinutes: state.minutes,
       assemblyConcurrency: state.effective.assemblyConcurrency,
-      showScheduledOffer: state.showScheduledOffer, peakModeActive: state.peakModeActive,
-      slots: includeSlots && (state.showScheduledOffer || existingScheduled)
-        ? await this.slots(db, state.settings, state.minutes, now, includeFull) : [] };
+      showScheduledOffer: state.showScheduledOffer || existingScheduled || slots.length > 0,
+      peakModeActive: state.peakModeActive, market, preorderRequired,
+      preparationStartsAt: preorderRequired && first
+        ? new Date(first.getTime() - effectiveQueue(state.settings, first).assemblyMinutes * MINUTE).toISOString() : null,
+      slots: includeSlots ? slots : [] };
+  }
+
+  async fulfillment(db: Prisma.TransactionClient, settings: ShopSettings, now: Date,
+    mode: 'ASAP' | 'SCHEDULED', requested?: string, excludeId?: number) {
+    if (mode === 'SCHEDULED') {
+      const at = new Date(requested!);
+      await this.reserve(db, at, settings, now, excludeId);
+      return { fulfillmentMode: 'SCHEDULED' as const, scheduledFor: at };
+    }
+    const calendar = await loadCalendar(db);
+    if (canPrepareNow(calendar, settings, now)) return { fulfillmentMode: 'ASAP' as const, scheduledFor: null };
+    const slots = await this.slots(db, settings, effectiveQueue(settings, now).assemblyMinutes, now, false, excludeId);
+    const first = slots[0];
+    if (!first) throw new ConflictException('Нет свободного времени подготовки в ближайшие дни. Выберите другое время.');
+    const at = new Date(first.at);
+    await this.reserve(db, at, settings, now, excludeId);
+    return { fulfillmentMode: 'SCHEDULED' as const, scheduledFor: at };
   }
 
   async slots(db: Prisma.TransactionClient, settings: ShopSettings, minutes: number, now: Date,
-    includeFull = false) {
+    includeFull = false, excludeId?: number) {
     const calendar = await loadCalendar(db);
     const end = localInstant(addDays(moscowDay(now), 7), 0);
     const booked = await db.order.findMany({
       where: { fulfillmentMode: 'SCHEDULED', status: { notIn: [...finishedStatus] },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
         scheduledFor: { gte: now, lt: end } }, select: { scheduledFor: true },
     });
     const counts = new Map<number, number>();
@@ -126,7 +159,7 @@ export class QueueService {
         const at = localInstant(date, minute);
         const profile = effectiveQueue(settings, at);
         const lead = profile.assemblyMinutes;
-        if (at.getTime() < now.getTime() + (lead + 10) * MINUTE ||
+        if (at.getTime() < now.getTime() + (lead + checkoutBufferMinutes) * MINUTE ||
           !marketStatusAt(calendar, at).isOpen ||
           !marketStatusAt(calendar, new Date(at.getTime() - lead * MINUTE)).isOpen) continue;
         const reserved = counts.get(at.getTime()) ?? 0;
@@ -138,12 +171,9 @@ export class QueueService {
   }
 
   async reserve(db: Prisma.TransactionClient, at: Date, settings: ShopSettings, now: Date,
-    excludeId?: number, allowExisting = false) {
-    const state = await this.snapshot(db, now);
+    excludeId?: number) {
     const profile = effectiveQueue(settings, at);
-    if (!state.showScheduledOffer && !allowExisting)
-      throw new ConflictException('Заказ ко времени сейчас недоступен');
-    if (!Number.isFinite(at.getTime()) || at.getTime() < now.getTime() + (profile.assemblyMinutes + 10) * MINUTE ||
+    if (!Number.isFinite(at.getTime()) || at.getTime() < now.getTime() + (profile.assemblyMinutes + checkoutBufferMinutes) * MINUTE ||
       at.getUTCSeconds() || at.getUTCMilliseconds() ||
       moscowMinute(at) % settings.slotIntervalMinutes)
       throw new ConflictException('Выберите доступное время подготовки заказа');

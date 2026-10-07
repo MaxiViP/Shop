@@ -51,8 +51,8 @@ model MarketPoint {
   sampleAssortment String?         @db.VarChar(2000)
   photoUrl         String?
   floor            Int             @default(2)
-  mapX             Float
-  mapY             Float
+  mapX             Float?
+  mapY             Float?
   isPublished      Boolean         @default(false)
   sortOrder        Int             @default(0)
   createdAt        DateTime        @default(now())
@@ -82,6 +82,12 @@ model Category {
   @@index([parentId])
 }
 
+enum ProductPriceStatus {
+  ESTIMATED
+  SOURCE
+  AUDITED
+}
+
 model Product {
   id          Int     @id @default(autoincrement())
   name        String
@@ -90,12 +96,13 @@ model Product {
 
   // Original seller price in kopecks; service markup is calculated on the backend.
   price          Int
-  settlementMode SettlementMode @default(UNSET)
+  priceStatus    ProductPriceStatus @default(ESTIMATED)
+  settlementMode SettlementMode     @default(UNSET)
   basePrice      Int?
-  priceQty       Int            @default(1)
+  priceQty       Int                @default(1)
   unit           Unit
-  step           Int            @default(1)
-  min            Int            @default(1)
+  step           Int                @default(1)
+  min            Int                @default(1)
   portionQty     Int
 
   active Boolean @default(true)
@@ -121,6 +128,7 @@ model Product {
 
   @@index([categoryId])
   @@index([marketPointId])
+  @@index([priceStatus])
   @@index([settlementMode])
 }
 

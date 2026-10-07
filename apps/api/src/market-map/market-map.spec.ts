@@ -36,11 +36,12 @@ describe('Market map validation and publication', () => {
 
   function fixture() {
     const point = { ...pointSchema.parse(input), id: 7, unitNumber: null, photoUrl: null };
-    const db = { marketPoint: {
+    const db = { $queryRaw: vi.fn(), $transaction: vi.fn(), marketPoint: {
       findMany: vi.fn().mockResolvedValue([point]), findFirst: vi.fn().mockResolvedValue(point),
       findUnique: vi.fn().mockResolvedValue(point), create: vi.fn().mockResolvedValue(point),
       update: vi.fn().mockResolvedValue(point),
     } };
+    db.$transaction.mockImplementation((fn: (tx: typeof db) => unknown) => fn(db));
     return { db, point, service: new MarketMapService(db as unknown as DbService) };
   }
 
@@ -79,5 +80,18 @@ describe('Market map validation and publication', () => {
     await expect(service.create(pointSchema.parse(input))).rejects.toMatchObject({ status: 409 });
     db.marketPoint.update.mockRejectedValue({ code: 'P2025' });
     await expect(service.update(7, { name: 'Другое' })).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('validates partial position updates against the existing coordinate pair before writing', async () => {
+    const { service, db, point } = fixture();
+    await expect(service.update(7, { mapX: null })).rejects.toMatchObject({ status: 400 });
+    expect(db.marketPoint.update).not.toHaveBeenCalled();
+    db.marketPoint.findUnique.mockResolvedValue({ ...point, mapX: null, mapY: null });
+    await expect(service.update(7, { mapX: 20 })).rejects.toMatchObject({ status: 400 });
+    expect(db.marketPoint.update).not.toHaveBeenCalled();
+    await service.update(7, { mapX: 20, mapY: 30 });
+    expect(db.marketPoint.update).toHaveBeenCalledWith({ where: { id: 7 }, data: { mapX: 20, mapY: 30 } });
+    await service.update(7, { mapX: null, mapY: null });
+    expect(db.marketPoint.update).toHaveBeenLastCalledWith({ where: { id: 7 }, data: { mapX: null, mapY: null } });
   });
 });

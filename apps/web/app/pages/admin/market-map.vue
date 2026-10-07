@@ -80,7 +80,7 @@ type PointDraft = Omit<MarketPointInput, 'unitNumber' | 'description' | 'sampleA
   unitNumber: string; description: string; sampleAssortment: string;
 };
 const defaults = (): PointDraft => ({ name: '', slug: '', unitNumber: '', kind: 'STALL',
-  description: '', sampleAssortment: '', floor: 2, mapX: 50, mapY: 50, isPublished: false, sortOrder: 0 });
+  description: '', sampleAssortment: '', floor: 2, mapX: null, mapY: null, isPublished: false, sortOrder: 0 });
 const form = reactive<PointDraft>(defaults());
 const baseline = ref(JSON.stringify(form));
 const busy = ref(false);

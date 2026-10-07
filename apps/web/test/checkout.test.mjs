@@ -234,6 +234,30 @@ test("a slot that fills during checkout is removed from the selection", async t 
   assert.ok(f.errors.deliveryAt);
 });
 
+for (const type of ['DELIVERY', 'PICKUP']) {
+  test(`${type} checkout selects the first preorder slot and preserves a valid explicit future selection`, async t => {
+    const f = await fixture(t);
+    const first = '2026-10-08T07:00:00.000Z';
+    const selected = '2026-10-09T09:00:00.000Z';
+    f.form.type = type;
+    f.queueOffer.value = { ...f.queueOffer.value, preorderRequired: true, showScheduledOffer: true,
+      market: { isOpen: false, today: '2026-10-07', nextOpenAt: '2026-10-08T06:00:00.000Z' },
+      preparationStartsAt: '2026-10-08T06:00:00.000Z',
+      slots: [{ at: first, reserved: 0, capacity: 1 }, { at: selected, reserved: 0, capacity: 1 }] };
+    await nextTick();
+    assert.equal(f.form.pickupTiming, 'scheduled');
+    assert.equal(f.form.pickupAt, first);
+    f.form.pickupAt = selected;
+    f.queueOffer.value = { ...f.queueOffer.value, queueLength: 1 };
+    await nextTick();
+    assert.equal(f.form.pickupAt, selected);
+    await f.submit();
+    assert.equal(f.state.requests[0].body.type, type);
+    assert.equal(f.state.requests[0].body.fulfillmentMode, 'SCHEDULED');
+    assert.equal(f.state.requests[0].body.scheduledFor, selected);
+  });
+}
+
 test("a failed checkout keeps its requestId for a deliberate retry", async t => {
   const f = await fixture(t);
   let first = true;

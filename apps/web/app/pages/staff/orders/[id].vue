@@ -15,7 +15,7 @@
           <UBadge v-if="order.deliveryAt" color="info" variant="soft">
             {{ order.type === 'PICKUP' ? `${pickupTime(order.deliveryAt)} (МСК)` : date(order.deliveryAt) }}
           </UBadge>
-          <UBadge v-if="order.scheduledFor" color="warning" variant="soft">Подготовить к {{ pickupTime(order.scheduledFor) }} (МСК)</UBadge>
+          <UBadge v-if="order.scheduledFor" color="info" variant="soft">Предзаказ · подготовить к {{ pickupTime(order.scheduledFor) }} (МСК)</UBadge>
           <UBadge
             v-if="order.status === 'ASSEMBLING'"
             :color="pending ? 'warning' : 'success'"

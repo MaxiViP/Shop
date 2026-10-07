@@ -21,7 +21,7 @@
       </div>
 
       <ProductPrice :product="product" />
-      <ProductOrigin :point="product.marketPoint" class="mt-3" />
+      <ProductOrigin :point="product.marketPoint" :price-status="product.priceStatus" class="mt-3" />
 
       <div class="product__buy">
         <UAlert v-if="cartQty && !validCartQty(cartQty, product)" color="warning" title="Сохранённое количество не соответствует текущему шагу. Выберите новое и нажмите «Обновить количество»." />

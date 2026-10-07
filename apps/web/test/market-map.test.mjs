@@ -312,6 +312,14 @@ test('map SSR renders point links and entrance arrows without an optional unit n
   assert.ok(!html.includes('<iframe'));
 });
 
+test('an unlocated seller keeps its directory entry and never produces a fake map marker', async () => {
+  const unlocated = { ...point, id: 999, slug: 'new-seller', mapX: null, mapY: null };
+  assert.deepEqual(utils.filterMarketPoints([unlocated], ''), [unlocated]);
+  assert.deepEqual(utils.mapLabels([point, unlocated]).map(marker => marker.point.id), [point.id]);
+  const html = await render({ points: [point, unlocated] });
+  assert.ok(!html.includes('href="/market-map/new-seller"') && !html.includes('NaN'));
+});
+
 test('two interior ENTRY markers have prominent zones and captions at their real coordinates', async () => {
   const html = await render({ points: [point, entrance, secondEntry] });
   assert.equal((html.match(/class="map__entry-zone"/g) ?? []).length, 2);

@@ -18,7 +18,7 @@
     <OrderProgress :status="order.status" :type="order.type" />
     <section v-if="['NEW', 'CONFIRMED'].includes(order.status)" class="order-queue" aria-live="polite">
       <template v-if="order.fulfillmentMode === 'SCHEDULED' && order.scheduledFor">
-        <strong>Подготовим к {{ slotLabel(order.scheduledFor) }} (МСК)</strong>
+        <strong>Предзаказ · подготовим к {{ slotLabel(order.scheduledFor) }} (МСК)</strong>
         <p>Время ориентировочное. Заказ появится у продавца заранее.</p>
       </template>
       <template v-else-if="order.queue?.position">

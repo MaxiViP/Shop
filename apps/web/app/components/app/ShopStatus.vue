@@ -1,7 +1,7 @@
 <template>
   <p v-if="data" class="text-sm text-muted" role="status">
     <template v-if="data.isOpen">Рынок открыт до {{ data.closeTime }}</template>
-    <template v-else>Сейчас закрыто<span v-if="data.nextOpenAt"> · откроемся {{ nextOpen }}</span></template>
+    <template v-else>Рынок закрыт<span v-if="data.nextOpenAt"> · откроемся {{ nextOpen }}</span>. Предзаказы принимаются.</template>
   </p>
 </template>
 <script setup lang="ts">

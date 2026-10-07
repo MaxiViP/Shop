@@ -4,11 +4,17 @@ const order: TelegramOrder = {
   id: 154, status: 'NEW', type: 'DELIVERY', customerName: 'Максим <&_*[]>', customerPhone: '+70000000000',
   city: 'Москва', street: 'Рыночная', house: '1', buildingPart: 'к. 2', flat: '2', entrance: '3',
   floor: '4', intercom: '5', comment: 'Позвонить <before> & [arrival]',
-  deliveryAt: null, subtotal: 69000, deliveryPrice: null, total: null,
+  deliveryAt: null, fulfillmentMode: 'ASAP', scheduledFor: null, subtotal: 69000, deliveryPrice: null, total: null,
   items: [{ productName: 'Томаты', unit: 'GRAM', qty: 1000, total: 45000 }],
 };
 
 describe('Telegram new order text', () => {
+  it('shows the preorder date in Moscow for staff without replacing snapshot totals', () => {
+    const text = newOrderMessage({ ...order, fulfillmentMode: 'SCHEDULED', scheduledFor: new Date('2026-10-08T07:00:00.000Z') });
+    expect(text).toContain('Предзаказ. Подготовить к (Москва):');
+    expect(text).toContain('10:00');
+    expect(text).toContain('690 ₽');
+  });
   it('uses saved money, optional address details and plain user text', () => {
     const text = newOrderMessage(order);
     for (const part of ['Новый заказ #154', order.customerName, order.comment!,

@@ -1,4 +1,4 @@
-import type { Unit } from "./product";
+import type { ProductPriceStatus, Unit } from "./product";
 export interface AdminImage {
   visible: boolean;
   id: number;
@@ -22,6 +22,7 @@ export interface ProductPricing {
   customerPrice: number;
 }
 export interface AdminProduct extends ProductPricing {
+  priceStatus: ProductPriceStatus;
   id: number;
   name: string;
   slug: string;

@@ -38,14 +38,16 @@ const overlaps = (a: LabelBox, b: LabelBox) => a.left < b.right + 4 && a.right >
 
 // Only captions move to avoid collisions; the actual point coordinates stay fixed.
 export function mapLabels(points: MarketMarker[]) {
-  const pins = points.map(point => {
+  const mapped = points.filter((point): point is MarketMarker & { mapX: number; mapY: number } =>
+    point.mapX !== null && point.mapY !== null);
+  const pins = mapped.map(point => {
     const radius = point.kind === 'ENTRY' ? 32 : 14;
     const x = point.mapX * mapSize.width / 100, y = point.mapY * mapSize.height / 100;
     return { left: x - radius, right: x + radius, top: y - radius, bottom: y + radius };
   });
   const occupied: LabelBox[] = [];
   // Reserve entry captions first, then paint their markers above the trading points.
-  const ordered = [...points.filter(point => point.kind === 'ENTRY'), ...points.filter(point => point.kind !== 'ENTRY')];
+  const ordered = [...mapped.filter(point => point.kind === 'ENTRY'), ...mapped.filter(point => point.kind !== 'ENTRY')];
   const markers = ordered.map(point => {
     const x = point.mapX * mapSize.width / 100, y = point.mapY * mapSize.height / 100;
     const lines = mapLabelLines(point.kind === 'ENTRY' ? 'Вход на 2 этаж' : point.name);

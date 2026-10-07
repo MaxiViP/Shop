@@ -42,6 +42,8 @@
         <UFormField label="Внутренний расчёт">
           <USelect v-model="mode" :items="modeOptions" />
         </UFormField>
+        <UFormField label="Достоверность цены"><USelect v-model="status" :items="statusOptions" class="w-full" /></UFormField>
+        <UFormField label="Торговая точка"><USelect v-model="pointId" :items="pointOptions" class="w-full" /></UFormField>
         <UButton type="submit" :loading="pending">Найти</UButton>
       </form>
       <p v-if="pending" role="status">Загрузка…</p>
@@ -55,6 +57,7 @@
               <th>Название</th>
               <th>Категория</th>
               <th>Цена продавца / ед.</th>
+              <th>Достоверность цены</th>
               <th>Сервис</th>
               <th>Цена покупателя</th>
               <th>Режим</th>
@@ -91,6 +94,7 @@
                 {{ money(product.price) }} / {{ product.priceQty }}
                 {{ labels[product.unit] }}
               </td>
+              <td class="pr-3"><UBadge color="neutral" variant="soft">{{ priceStatusLabels[product.priceStatus] }}</UBadge></td>
               <td class="pr-3 whitespace-nowrap">{{ product.serviceMarkupPercent }}% · {{ money(product.serviceMarkup) }}</td>
               <td class="pr-3 whitespace-nowrap">{{ money(product.customerPrice) }}</td>
               <td class="pr-3"><UBadge :color="product.settlementMode === 'UNSET' ? 'warning' : product.settlementMode === 'SHARED_MARKUP' ? 'success' : 'neutral'">{{ modeLabel[product.settlementMode] }}</UBadge></td>
@@ -162,12 +166,20 @@
 
 <script setup lang="ts">
 import type { AdminProduct, AdminCategory, AdminPage } from "~/types/admin";
+import type { MarketPoint } from '~/types/market-map';
+import { priceStatusItems, priceStatusLabels } from '~/utils/price-status';
 definePageMeta({ middleware: "admin", layout: "admin" });
 const section = ref("products");
 const search = ref("");
 const category = ref(0);
 const active = ref("all");
 const mode = ref("all");
+const status = ref('all');
+const pointId = ref(0);
+const statusOptions = [{ label: 'Все статусы цен', value: 'all' }, ...priceStatusItems];
+const { data: marketPoints } = await useApi<MarketPoint[]>('/admin/market-map/points');
+const pointOptions = computed(() => [{ label: 'Все торговые точки', value: 0 },
+  ...(marketPoints.value ?? []).filter(point => point.kind !== 'ENTRY').map(point => ({ label: point.name, value: point.id }))]);
 const modeOptions = [
   { label: "Все", value: "all" }, { label: "С наценкой", value: "SHARED_MARKUP" },
   { label: "Без наценки", value: "NO_MARKUP" }, { label: "Не настроено", value: "UNSET" },
@@ -180,6 +192,8 @@ const query = reactive({
   category: undefined as number | undefined,
   active: undefined as string | undefined,
   settlementMode: undefined as string | undefined,
+  priceStatus: undefined as string | undefined,
+  marketPoint: undefined as number | undefined,
 });
 const { data, pending, error, refresh } = await useApi<AdminPage<AdminProduct>>(
   "/admin/products",
@@ -207,6 +221,8 @@ function apply() {
     category: category.value || undefined,
     active: active.value === "all" ? undefined : active.value,
     settlementMode: mode.value === "all" ? undefined : mode.value,
+    priceStatus: status.value === 'all' ? undefined : status.value,
+    marketPoint: pointId.value || undefined,
   });
 }
 const labels = { GRAM: "г", PIECE: "шт.", BUNCH: "пуч.", PACK: "уп." };

@@ -3,6 +3,8 @@ export type Unit = "GRAM" | "PIECE" | "BUNCH" | "PACK";
 export type ProductSort =
   "recommended" | "price_asc" | "price_desc" | "newest" | "name";
 
+export type ProductPriceStatus = 'ESTIMATED' | 'SOURCE' | 'AUDITED';
+
 export interface ProductListItem {
   id: number;
   name: string;
@@ -12,6 +14,7 @@ export interface ProductListItem {
   indexable?: boolean;
 
   price: number;
+  priceStatus: ProductPriceStatus;
   priceQty: number;
 
   unit: Unit;

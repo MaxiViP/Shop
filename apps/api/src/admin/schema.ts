@@ -12,11 +12,13 @@ const slug = z
 const sort = z.number().int().min(-1_000_000).max(1_000_000);
 const qty = z.number().int().positive().max(MAX_QTY);
 export const pricePreviewSchema = z.strictObject({ price: z.number().int().positive().max(100_000_000) });
+export const priceStatusSchema = z.enum(['ESTIMATED', 'SOURCE', 'AUDITED']);
 const productFields = z.strictObject({
   name,
   slug,
   description: z.string().trim().max(10000).nullable(),
   price: z.number().int().positive().max(100_000_000),
+  priceStatus: priceStatusSchema.optional(),
   settlementMode: z.enum(['UNSET', 'SHARED_MARKUP', 'NO_MARKUP']).optional(),
   basePrice: z.number().int().positive().max(100_000_000).nullable().optional(),
   priceQty: qty,
@@ -59,6 +61,8 @@ export const pageSchema = z.object({
 });
 export const productQuery = pageSchema.extend({
   category: idSchema.optional(),
+  marketPoint: idSchema.optional(),
+  priceStatus: priceStatusSchema.optional(),
   active: z.enum(['true', 'false']).optional(),
   settlementMode: z.enum(['UNSET', 'SHARED_MARKUP', 'NO_MARKUP']).optional(),
 });

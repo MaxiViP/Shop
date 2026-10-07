@@ -122,10 +122,15 @@ export function checkoutScreen(
       };
     const prompt = checkoutPrompts[step];
     if (!prompt) throw new BadRequestException();
+    const timing = offer?.preorderRequired
+      ? 'Рынок закрыт или сегодня уже не успеваем собрать заказ. Предзаказы принимаются.'
+      : offer && offer.queueLength > 0
+        ? `Примерно ${offer.position}-й в очереди, начало через ${offer.wait?.min}–${offer.wait?.max} мин.`
+        : 'Можно оформить заказ сейчас.';
     return {
       prompt:
         prompt + (step === 'TIME' && offer?.showScheduledOffer && offer.slots.length
-          ? `\nСейчас высокая загрузка: примерно ${offer.position}-й в очереди, начало через ${offer.wait?.min}–${offer.wait?.max} мин. Можно выбрать время: ДД.ММ.ГГГГ ЧЧ:ММ (Москва). Ближайшие свободные слоты: ${offer.slots.slice(0, 3).map(slot => date(new Date(slot.at))).join(', ')}. Доступность проверим при оформлении.`
+          ? `\n${timing} Можно выбрать время: ДД.ММ.ГГГГ ЧЧ:ММ (Москва). Ближайшие свободные слоты: ${offer.slots.slice(0, 3).map(slot => date(new Date(slot.at))).join(', ')}. Доступность проверим при оформлении.`
           : '') +
         '\nНажмите «Ответить» на этом сообщении и введите ответ. /resume — восстановить, /cancel — отмена.',
     };

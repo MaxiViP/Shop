@@ -340,17 +340,17 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(await db.cart.count({ where: { userId: staff.id } })).toBe(0);
     });
 
-    it('rejects checkout when the market closes after a previously open storefront status', async () => {
+    it('accepts a preorder when the market closes after a previously open storefront status', async () => {
       const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow',
         year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
       const date = new Date(`${day}T00:00:00.000Z`);
       const before = await db.order.count();
       await db.shopHoursException.create({ data: { date, closed: true } });
       try {
-        const response = await order('PICKUP').expect(409);
-        expect(response.body.code).toBe('SHOP_CLOSED');
-        expect(response.body.nextOpenAt).toEqual(expect.any(String));
-        expect(await db.order.count()).toBe(before);
+        const response = await order('PICKUP').expect(201);
+        expect(response.body.fulfillmentMode).toBe('SCHEDULED');
+        expect(response.body.scheduledFor).toEqual(expect.any(String));
+        expect(await db.order.count()).toBe(before + 1);
       } finally {
         await db.shopHoursException.delete({ where: { date } });
       }
@@ -361,7 +361,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const result = await connection.query('SELECT * FROM "Product" WHERE id < 0 ORDER BY id');
       expect(result.rows).toEqual(legacyProducts.map((product) => ({
         ...product, portionQty: product.min, settlementMode: 'UNSET', basePrice: null,
-        marketPointId: null, sourceUrl: null, sourceCheckedAt: null,
+        marketPointId: null, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
       })));
       const column = await connection.query<{ is_nullable: string }>(
         `SELECT is_nullable FROM information_schema.columns
@@ -401,6 +401,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           'category',
           'images',
           'marketPoint',
+          'priceStatus',
         ].sort(),
       );
       expect(await db.order.count()).toBe(before);

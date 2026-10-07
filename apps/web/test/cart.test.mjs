@@ -16,6 +16,7 @@ import { deliveryEligibility } from "../app/utils/shop-settings.ts";
 
 const product = {
   id: 1,
+  priceStatus: 'ESTIMATED',
   name: "Яблоки",
   slug: "apples",
   price: 350000,

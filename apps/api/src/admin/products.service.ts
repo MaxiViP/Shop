@@ -38,7 +38,7 @@ export class AdminProductsService {
     private readonly images: ImagesService,
   ) {}
   async list(query: ProductQuery) {
-    const { page, limit, search, category, active, settlementMode } = query;
+    const { page, limit, search, category, active, settlementMode, marketPoint, priceStatus } = query;
     const where: Prisma.ProductWhereInput = {
       ...(search
         ? {
@@ -49,6 +49,8 @@ export class AdminProductsService {
           }
         : {}),
       ...(category ? { categoryId: category } : {}),
+      ...(marketPoint ? { marketPointId: marketPoint } : {}),
+      ...(priceStatus ? { priceStatus } : {}),
       ...(active ? { active: active === 'true' } : {}),
       ...(settlementMode ? { settlementMode } : {}),
     };
