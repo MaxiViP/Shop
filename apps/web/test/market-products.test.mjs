@@ -11,6 +11,7 @@ import * as quantity from '../app/utils/assembly.ts';
 import { qtyText } from '../app/utils/qty.ts';
 import { quickAddState } from '../app/utils/quick-add.ts';
 import { nextCartQty, previousCartQty, previewTotal, validCartQty } from '../app/utils/cart.ts';
+import { useProductGallery } from '../app/composables/useProductGallery.ts';
 
 const nodeRequire = createRequire(import.meta.url);
 const source = file => readFile(new URL(`../app/${file}`, import.meta.url), 'utf8');
@@ -35,7 +36,7 @@ async function component(file) {
   }).outputText;
   const module = { exports: {} };
   const context = { require: id => modules[id] ?? nodeRequire(id), exports: module.exports, module,
-    computed, ref, watch, useRoute: () => ({ params: { slug: product.slug } }),
+    computed, ref, watch, useProductGallery, useRoute: () => ({ params: { slug: product.slug } }),
     useCartActions: () => ({ add: async () => true, subtract: async () => true }),
     useAsset: () => value => value, useHeaderNotice: () => ({ show() {} }),
     useApi: async () => ({ data: ref(product), error: ref(null) }),
@@ -48,6 +49,7 @@ const Origin = await component('components/product/Origin.vue');
 const Price = await component('components/product/Price.vue');
 const Card = await component('components/product/Card.vue');
 const Detail = await component('pages/product/[slug].vue');
+const Gallery = await component('components/product/Gallery.vue');
 const wrapper = defineComponent({ setup: (_, { slots }) => () => h('div', slots.default?.()) });
 const link = defineComponent({ props: ['to'], setup: (props, { slots }) => () => h('a', { href: props.to }, slots.default?.()) });
 async function render(Component, props = {}) {
@@ -55,7 +57,8 @@ async function render(Component, props = {}) {
   app.component('NuxtLink', link);
   app.component('ProductOrigin', Origin);
   app.component('ProductPrice', Price);
-  for (const name of ['UButton', 'UContainer', 'UAlert', 'UIcon', 'ProductFavorite', 'ProductGallery', 'ProductQty', 'AppBreadcrumbs', 'AppBackButton'])
+  app.component('ProductGallery', Gallery);
+  for (const name of ['UButton', 'UContainer', 'UAlert', 'UIcon', 'ProductFavorite', 'ProductQty', 'AppBreadcrumbs', 'AppBackButton'])
     app.component(name, wrapper);
   return renderToString(app);
 }
@@ -79,6 +82,17 @@ test('product detail renders the same customer price, purchase total and market 
   assert.ok(html.includes('В корзину · 242 ₽'));
   assert.match(html, /href="\/market-map\/cezoni-market"/);
   assert.ok(html.includes('Цена ориентировочная. Актуальную цену продавец подтвердит при сборке.'));
+});
+
+test('catalog cards and actual detail gallery display the backend photo URL without depending on staging', async t => {
+  const image = { url: '/uploads/products/00000000-0000-8000-8000-000000000001.webp', alt: 'Product illustration' };
+  product.images = [image];
+  t.after(() => { product.images = []; });
+  for (const html of [await render(Card, { product }), await render(Detail)]) {
+    assert.ok(html.includes(`src="${image.url}"`) && html.includes(`alt="${image.alt}"`));
+    assert.ok(!html.includes('Фото скоро') && !html.includes('product-photo-source'));
+    assert.ok(html.includes('242 ₽') && !html.includes('220 ₽'));
+  }
 });
 
 test('nullable market relation keeps old cards usable; Grand Bazar gets its own link', async () => {

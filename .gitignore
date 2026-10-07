@@ -21,3 +21,8 @@ uploads/
 
 # Local visual references; never production assets.
 /references/
+
+# Photo staging is copied into the versioned API import pack; never a runtime dependency.
+/product-photo-source/
+/product-photo-slugs.json
+/product-photo-slugs-copy.json

@@ -12,7 +12,7 @@ export interface ImageFile {
   size: number;
 }
 
-export async function normalizeImage(file?: ImageFile): Promise<Buffer> {
+export async function normalizeImage(file?: ImageFile, preserveWebp = false): Promise<Buffer> {
   if (
     !file ||
     !['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)
@@ -37,6 +37,10 @@ export async function normalizeImage(file?: ImageFile): Promise<Buffer> {
       (info.pages ?? 1) > 1
     )
       throw new Error('format');
+    if (preserveWebp && info.format === 'webp') {
+      await image.clone().raw().toBuffer();
+      return file.buffer;
+    }
     return await image.rotate().webp({ quality: 85 }).toBuffer();
   } catch {
     throw new BadRequestException(

@@ -1,0 +1,1320 @@
+{
+  "kind": "AI_PLACEHOLDER",
+  "batch": "2026-10-07",
+  "products": [
+    {
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-chilled-sturgeon",
+      "name": "Осетр охлажденный, кг",
+      "marketPointSlug": "romanovskoe-osetrovoe-hozyaystvo",
+      "marketPointName": "Романовское осетровое хозяйство",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "5d7c82bb16e63a93c6c1b402e8852539bc0902c994bc9ade71eb5c84e66ccfef"
+    },
+    {
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-chilled-sterlet",
+      "name": "Стерлядь охлажденная, кг",
+      "marketPointSlug": "romanovskoe-osetrovoe-hozyaystvo",
+      "marketPointName": "Романовское осетровое хозяйство",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "662d07dddb55222f73a9747e11444cbf30b196826ff288535564609b9affdc08"
+    },
+    {
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-hot-smoked-sturgeon",
+      "name": "Осетр горячего копчения, кг",
+      "marketPointSlug": "romanovskoe-osetrovoe-hozyaystvo",
+      "marketPointName": "Романовское осетровое хозяйство",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "0bc9e411902d45f1894e8c40f20e74fbc9f9d603766c3be7172a8acd7a4dcdd2"
+    },
+    {
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-black-caviar-standard-30g",
+      "name": "Черная икра STANDARD 30 г",
+      "marketPointSlug": "romanovskoe-osetrovoe-hozyaystvo",
+      "marketPointName": "Романовское осетровое хозяйство",
+      "categorySlug": "seafood",
+      "priceStatus": "SOURCE",
+      "sha256": "e33c679d11e4eaf1d4d2db32aa4251cfc7d0340503a3978c058f4086f8124445"
+    },
+    {
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-black-caviar-standard-50g",
+      "name": "Черная икра STANDARD 50 г",
+      "marketPointSlug": "romanovskoe-osetrovoe-hozyaystvo",
+      "marketPointName": "Романовское осетровое хозяйство",
+      "categorySlug": "seafood",
+      "priceStatus": "SOURCE",
+      "sha256": "9735654c96d21b5b351dbb06cef540792d84870cad7e3c33856dc7e5542b620e"
+    },
+    {
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-black-caviar-standard-100g",
+      "name": "Черная икра STANDARD 100 г",
+      "marketPointSlug": "romanovskoe-osetrovoe-hozyaystvo",
+      "marketPointName": "Романовское осетровое хозяйство",
+      "categorySlug": "seafood",
+      "priceStatus": "SOURCE",
+      "sha256": "04d0ef561de627eba0387456e8b9b80e18bfce8ff844cff83a91c6c46c511583"
+    },
+    {
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-black-caviar-standard-250g",
+      "name": "Черная икра STANDARD 250 г",
+      "marketPointSlug": "romanovskoe-osetrovoe-hozyaystvo",
+      "marketPointName": "Романовское осетровое хозяйство",
+      "categorySlug": "seafood",
+      "priceStatus": "SOURCE",
+      "sha256": "cdb30c6943d7d695f082c9b2b3e6ee2fb29e48625f5d891cf9b0a5bf16ab46be"
+    },
+    {
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-black-caviar-premium-30g",
+      "name": "Черная икра PREMIUM 30 г",
+      "marketPointSlug": "romanovskoe-osetrovoe-hozyaystvo",
+      "marketPointName": "Романовское осетровое хозяйство",
+      "categorySlug": "seafood",
+      "priceStatus": "SOURCE",
+      "sha256": "d728a8fafc224eb0e4615268d2517acdcd06960cb94a75cfcb009a0d3754e7d4"
+    },
+    {
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-black-caviar-premium-100g",
+      "name": "Черная икра PREMIUM 100 г",
+      "marketPointSlug": "romanovskoe-osetrovoe-hozyaystvo",
+      "marketPointName": "Романовское осетровое хозяйство",
+      "categorySlug": "seafood",
+      "priceStatus": "SOURCE",
+      "sha256": "d2be69a174d7bc36a2e52c339cfdd9a1949f459cf57a933b92411db2aa183e0c"
+    },
+    {
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-black-caviar-premium-250g",
+      "name": "Черная икра PREMIUM 250 г",
+      "marketPointSlug": "romanovskoe-osetrovoe-hozyaystvo",
+      "marketPointName": "Романовское осетровое хозяйство",
+      "categorySlug": "seafood",
+      "priceStatus": "SOURCE",
+      "sha256": "29dcaa28395a17cedf28c9e85e804aafd76a0847277272d9a6203508f668fd52"
+    },
+    {
+      "slug": "borisovskie-syry-classic-semi-hard",
+      "name": "Сыр полутвердый классический, кг",
+      "marketPointSlug": "borisovskie-syry",
+      "marketPointName": "Борисовские ремесленные сыры",
+      "categorySlug": "cheese",
+      "priceStatus": "ESTIMATED",
+      "sha256": "db86ac7d8248c7275fabd2ee9b3f5ae2b36e84e3c6721c46a53731c1e7d57169"
+    },
+    {
+      "slug": "borisovskie-syry-aged-cheese",
+      "name": "Сыр выдержанный, кг",
+      "marketPointSlug": "borisovskie-syry",
+      "marketPointName": "Борисовские ремесленные сыры",
+      "categorySlug": "cheese",
+      "priceStatus": "ESTIMATED",
+      "sha256": "1bd6929ea112eb16c2e0d4b14ba3b3fc067b954f69a5967d86346b82903acad2"
+    },
+    {
+      "slug": "borisovskie-syry-goat-semi-hard",
+      "name": "Сыр козий полутвердый, кг",
+      "marketPointSlug": "borisovskie-syry",
+      "marketPointName": "Борисовские ремесленные сыры",
+      "categorySlug": "cheese",
+      "priceStatus": "ESTIMATED",
+      "sha256": "387f6087d57f614849e51fe051495b6c44162305904a5ee0ee7f4b4d68d4607b"
+    },
+    {
+      "slug": "borisovskie-syry-sheep-semi-hard",
+      "name": "Сыр овечий полутвердый, кг",
+      "marketPointSlug": "borisovskie-syry",
+      "marketPointName": "Борисовские ремесленные сыры",
+      "categorySlug": "cheese",
+      "priceStatus": "ESTIMATED",
+      "sha256": "519031db69ef456404a837a39ec1ef8bd4ec0812c54161fbac58e57d2f2a4fa7"
+    },
+    {
+      "slug": "borisovskie-syry-herb-cheese",
+      "name": "Сыр с травами, кг",
+      "marketPointSlug": "borisovskie-syry",
+      "marketPointName": "Борисовские ремесленные сыры",
+      "categorySlug": "cheese",
+      "priceStatus": "ESTIMATED",
+      "sha256": "ca57e7ed3baed7032c0fbd7e1bb14c81aac8ab0ae8b1ed40b9a957ce3940e539"
+    },
+    {
+      "slug": "borisovskie-syry-camembert-200-250g",
+      "name": "Камамбер 200–250 г",
+      "marketPointSlug": "borisovskie-syry",
+      "marketPointName": "Борисовские ремесленные сыры",
+      "categorySlug": "cheese",
+      "priceStatus": "ESTIMATED",
+      "sha256": "ab7fbebcd0a0f6f25d796318841676d432a7c5f0fd26df3248983127c8ea2edb"
+    },
+    {
+      "slug": "borisovskie-syry-brie-200-250g",
+      "name": "Бри 200–250 г",
+      "marketPointSlug": "borisovskie-syry",
+      "marketPointName": "Борисовские ремесленные сыры",
+      "categorySlug": "cheese",
+      "priceStatus": "ESTIMATED",
+      "sha256": "60b1a9167c1035858a9dbc696ad9e034c2c23822c253b62385fa5d7e690d954b"
+    },
+    {
+      "slug": "borisovskie-syry-halloumi-300-350g",
+      "name": "Халуми 300–350 г",
+      "marketPointSlug": "borisovskie-syry",
+      "marketPointName": "Борисовские ремесленные сыры",
+      "categorySlug": "cheese",
+      "priceStatus": "ESTIMATED",
+      "sha256": "6404a83220b388eb594e681f1f7b17c915177121003237d08a15482fc73982e4"
+    },
+    {
+      "slug": "paseka-ryshkovyh-buckwheat-honey-500g",
+      "name": "Мед гречишный 500 г",
+      "marketPointSlug": "paseka-ryshkovyh",
+      "marketPointName": "Мед с частной пасеки Рышковых",
+      "categorySlug": "honey",
+      "priceStatus": "ESTIMATED",
+      "sha256": "f20e7e7b4d25786496015098bca1b3c62ba24ccd76c7e827d4b0aa02024cbef4"
+    },
+    {
+      "slug": "paseka-ryshkovyh-linden-honey-500g",
+      "name": "Мед липовый 500 г",
+      "marketPointSlug": "paseka-ryshkovyh",
+      "marketPointName": "Мед с частной пасеки Рышковых",
+      "categorySlug": "honey",
+      "priceStatus": "ESTIMATED",
+      "sha256": "2799a7af7486bd9484755bdf9020caa339bdca13e9a408a9bf986fe8118d40dc"
+    },
+    {
+      "slug": "paseka-ryshkovyh-meadow-honey-500g",
+      "name": "Мед луговой 500 г",
+      "marketPointSlug": "paseka-ryshkovyh",
+      "marketPointName": "Мед с частной пасеки Рышковых",
+      "categorySlug": "honey",
+      "priceStatus": "ESTIMATED",
+      "sha256": "88021b8bbd2509d858e6863e171ab22324b60b5b131cce141414d61d3345f6cf"
+    },
+    {
+      "slug": "paseka-ryshkovyh-acacia-honey-500g",
+      "name": "Мед акациевый 500 г",
+      "marketPointSlug": "paseka-ryshkovyh",
+      "marketPointName": "Мед с частной пасеки Рышковых",
+      "categorySlug": "honey",
+      "priceStatus": "ESTIMATED",
+      "sha256": "11f0be3fa1becdeb5b04481081eda8f28a85307f2665a0b26310bda0fbf429fc"
+    },
+    {
+      "slug": "paseka-ryshkovyh-honeycomb-500g",
+      "name": "Мед в сотах 500 г",
+      "marketPointSlug": "paseka-ryshkovyh",
+      "marketPointName": "Мед с частной пасеки Рышковых",
+      "categorySlug": "honey",
+      "priceStatus": "ESTIMATED",
+      "sha256": "f64d91141ae820f958b7c37eef71fa806530acce366cfc6dda714ae9522aa90e"
+    },
+    {
+      "slug": "paseka-ryshkovyh-propolis-honey-500g",
+      "name": "Мед с прополисом 500 г",
+      "marketPointSlug": "paseka-ryshkovyh",
+      "marketPointName": "Мед с частной пасеки Рышковых",
+      "categorySlug": "honey",
+      "priceStatus": "ESTIMATED",
+      "sha256": "5e29fb1193d2adb77781cbc9bc1c043d58d84947f90afed41f063c3873102aa9"
+    },
+    {
+      "slug": "domashnie-solenya-salted-cucumbers",
+      "name": "Огурцы соленые, кг",
+      "marketPointSlug": "domashnie-solenya",
+      "marketPointName": "Домашние соленья",
+      "categorySlug": "pickles",
+      "priceStatus": "ESTIMATED",
+      "sha256": "fbb4e3a4e6346a06924c4a8639d36ec84f1ce4e1c206edffcda0193ef91b4829"
+    },
+    {
+      "slug": "domashnie-solenya-salted-tomatoes",
+      "name": "Томаты соленые, кг",
+      "marketPointSlug": "domashnie-solenya",
+      "marketPointName": "Домашние соленья",
+      "categorySlug": "pickles",
+      "priceStatus": "ESTIMATED",
+      "sha256": "f9b8a037d44256a46396b69508b6c606114e84e7f3918162b4a9121a4c34d72d"
+    },
+    {
+      "slug": "domashnie-solenya-sauerkraut",
+      "name": "Капуста квашеная, кг",
+      "marketPointSlug": "domashnie-solenya",
+      "marketPointName": "Домашние соленья",
+      "categorySlug": "pickles",
+      "priceStatus": "ESTIMATED",
+      "sha256": "f807d07db7bb61fd55bed2ca593a31341616703153cbaf2c0414c22e71a0389a"
+    },
+    {
+      "slug": "domashnie-solenya-spicy-cabbage",
+      "name": "Капуста острая, кг",
+      "marketPointSlug": "domashnie-solenya",
+      "marketPointName": "Домашние соленья",
+      "categorySlug": "pickles",
+      "priceStatus": "ESTIMATED",
+      "sha256": "b004f2188905a551864a69f047e778d293c711fac34651079773c4ca4f7a89ce"
+    },
+    {
+      "slug": "domashnie-solenya-kimchi",
+      "name": "Кимчи, кг",
+      "marketPointSlug": "domashnie-solenya",
+      "marketPointName": "Домашние соленья",
+      "categorySlug": "pickles",
+      "priceStatus": "ESTIMATED",
+      "sha256": "d9b9968d8f38ed3df2851983e1f3b2ab17a141750f6a6398b8f7995d3d431121"
+    },
+    {
+      "slug": "domashnie-solenya-pickled-mushrooms",
+      "name": "Грибы маринованные, кг",
+      "marketPointSlug": "domashnie-solenya",
+      "marketPointName": "Домашние соленья",
+      "categorySlug": "pickles",
+      "priceStatus": "ESTIMATED",
+      "sha256": "b2154e242780ede0b2eb8d9b3d45ba0f7ef1cb1de3543c707c3892545211e023"
+    },
+    {
+      "slug": "domashnie-solenya-pickled-garlic",
+      "name": "Чеснок маринованный, кг",
+      "marketPointSlug": "domashnie-solenya",
+      "marketPointName": "Домашние соленья",
+      "categorySlug": "pickles",
+      "priceStatus": "ESTIMATED",
+      "sha256": "73f3a356de75a26caa5cee69b3add950b8565836f258252101e8f48492c6f319"
+    },
+    {
+      "slug": "oktyabrskoe-moloko-milk-32-1l",
+      "name": "Молоко 3.2% 1 л",
+      "marketPointSlug": "oktyabrskoe-moloko",
+      "marketPointName": "Октябрьское молоко",
+      "categorySlug": "dairy",
+      "priceStatus": "ESTIMATED",
+      "sha256": "9d827bda45a2c7d9ae569fbe490352850c8cb7321eee2bc875a58f6dd62e5f67"
+    },
+    {
+      "slug": "oktyabrskoe-moloko-baked-milk-1l",
+      "name": "Молоко топленое 1 л",
+      "marketPointSlug": "oktyabrskoe-moloko",
+      "marketPointName": "Октябрьское молоко",
+      "categorySlug": "dairy",
+      "priceStatus": "ESTIMATED",
+      "sha256": "3b6723ed9f3c68de4aa31bbba8796d405b22f2b55d4b2da99398448778b5d0b6"
+    },
+    {
+      "slug": "oktyabrskoe-moloko-kefir-1l",
+      "name": "Кефир 1 л",
+      "marketPointSlug": "oktyabrskoe-moloko",
+      "marketPointName": "Октябрьское молоко",
+      "categorySlug": "dairy",
+      "priceStatus": "ESTIMATED",
+      "sha256": "f39fd824427fa8684543dd0c139369b11e8ab006e4474c8eb5349aae9e61af48"
+    },
+    {
+      "slug": "oktyabrskoe-moloko-ryazhenka-1l",
+      "name": "Ряженка 1 л",
+      "marketPointSlug": "oktyabrskoe-moloko",
+      "marketPointName": "Октябрьское молоко",
+      "categorySlug": "dairy",
+      "priceStatus": "ESTIMATED",
+      "sha256": "4dbacb58586c469982b3820cc0cfe08e9de39366882d4ebcf5634221423454a9"
+    },
+    {
+      "slug": "oktyabrskoe-moloko-sour-cream-20-350g",
+      "name": "Сметана 20% 350 г",
+      "marketPointSlug": "oktyabrskoe-moloko",
+      "marketPointName": "Октябрьское молоко",
+      "categorySlug": "dairy",
+      "priceStatus": "ESTIMATED",
+      "sha256": "409188d74e72ca2816ef1c7f7aa9a72498e809c39038b854c6c5a123b2c3c07e"
+    },
+    {
+      "slug": "oktyabrskoe-moloko-cottage-cheese-9-500g",
+      "name": "Творог 9% 500 г",
+      "marketPointSlug": "oktyabrskoe-moloko",
+      "marketPointName": "Октябрьское молоко",
+      "categorySlug": "dairy",
+      "priceStatus": "ESTIMATED",
+      "sha256": "f48c558a0ac2bbbbd1780716100615102bebfc247ce7a171ea7f83f2adf924b0"
+    },
+    {
+      "slug": "oktyabrskoe-moloko-butter-825-180g",
+      "name": "Масло сливочное 82.5% 180 г",
+      "marketPointSlug": "oktyabrskoe-moloko",
+      "marketPointName": "Октябрьское молоко",
+      "categorySlug": "dairy",
+      "priceStatus": "ESTIMATED",
+      "sha256": "f4fd0c735c294aa26ebaf69da52651a1e3179f999f9d0e2bcbdaaa582d50b0ba"
+    },
+    {
+      "slug": "oktyabrskoe-moloko-cream-10-500ml",
+      "name": "Сливки 10% 500 мл",
+      "marketPointSlug": "oktyabrskoe-moloko",
+      "marketPointName": "Октябрьское молоко",
+      "categorySlug": "dairy",
+      "priceStatus": "ESTIMATED",
+      "sha256": "64083cf90e756fcdf13e03fafc193d5cfdccd5a9aad9af00847ecafc4025f106"
+    },
+    {
+      "slug": "oktyabrskoe-moloko-cream-33-500ml",
+      "name": "Сливки 33% 500 мл",
+      "marketPointSlug": "oktyabrskoe-moloko",
+      "marketPointName": "Октябрьское молоко",
+      "categorySlug": "dairy",
+      "priceStatus": "ESTIMATED",
+      "sha256": "582daa1c3848807b2109abb54fe6c0169b4c2ce1d73e30f0ae97b5826de79678"
+    },
+    {
+      "slug": "chinese-tea-da-hong-pao-100g",
+      "name": "Да Хун Пао 100 г",
+      "marketPointSlug": "chinese-tea",
+      "marketPointName": "Магазин Китайского чая",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "6c20e9461e4b7b11e7805854153a8c9595bbda82341e194ab0e3acb5d6df96ba"
+    },
+    {
+      "slug": "chinese-tea-tie-guan-yin-100g",
+      "name": "Те Гуань Инь 100 г",
+      "marketPointSlug": "chinese-tea",
+      "marketPointName": "Магазин Китайского чая",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "e09cad71c5ca313896d30d24a1e684bd956dec76bd8cdd11a40d02c11fe6dec9"
+    },
+    {
+      "slug": "chinese-tea-shu-puer-100g",
+      "name": "Шу Пуэр 100 г",
+      "marketPointSlug": "chinese-tea",
+      "marketPointName": "Магазин Китайского чая",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "f92c4aa26dd9ac34bb599c030e0f1b518d8519186d8e7d923db85f6af884d0da"
+    },
+    {
+      "slug": "chinese-tea-sheng-puer-100g",
+      "name": "Шен Пуэр 100 г",
+      "marketPointSlug": "chinese-tea",
+      "marketPointName": "Магазин Китайского чая",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "a19ae3eaf600f75773fd78d4fc883bf7182737372d9027bd4ce0bbb8d0c7b905"
+    },
+    {
+      "slug": "chinese-tea-long-jing-100g",
+      "name": "Лун Цзин 100 г",
+      "marketPointSlug": "chinese-tea",
+      "marketPointName": "Магазин Китайского чая",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "674df47f06bc98e55c73fc7c405cff53bda688b1dd9909bb92d00417d96d6eb2"
+    },
+    {
+      "slug": "chinese-tea-jasmine-green-tea-100g",
+      "name": "Жасминовый зеленый чай 100 г",
+      "marketPointSlug": "chinese-tea",
+      "marketPointName": "Магазин Китайского чая",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "699685d53b866218cf02bf871cfd755a23bfb7fd06f3e794d94fd75029942ed7"
+    },
+    {
+      "slug": "chinese-tea-gaba-oolong-100g",
+      "name": "Габа улун 100 г",
+      "marketPointSlug": "chinese-tea",
+      "marketPointName": "Магазин Китайского чая",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "b962fd59689fc2e9c2c74059275ff25b5ae89781b5705a93217905bc8d59603e"
+    },
+    {
+      "slug": "pyem-chay-assam-100g",
+      "name": "Ассам 100 г",
+      "marketPointSlug": "pyem-chay",
+      "marketPointName": "ПЬЕМ ЧАЙ",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "cd19014d29ae518af570e9dc8e7760e2d4610fe397b0deb4b25938e1c2c5e226"
+    },
+    {
+      "slug": "pyem-chay-earl-grey-100g",
+      "name": "Эрл Грей 100 г",
+      "marketPointSlug": "pyem-chay",
+      "marketPointName": "ПЬЕМ ЧАЙ",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "7c27f231c27127b2eab34e4dcec778f2395f75a49ecae7307a842e69050e2e75"
+    },
+    {
+      "slug": "pyem-chay-jasmine-green-tea-100g",
+      "name": "Зеленый чай с жасмином 100 г",
+      "marketPointSlug": "pyem-chay",
+      "marketPointName": "ПЬЕМ ЧАЙ",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "852770f25f79eb745f3c0aac133dac887d18bcb7ec4eaf9c453265d3f893043e"
+    },
+    {
+      "slug": "pyem-chay-fruit-tea-100g",
+      "name": "Фруктовый чай 100 г",
+      "marketPointSlug": "pyem-chay",
+      "marketPointName": "ПЬЕМ ЧАЙ",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "4f333ddaedc89183041e66d6a9acf28332a90c8d41be58cde8599aa757356e12"
+    },
+    {
+      "slug": "pyem-chay-herbal-blend-100g",
+      "name": "Травяной сбор 100 г",
+      "marketPointSlug": "pyem-chay",
+      "marketPointName": "ПЬЕМ ЧАЙ",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "59d78a2a3346fda266d1b8d0776c90d078853a6a47a854954c887d9e50794aed"
+    },
+    {
+      "slug": "pyem-chay-puer-100g",
+      "name": "Пуэр 100 г",
+      "marketPointSlug": "pyem-chay",
+      "marketPointName": "ПЬЕМ ЧАЙ",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "81c35367cbdf27edb51aed4763154fad0abb7909749d9ec981cd3d77798aa98d"
+    },
+    {
+      "slug": "pyem-chay-matcha-50g",
+      "name": "Матча 50 г",
+      "marketPointSlug": "pyem-chay",
+      "marketPointName": "ПЬЕМ ЧАЙ",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "5f030056434bd320bef70e2e75a0178c602d8c08f9b499569d9ee8bd70572324"
+    },
+    {
+      "slug": "kondifud-zephyr-500g",
+      "name": "Зефир 500 г",
+      "marketPointSlug": "kondifud",
+      "marketPointName": "КОНДИФУД",
+      "categorySlug": "sweets-biscuits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "4c4f6d02a605c8645015f49fba5b5d9622ae6185d5889c58b4c0a4b0453cce95"
+    },
+    {
+      "slug": "kondifud-marmalade-500g",
+      "name": "Мармелад 500 г",
+      "marketPointSlug": "kondifud",
+      "marketPointName": "КОНДИФУД",
+      "categorySlug": "sweets-biscuits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "65b4394da467d1af61d53a12f1c4508dec155ed5331062357248d387d47e57b8"
+    },
+    {
+      "slug": "kondifud-oat-biscuits-500g",
+      "name": "Печенье овсяное 500 г",
+      "marketPointSlug": "kondifud",
+      "marketPointName": "КОНДИФУД",
+      "categorySlug": "sweets-biscuits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "2ec13d89496b19a836ed75f586aa892b9c64d9de10d8b65cc28eb7fb9a52e40b"
+    },
+    {
+      "slug": "kondifud-wafers-500g",
+      "name": "Вафли 500 г",
+      "marketPointSlug": "kondifud",
+      "marketPointName": "КОНДИФУД",
+      "categorySlug": "sweets-biscuits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "9604b40a7b4f793d53f622ceda74d0f9b2c8b514118804987e9109216af2c17d"
+    },
+    {
+      "slug": "kondifud-chocolate-candies-500g",
+      "name": "Конфеты шоколадные 500 г",
+      "marketPointSlug": "kondifud",
+      "marketPointName": "КОНДИФУД",
+      "categorySlug": "sweets-biscuits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "6fab6cd52e75716d797ed8c3521e518803131ceaa228724bac354baa666b2f58"
+    },
+    {
+      "slug": "kondifud-halva-500g",
+      "name": "Халва 500 г",
+      "marketPointSlug": "kondifud",
+      "marketPointName": "КОНДИФУД",
+      "categorySlug": "sweets-biscuits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "7ed840e2b292653c8c9cdddb77e847a00dd2fe16af0f13d888fbda3334b6e30d"
+    },
+    {
+      "slug": "kondifud-gingerbread-500g",
+      "name": "Пряники 500 г",
+      "marketPointSlug": "kondifud",
+      "marketPointName": "КОНДИФУД",
+      "categorySlug": "sweets-biscuits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "f970f883263638bfe29d30855cf748b586e2a9b39b5726d847a939b00a54e1ec"
+    },
+    {
+      "slug": "myasoed-beef-shoulder",
+      "name": "Говядина лопатка, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "57f4af44b7d8df72a2c0c6dc6ea06f98f4cc01546ce2f57bf3a19eaaaefdc202"
+    },
+    {
+      "slug": "myasoed-beef-tenderloin",
+      "name": "Говядина вырезка, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "d5a6a5d73c08e0a7cbaef037ee1e5b3b1971fa17fde2433ec37427df915ad0e5"
+    },
+    {
+      "slug": "myasoed-ground-beef",
+      "name": "Фарш говяжий, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "bec2c1060a2886db1bb7840804d9170ca9a0c51c39f757b2ecefe6415f5c49db"
+    },
+    {
+      "slug": "myasoed-pork-neck",
+      "name": "Свинина шея, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "8fd57b9df6e4f2ce47b0b2606d51bf89f61c3384635d0fba237a0ab321c6da4a"
+    },
+    {
+      "slug": "myasoed-pork-tenderloin",
+      "name": "Свинина вырезка, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "017031d6f4ea0309dcfaf9d652d74789acceb67a69c2b665e78e52e0fadbeddb"
+    },
+    {
+      "slug": "myasoed-pork-ribs",
+      "name": "Ребра свиные, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "1ba7f62d18cbcfc8f9788f549cf0898a117821c4c8e090cd00175e6a02138084"
+    },
+    {
+      "slug": "myasoed-chicken-fillet",
+      "name": "Филе куриное, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "poultry",
+      "priceStatus": "ESTIMATED",
+      "sha256": "866250ced703a276b4e1f340455069189130f04c86017d74cb6b6d4bd25a381e"
+    },
+    {
+      "slug": "myasoed-chicken-thigh",
+      "name": "Бедро куриное, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "poultry",
+      "priceStatus": "ESTIMATED",
+      "sha256": "6a9e57bd8b4c45343d6cc807607d0048232cc7ba9c841c4214ef483dd9a432b4"
+    },
+    {
+      "slug": "myasoed-turkey-fillet",
+      "name": "Филе индейки, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "poultry",
+      "priceStatus": "ESTIMATED",
+      "sha256": "88b7678eb01c2459207318bd386b2c28014f4745a5ab077a39b9e0bb8e0a2090"
+    },
+    {
+      "slug": "myasoed-turkey-thigh",
+      "name": "Бедро индейки, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "poultry",
+      "priceStatus": "ESTIMATED",
+      "sha256": "0c59bbcf4eabeaf31fec5da5c9f7b71cb99f025d3c9bc4c182df88ce5a1f3c66"
+    },
+    {
+      "slug": "myasoed-rabbit",
+      "name": "Кролик, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "aa673ccd1cf0fe7f678b9a4566e86bbee5d34becabc242a93dd2a00971bac4c4"
+    },
+    {
+      "slug": "myasoed-beef-tongue",
+      "name": "Язык говяжий, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "3494b2e307f3f770825eab629aa3b58fb8141b893902fd2ba1f160df310f5bdd"
+    },
+    {
+      "slug": "myasoed-beef-liver",
+      "name": "Печень говяжья, кг",
+      "marketPointSlug": "myasoed",
+      "marketPointName": "МЯСОЕД",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "1e5ec8b3e8ee5d1b4ca6a8510dd9eb5607260f83a95fa5b1c3900a2056ef6cbf"
+    },
+    {
+      "slug": "halal-meat-lamb-leg",
+      "name": "Баранина нога, кг",
+      "marketPointSlug": "halal-meat",
+      "marketPointName": "МЯСО ХАЛЯЛЬ",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "2097612b70b6ed2cfb183377792c4e85951d1cb4ad97ea4fe5222356a3ac2cc2"
+    },
+    {
+      "slug": "halal-meat-lamb-shoulder",
+      "name": "Баранина лопатка, кг",
+      "marketPointSlug": "halal-meat",
+      "marketPointName": "МЯСО ХАЛЯЛЬ",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "2096be42c809ae569580019a132d7e5fa83b949a92d7132b89681ad79cb6ab8d"
+    },
+    {
+      "slug": "halal-meat-lamb-ribs",
+      "name": "Баранина ребра, кг",
+      "marketPointSlug": "halal-meat",
+      "marketPointName": "МЯСО ХАЛЯЛЬ",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "9cd3ba7aa8e7af7166f1f87927ef77abe739f07214d23fafc4b1b32b6295450b"
+    },
+    {
+      "slug": "halal-meat-beef-shoulder",
+      "name": "Говядина лопатка, кг",
+      "marketPointSlug": "halal-meat",
+      "marketPointName": "МЯСО ХАЛЯЛЬ",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "59e2c05b06192249c11650fcbb20b92c0143e80546f8487a7b8f188502306177"
+    },
+    {
+      "slug": "halal-meat-beef-ribs",
+      "name": "Говядина ребра, кг",
+      "marketPointSlug": "halal-meat",
+      "marketPointName": "МЯСО ХАЛЯЛЬ",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "aa99cc6005929d58eca004900a0e628751da39547d23a3c823d5d678fd2cd445"
+    },
+    {
+      "slug": "halal-meat-halal-ground-beef",
+      "name": "Фарш говяжий халяль, кг",
+      "marketPointSlug": "halal-meat",
+      "marketPointName": "МЯСО ХАЛЯЛЬ",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "a101aa0b2286dc6d0591a9f2233c1a5d358f4d101a47dcc178ad915ac59d63b2"
+    },
+    {
+      "slug": "halal-meat-halal-chicken",
+      "name": "Курица халяль, кг",
+      "marketPointSlug": "halal-meat",
+      "marketPointName": "МЯСО ХАЛЯЛЬ",
+      "categorySlug": "poultry",
+      "priceStatus": "ESTIMATED",
+      "sha256": "1b59979df51c0885718b20f37a791dceb7a5ef384b8cd0ca30c638459b76518b"
+    },
+    {
+      "slug": "halal-meat-halal-turkey-fillet",
+      "name": "Филе индейки халяль, кг",
+      "marketPointSlug": "halal-meat",
+      "marketPointName": "МЯСО ХАЛЯЛЬ",
+      "categorySlug": "poultry",
+      "priceStatus": "ESTIMATED",
+      "sha256": "69b0106b893120eb1cb90f8258f7b05870741cf6b4c7b23060a1ac6e2fbc0c51"
+    },
+    {
+      "slug": "halal-meat-beef-liver",
+      "name": "Печень говяжья, кг",
+      "marketPointSlug": "halal-meat",
+      "marketPointName": "МЯСО ХАЛЯЛЬ",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "24d20ab52049b3e8823b21dd9e2c5be64378f2a7bcd9848d26db72c9f1d6e13a"
+    },
+    {
+      "slug": "oriental-sweets-nuts-walnuts",
+      "name": "Грецкий орех, кг",
+      "marketPointSlug": "oriental-sweets-nuts",
+      "marketPointName": "Восточные сладости, орехи",
+      "categorySlug": "nuts-dried-fruits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "0803d90b69a8dc0b589343d0068443088bac3976493944533bb2181770a0ccbe"
+    },
+    {
+      "slug": "oriental-sweets-nuts-cashews",
+      "name": "Кешью, кг",
+      "marketPointSlug": "oriental-sweets-nuts",
+      "marketPointName": "Восточные сладости, орехи",
+      "categorySlug": "nuts-dried-fruits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "d749bd2c5b6431d633a5dc5f25cbab839abc27bf21c3783980a7874b3b9b8557"
+    },
+    {
+      "slug": "oriental-sweets-nuts-pistachios",
+      "name": "Фисташки, кг",
+      "marketPointSlug": "oriental-sweets-nuts",
+      "marketPointName": "Восточные сладости, орехи",
+      "categorySlug": "nuts-dried-fruits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "ba22bc59ce57eea238eada5196f78e965e77993180869a8969c2bb35a5b7141f"
+    },
+    {
+      "slug": "oriental-sweets-nuts-almonds",
+      "name": "Миндаль, кг",
+      "marketPointSlug": "oriental-sweets-nuts",
+      "marketPointName": "Восточные сладости, орехи",
+      "categorySlug": "nuts-dried-fruits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "2c4e0f975ad18b5d5fd18e0e5eefc62a37adb8e1fcb9b63d529279ddee5a3eac"
+    },
+    {
+      "slug": "oriental-sweets-nuts-dried-apricots",
+      "name": "Курага, кг",
+      "marketPointSlug": "oriental-sweets-nuts",
+      "marketPointName": "Восточные сладости, орехи",
+      "categorySlug": "nuts-dried-fruits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "fe5ab4fb90e8ebf1025d5ef7cfae2b218ef1536ad376b04dd99ad1a4e2ffdb6f"
+    },
+    {
+      "slug": "oriental-sweets-nuts-dates",
+      "name": "Финики, кг",
+      "marketPointSlug": "oriental-sweets-nuts",
+      "marketPointName": "Восточные сладости, орехи",
+      "categorySlug": "nuts-dried-fruits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "b844446bec0adffb2c46dfb8091b4605f88abdb76226ffbfa20754ae985f1fdf"
+    },
+    {
+      "slug": "oriental-sweets-nuts-raisins",
+      "name": "Изюм, кг",
+      "marketPointSlug": "oriental-sweets-nuts",
+      "marketPointName": "Восточные сладости, орехи",
+      "categorySlug": "nuts-dried-fruits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "26ae486f5550c742ad33901a5a13f216d0eec54a9493052071cec5067cf4e0c3"
+    },
+    {
+      "slug": "oriental-sweets-nuts-baklava",
+      "name": "Пахлава, кг",
+      "marketPointSlug": "oriental-sweets-nuts",
+      "marketPointName": "Восточные сладости, орехи",
+      "categorySlug": "sweets-biscuits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "4ef9386f4072f4ee73f1f46171338f473f3c27d37e764f1b1bfbe73774e6ba71"
+    },
+    {
+      "slug": "oriental-sweets-nuts-churchkhela",
+      "name": "Чурчхела, шт",
+      "marketPointSlug": "oriental-sweets-nuts",
+      "marketPointName": "Восточные сладости, орехи",
+      "categorySlug": "sweets-biscuits",
+      "priceStatus": "ESTIMATED",
+      "sha256": "8223fdfb58c417da8fa90ae9c9608b8281a6a80c5bd61df0637ef4e0d5bf9687"
+    },
+    {
+      "slug": "bakery-wheat-loaf",
+      "name": "Батон пшеничный",
+      "marketPointSlug": "bakery",
+      "marketPointName": "Булочная",
+      "categorySlug": "bakery",
+      "priceStatus": "ESTIMATED",
+      "sha256": "f29f76f3ff190d3b3e871d502c92caeca3af0cf70d44656f13883524a3efdcf1"
+    },
+    {
+      "slug": "bakery-rye-bread",
+      "name": "Хлеб ржаной",
+      "marketPointSlug": "bakery",
+      "marketPointName": "Булочная",
+      "categorySlug": "bakery",
+      "priceStatus": "ESTIMATED",
+      "sha256": "bfb67324eeae3369d58fb176e28d101049a590e8f420acfea85a2d4d3e5db046"
+    },
+    {
+      "slug": "bakery-baguette",
+      "name": "Багет",
+      "marketPointSlug": "bakery",
+      "marketPointName": "Булочная",
+      "categorySlug": "bakery",
+      "priceStatus": "ESTIMATED",
+      "sha256": "d5d82948bf10cce3b064c720e26263211383d5ab1a8fc976d64f71b5331236f4"
+    },
+    {
+      "slug": "bakery-sourdough-wheat-bread",
+      "name": "Хлеб пшеничный на закваске",
+      "marketPointSlug": "bakery",
+      "marketPointName": "Булочная",
+      "categorySlug": "bakery",
+      "priceStatus": "ESTIMATED",
+      "sha256": "9c0fe13c2c7abb602f0cf35be9ed4ba09ba8179df6e7ed7a946cbc1f1800a2d5"
+    },
+    {
+      "slug": "bakery-ciabatta",
+      "name": "Чиабатта",
+      "marketPointSlug": "bakery",
+      "marketPointName": "Булочная",
+      "categorySlug": "bakery",
+      "priceStatus": "ESTIMATED",
+      "sha256": "cd54b720234886236324fb81368d230888e8a806180bf78ab505df1075e9114a"
+    },
+    {
+      "slug": "bakery-lavash",
+      "name": "Лаваш",
+      "marketPointSlug": "bakery",
+      "marketPointName": "Булочная",
+      "categorySlug": "bakery",
+      "priceStatus": "ESTIMATED",
+      "sha256": "315f6466a42b0ae81a3d31e2bbd3acad4782aa96dbc5cc56f1e1e176baad715c"
+    },
+    {
+      "slug": "bakery-classic-croissant",
+      "name": "Круассан классический",
+      "marketPointSlug": "bakery",
+      "marketPointName": "Булочная",
+      "categorySlug": "bakery",
+      "priceStatus": "ESTIMATED",
+      "sha256": "1dd47c82a641bcd9d9cbd8be38785bf9447d2bf116b67c9bafe54ec0e1d352db"
+    },
+    {
+      "slug": "bakery-meat-pie",
+      "name": "Пирожок с мясом",
+      "marketPointSlug": "bakery",
+      "marketPointName": "Булочная",
+      "categorySlug": "bakery",
+      "priceStatus": "ESTIMATED",
+      "sha256": "cce41f151c7de7ea200f4ecc67a6c7d8c5f243279310eb29242d44627ded34be"
+    },
+    {
+      "slug": "tea-coffee-brazil-arabica-250g",
+      "name": "Кофе арабика Бразилия 250 г",
+      "marketPointSlug": "tea-coffee",
+      "marketPointName": "Чай, кофе",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "a344884429ca7423d2a98f7d9283a1939039973610f1b25f7707a183ddfc86d2"
+    },
+    {
+      "slug": "tea-coffee-ethiopia-coffee-250g",
+      "name": "Кофе Эфиопия 250 г",
+      "marketPointSlug": "tea-coffee",
+      "marketPointName": "Чай, кофе",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "2a77899174aaf5e1cbbbb107070a35d9f9be2f0fb2688065c05804c553da5908"
+    },
+    {
+      "slug": "tea-coffee-espresso-blend-250g",
+      "name": "Эспрессо смесь 250 г",
+      "marketPointSlug": "tea-coffee",
+      "marketPointName": "Чай, кофе",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "0d52ededf9401be17a43b8db3f81798e861563671c1cdbaffdfd8561a7e99dae"
+    },
+    {
+      "slug": "tea-coffee-ground-coffee-250g",
+      "name": "Кофе молотый 250 г",
+      "marketPointSlug": "tea-coffee",
+      "marketPointName": "Чай, кофе",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "762d52eb64d1cba9309061e24a6b15c020854e02a8a1d53bebc62cf6f20a4ea0"
+    },
+    {
+      "slug": "tea-coffee-classic-black-tea-100g",
+      "name": "Чай черный классический 100 г",
+      "marketPointSlug": "tea-coffee",
+      "marketPointName": "Чай, кофе",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "0f9ef1cb819789749065a73efb1c06d8cbf79e203348f293bc8c753c00ee0ebb"
+    },
+    {
+      "slug": "tea-coffee-classic-green-tea-100g",
+      "name": "Чай зеленый классический 100 г",
+      "marketPointSlug": "tea-coffee",
+      "marketPointName": "Чай, кофе",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "0bdc61079127ffc671e4b9e9ca618bf76c44210dddd1adbb878586667cf70b3a"
+    },
+    {
+      "slug": "tea-coffee-herbal-tea-100g",
+      "name": "Чай травяной 100 г",
+      "marketPointSlug": "tea-coffee",
+      "marketPointName": "Чай, кофе",
+      "categorySlug": "tea-coffee",
+      "priceStatus": "ESTIMATED",
+      "sha256": "8a5f4655933b53260f81ed75928cb06ae10f433e3fec1c3a60252dd1f0624e49"
+    },
+    {
+      "slug": "goldfish-live-carp",
+      "name": "Карп живой, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "c079e99748733b70f7d700de60a8d8dacc297c287f39c5a30e638a424d34a236"
+    },
+    {
+      "slug": "goldfish-chilled-trout",
+      "name": "Форель охлажденная, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "0d650cfec0f51fd07dcf6da7f1cad751f21867f8fc9b91d405414c654301c47b"
+    },
+    {
+      "slug": "goldfish-chilled-dorado",
+      "name": "Дорадо охлажденная, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "8443e44eed412356fda9c91e05d14ce90725207b5016aacc3d906cbf1d2c5f31"
+    },
+    {
+      "slug": "goldfish-chilled-seabass",
+      "name": "Сибас охлажденный, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "4e6b54fa4a99bb01398567e1d540ca5d7cfe61e51727b8cd31f72a827e93b402"
+    },
+    {
+      "slug": "goldfish-salmon-steak",
+      "name": "Стейк лосося, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "9e8f451f1c1e7c2e2afdca52c4dae942a427a2472d9c26238894833abda42318"
+    },
+    {
+      "slug": "goldfish-salmon-fillet",
+      "name": "Филе лосося, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "b0d1aee8d92bd85b66d0cecf94d34e51e2f687cf11166db8b7b8e5d6ee46b19f"
+    },
+    {
+      "slug": "goldfish-cod-fillet",
+      "name": "Филе трески, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "bd889556c5f0c3167737cf05ae9f38aedd78a3590bde4f60e6102a088bee45d7"
+    },
+    {
+      "slug": "goldfish-halibut",
+      "name": "Палтус, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "003aa7bfdb67f1b4a5e2da80c455579da806771f98353e020492d7c883df5e64"
+    },
+    {
+      "slug": "goldfish-frozen-mackerel",
+      "name": "Скумбрия замороженная, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "4c28e50eca19b4637085e1c2b875263c71d3fc45cac7a67074fb9fea609b7504"
+    },
+    {
+      "slug": "goldfish-salted-herring",
+      "name": "Сельдь соленая, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "7cc1901687c58469dd4e41d347f65d85850b9080eba6aa14474d49c9d14b9bf0"
+    },
+    {
+      "slug": "goldfish-hot-smoked-mackerel",
+      "name": "Скумбрия горячего копчения, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "fish",
+      "priceStatus": "ESTIMATED",
+      "sha256": "06359a323f2418e41a13b475ddfcdc735f36ee2b1e80ffd30d4b68e68d03f398"
+    },
+    {
+      "slug": "goldfish-shrimp-70-90",
+      "name": "Креветки 70/90, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "seafood",
+      "priceStatus": "ESTIMATED",
+      "sha256": "da237d18bdfc7f34512283d2ed9e3cc184f61ff4dfe49781fe99410668275b34"
+    },
+    {
+      "slug": "goldfish-squid",
+      "name": "Кальмар, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "seafood",
+      "priceStatus": "ESTIMATED",
+      "sha256": "e8cb3a3d880c72d8b052513ce4b549caf20114fe8c34d66bc81dd538e0b34e6c"
+    },
+    {
+      "slug": "goldfish-mussels",
+      "name": "Мидии, кг",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "seafood",
+      "priceStatus": "ESTIMATED",
+      "sha256": "4736562982f56eda5fa42ab8dc91e8516eeb5448205fe0e9972a157e7cb311f5"
+    },
+    {
+      "slug": "goldfish-red-caviar-200g",
+      "name": "Икра красная 200 г",
+      "marketPointSlug": "goldfish",
+      "marketPointName": "Золотая Рыбка",
+      "categorySlug": "seafood",
+      "priceStatus": "ESTIMATED",
+      "sha256": "4672216e422c14e4146d883ea11bec0da3fc9d704876d73f72fa94ad8932f704"
+    },
+    {
+      "slug": "vkusnaya-stall-homemade-dumplings-500g",
+      "name": "Пельмени домашние 500 г",
+      "marketPointSlug": "vkusnaya-stall",
+      "marketPointName": "Вкусная Лавка",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "cf300f3cc2ce5adb93f3cfe66e70b5726d82b11581b522f4a3bdb4e82e7743f0"
+    },
+    {
+      "slug": "vkusnaya-stall-beef-cutlets-500g",
+      "name": "Котлеты говяжьи 500 г",
+      "marketPointSlug": "vkusnaya-stall",
+      "marketPointName": "Вкусная Лавка",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "b19c42a955efc467e85bc9dca8b9306b1ba2bb48e43a8382ec89f50356f341db"
+    },
+    {
+      "slug": "vkusnaya-stall-turkey-cutlets-500g",
+      "name": "Котлеты из индейки 500 г",
+      "marketPointSlug": "vkusnaya-stall",
+      "marketPointName": "Вкусная Лавка",
+      "categorySlug": "poultry",
+      "priceStatus": "ESTIMATED",
+      "sha256": "cf5e81db100d3d8852b61c44fc81e821ec2894c5ab91698f165e8108268f1580"
+    },
+    {
+      "slug": "vkusnaya-stall-meat-pancakes-500g",
+      "name": "Блинчики с мясом 500 г",
+      "marketPointSlug": "vkusnaya-stall",
+      "marketPointName": "Вкусная Лавка",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "019e35637d44c416801a95bbe9c4377385f9aad45bf6767284a1df870f577c70"
+    },
+    {
+      "slug": "vkusnaya-stall-stuffed-peppers-500g",
+      "name": "Перец фаршированный 500 г",
+      "marketPointSlug": "vkusnaya-stall",
+      "marketPointName": "Вкусная Лавка",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "901c0ab1dbdaef3af4bc61d594dc9d52dbe7746ffcebd44e3dae984f1fa3763d"
+    },
+    {
+      "slug": "vkusnaya-stall-cabbage-rolls-500g",
+      "name": "Голубцы 500 г",
+      "marketPointSlug": "vkusnaya-stall",
+      "marketPointName": "Вкусная Лавка",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "2ee83b4540c1615f3049aef48055a3d860622549ea825a00df6bca130cbc4061"
+    },
+    {
+      "slug": "vkusnaya-stall-homemade-mince-500g",
+      "name": "Фарш домашний 500 г",
+      "marketPointSlug": "vkusnaya-stall",
+      "marketPointName": "Вкусная Лавка",
+      "categorySlug": "meat",
+      "priceStatus": "ESTIMATED",
+      "sha256": "d000ca46230804b9b9f8f06059b11c01da14e3a79fddf9a98c17be8a6921712d"
+    },
+    {
+      "slug": "vkusnaya-stall-kupaty-500g",
+      "name": "Купаты 500 г",
+      "marketPointSlug": "vkusnaya-stall",
+      "marketPointName": "Вкусная Лавка",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "4dd6a471d8356a02a2fd7888eeb58f11a989fe12af3feb331123c72d4edfe5ab"
+    },
+    {
+      "slug": "myasnitskiy-ryad-doctors-sausage",
+      "name": "Колбаса Докторская, кг",
+      "marketPointSlug": "myasnitskiy-ryad",
+      "marketPointName": "Мясницкий ряд",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "721198f9ffc7844c3012589333070023883ea9c690911f82a0d9de4f19d6f3aa"
+    },
+    {
+      "slug": "myasnitskiy-ryad-krakow-sausage",
+      "name": "Колбаса Краковская, кг",
+      "marketPointSlug": "myasnitskiy-ryad",
+      "marketPointName": "Мясницкий ряд",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "0ba483d9a6c815a7c7b8e98c121a3f1892ba50666db6405e3f8882caf3bdfc94"
+    },
+    {
+      "slug": "myasnitskiy-ryad-cervelat",
+      "name": "Сервелат, кг",
+      "marketPointSlug": "myasnitskiy-ryad",
+      "marketPointName": "Мясницкий ряд",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "3faec73ebf27c86393f716b74a531dc2cab7089d92dcc45f35c337484e606f20"
+    },
+    {
+      "slug": "myasnitskiy-ryad-roast-pork",
+      "name": "Буженина, кг",
+      "marketPointSlug": "myasnitskiy-ryad",
+      "marketPointName": "Мясницкий ряд",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "421da2b3e24103f74d6d0f74911b4786d9e4114a6080e478c426951e46dee910"
+    },
+    {
+      "slug": "myasnitskiy-ryad-ham",
+      "name": "Ветчина, кг",
+      "marketPointSlug": "myasnitskiy-ryad",
+      "marketPointName": "Мясницкий ряд",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "99749c4bfce6caa294a6c7edee0c6d75067924d1fe5b221187f560e347c90fca"
+    },
+    {
+      "slug": "myasnitskiy-ryad-milk-sausages",
+      "name": "Сосиски молочные, кг",
+      "marketPointSlug": "myasnitskiy-ryad",
+      "marketPointName": "Мясницкий ряд",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "f5f18b9a1a19350fb53887f3a2755cbe499ff4251baa85658d51ed5f3d600ccf"
+    },
+    {
+      "slug": "myasnitskiy-ryad-hunting-sausages",
+      "name": "Колбаски охотничьи, кг",
+      "marketPointSlug": "myasnitskiy-ryad",
+      "marketPointName": "Мясницкий ряд",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "8a3a658d1ea020a12adf4fcdbff1027438011c62b2a2174dde36b25ed20c04bf"
+    },
+    {
+      "slug": "myasnitskiy-ryad-bacon",
+      "name": "Бекон, кг",
+      "marketPointSlug": "myasnitskiy-ryad",
+      "marketPointName": "Мясницкий ряд",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "a95e1edaaa93c0c8df28568e594d2d046bb6a81cb7ed120a2c86adc1e99aae21"
+    },
+    {
+      "slug": "fermerskie-kolbasy-pork-sausage",
+      "name": "Колбаса домашняя свиная, кг",
+      "marketPointSlug": "fermerskie-kolbasy",
+      "marketPointName": "Фермерские домашние колбасы",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "5ec1222666dde0b51881e466682eae434d225659f35ac82e56d03c6025648cae"
+    },
+    {
+      "slug": "fermerskie-kolbasy-beef-sausage",
+      "name": "Колбаса домашняя говяжья, кг",
+      "marketPointSlug": "fermerskie-kolbasy",
+      "marketPointName": "Фермерские домашние колбасы",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "3edb2b50c8af25c96fabd4acaf6ae81d14a0cfb622b43ff9eea0da38ae8ba734"
+    },
+    {
+      "slug": "fermerskie-kolbasy-turkey-sausage",
+      "name": "Колбаса из индейки, кг",
+      "marketPointSlug": "fermerskie-kolbasy",
+      "marketPointName": "Фермерские домашние колбасы",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "df05ad4717a2b3287e593ab542d6bb42b0842be424cab8d8d864f738dbb65f2e"
+    },
+    {
+      "slug": "fermerskie-kolbasy-chicken-sausage",
+      "name": "Колбаса куриная, кг",
+      "marketPointSlug": "fermerskie-kolbasy",
+      "marketPointName": "Фермерские домашние колбасы",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "37f44c8257e26c2289d6eca1781c0d6f378e90d82baf2bb525816b46536a730b"
+    },
+    {
+      "slug": "fermerskie-kolbasy-lamb-sausage",
+      "name": "Колбаса из баранины, кг",
+      "marketPointSlug": "fermerskie-kolbasy",
+      "marketPointName": "Фермерские домашние колбасы",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "4917d7e9564d592f96581221677bcb73e46fe7948e6289a3eb873289a37ac4fb"
+    },
+    {
+      "slug": "fermerskie-kolbasy-liver-sausage",
+      "name": "Ливерная колбаса, кг",
+      "marketPointSlug": "fermerskie-kolbasy",
+      "marketPointName": "Фермерские домашние колбасы",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "051254b4f1ef118523665b1497dc4e1d4f321bfab1c925868bc49396491e8c40"
+    },
+    {
+      "slug": "fermerskie-kolbasy-blood-sausage",
+      "name": "Кровяная колбаса, кг",
+      "marketPointSlug": "fermerskie-kolbasy",
+      "marketPointName": "Фермерские домашние колбасы",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "96e483e988dfb993bace4a8a4207b7f2e31f19352c52a4e9546579be7b1fd269"
+    },
+    {
+      "slug": "fermerskie-kolbasy-homemade-kupaty",
+      "name": "Купаты домашние, кг",
+      "marketPointSlug": "fermerskie-kolbasy",
+      "marketPointName": "Фермерские домашние колбасы",
+      "categorySlug": "sausages",
+      "priceStatus": "ESTIMATED",
+      "sha256": "4a65550c8cd81aa3db6e1b8eca18760a866eed914db19c548b1cebecbee4fc2a"
+    }
+  ]
+}
