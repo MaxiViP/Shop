@@ -53,6 +53,11 @@ model MarketPoint {
   floor            Int             @default(2)
   mapX             Float?
   mapY             Float?
+  mapWidth         Float?
+  mapHeight        Float?
+  mapColor         String?         @db.VarChar(7)
+  isOurPoint       Boolean         @default(false)
+  ourLabel         String?         @db.VarChar(80)
   isPublished      Boolean         @default(false)
   sortOrder        Int             @default(0)
   createdAt        DateTime        @default(now())
@@ -61,6 +66,12 @@ model MarketPoint {
   products Product[]
 
   @@index([floor, isPublished, sortOrder, id])
+}
+
+model MarketLayout {
+  floor     Int      @id
+  escalator Json?
+  updatedAt DateTime @updatedAt
 }
 
 model Category {

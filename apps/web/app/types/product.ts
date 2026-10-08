@@ -47,6 +47,18 @@ export interface ProductListResponse {
   page: number;
   limit: number;
   pages: number;
+  nextCursor?: string | null;
+  seed?: string;
+}
+
+export interface ProductFeedQuery {
+  feed: 'catalog' | 'home';
+  category?: string;
+  q?: string;
+  marketPoint?: string;
+  ids?: string;
+  sort?: ProductSort;
+  limit: number;
 }
 
 export interface FavoriteListResponse {

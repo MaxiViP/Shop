@@ -3,7 +3,7 @@
     <AppBreadcrumbs :items="breadcrumbs" />
     <header class="market-map__intro">
       <div>
-        <p class="market-map__eyebrow">Багратионовский рынок · 2 этаж</p>
+        <p class="market-map__eyebrow">Багратионовский рынок · {{ floor }} этаж</p>
         <h1 class="market-map__title">Карта рынка</h1>
       </div>
       <p class="market-map__lead">Посмотрите лавки, магазины и фудкорт заранее. Выберите нужного продавца — это поможет быстрее собрать заказ и сориентироваться при самовывозе.</p>
@@ -13,6 +13,7 @@
     </UAlert>
     <template v-else>
       <div class="market-map__filters">
+        <UFormField v-if="floorOptions.length > 1" label="Этаж"><USelect v-model="floor" :items="floorOptions" class="w-full" /></UFormField>
         <UFormField label="Найти точку" class="market-map__search">
           <UInput v-model="query" icon="i-lucide-search" placeholder="Название, номер или ассортимент" class="w-full" maxlength="160" />
         </UFormField>
@@ -21,7 +22,7 @@
         </UFormField>
       </div>
       <div class="market-map__layout">
-        <MarketMap :points="mapPoints" :selected-id="focused?.id" />
+        <MarketMap :points="mapPoints" :floor="floor" :selected-id="focused?.id" :escalator="layout?.escalator" />
         <section class="market-map__directory" aria-labelledby="market-points">
           <h2 id="market-points" class="market-map__heading">{{ query.trim() || kindFilter ? 'Найденные точки' : 'Лавки и магазины' }} <span class="market-map__count">{{ visible.length }}</span></h2>
           <p v-if="!points.length" class="market-map__empty">Список лавок готовится. Скоро здесь появятся опубликованные точки рынка.</p>
@@ -59,12 +60,18 @@
 </template>
 
 <script setup lang="ts">
-import type { MarketPoint } from '~/types/market-map';
+import type { MarketPoint, MarketLayout } from '~/types/market-map';
 import { filterMarketPoints, marketKinds, marketKindLabels } from '~/utils/market-map';
 import { breadcrumbSchema } from '~/utils/seo';
 const breadcrumbs = [{ label: 'Главная', to: '/' }, { label: 'Карта рынка', to: '/market-map' }];
 const route = useRoute();
 const router = useRouter();
+const floor = computed({
+  get: () => { const value = typeof route.query.floor === 'string' ? Number(route.query.floor) : 2; return Number.isInteger(value) && value >= 1 && value <= 20 ? value : 2; },
+  set: value => { void router.push({ query: { ...route.query, floor: value === 2 ? undefined : String(value), point: undefined } }); },
+});
+const { data: availableFloors } = await useApi<number[]>('/market-map/layouts/floors', { default: () => [2] });
+const floorOptions = computed(() => (availableFloors.value ?? [2]).map(value => ({ value, label: value + ' этаж' })));
 const kinds = [{ value: 'all' as const, label: 'Все точки' }, ...marketKinds.filter(item => item.value !== 'ENTRY')];
 const query = computed({
   get: () => typeof route.query.q === 'string' ? route.query.q : '',
@@ -78,14 +85,16 @@ const kindFilter = computed(() => kind.value === 'all' ? '' : kind.value);
 function resetFilters() {
   void router.replace({ query: { ...route.query, q: undefined, kind: undefined } });
 }
-const { data, error, refresh } = await useApi<MarketPoint[]>('/market-map', { query: { floor: 2 } });
+const { data, error, refresh } = await useApi<MarketPoint[]>('/market-map', { query: computed(() => ({ floor: floor.value })) });
 const points = computed(() => data.value ?? []);
+const { data: layout } = await useApi<MarketLayout>(() => '/market-map/layout/' + floor.value);
 const entrances = computed(() => points.value.filter(point => point.kind === 'ENTRY'));
 const visible = computed(() => filterMarketPoints(points.value, query.value, kindFilter.value));
-const mapPoints = computed(() => [...visible.value, ...entrances.value]);
+const mapPoints = computed(() => [...visible.value, ...entrances.value,
+  ...points.value.filter(point => point.isOurPoint && !visible.value.some(row => row.id === point.id) && point.kind !== 'ENTRY')]);
 const focused = computed(() => points.value.find(point => point.slug === route.query.point));
-usePageSeo({ title: 'Карта Багратионовского рынка · 2 этаж — KorzinaMarket',
-  description: 'Лавки, магазины и фудкорт на втором этаже Багратионовского рынка. Выберите продавца заранее, уточните ассортимент по фото в чате и найдите путь для самовывоза.' });
+usePageSeo(() => ({ title: `Карта Багратионовского рынка · ${floor.value} этаж — KorzinaMarket`,
+  description: 'Лавки, магазины и фудкорт Багратионовского рынка. Выберите продавца заранее, уточните ассортимент по фото в чате и найдите путь для самовывоза.' }));
 useJsonLd(breadcrumbSchema(breadcrumbs));
 </script>
 

@@ -15,4 +15,12 @@ export class MarketMapCtrl {
   get(@Param('slug', { schema: marketSlug }) slug: string) {
     return this.map.publicPoint(slug);
   }
+
+  @Get('layout/:floor')
+  layout(@Param('floor', { schema: floorQuery.shape.floor }) floor: number) {
+    return this.map.layout(floor, true);
+  }
+
+  @Get('layouts/floors')
+  floors() { return this.map.floors(); }
 }

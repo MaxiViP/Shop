@@ -36,10 +36,11 @@ describe('Market map validation and publication', () => {
 
   function fixture() {
     const point = { ...pointSchema.parse(input), id: 7, unitNumber: null, photoUrl: null };
-    const db = { $queryRaw: vi.fn(), $transaction: vi.fn(), marketPoint: {
+    const db = { $queryRaw: vi.fn(), $executeRaw: vi.fn(), $transaction: vi.fn(), marketPoint: {
       findMany: vi.fn().mockResolvedValue([point]), findFirst: vi.fn().mockResolvedValue(point),
       findUnique: vi.fn().mockResolvedValue(point), create: vi.fn().mockResolvedValue(point),
       update: vi.fn().mockResolvedValue(point),
+      updateMany: vi.fn(),
     } };
     db.$transaction.mockImplementation((fn: (tx: typeof db) => unknown) => fn(db));
     return { db, point, service: new MarketMapService(db as unknown as DbService) };

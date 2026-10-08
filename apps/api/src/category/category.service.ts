@@ -13,9 +13,7 @@ export class CategoryService {
         name: true,
         slug: true,
       },
-      orderBy: {
-        sort: 'asc',
-      },
+      orderBy: [{ sort: 'asc' }, { id: 'asc' }],
     });
   }
 }

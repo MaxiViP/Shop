@@ -16,7 +16,7 @@
           <p class="market-point__text">{{ point.sampleAssortment }}</p>
         </div>
         <div class="market-point__actions">
-          <UButton v-if="point.mapX !== null && point.mapY !== null" :to="`/market-map?point=${point.slug}`" icon="i-lucide-map-pin" variant="outline">Показать на карте</UButton>
+          <UButton v-if="point.mapX !== null && point.mapY !== null" :to="{ path: '/market-map', query: { point: point.slug, ...(point.floor === 2 ? {} : { floor: String(point.floor) }) } }" icon="i-lucide-map-pin" variant="outline">Показать на карте</UButton>
           <UButton to="/catalog" icon="i-lucide-shopping-basket">Выбрать продукты</UButton>
         </div>
         <p v-if="point.mapX === null || point.mapY === null" class="market-point__text">Расположение на схеме уточняется.</p>

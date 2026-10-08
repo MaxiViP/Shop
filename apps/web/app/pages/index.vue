@@ -1,10 +1,10 @@
 <template>
-  <div class="home">
+  <div class="home" :data-loaded-count="items.length">
     <UContainer>
       <HomeHeroCarousel />
 
       <section class="home__section home__section--categories">
-        <CategoryList :items="categories" />
+        <CategoryList v-model:sort="sort" :items="categories" :query="sortQuery" active="" />
       </section>
 
       <section class="home__section">
@@ -14,21 +14,20 @@
           <NuxtLink to="/catalog">Смотреть всё →</NuxtLink>
         </div>
 
-        <p v-if="status === 'pending'">Загружаем...</p>
+        <ProductSkeleton v-if="status === 'pending'" />
 
         <UAlert
-          v-else-if="error"
+          v-else-if="error && !items.length"
           title="Не удалось загрузить товары"
           color="error"
-        />
-
-        <ProductGrid v-else :items="products.items" />
-      </section>
-      <section class="home__section" aria-labelledby="market-about">
-        <h2 id="market-about" class="home__title">Продукты с рынка с доставкой по Москве</h2>
-        <p class="home__text">{{ site.about }}</p>
-        <p class="home__text">{{ site.delivery.priorityText }}</p>
-        <NuxtLink class="home__delivery" to="/how-it-works">Как это работает и условия доставки</NuxtLink>
+        >
+          <template #actions><UButton type="button" variant="soft" @click="retry">Повторить</UButton></template>
+        </UAlert>
+        <template v-else>
+          <ProductGrid :items="items" :windowed="items.length > 120" />
+          <ProductMore v-if="items.length || hasMore" :has-more="hasMore" :loading="loadingMore" :error="!!error" :stale="stale" @load="loadMore" @retry="retry" />
+          <p v-else class="home__empty">Товары скоро появятся</p>
+        </template>
       </section>
     </UContainer>
   </div>
@@ -39,7 +38,6 @@ import HomeHeroCarousel from "~/components/home/HeroCarousel.vue";
 import { site } from "~~/shared/utils/site";
 import { storeSchema } from "~/utils/seo";
 import type { Category } from "~/types/category";
-import type { ProductListResponse } from "~/types/product";
 
 usePageSeo({ title: site.title, description: site.description });
 useJsonLd(storeSchema());
@@ -49,17 +47,13 @@ const { data: categories } = await useApi<Category[]>("/categories", {
   default: () => [],
 });
 
-const {
-  data: products,
-  status,
-  error,
-} = await useApi<ProductListResponse>("/products", {
-  query: { limit: 8 },
-  default: () => ({ items: [], total: 0, page: 1, limit: 8, pages: 0 }),
-});
+const { sort, sortQuery } = useProductSort();
+const { items, status, error, stale, hasMore, loadingMore, loadMore, retry } =
+  await useProductFeed(() => ({ feed: sort.value === 'recommended' ? 'home' : 'catalog', sort: sort.value, limit: 24 }), 'home-products');
 </script>
 
 <style scoped>
+:global(html:has(.home)), :global(body:has(.home)), :global(#__nuxt:has(.home)) { min-width: 0; }
 .home {
   min-width: 0;
   padding-bottom: var(--page-end);
@@ -97,6 +91,5 @@ const {
   min-height: var(--touch-target);
 }
 
-.home__text { margin-bottom: 0.75rem; line-height: 1.65; }
-.home__delivery { display: inline-flex; min-height: 44px; align-items: center; color: var(--ui-primary); }
+.home__empty { color: var(--ui-text-muted); }
 </style>

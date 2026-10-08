@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { parse, compileScript } from 'vue/compiler-sfc';
-import { createSSRApp, defineComponent, h, ref, reactive, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import { createSSRApp, defineComponent, h, ref, shallowRef, reactive, computed, nextTick, onMounted, onBeforeUnmount, watch, toValue } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import ts from 'typescript';
 import * as utils from '../app/utils/market-map.ts';
@@ -16,14 +16,14 @@ const secondEntry = { ...entrance, id: 9, slug: 'entry-stairs', name: 'Вход 
 const source = await readFile(new URL('../app/components/market/Map.vue', import.meta.url), 'utf8');
 const { descriptor } = parse(source, { filename: 'Map.vue' });
 const compiled = compileScript(descriptor, { id: 'market-map-test', inlineTemplate: true });
-const code = ts.transpileModule(compiled.content, {
+const code = ts.transpileModule(compiled.content.replaceAll('import.meta.client', 'false'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText;
 const nodeRequire = createRequire(import.meta.url);
 const module = { exports: {} };
-new Function('require', 'exports', 'module', 'ref', 'computed', 'nextTick', 'onMounted', 'onBeforeUnmount', code)(
+new Function('require', 'exports', 'module', 'ref', 'computed', 'nextTick', 'onMounted', 'onBeforeUnmount', 'shallowRef', 'watch', code)(
   id => id === '~/utils/market-map' ? utils : nodeRequire(id),
-  module.exports, module, ref, computed, nextTick, onMounted, onBeforeUnmount,
+  module.exports, module, ref, computed, nextTick, onMounted, onBeforeUnmount, shallowRef, watch,
 );
 const MapComponent = module.exports.default;
 async function render(props = {}) {
@@ -46,11 +46,14 @@ async function renderPage(params = {}) {
   const context = {
     require: id => id === '~/utils/market-map' ? utils : id === '~/utils/seo' ? { breadcrumbSchema() {} } : nodeRequire(id),
     exports: module.exports, module, ref, computed, useRoute: () => route,
-    useRouter: () => ({ replace: async ({ query }) => {
+    useRouter: () => ({ push: async ({ query }) => { route.query = query; }, replace: async ({ query }) => {
       route.query = Object.fromEntries(Object.entries(query).filter(([, value]) => value !== undefined));
     } }),
     useApi: async (path, options) => {
-      requests.push({ path, options });
+      const name = toValue(path);
+      requests.push({ path: name, options: options ? { ...options, ...(options.query ? { query: toValue(options.query) } : {}) } : undefined });
+      if (name === '/market-map/layouts/floors') return { data: ref([2]), error: ref(null) };
+      if (name.startsWith('/market-map/layout/')) return { data: ref({ floor: 2, escalator: null, updatedAt: null }), error: ref(null) };
       return { data: ref([point, entrance, { ...point, id: 10, slug: 'shop', kind: 'STORE' }]), error: ref(null), refresh() {} };
     },
     usePageSeo() {}, useJsonLd() {}, apiError: () => '',
@@ -77,7 +80,7 @@ async function renderPage(params = {}) {
       }),
     });
   } }));
-  app.component('MarketMap', defineComponent({ props: ['points', 'selectedId'], setup: props => () => {
+  app.component('MarketMap', defineComponent({ props: ['points', 'selectedId', 'floor', 'escalator'], setup: props => () => {
     controls.points = props.points;
     return h(MapComponent, props);
   } }));
@@ -92,7 +95,8 @@ test('Market Map page SSR renders default filters with real SelectItem component
   assert.ok(page.controls.items.every(item => typeof item.value === 'string' && item.value.length > 0));
   assert.ok(page.html.includes('Все точки'));
   assert.ok(page.html.includes('Лавки и магазины'));
-  assert.deepEqual(page.requests, [{ path: '/market-map', options: { query: { floor: 2 } } }]);
+  assert.deepEqual(page.requests.map(row => row.path), ['/market-map/layouts/floors', '/market-map', '/market-map/layout/2']);
+  assert.deepEqual(page.requests[1].options.query, { floor: 2 });
   assert.deepEqual(page.controls.points.map(row => row.slug), ['fresh-bar', 'shop', 'entry-butterbrot']);
 });
 
@@ -111,7 +115,7 @@ test('every Market Map Select option is nonempty and survives selection and hard
       assert.equal(page.route.query.kind, item.value);
       assert.ok(reloaded.controls.points.every(row => row.kind === item.value || row.kind === 'ENTRY'));
     }
-    assert.deepEqual(reloaded.requests[0].options.query, { floor: 2 });
+    assert.deepEqual(reloaded.requests.find(row => row.path === '/market-map').options.query, { floor: 2 });
   }
 });
 
@@ -149,35 +153,48 @@ test('the original floor asset is present, scalable and self-contained', async (
   assert.equal(contains(407, 1147), true, 'second entry is in the stair/escalator block');
 });
 
-function interactionFixture(view, editable = true, placing = false) {
+test('a first floor without an SVG keeps assigned geometry and the correct entry caption without borrowing the second floor', async () => {
+  const first = { ...entrance, floor: 1 };
+  const html = await render({ floor: 1, points: [first] });
+  assert.ok(!html.includes('/images/market/floor2.svg'));
+  assert.ok(!html.includes('map__legacy-escalator'));
+  assert.match(html, /Фоновая схема этого этажа ещё не добавлена/);
+  assert.equal(utils.mapLabels([first])[0].lines.join(' '), 'Вход на 1 этаж');
+  assert.match(html, /width="80" height="92"/);
+});
+
+function interactionFixture(view, editable = true, placing = false, overrides = {}) {
   const mounted = [], unmounted = [], events = [];
   const parsed = ts.createSourceFile('map.ts', descriptor.scriptSetup.content, ts.ScriptTarget.Latest, true);
   let script = descriptor.scriptSetup.content;
   for (const statement of [...parsed.statements].reverse()) if (ts.isImportDeclaration(statement))
     script = script.slice(0, statement.getStart()) + script.slice(statement.end);
-  const executable = ts.transpileModule(script, {
+  const executable = ts.transpileModule(script.replaceAll('import.meta.client', 'true'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   }).outputText;
   let observed = false, disconnected = false;
-  const context = { ...utils, ref, computed, nextTick,
-    defineProps: () => ({ points: [point, entrance, secondEntry], editable, placing }),
+  const props = reactive({ points: [point, entrance, secondEntry], editable, placing, ...overrides });
+  const listeners = new Map();
+  const context = { ...utils, pointColor: utils.marketPointColor, ref, shallowRef, watch, computed, nextTick,
+    defineProps: () => props,
     withDefaults: (props, defaults) => ({ ...defaults, ...props }),
     defineEmits: () => (name, ...args) => events.push([name, ...args]),
     onMounted: callback => mounted.push(callback), onBeforeUnmount: callback => unmounted.push(callback),
     ResizeObserver: class { observe() { observed = true; } disconnect() { disconnected = true; } },
+    window: { addEventListener(name, callback) { listeners.set(name, callback); }, removeEventListener(name) { listeners.delete(name); } },
     DOMPoint: class {
       constructor(x, y) { this.x = x; this.y = y; }
       matrixTransform(m) { return { x: m.a * this.x + m.c * this.y + m.e, y: m.b * this.x + m.d * this.y + m.f }; }
     },
   };
-  const map = new Function(...Object.keys(context), executable + '\nreturn { viewport, drawing, zoom, fitWidth, changeZoom, reset, fit, place, select, keySelect };')(...Object.values(context));
+  const map = new Function(...Object.keys(context), executable + '\nreturn { viewport, drawing, zoom, fitWidth, changeZoom, reset, fit, place, select, keySelect, startPointer, movePointer, endPointer, cancelPointer, handleKey, drag, selectedRect, conflicts };')(...Object.values(context));
   map.viewport.value = {
     clientWidth: view.width, clientHeight: view.height, scrollLeft: 0, scrollTop: 0,
     get scrollWidth() { return Math.max(view.width, map.fitWidth.value * map.zoom.value); },
     get scrollHeight() { return Math.max(view.height, map.fitWidth.value * map.zoom.value * utils.mapSize.height / utils.mapSize.width); },
   };
   mounted.forEach(callback => callback());
-  return { map, events, observed: () => observed, close: () => { unmounted.forEach(callback => callback()); return disconnected; } };
+  return { map, events, props, listeners, observed: () => observed, close: () => { unmounted.forEach(callback => callback()); return disconnected; } };
 }
 
 test('mobile and desktop fit/zoom/pan reset stay bounded and release their observer', async () => {
@@ -267,9 +284,15 @@ test('whole-map reset restores 100 percent zoom and clears pan after layout upda
   fixture.close();
 });
 
-test('infrastructure landmarks are static SVG labels without point navigation', async () => {
+test('the original escalator is managed by the map layer and replaced without duplicating its label', async () => {
   const svg = await readFile(new URL('../public/images/market/floor2.svg', import.meta.url), 'utf8');
-  assert.match(svg, /<text\b[^>]*>Эскалатор<\/text>/);
+  assert.ok(!svg.includes('Эскалатор'));
+  const original = await render();
+  assert.equal((original.match(/>Эскалатор<\/text>/g) ?? []).length, 1);
+  const placed = await render({ escalator: { x: 500, y: 400, width: 56, length: 300, rotation: 0, published: true } });
+  assert.equal((placed.match(/>Эскалатор<\/text>/g) ?? []).length, 1);
+  assert.equal((placed.match(/class="map__escalator-track"/g) ?? []).length, 2);
+  assert.ok(placed.includes('↑') && placed.includes('↓') && !placed.includes('map__legacy-escalator'));
   assert.match(svg, /<text\b[^>]*>Лифт<\/text>/);
   assert.ok(!/<a\b|href=|data-point/.test(svg));
   assert.deepEqual(utils.filterMarketPoints([point, entrance, secondEntry], 'Эскалатор'), []);
@@ -351,6 +374,66 @@ test('ADMIN markers use keyboard buttons instead of public navigation', async ()
   assert.ok(html.includes('map__viewport--placing'));
 });
 
+test('only ADMIN can display real boundaries and eight handles; public ours keeps a readable badge and locator', async () => {
+  const ours = { ...point, mapColor: '#FFFF00', isOurPoint: true, ourLabel: null, mapWidth: 120, mapHeight: 150 };
+  const neighbour = { ...point, id: 17, slug: 'neighbour', mapX: point.mapX + 2 };
+  const admin = await render({ points: [ours, neighbour], editable: true, selectedId: point.id, showBounds: true });
+  assert.equal((admin.match(/data-handle="/g) ?? []).length, 8);
+  assert.ok(admin.includes('map__point--boundary') && admin.includes('map__point--conflict'));
+  assert.ok(admin.includes('width="120" height="150"'));
+  const publicMap = await render({ points: [ours, neighbour], showBounds: true, editing: true });
+  assert.ok(!publicMap.includes('data-handle=') && !publicMap.includes('map__point--boundary') && !publicMap.includes('map__warning'));
+  assert.ok(publicMap.includes('Мы здесь!') && publicMap.includes('Где мы?') && publicMap.includes('#000000'));
+});
+
+test('Pointer Events resize in SVG coordinates under 200/300 percent zoom and pan; cancel restores null legacy dimensions', () => {
+  for (const scale of [2, 3]) for (const handle of utils.resizeHandles) {
+    const fixture = interactionFixture({ width: 390, height: 450 }, true, false, { selectedId: 7, editing: true });
+    const captured = new Set();
+    fixture.map.drawing.value = { getScreenCTM: () => ({ inverse: () => ({ a: 1 / scale, b: 0, c: 0, d: 1 / scale, e: 170, f: 230 }) }),
+      setPointerCapture(id) { captured.add(id); }, hasPointerCapture(id) { return captured.has(id); }, releasePointerCapture(id) { captured.delete(id); } };
+    const event = { pointerId: 1, button: 0, clientX: 50, clientY: 80, preventDefault() {}, stopPropagation() {} };
+    fixture.map.startPointer(event, 7, handle);
+    fixture.map.movePointer({ ...event, clientX: event.clientX + 10 * scale, clientY: event.clientY + 20 * scale });
+    const actual = fixture.events.at(-1)[1], expected = utils.rectPosition(utils.adjustRect(utils.hitRect(point), 10, 20, handle));
+    assert.deepEqual(actual, expected);
+    fixture.map.cancelPointer();
+    assert.deepEqual(fixture.events.at(-1), ['geometry', { mapX: point.mapX, mapY: point.mapY, mapWidth: null, mapHeight: null }]);
+    assert.equal(captured.size, 0); assert.equal(fixture.listeners.size, 0);
+    fixture.close();
+  }
+});
+
+test('a resize suppresses its own click but does not swallow the next point selection', async () => {
+  const fixture = interactionFixture({ width: 390, height: 450 }, true, false, { selectedId: 7, editing: true });
+  const { map, events } = fixture;
+  const captures = new Set();
+  map.drawing.value = { getScreenCTM: () => ({ inverse: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }) }),
+    setPointerCapture: id => captures.add(id), hasPointerCapture: id => captures.has(id), releasePointerCapture: id => captures.delete(id) };
+  const event = { pointerId: 1, button: 0, clientX: 400, clientY: 600, preventDefault() {}, stopPropagation() {} };
+  map.startPointer(event, 7, 'e'); map.movePointer({ ...event, clientX: 420 }); map.endPointer(event);
+  map.select(event, 7); assert.equal(events.filter(([name]) => name === 'select').length, 0);
+  await new Promise(resolve => setTimeout(resolve, 5));
+  map.select(event, 8); assert.deepEqual(events.filter(([name]) => name === 'select'), [['select', 8]]);
+  fixture.close();
+});
+
+test('moving a selected hit area does not mutate neighbours and pointerup releases capture/listeners', () => {
+  const fixture = interactionFixture({ width: 390, height: 450 }, true, false, { selectedId: 7, showBounds: true });
+  const original = structuredClone(point);
+  let captured = false;
+  fixture.map.drawing.value = { getScreenCTM: () => ({ inverse: () => ({ a: 2, b: 0, c: 0, d: 2, e: 300, f: 400 }) }),
+    setPointerCapture() { captured = true; }, hasPointerCapture() { return captured; }, releasePointerCapture() { captured = false; } };
+  const event = { pointerId: 1, button: 0, clientX: 100, clientY: 100, preventDefault() {}, stopPropagation() {} };
+  fixture.map.startPointer(event, 7);
+  fixture.map.movePointer({ ...event, clientX: 110, clientY: 120 });
+  assert.deepEqual(fixture.events.at(-1)[1], utils.rectPosition(utils.adjustRect(utils.hitRect(point), 20, 40)));
+  assert.deepEqual(point, original);
+  fixture.map.endPointer(event);
+  assert.equal(captured, false); assert.equal(fixture.listeners.size, 0); assert.equal(fixture.map.drag.value, null);
+  fixture.close();
+});
+
 test('market search is insensitive, supports numbers/types and excludes entrance duplicates', () => {
   const numbered = { ...point, id: 9, slug: 'fruit', name: 'Фрукты', unitNumber: 'Б2', kind: 'STALL', sampleAssortment: 'Яблоки' };
   const rows = [point, entrance, numbered];
@@ -424,7 +507,7 @@ test('public pages and ADMIN editor keep route/access/content contracts', async 
   assert.match(admin, /@place="place"/);
   assert.match(admin, /:model-value="form.floor" readonly/);
   for (const field of ['mapX', 'mapY'])
-    assert.match(admin, new RegExp(`v-model.number="form.${field}"[^>]+step="any"`));
+    assert.match(admin, new RegExp(`v-model.number="form.${field}"[^>]+step="0.000001"`));
   assert.match(detail, /v-if="point.unitNumber"/);
   assert.match(detail, /Ассортимент может меняться/);
   assert.match(detail, /Примерный ассортимент/);

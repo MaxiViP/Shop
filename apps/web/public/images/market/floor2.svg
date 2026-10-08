@@ -80,11 +80,6 @@
     <text x="635" y="1244" text-anchor="middle">ЛАВКИ И МАГАЗИНЫ</text>
   </g>
   <g stroke="#8ba49a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <g transform="translate(495 690)" aria-label="Эскалатор">
-      <rect x="-16" y="-15" width="32" height="30" rx="5" fill="#10191e"/>
-      <path d="M-11 8H-7L7-6H11M-11 2H-8L5-11H11"/>
-      <text y="34" text-anchor="middle" fill="#8ba49a" stroke="none" font-family="system-ui, sans-serif" font-size="14">Эскалатор</text>
-    </g>
     <g transform="translate(548 1148)" aria-label="Лифт">
       <rect x="-12" y="-15" width="24" height="30" rx="5" fill="#10191e"/>
       <path d="M-5 7V-7M-8-3L-5-7L-2-3M5-7V7M2 3L5 7L8 3"/>

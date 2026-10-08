@@ -1,17 +1,18 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { DbService } from '../db/db.service.js';
 import { dbError } from '../admin/errors.js';
 import { managedPath } from '../admin/images.service.js';
 import { normalizeImage, productUploadRoot, type ImageFile } from '../common/image.js';
-import type { PointInput } from './schema.js';
+import { escalatorSchema, pointSchema, type LayoutInput, type PointInput, type PointPatch } from './schema.js';
+import { Prisma } from '../db/gen/client.js';
 
 function optionalText<T extends Partial<PointInput>>(data: T): T {
   return {
     ...data,
-    ...Object.fromEntries(['unitNumber', 'description', 'sampleAssortment'].flatMap(key => {
-      const value = data[key as 'unitNumber' | 'description' | 'sampleAssortment'];
+    ...Object.fromEntries(['unitNumber', 'description', 'sampleAssortment', 'ourLabel'].flatMap(key => {
+      const value = data[key as 'unitNumber' | 'description' | 'sampleAssortment' | 'ourLabel'];
       return value === undefined ? [] : [[key, value?.trim() || null]];
     })),
   };
@@ -43,24 +44,64 @@ export class MarketMapService {
   }
 
   async create(data: PointInput) {
-    try { return await this.db.marketPoint.create({ data: optionalText(data) }); }
-    catch (error) { return dbError(error); }
-  }
-
-  async update(id: number, data: Partial<PointInput>) {
     try {
       return await this.db.$transaction(async db => {
-        await db.$queryRaw`SELECT id FROM "MarketPoint" WHERE id = ${id} FOR UPDATE`;
-        const current = await db.marketPoint.findUnique({ where: { id }, select: { mapX: true, mapY: true } });
-        if (!current) throw new NotFoundException('Точка не найдена');
-        const x = data.mapX === undefined ? current.mapX : data.mapX;
-        const y = data.mapY === undefined ? current.mapY : data.mapY;
-        if ((x === null) !== (y === null))
-          throw new BadRequestException('Укажите обе координаты или оставьте точку без координат');
-        return db.marketPoint.update({ where: { id }, data: optionalText(data) });
+        await db.$executeRaw`SELECT pg_advisory_xact_lock(13690180)`;
+        if (data.isOurPoint) await db.marketPoint.updateMany({ where: { floor: data.floor, isOurPoint: true }, data: { isOurPoint: false } });
+        return db.marketPoint.create({ data: optionalText(data) });
       });
     }
     catch (error) { return dbError(error); }
+  }
+
+  async update(id: number, data: PointPatch) {
+    try {
+      return await this.db.$transaction(async db => {
+        await db.$executeRaw`SELECT pg_advisory_xact_lock(13690180)`;
+        await db.$queryRaw`SELECT id FROM "MarketPoint" WHERE id = ${id} FOR UPDATE`;
+        const current = await db.marketPoint.findUnique({ where: { id } });
+        if (!current) throw new NotFoundException('Точка не найдена');
+        const { expectedUpdatedAt, ...changes } = data;
+        if (expectedUpdatedAt && current.updatedAt.toISOString() !== expectedUpdatedAt)
+          throw new ConflictException('Точка изменена другим администратором. Обновите данные перед сохранением.');
+        const checked = pointSchema.strip().safeParse({ ...current, ...changes });
+        if (!checked.success) throw new BadRequestException(checked.error.issues[0]?.message);
+        if (checked.data.isOurPoint) await db.marketPoint.updateMany({
+          where: { floor: checked.data.floor, isOurPoint: true, id: { not: id } }, data: { isOurPoint: false },
+        });
+        return db.marketPoint.update({ where: { id }, data: optionalText(changes) });
+      });
+    }
+    catch (error) { return dbError(error); }
+  }
+
+  async layout(floor: number, publishedOnly = false) {
+    const row = await this.db.marketLayout.findUnique({ where: { floor } });
+    const parsed = escalatorSchema.safeParse(row?.escalator);
+    const escalator = parsed.success && (!publishedOnly || parsed.data.published) ? parsed.data : null;
+    return { floor, escalator, updatedAt: row?.updatedAt ?? null };
+  }
+
+  async floors() {
+    const [points, layouts] = await Promise.all([
+      this.db.marketPoint.groupBy({ by: ['floor'], where: { isPublished: true } }),
+      this.db.marketLayout.findMany({ orderBy: { floor: 'asc' } }),
+    ]);
+    return [...new Set([2, ...points.map(point => point.floor), ...layouts.filter(row => {
+      const parsed = escalatorSchema.safeParse(row.escalator); return parsed.success && parsed.data.published;
+    }).map(row => row.floor)])].sort((a, b) => a - b);
+  }
+
+  async saveLayout(floor: number, data: LayoutInput) {
+    return this.db.$transaction(async db => {
+      await db.$executeRaw`SELECT pg_advisory_xact_lock(13690180)`;
+      const current = await db.marketLayout.findUnique({ where: { floor } });
+      if (data.expectedUpdatedAt !== undefined && (current?.updatedAt.toISOString() ?? null) !== data.expectedUpdatedAt)
+        throw new ConflictException('Схема изменена другим администратором. Обновите данные.');
+      const escalator = data.escalator === null ? Prisma.DbNull : data.escalator;
+      const row = await db.marketLayout.upsert({ where: { floor }, create: { floor, escalator }, update: { escalator } });
+      return { floor, escalator: data.escalator, updatedAt: row.updatedAt };
+    });
   }
 
   async upload(id: number, file?: ImageFile) {

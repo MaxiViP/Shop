@@ -3,12 +3,14 @@ import type { Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import type { ProductQuery, ProductSort } from './schema.js';
 import { customerProduct, productListSelect } from './select.js';
+import { productFeed } from './feed.js';
 
 @Injectable()
 export class ProductService {
   constructor(private readonly db: DbService) {}
 
   async list(query: ProductQuery) {
+    if (query.feed) return productFeed(this.db, query);
     if (query.q && query.category) return this.prioritySearch(query);
     const where: Prisma.ProductWhereInput = {
       active: true,

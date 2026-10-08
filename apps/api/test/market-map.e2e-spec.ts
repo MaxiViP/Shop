@@ -74,6 +74,8 @@ describe.skipIf(!process.env.DATABASE_URL)('Market map / local PostgreSQL', () =
     expect(new Set(seeded.map(point => point.name.trim().toLocaleLowerCase('ru-RU'))).size).toBe(60);
     expect(seeded.every(point => point.unitNumber === null && point.photoUrl === null
       && point.isPublished && point.floor === 2)).toBe(true);
+    expect(seeded.every(point => point.mapWidth === null && point.mapHeight === null && point.mapColor === null && !point.isOurPoint && point.ourLabel === null)).toBe(true);
+    expect(await db.marketLayout.findUniqueOrThrow({ where: { floor: 2 } })).toMatchObject({ escalator: null });
     const bar = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'fresh-bar' } });
     const batumi = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'batumi' } });
     expect(bar).toMatchObject({ floor: 2, unitNumber: null, photoUrl: null, isPublished: true });
@@ -111,6 +113,8 @@ describe.skipIf(!process.env.DATABASE_URL)('Market map / local PostgreSQL', () =
     await admin().patch('/api/admin/market-map/points/1').set('Cookie', cookie).send({ name: 'x' }).expect(403);
     await admin().post('/api/admin/market-map/points/1/photo').set('Cookie', cookie).attach('file', png, 'test.png').expect(403);
     await admin().delete('/api/admin/market-map/points/1/photo').set('Cookie', cookie).expect(403);
+    await admin().get('/api/admin/market-map/layouts/2').set('Cookie', cookie).expect(403);
+    await admin().patch('/api/admin/market-map/layouts/2').set('Cookie', cookie).send({ escalator: null }).expect(403);
   });
 
   it('creates a draft, edits fields, publishes/hides it and supports optional numbers', async () => {
@@ -213,5 +217,76 @@ describe.skipIf(!process.env.DATABASE_URL)('Market map / local PostgreSQL', () =
     await admin().patch(`/api/admin/market-map/points/${id}`).set('Cookie', `${SID}=ADMIN`).send({ mapY: null }).expect(400);
     await admin().patch(`/api/admin/market-map/points/${id}`).set('Cookie', `${SID}=ADMIN`).send({ mapX: null, mapY: null }).expect(200);
     expect(await db.marketPoint.findUniqueOrThrow({ where: { id } })).toMatchObject({ mapX: null, mapY: null });
+  });
+
+  it('stores real hit dimensions and presentation without changing a neighbouring area and resets the colour', async () => {
+    const point = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'fresh-bar' } });
+    const neighbour = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'gornitsa' } });
+    const changed = await admin().patch(`/api/admin/market-map/points/${point.id}`).set('Cookie', `${SID}=ADMIN`)
+      .send({ mapX: 35.123456, mapY: 65.654321, mapWidth: 120.5, mapHeight: 160.25,
+        mapColor: '#aabbcc', ourLabel: 'Наш прилавок', expectedUpdatedAt: point.updatedAt.toISOString() }).expect(200);
+    expect(changed.body).toMatchObject({ mapX: 35.123456, mapY: 65.654321, mapWidth: 120.5, mapHeight: 160.25, mapColor: '#AABBCC', ourLabel: 'Наш прилавок' });
+    expect(await db.marketPoint.findUniqueOrThrow({ where: { id: neighbour.id } })).toEqual(neighbour);
+    await admin().patch(`/api/admin/market-map/points/${point.id}`).set('Cookie', `${SID}=ADMIN`)
+      .send({ mapWidth: 150, expectedUpdatedAt: point.updatedAt.toISOString() }).expect(409);
+    expect((await admin().get(`/api/admin/market-map/points/${point.id}`).set('Cookie', `${SID}=ADMIN`).expect(200)).body.mapWidth).toBe(120.5);
+    await admin().patch(`/api/admin/market-map/points/${point.id}`).set('Cookie', `${SID}=ADMIN`).send({ mapColor: null }).expect(200);
+    expect((await admin().get(`/api/market-map/${point.slug}`).expect(200)).body.mapColor).toBeNull();
+    for (const bad of [{ mapWidth: 0 }, { mapHeight: -1 }, { mapWidth: null }, { mapColor: 'url(https://invalid)' }, { ourLabel: 'x'.repeat(81) }])
+      await admin().patch(`/api/admin/market-map/points/${point.id}`).set('Cookie', `${SID}=ADMIN`).send(bad).expect(400);
+  });
+
+  it('assigns one primary shop per floor atomically under concurrent requests and never designates ENTRY', async () => {
+    const [a, b] = await db.marketPoint.findMany({ where: { slug: { in: ['fresh-bar', 'gornitsa'] } }, orderBy: { id: 'asc' } });
+    await Promise.all([a!, b!].map(point => admin().patch(`/api/admin/market-map/points/${point.id}`).set('Cookie', `${SID}=ADMIN`)
+      .send({ isOurPoint: true, isPublished: true }).expect(200)));
+    expect(await db.marketPoint.count({ where: { floor: 2, isOurPoint: true } })).toBe(1);
+    const entry = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'entry-stairs' } });
+    await admin().patch(`/api/admin/market-map/points/${entry.id}`).set('Cookie', `${SID}=ADMIN`).send({ isOurPoint: true }).expect(400);
+    const floor3 = await admin().post('/api/admin/market-map/points').set('Cookie', `${SID}=ADMIN`)
+      .send({ ...input, slug: 'our-floor3', floor: 3, isOurPoint: true }).expect(201);
+    expect(floor3.body.isOurPoint).toBe(true);
+    expect(await db.marketPoint.count({ where: { floor: 2, isOurPoint: true } })).toBe(1);
+    expect(await db.marketPoint.count({ where: { floor: 3, isOurPoint: true } })).toBe(1);
+    await expect(connection.query('UPDATE "MarketPoint" SET "isOurPoint" = true WHERE id = $1',
+      [(await db.marketPoint.findFirstOrThrow({ where: { floor: 2, isOurPoint: false, kind: 'STALL' } })).id])).rejects.toMatchObject({ code: '23505' });
+  });
+
+  it('leaves the long escalator unplaced until ADMIN configures it, persists its geometry, filters drafts and supports reset', async () => {
+    const read = await admin().get('/api/admin/market-map/layouts/2').set('Cookie', `${SID}=ADMIN`).expect(200);
+    expect(read.body.escalator).toBeNull();
+    const escalator = { x: 500, y: 500, width: 56, length: 300, rotation: 0, published: false };
+    const changed = await admin().patch('/api/admin/market-map/layouts/2').set('Cookie', `${SID}=ADMIN`)
+      .send({ escalator, expectedUpdatedAt: read.body.updatedAt }).expect(200);
+    expect((await admin().get('/api/admin/market-map/layouts/2').set('Cookie', `${SID}=ADMIN`).expect(200)).body.escalator).toEqual(escalator);
+    expect((await admin().get('/api/market-map/layout/2').expect(200)).body.escalator).toBeNull();
+    await admin().patch('/api/admin/market-map/layouts/2').set('Cookie', `${SID}=ADMIN`)
+      .send({ escalator, expectedUpdatedAt: read.body.updatedAt }).expect(409);
+    await admin().patch('/api/admin/market-map/layouts/2').set('Cookie', `${SID}=ADMIN`)
+      .send({ escalator: { ...escalator, rotation: 90, published: true }, expectedUpdatedAt: changed.body.updatedAt }).expect(200);
+    expect((await admin().get('/api/market-map/layout/2').expect(200)).body.escalator).toMatchObject({ rotation: 90, published: true });
+    expect((await admin().get('/api/market-map/layout/3').expect(200)).body.escalator).toBeNull();
+    for (const invalid of [{ ...escalator, x: -1 }, { ...escalator, width: 0 }, { ...escalator, length: 0 }, { ...escalator, rotation: 90, x: 0 }, { ...escalator, extra: true }])
+      await admin().patch('/api/admin/market-map/layouts/2').set('Cookie', `${SID}=ADMIN`).send({ escalator: invalid }).expect(400);
+    await admin().patch('/api/admin/market-map/layouts/2').set('Cookie', `${SID}=ADMIN`).send({ escalator: null }).expect(200);
+    expect((await db.marketLayout.findUniqueOrThrow({ where: { floor: 2 } })).escalator).toBeNull();
+  });
+
+  it('advances the former primary point revision and allows editing with its refreshed version', async () => {
+    const a = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'fresh-bar' } });
+    const b = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'gornitsa' } });
+    const cookie = `${SID}=ADMIN`;
+    const first = await admin().patch(`/api/admin/market-map/points/${a.id}`).set('Cookie', cookie).send({ isOurPoint: true }).expect(200);
+    await admin().patch(`/api/admin/market-map/points/${b.id}`).set('Cookie', cookie).send({ isOurPoint: true }).expect(200);
+    const refreshed = (await admin().get('/api/admin/market-map/points?floor=2').set('Cookie', cookie).expect(200)).body
+      .find((point: { id: number }) => point.id === a.id) as { isOurPoint: boolean; updatedAt: string };
+    expect(refreshed.isOurPoint).toBe(false);
+    expect(refreshed.updatedAt).not.toBe(first.body.updatedAt);
+    await admin().patch(`/api/admin/market-map/points/${a.id}`).set('Cookie', cookie)
+      .send({ isOurPoint: true, expectedUpdatedAt: first.body.updatedAt }).expect(409);
+    await admin().patch(`/api/admin/market-map/points/${a.id}`).set('Cookie', cookie)
+      .send({ isOurPoint: true, expectedUpdatedAt: refreshed.updatedAt }).expect(200);
+    expect(await db.marketPoint.count({ where: { floor: 2, isOurPoint: true } })).toBe(1);
+    expect(await db.marketPoint.findUniqueOrThrow({ where: { id: b.id } })).toMatchObject({ mapX: b.mapX, mapY: b.mapY, mapWidth: b.mapWidth, mapHeight: b.mapHeight });
   });
 });

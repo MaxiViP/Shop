@@ -5,7 +5,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { MarketMapService } from '../market-map/market-map.service.js';
-import { floorQuery, pointSchema, pointPatch, type PointInput } from '../market-map/schema.js';
+import { floorQuery, pointSchema, pointPatch, layoutPatch, type PointInput, type PointPatch, type LayoutInput } from '../market-map/schema.js';
 import type { ImageFile } from '../common/image.js';
 import { idSchema } from './schema.js';
 
@@ -31,7 +31,7 @@ export class AdminMarketMapCtrl {
 
   @Patch(':id')
   update(@Param('id', { schema: idSchema }) id: number,
-    @Body({ schema: pointPatch }) data: Partial<PointInput>) {
+    @Body({ schema: pointPatch }) data: PointPatch) {
     return this.map.update(id, data);
   }
 
@@ -46,5 +46,22 @@ export class AdminMarketMapCtrl {
   @Delete(':id/photo')
   removePhoto(@Param('id', { schema: idSchema }) id: number) {
     return this.map.removePhoto(id);
+  }
+}
+
+@Controller('admin/market-map/layouts')
+@UseGuards(AdminGuard)
+export class AdminMarketLayoutCtrl {
+  constructor(private readonly map: MarketMapService) {}
+
+  @Get(':floor')
+  get(@Param('floor', { schema: floorQuery.shape.floor }) floor: number) {
+    return this.map.layout(floor);
+  }
+
+  @Patch(':floor')
+  save(@Param('floor', { schema: floorQuery.shape.floor }) floor: number,
+    @Body({ schema: layoutPatch }) data: LayoutInput) {
+    return this.map.saveLayout(floor, data);
   }
 }
