@@ -33,7 +33,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
   let legacyRows: Record<string, unknown>[];
   let seller: { userId: number; role: 'SELLER' };
   const sms = { available: true, send: vi.fn(async () => {}) };
-  const telegram = { available: true, send: vi.fn<() => Promise<BotDelivery>>() };
+  const telegram = { available: true, send: vi.fn<CustomerNotificationService['send']>() };
   const fetcher = vi.fn<typeof fetch>();
   let notices: NotificationService, orders: OrderService, coordination: CoordinationService, staff: StaffService;
   let messageSequence = 100;
@@ -89,6 +89,8 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
       connectionString: process.env.DATABASE_URL, options: '-c search_path=' + schema,
     }, { schema }) });
     const typed = db as unknown as DbService;
+    // These notification scenarios are independent of the wall clock / market opening time.
+    await db.shopHours.updateMany({ data: { enabled: true, openMinutes: 0, closeMinutes: 1440 } });
     notices = new NotificationService(typed, sms, telegram as unknown as CustomerNotificationService);
     orders = new OrderService(typed, { notifyNewOrder: async () => {} } as unknown as TelegramService);
     coordination = new CoordinationService(typed, orders, notices, new ChatImagesService());

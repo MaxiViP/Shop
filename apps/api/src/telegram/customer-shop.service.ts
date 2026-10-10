@@ -284,6 +284,8 @@ export class CustomerShopService {
         (basket.items.length
           ? '\n\nПредварительно: ≈ ' +
             amount(basket.subtotal) +
+            (basket.promo ? '\nПромокод: ' + basket.promo.code + ' · скидка ' + amount(basket.promo.discount) +
+              '\nЗа товары после скидки: ' + amount(basket.goodsTotal) : '') +
             '\nТочная сумма весовых товаров — после сборки.'
           : ''),
       keyboard: { inline_keyboard: buttons },

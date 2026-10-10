@@ -28,7 +28,7 @@
           <template #header><h3 class="font-semibold">Доставка по Москве</h3></template>
           <p class="market__text">{{ site.delivery.priorityText }}</p>
           <p class="market__text">{{ site.delivery.pricingText }}</p>
-          <p class="market__text">Основной способ доставки — {{ site.delivery.providerLabel }}. Стоимость уточняется по адресу и актуальному расчёту сервиса. Доставка оплачивается отдельно от продуктов.</p>
+          <p class="market__text">Основной способ доставки — {{ site.delivery.providerLabel }}. Платная доставка оплачивается отдельно от продуктов. Условия бесплатной доставки показываются в корзине и сохраняются при оформлении заказа.</p>
           <p class="market__text">Для доставки выберите товары, укажите данные получателя и адрес в корзине, затем оформите заказ.</p>
         </UCard>
         <UCard>

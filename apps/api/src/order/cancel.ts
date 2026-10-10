@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
+import { payableGoods } from '../promo/promo.js';
 import type {
   OrderStatus,
   PaymentStatus,
@@ -31,6 +32,8 @@ type Restorable = {
   status: OrderStatus;
   assemblyFinalizedAt: Date | null;
   finalSubtotal: number | null;
+  promoDiscount?: number;
+  finalPromoDiscount?: number | null;
   payment: { status: PaymentStatus; amount: number } | null;
   delivery: {
     provider: string;
@@ -71,7 +74,7 @@ export function restoreProblem(order: Restorable, previous?: Cancellation) {
       order.finalSubtotal === null ||
       previous.paymentStatus !== 'AWAITING' ||
       order.payment?.status !== 'CANCELED' ||
-      order.payment.amount !== order.finalSubtotal
+      order.payment.amount !== payableGoods(order)
     )
       return 'Не удалось подтвердить зафиксированную сумму оплаты';
   } else if (
@@ -162,6 +165,10 @@ export async function cancelOrder(
     where: { id },
     data: { status: 'CANCELED' },
   });
+  if (order.promoCodeId) await db.promoCode.updateMany({
+    where: { id: order.promoCodeId, status: 'USED', usedOrderId: id },
+    data: { status: 'AVAILABLE', usedOrderId: null, usedAt: null },
+  });
   await message(
     db,
     id,
@@ -196,6 +203,14 @@ export async function restoreOrder(
   if (order.status !== 'CANCELED' && previous.restoredAt) return order;
   const problem = restoreProblem(order, previous);
   if (problem) throw new ConflictException(problem);
+  if (order.promoCodeId) {
+    const claimed = await db.promoCode.updateMany({
+      where: { id: order.promoCodeId, userId: order.userId ?? -1, status: 'AVAILABLE',
+        usedOrderId: null, expiresAt: { gt: new Date() } },
+      data: { status: 'USED', usedOrderId: id, usedAt: new Date() },
+    });
+    if (claimed.count !== 1) throw new ConflictException('Промокод уже недоступен. Восстановить заказ со старой скидкой нельзя.');
+  }
   if (previous.fromStatus === 'READY')
     await db.orderPayment.update({
       where: { orderId: id },

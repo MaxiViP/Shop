@@ -19,6 +19,7 @@
 
     <AuthProfileCard v-if="auth.user" :user="auth.user" :preferred-phone="orderPhoneData?.primaryPhone" />
     <AuthOrderPhones v-if="auth.user?.role === 'USER'" :snapshot="orderPhoneData ?? null" @changed="updateOrderPhones" />
+    <PromoWallet v-if="auth.user?.role === 'USER'" :key="auth.user.id" />
 
     <section class="profile__section">
       <header class="profile__section-head">

@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { lineAmount, sumAmounts } from './assembly.js';
+import { payableGoods } from '../promo/promo.js';
 
 export function goodsLine(price: number, qty: number, priceQty: number) {
   try {
@@ -51,13 +52,14 @@ export function totalWithDelivery(
 
 // Apply together with Delivery.price in a transaction holding the Order row lock.
 export function deliveryTotals(
-  order: { subtotal: number; finalSubtotal: number | null },
+  order: { subtotal: number; finalSubtotal: number | null; freeDeliveryApplied?: boolean; promoDiscount?: number; finalPromoDiscount?: number | null },
   price: number,
 ) {
   positiveDeliveryPrice(price);
+  const customerPrice = order.freeDeliveryApplied ? 0 : price;
   return {
-    deliveryPrice: price,
-    total: totalWithDelivery(order.subtotal, price),
-    finalTotal: totalWithDelivery(order.finalSubtotal, price),
+    deliveryPrice: customerPrice,
+    total: totalWithDelivery(order.subtotal - (order.promoDiscount ?? 0), customerPrice),
+    finalTotal: totalWithDelivery(payableGoods(order), customerPrice),
   };
 }

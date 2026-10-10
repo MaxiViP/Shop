@@ -23,8 +23,9 @@ export class OrderCtrl {
   ) {}
 
   @Post('quote')
-  quote(@Body({ schema: quoteSchema }) body: QuoteInput) {
-    return this.order.quote(body);
+  async quote(@Body({ schema: quoteSchema }) body: QuoteInput, @Req() request: Request) {
+    const user = body.promoCodeId ? await this.auth.me(request.cookies?.[SID]) : null;
+    return this.order.quote(body, undefined, user?.id ?? null);
   }
 
   @Get('queue/offer')

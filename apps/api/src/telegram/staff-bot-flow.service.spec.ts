@@ -50,7 +50,7 @@ function setup() {
     telegram as unknown as TelegramService);
   const flow = restart();
   const reply = (text: string, promptId = session?.promptMessageId ?? 80) => ({
-    message_id: 100, from: { id: 123, is_bot: false },
+    message_id: 100, from: { id: 123, is_bot: false as const },
     chat: { id: 123, type: 'private' }, text,
     reply_to_message: { message_id: promptId },
   });

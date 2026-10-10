@@ -8,7 +8,8 @@ import { chatNotice } from './chat-notice.js';
 
 export type CustomerNotice = {
   event: Pick<OrderNotification, 'type'>;
-  order: { id: number; publicId: string; finalSubtotal: number | null; finalTotal: number | null; delivery: { status: DeliveryStatus } | null };
+  order: { id: number; publicId: string; finalSubtotal: number | null; finalTotal: number | null; delivery: { status: DeliveryStatus } | null;
+    promoCodeSnapshot?: string | null; promoDiscount?: number; finalPromoDiscount?: number | null; deliveryPrice?: number | null };
   issue: Pick<OrderIssue, 'type'> | null;
   message: { id?: number; text: string } | null;
   queue?: { position: number | null; wait: { min: number; max: number } | null } | null;
@@ -40,7 +41,9 @@ export class CustomerNotificationService {
       SCHEDULE_CHANGED: 'Время подготовки изменено',
     };
     const text = 'Заказ №' + order.id + '\n' + headings[event.type] +
-      (event.type === 'PAYMENT_READY' ? '\nТовары: ' + amount(order.finalSubtotal) + '\nИтого: ' + amount(order.finalTotal) : '') +
+      (event.type === 'PAYMENT_READY' ? '\nТовары: ' + amount(order.finalSubtotal) +
+        (order.promoCodeSnapshot ? '\nПромокод: ' + short(order.promoCodeSnapshot, 32) + ' · скидка ' + amount(order.finalPromoDiscount ?? order.promoDiscount ?? 0) : '') +
+        '\nДоставка: ' + amount(order.deliveryPrice ?? null) + '\nИтого: ' + amount(order.finalTotal) : '') +
       (event.type === 'QUEUE_DELAY' ?
         `\n${queue?.position ? `Вы примерно ${queue.position}-й в очереди.\n` : ''}` +
         `${queue?.wait ? `Ориентировочное начало сборки через ${queue.wait.min}–${queue.wait.max} мин.\n` : ''}` +

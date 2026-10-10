@@ -1,4 +1,5 @@
 import type { ProductPriceStatus, Unit } from "./product";
+import type { HitMode, SeasonalMode, SeasonTemplate } from './badges';
 export interface AdminImage {
   visible: boolean;
   id: number;
@@ -43,6 +44,15 @@ export interface AdminProduct extends ProductPricing {
   active: boolean;
   sort: number;
   category: AdminCategory;
+  isSeasonal: boolean;
+  isHit: boolean;
+  autoHit: boolean;
+  hitMode: HitMode;
+  seasonalStartsAt: string | null;
+  seasonalEndsAt: string | null;
+  seasonalMode: SeasonalMode;
+  seasonTemplateId: number | null;
+  seasonTemplate: Omit<SeasonTemplate, '_count'> | null;
   images: AdminImage[];
 }
 export interface AdminPage<T> {

@@ -252,7 +252,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     const defaults = { minDeliverySubtotal: 300000, maxOrderExtraUnitPrice: 500000, maxOrderExtrasTotal: 1000000, deliveryEnabled: true, pickupEnabled: true };
     try {
       await call(admin).patch('/admin/settings', defaults).expect(200);
-      expect((await call('').get('/shop/settings').expect(200)).body).toEqual({ minDeliverySubtotal: 300000, deliveryEnabled: true, pickupEnabled: true });
+      expect((await call('').get('/shop/settings').expect(200)).body).toEqual({ minDeliverySubtotal: 300000, deliveryEnabled: true, pickupEnabled: true, freeDeliveryEnabled: false, freeDeliveryThreshold: null });
       for (const cookie of [seller, owner]) await call(cookie).patch('/admin/settings', { minDeliverySubtotal: 0 }).expect(403);
       await call(owner).get('/staff/extra-limits').expect(403);
       await call(seller).get('/staff/extra-limits').expect(200);

@@ -1,6 +1,6 @@
 <template>
   <article class="card" :class="{ 'card--added': action.added, 'card--compact': compact }">
-    <div class="card__media">
+    <div class="card__media" :class="{ 'card__media--badged': seasonal || product.isHit }">
       <NuxtLink :to="`/product/${product.slug}`" class="card__img">
         <img
           v-if="product.images[0]"
@@ -19,6 +19,10 @@
         <span class="sr-only">В корзине: </span>{{ quantityLabel }}
       </span>
       <ProductFavorite class="card__favorite" :product="product" />
+      <div v-if="seasonal || product.isHit" class="card__badges">
+        <span v-if="product.isHit" class="card__ribbon card__ribbon--hit">ХИТ</span>
+        <span v-if="seasonal" class="card__ribbon card__ribbon--season">СЕЗОН</span>
+      </div>
     </div>
 
     <div class="card__body">
@@ -94,6 +98,7 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted, watch } from 'vue';
 import type { ProductListItem } from "~/types/product";
 import { useCartStore } from "~/stores/cart";
 import { quickAddState } from "~/utils/quick-add";
@@ -109,6 +114,20 @@ const { product } = defineProps<{
 const cart = useCartStore();
 const actions = useCartActions();
 const asset = useAsset();
+const seasonEnded = ref(false);
+const seasonal = computed(() => product.isSeasonal && !seasonEnded.value);
+let seasonTimer: ReturnType<typeof setTimeout> | undefined;
+let mounted = false;
+function scheduleSeason() {
+  clearTimeout(seasonTimer); seasonEnded.value = false;
+  if (!product.isSeasonal || !product.seasonalEndsAt) return;
+  const remaining = Date.parse(product.seasonalEndsAt) - Date.now();
+  if (remaining <= 0) seasonEnded.value = true;
+  else seasonTimer = setTimeout(scheduleSeason, Math.min(remaining, 2_147_483_647));
+}
+onMounted(() => { mounted = true; scheduleSeason(); });
+watch(() => [product.isSeasonal, product.seasonalEndsAt], () => { if (mounted) scheduleSeason(); });
+onBeforeUnmount(() => clearTimeout(seasonTimer));
 const notice = useHeaderNotice();
 const cartQty = computed(() => cart.qty(product.id));
 const cartProduct = computed(
@@ -338,6 +357,12 @@ async function subtract() {
   border-radius: 0.5rem;
 
   background: var(--ui-bg);
+}
+
+.card__media--badged .card__quantity {
+  top: auto;
+  bottom: var(--card-inset);
+  transform: translateX(-50%);
 }
 
 /* =========================================================
@@ -577,6 +602,11 @@ async function subtract() {
     font-size: 0.68rem;
   }
 }
+
+.card__badges { position: absolute; top: var(--card-inset); left: 0; z-index: 4; display: grid; justify-items: start; gap: 0.25rem; pointer-events: none; }
+.card__ribbon { padding: 0.25rem 0.625rem 0.25rem 0.5rem; border-radius: 0 0.375rem 0.375rem 0; color: #fff; font-size: clamp(0.625rem, 1.8vw, 0.6875rem); font-weight: 800; line-height: 1.25; letter-spacing: 0.025em; box-shadow: 0 1px 3px rgb(0 0 0 / 15%); }
+.card__ribbon--season { background: #15803d; }
+.card__ribbon--hit { background: #b45309; }
 
 @media (width < 40rem) {
   .card--compact .card__img { aspect-ratio: 4 / 3; }

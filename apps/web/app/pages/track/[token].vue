@@ -35,7 +35,7 @@
           <dt>
             {{ tracking.provider === 'YANDEX' ? 'Доставка Яндекс' : 'Доставка' }}
           </dt>
-          <dd>{{ knownMoney(tracking.order.deliveryPrice) }}</dd>
+          <dd>{{ deliveryCost(tracking.order.deliveryPrice) }}</dd>
         </div>
 
         <div>
@@ -84,7 +84,7 @@
 
 <script setup lang="ts">
 import type { PublicTracking } from '~/types/order'
-import { deliveryProvider, deliveryStatus } from '~/utils/delivery'
+import { deliveryProvider, deliveryStatus, deliveryCost } from '~/utils/delivery'
 import { knownMoney, money } from '~/utils/money'
 
 const route = useRoute()

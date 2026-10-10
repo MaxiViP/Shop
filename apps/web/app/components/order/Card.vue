@@ -28,11 +28,12 @@
       Самовывоз · {{ order.deliveryAt ? `К ${pickupTime(order.deliveryAt)} (МСК)` : 'Подготовим как можно скорее' }}
     </p>
 
-    <strong class="order__total">
+    <strong v-if="!order.promoCodeSnapshot" class="order__total">
       Товары: {{ order.finalSubtotal === null ? '≈ ' : '' }}{{ knownMoney(order.finalSubtotal ?? order.subtotal) }}
     </strong>
     <p v-if="order.payment" class="order__items">{{ paymentLabels[order.payment.status] }}</p>
-    <p v-if="order.type === 'DELIVERY'" class="order__items">Доставка оплачивается отдельно</p>
+    <OrderCosts v-if="order.promoCodeSnapshot" :order="order" />
+    <p class="order__items">{{ orderDeliveryMessage(order) }}</p>
   </NuxtLink>
 </template>
 
@@ -40,6 +41,7 @@
 import type { OrderSummary } from '~/types/order'
 import { knownMoney } from '~/utils/money'
 import { pickupTime } from '~/utils/pickup'
+import { orderDeliveryMessage } from '~/utils/delivery'
 
 const { order } = defineProps<{
   order: OrderSummary

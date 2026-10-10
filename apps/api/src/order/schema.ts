@@ -31,6 +31,7 @@ export const orderSchema = z
     fulfillmentMode: z.enum(['ASAP', 'SCHEDULED']).optional(),
     scheduledFor: z.string().datetime().optional(),
     checkoutRequestId: z.uuid().optional(),
+    promoCodeId: z.number().int().positive().max(2_147_483_647).optional(),
 
     quoteToken: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 

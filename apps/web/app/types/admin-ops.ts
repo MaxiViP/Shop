@@ -39,6 +39,9 @@ export interface AdminOrderRow {
   status: string; payment: { status: string } | null; userId: number | null;
 }
 export interface AdminOrderDetail extends AdminOrderRow {
+  subtotal: number;
+  promoCodeSnapshot?: string | null; promoTitleSnapshot?: string | null;
+  promoDiscount?: number; finalPromoDiscount?: number | null;
   items: { id: number; productName: string; qty: number; actualQty: number | null;
     total: number; actualTotal: number | null; status: string; unit: string;
     price: number; actualPrice: number | null; priceQty: number }[];

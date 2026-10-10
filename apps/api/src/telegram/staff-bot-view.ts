@@ -37,6 +37,8 @@ export function dashboard(order: OrderView, url?: string): { text: string; keybo
     'Запрошено: ' + money(order.total));
   if (order.finalSubtotal !== null)
     lines.push('Факт товаров: ' + money(order.finalSubtotal), 'Итого: ' + money(order.finalTotal));
+  if (order.promoCodeSnapshot) lines.push('Промокод: ' + clean(order.promoCodeSnapshot, 32) +
+    ' · скидка ' + money(order.finalPromoDiscount ?? order.promoDiscount));
   lines.push('Оплата: ' + (order.payment ? paymentText[order.payment.status] : 'не создана'));
   if (order.payment?.status === 'REPORTED') lines.push('⚠️ Покупатель сообщил об оплате. Проверьте поступление денег.');
   if (order.delivery) lines.push('Доставка: ' +

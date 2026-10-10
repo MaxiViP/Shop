@@ -1,3 +1,4 @@
+import { promoOrderSelect } from '../promo/promo.js';
 import { formatAddress } from '../common/address.js';
 import {
   BadGatewayException,
@@ -15,6 +16,7 @@ import type { DeliveryStatus, Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import { deliveryTotals, positiveDeliveryPrice } from '../order/pricing.js';
 import { requirePaid } from '../order/payment.js';
+import { returnedProviderStatuses } from './status.js';
 import {
   type YandexClaimInfo,
   type YandexOrderInput,
@@ -46,11 +48,7 @@ const pickedUpStatuses = new Set([
   'delivery_arrived',
   'ready_for_delivery_confirmation',
   'pay_waiting',
-  'returning',
-  'return_arrived',
-  'ready_for_return_confirmation',
-  'returned',
-  'returned_finish',
+  ...returnedProviderStatuses,
 ]);
 
 const deliveredStatuses = new Set(['delivered', 'delivered_finish']);
@@ -559,7 +557,7 @@ export class DeliveryService {
             subtotal: true,
             deliveryPrice: true,
             total: true,
-            finalSubtotal: true,
+            finalSubtotal: true, ...promoOrderSelect,
             finalTotal: true,
           },
         },
@@ -596,7 +594,8 @@ export class DeliveryService {
               id: true,
               status: true,
               subtotal: true,
-              finalSubtotal: true,
+              finalSubtotal: true, ...promoOrderSelect,
+              freeDeliveryApplied: true,
               payment: { select: { status: true } },
             },
           },

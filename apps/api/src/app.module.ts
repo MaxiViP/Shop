@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PromoModule } from './promo/promo.module.js';
 import { TelegramWebhookModule } from './telegram/telegram-webhook.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { AddressModule } from './address/address.module.js';
@@ -16,6 +17,7 @@ import { MarketMapModule } from './market-map/market-map.module.js';
 
 @Module({
   imports: [
+    PromoModule,
     AdminModule,
     MarketMapModule,
     StaffModule,

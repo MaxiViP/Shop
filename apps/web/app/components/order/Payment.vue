@@ -13,13 +13,13 @@
       ><h2 class="payment__title">Оплата заказа</h2></template
     >
     <div class="payment__body">
+      <p v-if="order.promoCodeSnapshot">Товары и услуги до скидки: {{ knownMoney(order.finalSubtotal) }}</p>
+      <OrderPromoDiscount :order="order" />
       <p class="payment__amount">
         {{ payment.status === "PAID" ? "Оплачено" : "К оплате" }}:
         {{ money(payment.amount) }}
       </p>
-      <p v-if="order.type === 'DELIVERY'" class="text-muted">
-        Доставка оплачивается отдельно.
-      </p>
+      <p class="text-muted">{{ orderDeliveryMessage(order) }}</p>
       <UAlert
         v-if="payment.status === 'REPORTED'"
         color="info"
@@ -29,7 +29,7 @@
       <UAlert
         v-else-if="payment.status === 'PAID'"
         color="success"
-        title="Оплата получена"
+        :title="payment.amount === 0 && order.promoCodeSnapshot ? 'Товары покрыты промокодом — перевод не требуется' : 'Оплата получена'"
         :description="
           order.type === 'DELIVERY'
             ? 'Оформляем доставку.'
@@ -123,6 +123,7 @@
 
 <script setup lang="ts">
 import type { OrderDetail, PaymentMethod } from "~/types/order";
+import { orderDeliveryMessage } from '~/utils/delivery';
 const props = defineProps<{ order: OrderDetail }>();
 const payment = computed(() => props.order.payment);
 const details = computed(() => props.order.paymentDetails);

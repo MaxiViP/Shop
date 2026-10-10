@@ -73,6 +73,22 @@ test('SSR/hydration reuses the first page and cursor without issuing a second re
   assert.equal(catalog.hasMore.value, true);
 });
 
+for (const tag of ['hit', 'seasonal']) test(tag + ' selection keeps its badges, category and search on every cursor page', async t => {
+  const item = { ...product(1), isHit: true, isSeasonal: true };
+  const { catalog, state, requests, initialRequests, route } = await fixture(t, response([item], 'tag-cursor'), 'fruits', { tag, q: 'яблоко' });
+  assert.equal(initialRequests[0].query.tag, tag);
+  assert.equal(catalog.categoryQuery.value.tag, tag);
+  state.next = response([{ ...item, id: 2 }], 'tag-cursor-2');
+  await catalog.loadMore();
+  assert.deepEqual(requests[0].query, { feed: 'catalog', category: 'fruits', q: 'яблоко', tag, sort: 'recommended', limit: 24, cursor: 'tag-cursor' });
+  assert.ok(catalog.items.value.every(item => item.isHit && item.isSeasonal));
+  state.next = response([item]);
+  route.query.tag = tag === 'hit' ? 'seasonal' : 'hit';
+  await nextTick();
+  assert.equal(requests.at(-1).query.cursor, undefined);
+  assert.equal(requests.at(-1).query.tag, route.query.tag);
+});
+
 test('All appends bounded cursor pages without duplicate cards, keeps sorting/filters and stops at the end', async t => {
   const { catalog, requests, state } = await fixture(t, response([product(1), product(2)], 'cursor-1'), undefined,
     { sort: 'price_asc', q: 'яблоко', marketPoint: 'stall' });

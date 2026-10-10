@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
+import { assembledDiscount, payableGoods, promoOrderSelect } from '../promo/promo.js';
 import type { OrderItem, OrderStatus, OrderType, UserRole, Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import type { DeliveryInput, ItemInput, ItemPriceInput } from './schema.js';
@@ -76,7 +77,7 @@ export class StaffService {
 
         total: true,
         finalTotal: true,
-        finalSubtotal: true,
+        finalSubtotal: true, ...promoOrderSelect,
         payment: { select: paymentSelect },
         createdAt: true,
 
@@ -166,7 +167,7 @@ export class StaffService {
         subtotal: true,
         deliveryPrice: true,
         total: true,
-        finalSubtotal: true,
+        finalSubtotal: true, ...promoOrderSelect,
         finalTotal: true,
         weightToleranceBps: true,
         issues: { orderBy: { id: 'asc' } },
@@ -491,6 +492,8 @@ export class StaffService {
       });
       const extras = await db.orderExtra.findMany({ where: { orderId: id, status: 'ACTIVE' } });
       const finalSubtotal = goodsSum([...amounts, ...extras.map(extra => goodsLine(extra.unitPrice, extra.quantity, 1))]);
+      const finalPromoDiscount = assembledDiscount(order, goodsSum(amounts));
+      const amountDue = finalSubtotal - finalPromoDiscount;
       if (finalSubtotal === 0)
         throw new ConflictException(
           'В заказе нет товаров к оплате. Верните товары в сборку или отмените заказ',
@@ -505,20 +508,26 @@ export class StaffService {
         });
       const payment = await db.orderPayment.upsert({
         where: { orderId: id },
-        create: { orderId: id, amount: finalSubtotal },
+        create: { orderId: id, amount: amountDue, status: amountDue === 0 ? 'PAID' : 'AWAITING',
+          confirmedAt: amountDue === 0 ? new Date() : null },
         update: {
-          amount: finalSubtotal,
-          status: 'AWAITING',
+          amount: amountDue,
+          status: amountDue === 0 ? 'PAID' : 'AWAITING',
           method: null,
           reportedAt: null,
-          confirmedAt: null,
+          confirmedAt: amountDue === 0 ? new Date() : null,
           confirmedById: null,
         },
       });
 
-      await db.orderNotification.create({ data: { orderId: id, type: 'PAYMENT_READY', dedupeKey: `payment:${payment.id}:${payment.updatedAt.toISOString()}` } });
-      await telegramEvent(db, { orderId: id, type: 'PAYMENT_READY', dedupeKey: `payment:${payment.id}:${payment.updatedAt.toISOString()}`,
-        eventData: { actorUserId: actor?.userId ?? null } });
+      if (amountDue > 0) {
+        await db.orderNotification.create({ data: { orderId: id, type: 'PAYMENT_READY', dedupeKey: `payment:${payment.id}:${payment.updatedAt.toISOString()}` } });
+        await telegramEvent(db, { orderId: id, type: 'PAYMENT_READY', dedupeKey: `payment:${payment.id}:${payment.updatedAt.toISOString()}`,
+          eventData: { actorUserId: actor?.userId ?? null } });
+      } else {
+        await message(db, id, 'Товары полностью покрыты промокодом. Сумма к оплате магазину — 0 ₽. Перевод не требуется.',
+          'SYSTEM', actor?.userId ?? null, null, 'customer', 'PAYMENT_RECEIVED');
+      }
       const saved = await db.order.update({
         where: { id },
 
@@ -526,7 +535,8 @@ export class StaffService {
           status: 'READY',
           assemblyFinalizedAt: new Date(),
           finalSubtotal,
-          finalTotal: totalWithDelivery(finalSubtotal, order.deliveryPrice),
+          finalPromoDiscount,
+          finalTotal: totalWithDelivery(amountDue, order.deliveryPrice),
         },
       });
       await recordStaffAudit(db, id, actor, 'FINISH_ASSEMBLY');
@@ -563,6 +573,7 @@ export class StaffService {
           status: 'ASSEMBLING',
           assemblyFinalizedAt: null,
           finalSubtotal: null,
+          finalPromoDiscount: null,
           finalTotal: null,
         },
       });
@@ -585,7 +596,7 @@ export class StaffService {
         order.status !== 'READY' ||
         !order.assemblyFinalizedAt ||
         !order.payment || !['AWAITING', 'REPORTED'].includes(order.payment.status) ||
-        order.payment.amount !== order.finalSubtotal
+        order.payment.amount !== payableGoods(order)
       )
         throw new ConflictException(
           'Заказ не готов к оплате или сумма изменилась',
@@ -929,7 +940,9 @@ export class StaffService {
         scheduledFor: true,
         deliveryPrice: true,
         subtotal: true,
-        finalSubtotal: true,
+        finalSubtotal: true, ...promoOrderSelect,
+        freeDeliveryApplied: true,
+        promoTypeSnapshot: true, promoAmountSnapshot: true, promoPercentBpsSnapshot: true, promoMaxDiscountSnapshot: true,
         weightToleranceBps: true,
         assemblyFinalizedAt: true,
         payment: { select: paymentSelect },

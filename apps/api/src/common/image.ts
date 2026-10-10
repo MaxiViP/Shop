@@ -12,7 +12,7 @@ export interface ImageFile {
   size: number;
 }
 
-export async function normalizeImage(file?: ImageFile, preserveWebp = false): Promise<Buffer> {
+export async function normalizeImage(file?: ImageFile, preserveWebp = false, maxWidth?: number): Promise<Buffer> {
   if (
     !file ||
     !['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)
@@ -41,7 +41,7 @@ export async function normalizeImage(file?: ImageFile, preserveWebp = false): Pr
       await image.clone().raw().toBuffer();
       return file.buffer;
     }
-    return await image.rotate().webp({ quality: 85 }).toBuffer();
+    return await image.rotate().resize({ width: maxWidth, withoutEnlargement: true }).webp({ quality: 85 }).toBuffer();
   } catch {
     throw new BadRequestException(
       'Файл не является корректным JPEG, PNG или WebP (до 25 мегапикселей)',

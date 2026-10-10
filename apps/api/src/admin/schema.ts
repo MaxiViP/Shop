@@ -32,10 +32,20 @@ const productFields = z.strictObject({
   sourceCheckedAt: z.iso.datetime().nullable().optional(),
   active: z.boolean(),
   sort,
+  isSeasonal: z.boolean().optional(),
+  hitMode: z.enum(['AUTO', 'MANUAL', 'OFF']).optional(),
+  seasonalMode: z.enum(['AUTO', 'MANUAL', 'OFF']).optional(),
+  seasonTemplateId: idSchema.nullable().optional(),
+  seasonalStartsAt: z.iso.datetime().nullable().optional(),
+  seasonalEndsAt: z.iso.datetime().nullable().optional(),
 });
 export const productSchema = productFields.superRefine((data, ctx) => {
+  if (data.seasonalMode === 'AUTO' && !data.seasonTemplateId)
+    ctx.addIssue({ code: 'custom', path: ['seasonTemplateId'], message: 'Выберите шаблон сезонности.' });
   for (const [field, message] of Object.entries(quantityErrors(data)))
     ctx.addIssue({ code: 'custom', path: [field], message });
+  if (data.seasonalStartsAt && data.seasonalEndsAt && data.seasonalEndsAt <= data.seasonalStartsAt)
+    ctx.addIssue({ code: 'custom', path: ['seasonalEndsAt'], message: 'Окончание сезонности должно быть позже начала.' });
 });
 // Cross-field validation uses the merged current product inside the transaction.
 export const productPatch = productFields.partial();
@@ -64,6 +74,8 @@ export const productQuery = pageSchema.extend({
   marketPoint: idSchema.optional(),
   priceStatus: priceStatusSchema.optional(),
   active: z.enum(['true', 'false']).optional(),
+  hitMode: z.enum(['AUTO', 'MANUAL', 'OFF']).optional(),
+  seasonTemplateId: idSchema.optional(),
   settlementMode: z.enum(['UNSET', 'SHARED_MARKUP', 'NO_MARKUP']).optional(),
 });
 export const userQuery = pageSchema.extend({

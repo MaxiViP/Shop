@@ -1,3 +1,4 @@
+import { promoOrderSelect } from '../promo/promo.js';
 import { formatAddress } from '../common/address.js';
 import type { Prisma, Unit } from '../db/gen/client.js';
 
@@ -6,7 +7,7 @@ export const telegramOrderSelect = {
   city: true, street: true, house: true, buildingPart: true, flat: true, entrance: true,
   floor: true, intercom: true, comment: true, deliveryAt: true,
   fulfillmentMode: true, scheduledFor: true,
-  subtotal: true, deliveryPrice: true, total: true,
+  subtotal: true, ...promoOrderSelect, deliveryPrice: true, total: true,
   items: {
     orderBy: { id: 'asc' },
     select: { productName: true, unit: true, qty: true, total: true },
@@ -61,6 +62,7 @@ export function newOrderMessage(order: TelegramOrder): string {
 
   const footer = [
     '', 'Товары: ' + money(order.subtotal),
+    ...(order.promoCodeSnapshot ? ['Промокод: ' + clip(order.promoCodeSnapshot, 32) + ' · скидка ' + money(order.promoDiscount)] : []),
     'Доставка: ' + (order.deliveryPrice === null ? 'рассчитывается' : money(order.deliveryPrice)),
     'Итого: ' + (order.total === null ? 'уточняется' : money(order.total)),
   ];

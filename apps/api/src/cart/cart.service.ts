@@ -16,7 +16,9 @@ import { customerProduct } from '../product/select.js';
 export type CartChange =
   | { kind: 'add' | 'set'; productId: number; qty: number }
   | { kind: 'plus' | 'minus' | 'remove'; productId: number }
+  | { kind: 'promo'; promoCodeId: number | null }
   | { kind: 'clear' };
+// Selecting a code changes the existing cart revision without consuming the code.
 
 @Injectable()
 export class CartService {
@@ -45,13 +47,14 @@ export class CartService {
     db: Prisma.TransactionClient,
     cart: Awaited<ReturnType<CartService['locked']>>,
   ) {
-    const quote = await this.orders.quote({ items: cart.items }, db);
+    const quote = await this.orders.quote({ items: cart.items, promoCodeId: cart.promoCodeId ?? undefined }, db, cart.userId);
+    const promoCodes = await this.orders.promosForCart(db, cart.userId, quote.subtotal);
     // Inactive products remain visible to their owner so they can be removed.
     const products = await db.product.findMany({
       where: { id: { in: cart.items.map((item) => item.productId) } },
       select: cartProductSelect,
     });
-    return { revision: cart.revision, ...quote, products: products.map(customerProduct) };
+    return { revision: cart.revision, ...quote, promoCodes, products: products.map(customerProduct) };
   }
   getIn(db: Prisma.TransactionClient, userId: number) {
     return this.locked(db, userId).then((cart) => this.snapshot(db, cart));
@@ -65,8 +68,15 @@ export class CartService {
       const cart = await this.locked(db, userId);
       if (cart.revision !== revision)
         throw new ConflictException('Корзина уже изменилась. Откройте /cart.');
-      if (change.kind === 'clear')
+      if (change.kind === 'promo') {
+        const quote = await this.orders.quote({ items: cart.items, promoCodeId: change.promoCodeId ?? undefined }, db, userId);
+        if (change.promoCodeId && !quote.promo?.eligible)
+          throw new ConflictException(quote.promo?.reason ?? 'Промокод недоступен');
+        await db.cart.update({ where: { id: cart.id }, data: { promoCodeId: change.promoCodeId } });
+      } else if (change.kind === 'clear') {
         await db.cartItem.deleteMany({ where: { cartId: cart.id } });
+        await db.cart.update({ where: { id: cart.id }, data: { promoCodeId: null } });
+      }
       else {
         const productId = change.productId;
         if (
@@ -206,7 +216,7 @@ export class CartService {
     if (!ids.length) throw new BadRequestException('Корзина пуста');
     // Product edits/deletion cannot slip between final quote and snapshot creation.
     await db.$queryRaw`SELECT id FROM "Product" WHERE id = ANY(${ids}::int[]) ORDER BY id FOR SHARE`;
-    const input = orderSchema.safeParse({ ...data, items: cart.items });
+    const input = orderSchema.safeParse({ ...data, items: cart.items, promoCodeId: cart.promoCodeId ?? undefined });
     if (!input.success)
       throw new BadRequestException(
         'Проверьте данные заказа и время получения.',
@@ -215,7 +225,7 @@ export class CartService {
     await db.cartItem.deleteMany({ where: { cartId: cart.id } });
     await db.cart.update({
       where: { id: cart.id },
-      data: { revision: randomUUID() },
+      data: { revision: randomUUID(), promoCodeId: null },
     });
     return { order: result.order, created: result.created };
   }

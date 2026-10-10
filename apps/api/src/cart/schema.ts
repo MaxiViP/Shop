@@ -8,6 +8,7 @@ const qty = z.number().int().positive().max(MAX_QTY);
 const base = z.object({ revision });
 
 export const cartChangeSchema = z.discriminatedUnion('kind', [
+  base.extend({ kind: z.literal('promo'), promoCodeId: productId.nullable() }),
   base.extend({ kind: z.literal('clear') }),
   base.extend({ kind: z.literal('remove'), productId }),
   base.extend({ kind: z.literal('plus'), productId }),

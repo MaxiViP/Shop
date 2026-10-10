@@ -1,6 +1,7 @@
 import { DbService } from '../db/db.service.js';
 import { productQuerySchema } from './schema.js';
 import { ProductService } from './product.service.js';
+import { hitWhere, seasonalWhere } from './badges.js';
 
 function setup(items: object[] = [], total = items.length) {
   const findMany = vi.fn().mockResolvedValue(items);
@@ -23,6 +24,49 @@ function query(value: unknown = {}) {
 }
 
 describe('ProductService list', () => {
+  it.each([{ tag: 'hit', q: 'яблоко' }, { tag: 'hit', q: 'яблоко', category: 'fruits' }])('keeps hit overrides separate from search OR: %j', async input => {
+    const { findMany, count, service } = setup();
+    await service.list(query(input));
+    expect(findMany).toHaveBeenCalledTimes(input.category ? 2 : 1);
+    expect(count).toHaveBeenCalledTimes(input.category ? 2 : 1);
+    for (const [options] of findMany.mock.calls) expect(options.where).toMatchObject({ AND: hitWhere(), OR: expect.any(Array) });
+  });
+  it.each([
+    { tag: 'seasonal' },
+    { tag: 'seasonal', q: 'яблоко' },
+    { tag: 'seasonal', q: 'яблоко', category: 'fruits' },
+  ])('keeps the calendar filter separate from search OR: %j', async input => {
+    const { findMany, count, service } = setup();
+    await service.list(query(input));
+    const where = expect.objectContaining({ active: true, AND: seasonalWhere(new Date()),
+      ...(input.q ? { OR: [{ name: { contains: input.q, mode: 'insensitive' } },
+        { description: { contains: input.q, mode: 'insensitive' } }] } : {}),
+    });
+    const calls = input.category ? 2 : 1;
+    expect(findMany).toHaveBeenCalledTimes(calls);
+    expect(count).toHaveBeenCalledTimes(calls);
+    for (let index = 1; index <= calls; index++) {
+      expect(findMany).toHaveBeenNthCalledWith(index, expect.objectContaining({ where }));
+      expect(count).toHaveBeenNthCalledWith(index, { where });
+    }
+  });
+
+  it('returns both computed badges without loading each calendar template separately', async () => {
+    const { findMany, count, service } = setup(Array.from({ length: 24 }, (_, id) => ({
+      id: id + 1, price: 10000, marketPoint: null, isHit: true, isSeasonal: false,
+      seasonalMode: 'AUTO', seasonTemplate: { active: true, startMonth: 1, endMonth: 12 },
+    })));
+    const result = await service.list(query({ tag: 'hit', q: 'яблоко' }));
+    expect(result.items).toHaveLength(24);
+    expect(result.items.every(item => item.isHit && item.isSeasonal && item.price === 11000)).toBe(true);
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(count).toHaveBeenCalledTimes(1);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ AND: hitWhere() }),
+      select: expect.objectContaining({ seasonTemplate: { select: { active: true, startMonth: true, endMonth: true } } }),
+    }));
+  });
+
   it('lists active products without a search query', async () => {
     const { count, findMany, service } = setup([{ id: 1, price: 10000, marketPoint: null }], 1);
 
@@ -70,7 +114,7 @@ describe('ProductService list', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           active: true,
-          category: { slug: 'fruits' },
+          category: { slug: 'fruits', active: true },
           OR: [
             { name: { contains: 'спелый плод', mode: 'insensitive' } },
             {
@@ -84,7 +128,7 @@ describe('ProductService list', () => {
       }),
     );
     expect(findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      where: expect.objectContaining({ category: { slug: { not: 'fruits' } } }),
+      where: expect.objectContaining({ category: { slug: { not: 'fruits' }, active: true } }),
     }));
   });
 

@@ -1,6 +1,7 @@
 import { newOrderMessage, type TelegramOrder } from './message.js';
 
 const order: TelegramOrder = {
+  promoCodeSnapshot: null, promoTitleSnapshot: null, promoDiscount: 0, finalPromoDiscount: null,
   id: 154, status: 'NEW', type: 'DELIVERY', customerName: 'Максим <&_*[]>', customerPhone: '+70000000000',
   city: 'Москва', street: 'Рыночная', house: '1', buildingPart: 'к. 2', flat: '2', entrance: '3',
   floor: '4', intercom: '5', comment: 'Позвонить <before> & [arrival]',
@@ -57,7 +58,7 @@ describe('Telegram new order text', () => {
       flat: long, entrance: long, floor: long, intercom: long, comment: long,
       items: Array.from({ length: 1000 }, () => ({ productName: long, unit: 'GRAM', qty: 1500, total: 12345 })) });
     expect(text.length).toBeLessThanOrEqual(4000);
-    expect(text.isWellFormed()).toBe(true);
+    expect(Buffer.from(text, 'utf8').toString('utf8')).toBe(text);
     expect(text).toMatch(/…и ещё \d+ позиций/);
     expect(text).toContain('Товары: 690 ₽');
     expect(text).toContain('Итого: уточняется');

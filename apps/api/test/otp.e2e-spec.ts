@@ -397,7 +397,7 @@ describe.skipIf(!process.env.DATABASE_URL)('OTP lifecycle / PostgreSQL', () => {
     expect(first.headers['set-cookie']).toEqual(
       expect.arrayContaining([expect.stringMatching(new RegExp(`^${SID}=tp_[a-f0-9]{64};`))]),
     );
-    const cookie = (first.headers['set-cookie'] as string[])[0]!.split(';')[0]!;
+    const cookie = first.get('Set-Cookie')![0]!.split(';')[0]!;
     await request(app.getHttpServer()).get('/api/auth/me')
       .set('Cookie', cookie).expect(200).expect((response) => {
         expect(response.body.id).toBe(created.id);
@@ -490,7 +490,7 @@ describe.skipIf(!process.env.DATABASE_URL)('OTP lifecycle / PostgreSQL', () => {
     const created = await db.user.findUniqueOrThrow({ where: { phone: number } });
     expect(first.body).toMatchObject({ id: created.id, role: 'USER', verifiedAt: null });
     expect(created.verifiedAt).toBeNull();
-    const cookie = (first.headers['set-cookie'] as string[])[0]!.split(';')[0]!;
+    const cookie = first.get('Set-Cookie')![0]!.split(';')[0]!;
     expect(cookie).toMatch(new RegExp(`^${SID}=do_[a-f0-9]{64}$`));
     await request(app.getHttpServer()).get('/api/auth/me')
       .set('Cookie', cookie).expect(200).expect((response) => {

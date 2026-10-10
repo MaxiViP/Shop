@@ -8,8 +8,11 @@ test('one brand hero and the customer explanation describe the current market fl
     read('app/components/home/HeroCarousel.vue'), read('app/components/app/Header.vue'),
     read('app/pages/how-it-works.vue'), read('server/routes/sitemap.xml.get.ts'),
   ]);
-  assert.match(hero, /Не просто доставка\.<br>Аутентичный поход на рынок — без потери времени\./);
-  assert.match(hero, /Продавец показывает продукты прямо с прилавка/);
+  assert.match(hero, /activeSlide\.title/);
+  assert.match(hero, /activeSlide\.text/);
+  const migration = await readFile(new URL('../../api/prisma/migrations/20261010120000_home_content/migration.sql', import.meta.url), 'utf8');
+  assert.ok(migration.includes('Не просто доставка.\\nАутентичный поход на рынок — без потери времени.'));
+  assert.ok(migration.includes('Продавец показывает продукты прямо с прилавка'));
   assert.match(header, /to="\/how-it-works"/); assert.match(header, /<span>Как это работает<\/span>/);
   assert.match(page, /Аутентичный рынок — где бы вы ни находились/);
   assert.match(page, /Фото прилавка/); assert.match(page, /Самовывоз с рынка/); assert.match(page, /Сборка и очередь/);

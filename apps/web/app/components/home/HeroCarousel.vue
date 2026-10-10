@@ -1,59 +1,128 @@
 <template>
   <section
+    v-if="activeSlide"
     class="hero"
     :class="{ 'hero--feature': featureSlide }"
     aria-label="Прилавки рынка"
     @pointerdown="startSwipe"
     @pointerup="endSwipe"
-    @pointercancel="swipe = null"
+    @pointercancel="cancelSwipe"
+    @mouseenter="hovered = true"
+    @mouseleave="hovered = false"
+    @focusin="focused = true"
+    @focusout="leaveFocus"
   >
     <div class="hero__slide">
-      <img
-        class="hero__image"
-        :src="activeSlide.image"
-        :style="{ objectPosition: activeSlide.position ?? 'center' }"
-        alt=""
-        draggable="false"
+      <Transition
+        mode="out-in"
+        enter-active-class="hero__frame--changing"
+        leave-active-class="hero__frame--changing"
+        enter-from-class="hero__frame--hidden"
+        leave-to-class="hero__frame--hidden"
       >
+        <div :key="activeSlide.id" class="hero__frame">
+          <img
+            v-if="activeSlide.image"
+            class="hero__image"
+            :src="asset(activeSlide.image)"
+            :style="{ objectPosition: activeSlide.position ?? 'center' }"
+            alt=""
+            draggable="false"
+          >
 
-      <div class="hero__content" :aria-hidden="featureSlide || undefined">
-        <p class="hero__label">
-          {{ activeSlide.eyebrow }}
-        </p>
+          <div class="hero__content hero__content--active" :data-slide-id="activeSlide.id" :aria-hidden="featureSlide || undefined">
+            <p v-if="activeSlide.eyebrow" class="hero__label">
+              {{ activeSlide.eyebrow }}
+            </p>
 
-        <h1 class="hero__title">
-          Не просто доставка.<br>Аутентичный поход на рынок — без потери времени.
-        </h1>
+            <h1 class="hero__title">
+              {{ activeSlide.title }}
+            </h1>
 
-        <p class="hero__text">
-          Продавец показывает продукты прямо с прилавка, а вы выбираете именно то, что хотите — по фото и в прямом чате.
-        </p>
+            <p class="hero__text">
+              {{ activeSlide.text }}
+            </p>
 
-        <UButton
-          class="hero__action"
-          :to="activeSlide.to"
-          size="lg"
-        >
-          {{ activeSlide.buttonLabel }}
-        </UButton>
-      </div>
-
-      <section class="home__feature" aria-labelledby="market-photo-choice" :aria-hidden="compact && !featureSlide || undefined">
-        <div class="home__feature-head">
-          <span class="home__feature-icon" aria-hidden="true"><UIcon name="i-lucide-store" /></span>
-          <div>
-            <h2 id="market-photo-choice" class="home__feature-title">Выбирайте продукты прямо с прилавка</h2>
-            <p class="home__feature-text">Не уверены, какой товар взять? Продавец отправит актуальное фото прилавка прямо из рынка. Откройте снимок, отметьте понравившийся продукт и отправьте отметку продавцу — он увидит, что именно вы выбрали.</p>
+            <UButton v-if="activeSlide.buttonLabel && activeSlide.to" class="hero__action" :to="activeSlide.to" size="lg">
+              {{ activeSlide.buttonLabel }}
+            </UButton>
           </div>
         </div>
-        <ol class="home__feature-flow" aria-label="Как выбрать продукт с прилавка">
-          <li><UIcon name="i-lucide-camera" class="home__feature-step-icon" aria-hidden="true" /><span>Продавец фотографирует</span><UIcon name="i-lucide-arrow-right" class="home__feature-arrow" aria-hidden="true" /></li>
-          <li><UIcon name="i-lucide-pencil" class="home__feature-step-icon" aria-hidden="true" /><span>Вы отмечаете</span><UIcon name="i-lucide-arrow-right" class="home__feature-arrow" aria-hidden="true" /></li>
-          <li><UIcon name="i-lucide-shopping-basket" class="home__feature-step-icon" aria-hidden="true" /><span>Продавец кладёт выбранный товар в заказ</span></li>
+      </Transition>
+
+      <div class="hero__reserve" aria-hidden="true" inert>
+        <div v-for="slide in heroSlides" :key="slide.id" class="hero__content hero__content--reserve">
+          <p v-if="slide.eyebrow" class="hero__label">{{ slide.eyebrow }}</p>
+          <p class="hero__title">{{ slide.title }}</p>
+          <p class="hero__text">{{ slide.text }}</p>
+          <UButton v-if="slide.buttonLabel && slide.to" class="hero__action" size="lg" tabindex="-1">{{ slide.buttonLabel }}</UButton>
+        </div>
+      </div>
+
+      <section
+        class="home__feature"
+        aria-labelledby="market-photo-choice"
+        :aria-hidden="(compact && !featureSlide) || undefined"
+      >
+        <div class="home__feature-head">
+          <span class="home__feature-icon" aria-hidden="true"
+            ><UIcon name="i-lucide-store"
+          /></span>
+          <div>
+            <h2 id="market-photo-choice" class="home__feature-title">
+              Выбирайте продукты прямо с прилавка
+            </h2>
+            <p class="home__feature-text">
+              Не уверены, какой товар взять? Продавец отправит актуальное фото
+              прилавка прямо из рынка. Откройте снимок, отметьте понравившийся
+              продукт и отправьте отметку продавцу — он увидит, что именно вы
+              выбрали.
+            </p>
+          </div>
+        </div>
+        <ol
+          class="home__feature-flow"
+          aria-label="Как выбрать продукт с прилавка"
+        >
+          <li>
+            <UIcon
+              name="i-lucide-camera"
+              class="home__feature-step-icon"
+              aria-hidden="true"
+            /><span>Продавец фотографирует</span
+            ><UIcon
+              name="i-lucide-arrow-right"
+              class="home__feature-arrow"
+              aria-hidden="true"
+            />
+          </li>
+          <li>
+            <UIcon
+              name="i-lucide-pencil"
+              class="home__feature-step-icon"
+              aria-hidden="true"
+            /><span>Вы отмечаете</span
+            ><UIcon
+              name="i-lucide-arrow-right"
+              class="home__feature-arrow"
+              aria-hidden="true"
+            />
+          </li>
+          <li>
+            <UIcon
+              name="i-lucide-shopping-basket"
+              class="home__feature-step-icon"
+              aria-hidden="true"
+            /><span>Продавец кладёт выбранный товар в заказ</span>
+          </li>
         </ol>
       </section>
     </div>
-    <div class="hero__controls" role="group" aria-label="Переключение слайдов">
+    <div v-if="slideCount > 1" class="hero__controls" role="group" aria-label="Переключение слайдов">
+      <UButton
+        class="hero__arrow" type="button" :icon="paused ? 'i-lucide-play' : 'i-lucide-pause'"
+        color="neutral" variant="ghost" :aria-label="paused ? 'Включить автоматическое переключение' : 'Остановить автоматическое переключение'"
+        :aria-pressed="paused" @click="paused = !paused" />
       <UButton
         class="hero__arrow"
         type="button"
@@ -64,7 +133,8 @@
         @click="changeSlide(-1)"
       />
       <span class="hero__counter" aria-live="polite" aria-atomic="true">
-        <span class="sr-only">Слайд </span>{{ activeIndex + 1 }} / {{ slideCount }}
+        <span class="sr-only">Слайд </span>{{ activeIndex + 1 }} /
+        {{ slideCount }}
       </span>
       <UButton
         class="hero__arrow"
@@ -80,77 +150,83 @@
 </template>
 
 <script setup lang="ts">
-type HeroSlide = {
-  image: string;
-  position?: string;
-  eyebrow: string;
-  buttonLabel: string;
-  to: string;
-};
-
-const heroSlides: HeroSlide[] = [
-  {
-    image: "/images/hero/hero-0.webp",
-    position: "center",
-    eyebrow: "Москва",
-    buttonLabel: "В каталог",
-    to: "/catalog",
-  },
-  {
-    image: "/images/hero/hero-1.webp",
-    position: "center",
-    eyebrow: "Прилавки рынка",
-    buttonLabel: "Смотреть каталог",
-    to: "/catalog",
-  },
-  {
-    image: "/images/hero/hero-2.webp",
-    position: "center",
-    eyebrow: "Покупки на рынке",
-    buttonLabel: "Выбрать продукты",
-    to: "/catalog",
-  },
-  {
-    image: "/images/hero/hero-3.webp",
-    position: "center",
-    eyebrow: "Рынок рядом",
-    buttonLabel: "Перейти в каталог",
-    to: "/catalog",
-  },
-];
+import { heroDuration } from '~/utils/home-slides';
+const { slides: heroSlides } = await useHomeSlides();
+const asset = useAsset();
 const activeIndex = ref(0);
 const compact = ref(false);
-const slideCount = computed(() => heroSlides.length + (compact.value ? 1 : 0));
-const featureSlide = computed(() => compact.value && activeIndex.value === heroSlides.length);
-const activeSlide = computed(() => heroSlides[activeIndex.value] ?? heroSlides[0]!);
+const hovered = ref(false);
+const focused = ref(false);
+const paused = ref(false);
+const reducedMotion = ref(false);
+const hidden = ref(false);
+const slideCount = computed(() => heroSlides.value.length + (compact.value && heroSlides.value.length ? 1 : 0));
+const featureSlide = computed(
+  () => compact.value && activeIndex.value === heroSlides.value.length,
+);
+const activeSlide = computed(
+  () => heroSlides.value[activeIndex.value] ?? heroSlides.value[0],
+);
 let media: MediaQueryList | undefined;
+let motion: MediaQueryList | undefined;
+let autoplay: ReturnType<typeof setTimeout> | undefined;
 let swipe: { id: number; x: number; y: number } | null = null;
 
 function updateLayout() {
   compact.value = media?.matches ?? false;
   if (activeIndex.value >= slideCount.value) activeIndex.value = 0;
 }
+function updateMotion() { reducedMotion.value = motion?.matches ?? false; }
+function updateVisibility() { hidden.value = document.hidden; }
+function restartAutoplay() {
+  clearTimeout(autoplay);
+  if (slideCount.value > 1 && !hovered.value && !focused.value && !paused.value && !reducedMotion.value && !hidden.value) {
+    autoplay = setTimeout(() => changeSlide(1), heroDuration(activeSlide.value, featureSlide.value));
+  }
+}
+function leaveFocus(event: FocusEvent) {
+  focused.value = event.currentTarget instanceof HTMLElement && event.relatedTarget instanceof Node &&
+    event.currentTarget.contains(event.relatedTarget);
+}
+watch([slideCount, hovered, focused, paused, reducedMotion, hidden], restartAutoplay);
+watch(activeSlide, restartAutoplay);
+watch(() => heroSlides.value.map(slide => slide.id).join(','), () => { activeIndex.value = 0; restartAutoplay(); });
 onMounted(() => {
-  media = window.matchMedia('(max-width: 63.999rem)');
+  media = window.matchMedia("(max-width: 63.999rem)");
   updateLayout();
-  media.addEventListener('change', updateLayout);
+  media.addEventListener("change", updateLayout);
+  motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  updateMotion(); updateVisibility(); restartAutoplay();
+  motion.addEventListener('change', updateMotion);
+  document.addEventListener('visibilitychange', updateVisibility);
 });
-onBeforeUnmount(() => media?.removeEventListener('change', updateLayout));
+onBeforeUnmount(() => {
+  media?.removeEventListener('change', updateLayout);
+  motion?.removeEventListener('change', updateMotion);
+  document.removeEventListener('visibilitychange', updateVisibility);
+  clearTimeout(autoplay);
+});
 
 function changeSlide(direction: number) {
-  activeIndex.value = (activeIndex.value + direction + slideCount.value) % slideCount.value;
+  if (!slideCount.value) return;
+  activeIndex.value =
+    (activeIndex.value + direction + slideCount.value) % slideCount.value;
+  restartAutoplay();
 }
 
 function startSwipe(event: PointerEvent) {
   swipe = null;
   if (event.pointerType !== "touch" || !event.isPrimary) return;
-  if (event.target instanceof Element && event.target.closest("a, button")) return;
+  if (event.target instanceof Element && event.target.closest("a, button"))
+    return;
   swipe = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  clearTimeout(autoplay);
 }
 
 function endSwipe(event: PointerEvent) {
   const start = swipe;
   swipe = null;
+  restartAutoplay();
   if (!start || start.id !== event.pointerId) return;
   const dx = event.clientX - start.x;
   const dy = event.clientY - start.y;
@@ -158,7 +234,7 @@ function endSwipe(event: PointerEvent) {
     changeSlide(dx < 0 ? 1 : -1);
   }
 }
-
+function cancelSwipe() { swipe = null; restartAutoplay(); }
 </script>
 
 <style scoped>
@@ -192,6 +268,14 @@ function endSwipe(event: PointerEvent) {
   padding-bottom: 4.75rem;
 }
 
+.hero__frame {
+  isolation: isolate;
+  grid-area: 1 / 1;
+  display: grid;
+  align-items: center;
+  min-width: 0;
+}
+
 .hero__image {
   position: absolute;
   inset: 0;
@@ -201,12 +285,17 @@ function endSwipe(event: PointerEvent) {
   object-fit: cover;
 }
 
-.hero__slide::before {
+.hero__frame::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(90deg, rgba(5, 15, 30, 0.72) 0%, rgba(5, 15, 30, 0.52) 55%, rgba(5, 15, 30, 0.18) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(5, 15, 30, 0.72) 0%,
+    rgba(5, 15, 30, 0.52) 55%,
+    rgba(5, 15, 30, 0.18) 100%
+  );
   pointer-events: none;
 }
 
@@ -219,7 +308,14 @@ function endSwipe(event: PointerEvent) {
   max-width: 54rem;
 }
 
+.hero__reserve { grid-area: 1 / 1; display: grid; min-width: 0; visibility: hidden; pointer-events: none; }
+.hero__content--reserve { visibility: hidden; }
+
+.hero__frame--changing { transition: opacity 180ms ease; }
+.hero__frame--hidden { opacity: 0; }
+
 .hero__label {
+  overflow-wrap: anywhere;
   color: var(--ui-primary);
   font-weight: 600;
 }
@@ -233,9 +329,11 @@ function endSwipe(event: PointerEvent) {
   font-size: clamp(1.75rem, 1.15rem + 2.8vw, 3.5rem);
   font-weight: 700;
   line-height: 1.12;
+  white-space: pre-line;
 }
 
 .hero__text {
+  overflow-wrap: anywhere;
   max-width: 35rem;
   margin-block: 1rem 1.5rem;
   color: rgba(255, 255, 255, 0.96);
@@ -246,6 +344,9 @@ function endSwipe(event: PointerEvent) {
 
 .hero__action {
   width: 100%;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
   min-height: var(--touch-target);
   justify-content: center;
 }
@@ -264,18 +365,73 @@ function endSwipe(event: PointerEvent) {
   background: rgb(5 15 30 / 82%);
   color: #fff;
 }
-.home__feature-head { display: flex; align-items: start; gap: 0.75rem; min-width: 0; }
-.home__feature-head > div { min-width: 0; }
-.home__feature-icon { display: grid; place-items: center; flex: none; width: 2rem; height: 2rem; border-radius: 0.5rem; color: var(--ui-primary); background: rgb(255 255 255 / 10%); font-size: 1.125rem; }
-.home__feature-title { font-size: clamp(1.0625rem, 1.5vw, 1.25rem); font-weight: 700; line-height: 1.25; }
-.home__feature-text { margin-top: 0.5rem; color: rgb(255 255 255 / 90%); font-size: 0.875rem; line-height: 1.5; }
-.home__feature-flow { display: grid; gap: 0.5rem; list-style: none; margin: 0; padding: 0; }
-.home__feature-flow li { display: flex; align-items: center; gap: 0.5rem; min-width: 0; padding: 0.5rem 0.625rem; border: 1px solid rgb(255 255 255 / 20%); border-radius: 0.625rem; background: rgb(255 255 255 / 5%); font-size: 0.8125rem; line-height: 1.4; }
-.home__feature-step-icon { flex: none; color: var(--ui-primary); font-size: 1.1rem; }
-.home__feature-arrow { flex: none; margin-left: auto; color: var(--ui-primary); }
+.home__feature-head {
+  display: flex;
+  align-items: start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.home__feature-head > div {
+  min-width: 0;
+}
+.home__feature-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  color: var(--ui-primary);
+  background: rgb(255 255 255 / 10%);
+  font-size: 1.125rem;
+}
+.home__feature-title {
+  font-size: clamp(1.0625rem, 1.5vw, 1.25rem);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.home__feature-text {
+  margin-top: 0.5rem;
+  color: rgb(255 255 255 / 90%);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.home__feature-flow {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.home__feature-flow li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 0.625rem;
+  background: rgb(255 255 255 / 5%);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+.home__feature-step-icon {
+  flex: none;
+  color: var(--ui-primary);
+  font-size: 1.1rem;
+}
+.home__feature-arrow {
+  flex: none;
+  margin-left: auto;
+  color: var(--ui-primary);
+}
 
-.hero--feature .hero__content { visibility: hidden; }
-.hero--feature .home__feature { visibility: visible; }
+.hero--feature .hero__content {
+  visibility: hidden;
+}
+.hero--feature .home__feature {
+  visibility: visible;
+}
 
 .hero__controls {
   position: absolute;
@@ -317,7 +473,7 @@ function endSwipe(event: PointerEvent) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero__slide {
+  .hero__slide, .hero__frame--changing {
     transition: none;
   }
 }
@@ -331,11 +487,20 @@ function endSwipe(event: PointerEvent) {
   .hero {
     min-height: clamp(22rem, 42vw, 36rem);
   }
-  .home__feature-flow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .home__feature-flow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 @media (min-width: 64rem) {
-  .hero__slide { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
-  .home__feature { grid-area: 1 / 2; visibility: visible; }
-  .home__feature-flow { grid-template-columns: minmax(0, 1fr); }
+  .hero__slide {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  }
+  .home__feature {
+    grid-area: 1 / 2;
+    visibility: visible;
+  }
+  .home__feature-flow {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

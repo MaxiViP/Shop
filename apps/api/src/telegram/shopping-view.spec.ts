@@ -116,6 +116,8 @@ describe('checkout presentation', () => {
     const peak = checkoutScreen(session('TIME'), null, {
       queueLength: 4, position: 5, wait: { min: 30, max: 45 },
       estimatedAssemblyMinutes: 25, showScheduledOffer: true, peakModeActive: true,
+      assemblyConcurrency: 1, preorderRequired: false, preparationStartsAt: null,
+      market: { isOpen: true, timezone: 'Europe/Moscow', today: '2026-10-10', openTime: '09:00', closeTime: '21:00', nextOpenAt: null },
       slots: [{ at: '2099-01-01T12:00:00.000Z', reserved: 0, capacity: 1 }],
     });
     expect('prompt' in peak && peak.prompt).toContain('Можно выбрать время');

@@ -21,6 +21,10 @@ export interface ProductListItem {
   step: number;
   min: number;
   portionQty: number;
+  isSeasonal: boolean;
+  isHit: boolean;
+  seasonalStartsAt: string | null;
+  seasonalEndsAt: string | null;
 
   marketPoint: { slug: string; name: string } | null;
 
@@ -56,6 +60,7 @@ export interface ProductFeedQuery {
   category?: string;
   q?: string;
   marketPoint?: string;
+  tag?: 'seasonal' | 'hit';
   ids?: string;
   sort?: ProductSort;
   limit: number;

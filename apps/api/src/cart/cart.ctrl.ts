@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Header, Post, Req, UseGuards } from '@nestjs/common';
 import type { AuthRequest } from '../auth/auth.guard.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CartService } from './cart.service.js';
@@ -23,6 +23,7 @@ export class CartCtrl {
   }
 
   @Get()
+  @Header('Cache-Control', 'private, no-store')
   get(@Req() request: AuthRequest) {
     return this.cart.get(this.owner(request));
   }

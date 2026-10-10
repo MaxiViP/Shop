@@ -128,7 +128,7 @@ describe('StaffService', () => {
     if (actualQty === 1100) {
       await service.finishAssembly(1);
       expect(client.orderPayment.upsert).toHaveBeenCalledWith(expect.objectContaining({
-        create: { orderId: 1, amount: 110000 },
+        create: { orderId: 1, amount: 110000, status: 'AWAITING', confirmedAt: null },
       }));
     } else {
       await expect(service.finishAssembly(1)).rejects.toMatchObject({
@@ -160,6 +160,7 @@ describe('StaffService', () => {
         data: {
           status: 'READY',
           finalSubtotal: 12_300,
+          finalPromoDiscount: 0,
           finalTotal,
           assemblyFinalizedAt: expect.any(Date),
         },
@@ -400,6 +401,7 @@ describe('StaffService', () => {
         data: {
           status: 'READY',
           finalSubtotal: 12_300,
+          finalPromoDiscount: 0,
           finalTotal: 12_800,
           assemblyFinalizedAt: expect.any(Date),
         },

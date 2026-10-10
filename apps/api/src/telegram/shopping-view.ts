@@ -1,3 +1,4 @@
+import { payableGoods } from '../promo/promo.js';
 import { BadRequestException } from '@nestjs/common';
 import type {
   CustomerTelegramSession,
@@ -82,9 +83,12 @@ export function checkoutScreen(
         ? ['…и ещё ' + (basket.items.length - 5) + ' позиций']
         : []),
       'Предварительно: ≈ ' + amount(basket.subtotal),
+      ...(basket.promo ? ['Промокод: ' + short(basket.promo.code, 32) + ' · скидка ' + amount(basket.promo.discount),
+        'За товары после скидки: ' + amount(basket.goodsTotal), ...(basket.promo.reason ? [basket.promo.reason] : [])] : []),
       ...(data.type === 'DELIVERY'
-        ? ['Доставка рассчитывается и оплачивается отдельно.']
+        ? [basket.delivery.eligible ? 'Бесплатная доставка.' : 'Доставка рассчитывается и оплачивается отдельно.']
         : []),
+      ...(basket.promo ? ['Итого предварительно: ' + amount(data.type === 'PICKUP' || basket.delivery.eligible ? basket.goodsTotal : null)] : []),
       'Окончательная стоимость товаров — после сборки.',
       ...(!same
         ? [
@@ -96,7 +100,7 @@ export function checkoutScreen(
       text: lines.join('\n'),
       keyboard: {
         inline_keyboard: [
-          ...(same && basket.valid
+          ...(same && basket.valid && (!basket.promo || basket.promo.eligible)
             ? [[choose('✅ Создать заказ', 'confirm')]]
             : []),
           [choose('Изменить данные', 'edit')],
@@ -187,7 +191,7 @@ export function paymentScreen(
                 callback_data: shoppingData('p', publicId, m),
               },
             ]);
-        if (order.status === 'READY' && payment.amount === order.finalSubtotal)
+        if (order.status === 'READY' && payment.amount === payableGoods(order))
           buttons.push([
             {
               text: '✅ Я оплатил · ' + methodNames[selected],

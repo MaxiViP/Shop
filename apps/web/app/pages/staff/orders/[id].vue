@@ -263,7 +263,8 @@
         <h2 class="stage__title">Итог заказа</h2>
       </header>
 
-      <div class="summary">
+      <OrderCosts v-if="order.promoCodeSnapshot" :order="order" />
+      <div v-else class="summary">
         <div class="summary__row">
           <span>Предварительная стоимость товаров</span>
           <strong>{{ money(order.subtotal) }}</strong>
@@ -378,7 +379,7 @@
             </dd>
           </div>
           <div>
-            <dt>Стоимость доставки</dt>
+            <dt>Стоимость перевозчика</dt>
             <dd>{{ knownMoney(order.delivery.price, 'Не указана') }}</dd>
           </div>
         </dl>

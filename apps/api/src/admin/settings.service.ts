@@ -28,6 +28,8 @@ export class SettingsService {
         throw new BadRequestException(
           'Общий лимит услуг не может быть меньше лимита цены одной услуги.',
         );
+      if (next.freeDeliveryEnabled && !next.freeDeliveryThreshold)
+        throw new BadRequestException('Укажите положительный порог бесплатной доставки.');
       if (next.peakModeEnabled && (!next.peakModeStart || !next.peakModeEnd ||
         new Date(next.peakModeEnd) <= new Date(next.peakModeStart)))
         throw new BadRequestException('Укажите начало и окончание периода повышенной нагрузки.');

@@ -84,6 +84,25 @@ describe('OrderService creation', () => {
   );
 });
 
+describe('delivery history', () => {
+  it.each([42, null])('returns saved customer delivery prices for user %s without reading current rules', async userId => {
+    const saved = [{ deliveryPrice: 0 }, { deliveryPrice: 48_765 }, { deliveryPrice: null }];
+    const findMany = vi.fn().mockResolvedValue(saved);
+    const currentSettings = vi.fn();
+    const db = {
+      order: { findMany },
+      guestSession: { findUnique: vi.fn().mockResolvedValue({ id: 'guest', expiresAt: new Date(Date.now() + 60_000) }) },
+      shopSettings: { findUniqueOrThrow: currentSettings },
+    } as unknown as DbService;
+    expect(await new OrderService(db, telegram).list(userId, 'guest-token')).toEqual(saved);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: userId ? { userId } : { guestSessionId: 'guest' },
+      select: expect.objectContaining({ deliveryPrice: true }),
+    }));
+    expect(currentSettings).not.toHaveBeenCalled();
+  });
+});
+
 describe('pickup time validation', () => {
   it.each([
     '2000-01-01T00:00:00Z',

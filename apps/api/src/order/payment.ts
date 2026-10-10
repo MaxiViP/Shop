@@ -1,4 +1,5 @@
 import { ConflictException } from '@nestjs/common';
+import { payableGoods } from '../promo/promo.js';
 import { z } from 'zod';
 import type { Prisma } from '../db/gen/client.js';
 
@@ -17,13 +18,15 @@ export const paymentSelect = {
 export function requirePaid(order: {
   assemblyFinalizedAt: Date | null;
   finalSubtotal: number | null;
+  promoDiscount?: number;
+  finalPromoDiscount?: number | null;
   payment: { status: string; amount: number } | null;
 }) {
   if (
     !order.assemblyFinalizedAt ||
     order.finalSubtotal === null ||
     order.payment?.status !== 'PAID' ||
-    order.payment.amount !== order.finalSubtotal
+    order.payment.amount !== payableGoods(order)
   )
     throw new ConflictException(
       'Сначала завершите сборку и подтвердите оплату товаров',

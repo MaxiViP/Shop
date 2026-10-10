@@ -102,6 +102,7 @@ export function orderCard(order: CustomerOrder, page = 0): Screen {
     ...(order.deliveryAt ? ['Получение: ' + date(order.deliveryAt)] : []),
     ...(order.scheduledFor ? ['Предзаказ. Подготовить к: ' + date(order.scheduledFor)] : []),
     'При заказе: ' + amount(order.total),
+    ...(order.promoCodeSnapshot ? ['Промокод: ' + short(order.promoCodeSnapshot, 32) + ' · скидка ' + amount(order.finalPromoDiscount ?? order.promoDiscount)] : []),
     ...(order.total === null ? ['Товары при заказе: ' + amount(order.subtotal), 'Стоимость доставки уточняется'] : []),
     ...(order.finalSubtotal !== null ? ['Итог за товары: ' + amount(order.finalSubtotal), 'Итого: ' + amount(order.finalTotal)] :
       order.status === 'ASSEMBLING' && order.extras.length ? ['Доп. позиции: ' + amount(order.extras.reduce((sum, extra) => sum + extra.amount, 0))] : []),

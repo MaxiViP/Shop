@@ -4,6 +4,7 @@ import { DbService } from '../db/db.service.js';
 import type { ProductQuery, ProductSort } from './schema.js';
 import { customerProduct, productListSelect } from './select.js';
 import { productFeed } from './feed.js';
+import { hitWhere, seasonalWhere } from './badges.js';
 
 @Injectable()
 export class ProductService {
@@ -14,8 +15,9 @@ export class ProductService {
     if (query.q && query.category) return this.prioritySearch(query);
     const where: Prisma.ProductWhereInput = {
       active: true,
+      ...(query.tag === 'seasonal' ? { AND: seasonalWhere(new Date()) } : query.tag === 'hit' ? { AND: hitWhere() } : {}),
       marketPoint: query.marketPoint ? { slug: query.marketPoint, isPublished: true } : undefined,
-      category: query.category ? { slug: query.category } : undefined,
+      category: { active: true, ...(query.category ? { slug: query.category } : {}) },
       id: query.ids ? { in: query.ids } : undefined,
       OR: query.q
         ? [
@@ -49,6 +51,7 @@ export class ProductService {
       where: {
         slug,
         active: true,
+        category: { active: true },
       },
 
       select: {
@@ -69,12 +72,14 @@ export class ProductService {
       const category = await db.category.findUnique({ where: { slug: query.category! },
         select: { slug: true, name: true } });
       const match: Prisma.ProductWhereInput = { active: true,
+        category: { active: true },
+        ...(query.tag === 'seasonal' ? { AND: seasonalWhere(new Date()) } : query.tag === 'hit' ? { AND: hitWhere() } : {}),
         marketPoint: query.marketPoint ? { slug: query.marketPoint, isPublished: true } : undefined,
         id: query.ids ? { in: query.ids } : undefined,
         OR: [{ name: { contains: query.q, mode: 'insensitive' } },
           { description: { contains: query.q, mode: 'insensitive' } }] };
-      const current = { ...match, category: { slug: query.category } };
-      const others = { ...match, category: { slug: { not: query.category } } };
+      const current = { ...match, category: { slug: query.category, active: true } };
+      const others = { ...match, category: { slug: { not: query.category }, active: true } };
       const options = { select: productListSelect, orderBy: this.orderBy(query.sort),
         skip: (query.page - 1) * query.limit, take: query.limit };
       // Independent pages keep both groups visible in large categories.

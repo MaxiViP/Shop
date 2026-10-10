@@ -18,7 +18,8 @@
           <p v-if="data.comment" class="text-muted">{{ data.comment }}</p>
           <p>Создан: {{ date(data.createdAt) }} · Завершён: {{ data.completedAt ? date(data.completedAt) : '—' }}</p>
           <p>Оплата: {{ data.payment?.status ?? '—' }}</p>
-          <p class="font-semibold">Итог: {{ money(data.finalTotal ?? data.total ?? 0) }}</p>
+          <OrderCosts v-if="data.promoCodeSnapshot" :order="data" />
+          <p v-else class="font-semibold">Итог: {{ money(data.finalTotal ?? data.total ?? 0) }}</p>
         </UCard>
         <UCard>
           <template #header><h3 class="font-semibold">Товары</h3></template>

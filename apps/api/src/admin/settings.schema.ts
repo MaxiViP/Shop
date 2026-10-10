@@ -9,6 +9,8 @@ export const settingsSchema = z.strictObject({
   maxOrderExtrasTotal: money.optional(),
   deliveryEnabled: z.boolean().optional(),
   pickupEnabled: z.boolean().optional(),
+  freeDeliveryEnabled: z.boolean().optional(),
+  freeDeliveryThreshold: money.nullable().optional(),
   queueThreshold: z.number().int().min(1).max(100).optional(),
   assemblyFallbackMinutes: z.number().int().min(5).max(180).optional(),
   assemblyConcurrency: z.number().int().min(1).max(30).optional(),

@@ -99,6 +99,38 @@ enum ProductPriceStatus {
   AUDITED
 }
 
+enum SeasonalMode {
+  AUTO
+  MANUAL
+  OFF
+}
+
+enum HitMode {
+  AUTO
+  MANUAL
+  OFF
+}
+
+enum SeasonGroup {
+  VEGETABLES
+  FRUITS
+  BERRIES
+}
+
+model SeasonTemplate {
+  id          Int          @id @default(autoincrement())
+  key         String?      @unique @db.VarChar(80)
+  name        String       @db.VarChar(160)
+  description String?      @db.VarChar(1000)
+  group       SeasonGroup?
+  startMonth  Int
+  endMonth    Int
+  active      Boolean      @default(true)
+  products    Product[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
 model Product {
   id          Int     @id @default(autoincrement())
   name        String
@@ -118,6 +150,20 @@ model Product {
 
   active Boolean @default(true)
   sort   Int     @default(0)
+
+  isSeasonal       Boolean         @default(false)
+  isHit            Boolean         @default(false)
+  // isHit remains the automatic sales result; hitMode controls the public badge.
+  hitMode          HitMode         @default(AUTO)
+  seasonalStartsAt DateTime?
+  seasonalEndsAt   DateTime?
+  seasonalMode     SeasonalMode    @default(OFF)
+  seasonTemplateId Int?
+  seasonTemplate   SeasonTemplate? @relation(fields: [seasonTemplateId], references: [id], onDelete: Restrict)
+  hitOrders        Int             @default(0)
+  // Grams are converted to kg; other units retain their order-item quantity.
+  hitSoldUnits     Decimal         @default(0) @db.Decimal(24, 3)
+  hitRank          Int?
 
   orderItems OrderItem[]
   proposals  OrderIssue[]
@@ -141,6 +187,11 @@ model Product {
   @@index([marketPointId])
   @@index([priceStatus])
   @@index([settlementMode])
+  @@index([active, isSeasonal])
+  @@index([active, isHit])
+  @@index([active, hitMode, isHit])
+  @@index([seasonTemplateId])
+  @@index([seasonalMode, active])
 }
 
 model ProductImage {
@@ -186,6 +237,8 @@ model User {
   adminAudits           AdminAudit[]
   payouts               PartnerPayout[]
   cart                  Cart?
+  promoCodes            PromoCode[]              @relation("PromoOwner")
+  issuedPromoCodes      PromoCode[]              @relation("PromoIssuer")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -324,8 +377,25 @@ model Order {
   deliveryPrice Int?
   total         Int?
 
+  freeDeliveryApplied           Boolean @default(false)
+  freeDeliveryThresholdSnapshot Int?
+
   finalSubtotal Int?
   finalTotal    Int?
+
+  promoCodeId              Int?
+  promoCode                PromoCode?         @relation("OrderPromo", fields: [promoCodeId], references: [id], onDelete: Restrict)
+  redeemedPromo            PromoCode?         @relation("UsedPromoOrder")
+  compensationPromos       PromoCode[]        @relation("PromoSourceOrder")
+  promoCodeSnapshot        String?            @db.VarChar(32)
+  promoTitleSnapshot       String?            @db.VarChar(160)
+  promoTypeSnapshot        PromoDiscountType?
+  promoAmountSnapshot      Int?
+  promoPercentBpsSnapshot  Int?
+  promoMaxDiscountSnapshot Int?
+  promoMinSubtotalSnapshot Int?
+  promoDiscount            Int                @default(0)
+  finalPromoDiscount       Int?
 
   userId Int?
   user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -358,6 +428,7 @@ model Order {
   @@index([status])
   @@index([createdAt])
   @@index([status, completedAt])
+  @@index([promoCodeId])
   @@index([fulfillmentMode, status, scheduledFor])
   @@index([assemblyFinalizedAt, assemblyStartedAt])
 }
@@ -533,6 +604,12 @@ model ShopSettings {
   maxOrderExtrasTotal     Int       @default(1000000)
   deliveryEnabled         Boolean   @default(true)
   pickupEnabled           Boolean   @default(true)
+  freeDeliveryEnabled     Boolean   @default(false)
+  freeDeliveryThreshold   Int?
+  hitPeriodDays           Int       @default(30)
+  hitMinOrders            Int       @default(3)
+  hitShareBps             Int       @default(1500)
+  hitLastCalculatedAt     DateTime?
   partner1Name            String    @default("Партнёр 1") @db.VarChar(80)
   partner2Name            String    @default("Партнёр 2") @db.VarChar(80)
   id                      Int       @id @default(1)
@@ -553,6 +630,42 @@ model ShopSettings {
   updatedAt               DateTime  @updatedAt
   updatedById             Int?
   updatedBy               User?     @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+enum HomeSlideType {
+  PERMANENT
+  TEMPORARY
+}
+
+enum HomeSlideContent {
+  CUSTOM
+  FREE_DELIVERY
+  SEASONAL
+  HITS
+}
+
+model HomeSlide {
+  id          Int              @id @default(autoincrement())
+  key         String?          @unique @db.VarChar(80)
+  type        HomeSlideType    @default(PERMANENT)
+  content     HomeSlideContent @default(CUSTOM)
+  title       String           @db.VarChar(140)
+  text        String           @db.VarChar(420)
+  eyebrow     String?          @db.VarChar(60)
+  buttonLabel String?          @db.VarChar(50)
+  to          String?          @db.VarChar(2000)
+  image       String?          @db.VarChar(300)
+  position    String           @default("center") @db.VarChar(30)
+  active      Boolean          @default(true)
+  published   Boolean          @default(false)
+  priority    Boolean          @default(false)
+  sortOrder   Int              @default(0)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([published, active, sortOrder])
 }
 
 model ShopHours {
@@ -947,14 +1060,58 @@ model OrderStaffAudit {
 }
 
 // No price snapshots: every display/checkout uses the current product quote.
+enum PromoDiscountType {
+  FIXED
+  PERCENT
+}
+
+enum PromoStatus {
+  AVAILABLE
+  USED
+  REVOKED
+}
+
+model PromoCode {
+  id            Int               @id @default(autoincrement())
+  code          String            @unique @db.VarChar(32)
+  title         String            @db.VarChar(160)
+  userId        Int
+  user          User              @relation("PromoOwner", fields: [userId], references: [id], onDelete: Restrict)
+  type          PromoDiscountType
+  amount        Int?
+  percentBps    Int?
+  maxDiscount   Int?
+  minSubtotal   Int               @default(0)
+  expiresAt     DateTime
+  status        PromoStatus       @default(AVAILABLE)
+  reason        String            @db.VarChar(1000)
+  sourceOrderId Int?
+  sourceOrder   Order?            @relation("PromoSourceOrder", fields: [sourceOrderId], references: [id], onDelete: SetNull)
+  issuedById    Int
+  issuedBy      User              @relation("PromoIssuer", fields: [issuedById], references: [id], onDelete: Restrict)
+  revokedAt     DateTime?
+  usedAt        DateTime?
+  usedOrderId   Int?              @unique
+  usedOrder     Order?            @relation("UsedPromoOrder", fields: [usedOrderId], references: [id], onDelete: Restrict)
+  orders        Order[]           @relation("OrderPromo")
+  carts         Cart[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([userId, status, expiresAt])
+  @@index([sourceOrderId])
+}
+
 model Cart {
-  id        Int        @id @default(autoincrement())
-  userId    Int        @unique
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  revision  String     @default(uuid()) @db.Uuid
-  items     CartItem[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id          Int        @id @default(autoincrement())
+  userId      Int        @unique
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revision    String     @default(uuid()) @db.Uuid
+  items       CartItem[]
+  promoCodeId Int?
+  promoCode   PromoCode? @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
 
 model CartItem {

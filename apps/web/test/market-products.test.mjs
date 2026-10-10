@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { createServer } from 'node:http';
 import { parse, compileScript } from 'vue/compiler-sfc';
-import { createSSRApp, defineComponent, h, ref, reactive, computed, watch, nextTick } from 'vue';
+import { createSSRApp, defineComponent, h, ref, reactive, computed, watch, nextTick, shallowRef, toValue, onMounted, onBeforeUnmount } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import ts from 'typescript';
 import * as money from '../app/utils/money.ts';
@@ -12,6 +13,7 @@ import { qtyText } from '../app/utils/qty.ts';
 import { quickAddState } from '../app/utils/quick-add.ts';
 import { nextCartQty, previousCartQty, previewTotal, validCartQty } from '../app/utils/cart.ts';
 import { priceStatusItems } from '../app/utils/price-status.ts';
+import { moscowInput, pickupDate } from '../app/utils/pickup.ts';
 import { useProductGallery } from '../app/composables/useProductGallery.ts';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -38,7 +40,8 @@ async function component(file) {
   }).outputText;
   const module = { exports: {} };
   const context = { require: id => modules[id] ?? nodeRequire(id), exports: module.exports, module,
-    computed, ref, watch, useProductGallery, useRoute: () => ({ params: { slug: product.slug } }),
+    computed, ref, watch, onMounted, onBeforeUnmount, useProductGallery, useRoute: () => ({ params: { slug: product.slug } }),
+    useGridWindow: () => ({ start: ref(0), end: ref(120), top: ref(0), bottom: ref(0) }),
     useCartActions: () => ({ add: async () => true, subtract: async () => true }),
     useAsset: () => value => value, useHeaderNotice: () => ({ show() {} }),
     useApi: async () => ({ data: ref(product), error: ref(null) }),
@@ -50,6 +53,7 @@ async function component(file) {
 const Origin = await component('components/product/Origin.vue');
 const Price = await component('components/product/Price.vue');
 const Card = await component('components/product/Card.vue');
+const Grid = await component('components/product/Grid.vue');
 const Detail = await component('pages/product/[slug].vue');
 const Gallery = await component('components/product/Gallery.vue');
 const wrapper = defineComponent({ setup: (_, { slots }) => () => h('div', slots.default?.()) });
@@ -59,6 +63,7 @@ async function render(Component, props = {}) {
   app.component('NuxtLink', link);
   app.component('ProductOrigin', Origin);
   app.component('ProductPrice', Price);
+  app.component('ProductCard', Card);
   app.component('ProductGallery', Gallery);
   for (const name of ['UButton', 'UContainer', 'UAlert', 'UIcon', 'ProductFavorite', 'ProductQty', 'AppBreadcrumbs', 'AppBackButton'])
     app.component(name, wrapper);
@@ -107,6 +112,101 @@ test('nullable market relation keeps old cards usable; Grand Bazar gets its own 
   assert.ok(!(await render(Origin)).includes('<a'));
 });
 
+test('seasonal and hit ribbons coexist on the shared card without changing its price or click targets', async () => {
+  for (const [isSeasonal, isHit] of [[false, false], [true, false], [false, true], [true, true]]) {
+    const html = await render(Card, { product: { ...product, isSeasonal, isHit } });
+    assert.equal(html.includes('card__ribbon--season'), isSeasonal);
+    assert.equal(html.includes('card__ribbon--hit'), isHit);
+    assert.equal(html.includes('card__media--badged'), isSeasonal || isHit);
+    assert.ok(html.includes('242 ₽'));
+    assert.match(html, new RegExp('href="/product/' + product.slug + '"'));
+  }
+  const css = parse(await source('components/product/Card.vue')).descriptor.styles[0].content;
+  assert.match(css, /\.card__ribbon--season\s*\{\s*background:\s*#15803d/);
+  assert.match(css, /\.card__ribbon--hit\s*\{\s*background:\s*#b45309/);
+  assert.match(css, /\.card__badges\s*\{[^}]*pointer-events:\s*none/);
+  assert.match(css, /\.card__media\s*\{[^}]*position:\s*relative/);
+  assert.match(css, /\.card__badges\s*\{[^}]*position:\s*absolute[^}]*left:\s*0[^}]*display:\s*grid/);
+  assert.match(css, /\.card__media--badged \.card__quantity\s*\{[^}]*top:\s*auto[^}]*bottom:\s*var\(--card-inset\)/);
+});
+
+test('HTTP product badges reach the shared photo card through home, search and infinite catalog feeds', async t => {
+  const marked = { ...product, isHit: true, isSeasonal: true, seasonalStartsAt: null, seasonalEndsAt: null,
+    images: [{ url: '/uploads/products/marked-product.webp', alt: product.name }] };
+  const requests = [];
+  const server = createServer((request, response) => {
+    const url = new URL(request.url, 'http://127.0.0.1');
+    requests.push(Object.fromEntries(url.searchParams));
+    response.setHeader('Content-Type', 'application/json');
+    response.end(JSON.stringify({ items: url.searchParams.has('cursor') ? [marked]
+      : [{ ...product, id: 2, slug: 'unmarked-product', isHit: false, isSeasonal: false }],
+    total: 2, nextCursor: url.searchParams.has('cursor') ? null : 'badge-page-2', page: 1, limit: 24, pages: 1 }));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let feedSource = await source('composables/useProductFeed.ts');
+  const ast = ts.createSourceFile('useProductFeed.ts', feedSource, ts.ScriptTarget.Latest, true);
+  for (const statement of [...ast.statements].reverse()) if (ts.isImportDeclaration(statement))
+    feedSource = feedSource.slice(0, statement.getStart()) + feedSource.slice(statement.end);
+  const code = ts.transpileModule(feedSource.replace(/^export /gm, ''), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+  }).outputText;
+  const descendants = node => [node, ...(node.children ?? []).flatMap(descendants)];
+  const hasClass = (node, name) => node.props?.some(prop => prop.name === 'class' && prop.value?.content.split(/\s+/).includes(name));
+  for (const query of [{ feed: 'home', limit: 24 }, { feed: 'catalog', limit: 24 }, { feed: 'catalog', q: product.name, limit: 24 }]) {
+    const stops = [];
+    t.after(() => stops.reverse().forEach(stop => stop()));
+    const api = async (path, { query }) => (await fetch(`${base}${path}?${new URLSearchParams(query)}`)).json();
+    const context = { ref, shallowRef, computed, toValue,
+      watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
+      onScopeDispose: stop => stops.push(stop), useApiClient: () => api,
+      useApi: async (path, options) => ({ data: ref(await api(path, { query: options.query.value })), error: ref(null) }) };
+    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+    const create = await new AsyncFunction(...Object.keys(context), code + '\nreturn useProductFeed;')(...Object.values(context));
+    const feed = await create(query, 'badge-' + query.feed);
+    await feed.loadMore();
+    assert.deepEqual(feed.items.value.map(item => item.id), [2, marked.id]);
+    assert.equal(feed.hasMore.value, false);
+    const delivered = feed.items.value.find(item => item.id === marked.id);
+    assert.equal(delivered.isHit, true); assert.equal(delivered.isSeasonal, true);
+    assert.equal(delivered.price, marked.price);
+    const beforeRender = requests.length;
+    for (const compact of [false, true]) {
+      const html = await render(Grid, { items: feed.items.value, compact, windowed: true });
+      const tree = parse(`<template>${html}</template>`).descriptor.template.ast;
+      const markedCard = descendants(tree).find(node => hasClass(node, 'card') &&
+        descendants(node).some(child => child.props?.some(prop => prop.name === 'href' && prop.value?.content === `/product/${marked.slug}`)));
+      assert.ok(markedCard);
+      const media = descendants(markedCard).find(node => hasClass(node, 'card__media'));
+      assert.ok(media);
+      const ribbons = descendants(media).filter(node => hasClass(node, 'card__ribbon'));
+      assert.equal(ribbons.length, 2, 'Both API badges must be inside the positioned photo, not the card body');
+      assert.deepEqual(ribbons.map(node => node.children.find(child => child.type === 2)?.content.trim()).toSorted(), ['СЕЗОН', 'ХИТ'].toSorted());
+      const body = descendants(markedCard).find(node => hasClass(node, 'card__body'));
+      assert.equal(descendants(body).filter(node => hasClass(node, 'card__ribbon')).length, 0);
+      assert.match(html, /src="\/uploads\/products\/marked-product.webp"/);
+    }
+    assert.equal(requests.length, beforeRender, 'Rendering cards must not make per-product requests');
+  }
+  assert.equal(requests.length, 6, 'Each feed uses one initial request and one cursor request');
+});
+
+test('a compact card keeps both ribbons and its cart quantity in separate photo positions', async () => {
+  const previousQty = cart.qty;
+  cart.qty = () => 1;
+  try {
+    const html = await render(Card, { product: { ...product, isHit: true, isSeasonal: true }, compact: true });
+    assert.ok(html.includes('card__media--badged'));
+    assert.ok(html.includes('card__ribbon--hit') && html.includes('card__ribbon--season'));
+    assert.ok(html.includes('card__quantity') && html.includes('card__control'));
+    const css = parse(await source('components/product/Card.vue')).descriptor.styles[0].content;
+    assert.match(css, /\.card__favorite\s*\{[^}]*right:\s*0\.25rem/);
+    assert.match(css, /\.card__badges\s*\{[^}]*top:\s*var\(--card-inset\)[^}]*left:\s*0/);
+    assert.match(css, /\.card__media--badged \.card__quantity\s*\{[^}]*bottom:\s*var\(--card-inset\)[^}]*transform:\s*translateX\(-50%\)/);
+  } finally { cart.qty = previousQty; }
+});
+
 test('estimated and audited product cards render their own price provenance without exposing seller price', async () => {
   const estimated = await render(Card, { product: { ...product, priceStatus: 'ESTIMATED' } });
   assert.ok(estimated.includes('Ориентировочная цена. Актуальную стоимость продавец подтвердит при сборке.'));
@@ -138,11 +238,12 @@ test('admin edits and resaves seller price, and requests customer price from the
     sourceCheckedAt: '2026-10-06T00:00:00.000Z', settlementMode: 'UNSET', basePrice: null, active: true, sort: 1 };
   const requests = [], stops = [];
   t.after(() => stops.forEach(stop => stop()));
-  const context = { ref, reactive, computed, ...money, ...quantity, qtyText, priceStatusItems,
+  const context = { ref, reactive, computed, ...money, ...quantity, qtyText, priceStatusItems, moscowInput, pickupDate,
     defineProps: () => ({ product: admin, categories: [{ id: 1, name: 'Макароны и крупы', active: true }] }),
     defineEmits: () => () => {},
     watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
     useApi: async path => {
+      if (path === '/admin/seasons') return { data: ref([]) };
       assert.equal(path, '/admin/market-map/points');
       return { data: ref([{ id: 10, slug: 'cezoni-market', name: 'Cezoni Market', kind: 'STORE' }]) };
     },

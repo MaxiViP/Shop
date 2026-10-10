@@ -34,6 +34,12 @@
         <h3 class="font-semibold">Получение заказа</h3>
         <USwitch v-model="deliveryEnabled" label="Доставка" :disabled="busy" />
         <USwitch v-model="pickupEnabled" label="Самовывоз" :disabled="busy" />
+        <USwitch v-model="freeDeliveryEnabled" label="Бесплатная доставка от суммы" :disabled="busy" />
+        <UFormField label="Порог бесплатной доставки, ₽" :required="freeDeliveryEnabled">
+          <UInput v-model="freeDeliveryRubles" inputmode="decimal" :disabled="busy" :required="freeDeliveryEnabled" />
+        </UFormField>
+        <p class="text-muted">Положительная сумма до 1 000 000 ₽. Учитывается стоимость товаров с сервисом KorzinaMarket; доставка и дополнительные услуги не входят в порог. Условие фиксируется при оформлении заказа.</p>
+        <p role="status">{{ data.freeDeliveryEnabled && data.deliveryEnabled ? `Включено от ${money(data.freeDeliveryThreshold ?? 0)}` : 'Бесплатная доставка отключена' }}</p>
         <p v-if="!deliveryEnabled && !pickupEnabled" class="text-error">
           Должен быть доступен хотя бы один способ получения заказа.
         </p>
@@ -85,6 +91,8 @@ const { data, pending, error, refresh } = await useApi<{
   maxOrderExtrasTotal: number;
   deliveryEnabled: boolean;
   pickupEnabled: boolean;
+  freeDeliveryEnabled: boolean;
+  freeDeliveryThreshold: number | null;
   partner1Name: string;
   partner2Name: string;
 }>("/admin/settings");
@@ -115,6 +123,8 @@ const amounts = reactive({
 });
 const deliveryEnabled = ref(data.value?.deliveryEnabled ?? true);
 const pickupEnabled = ref(data.value?.pickupEnabled ?? true);
+const freeDeliveryEnabled = ref(data.value?.freeDeliveryEnabled ?? false);
+const freeDeliveryRubles = ref(data.value?.freeDeliveryThreshold ? kopecksToRubles(data.value.freeDeliveryThreshold) : '');
 const partner1Name = ref(data.value?.partner1Name ?? "Партнёр 1");
 const partner2Name = ref(data.value?.partner2Name ?? "Партнёр 2");
 const percent = ref(
@@ -126,6 +136,11 @@ const toast = useToast();
 const busy = ref(false);
 async function save() {
   if (busy.value) return;
+  const freeDeliveryThreshold = freeDeliveryRubles.value.trim() ? rublesToKopecks(freeDeliveryRubles.value) : null;
+  if ((freeDeliveryEnabled.value || freeDeliveryRubles.value.trim()) && freeDeliveryThreshold === null) {
+    toast.add({ title: 'Укажите положительный порог бесплатной доставки до 1 000 000 ₽', color: 'error' });
+    return;
+  }
   const minDeliverySubtotal = rublesToKopecks(
     amounts.minDeliverySubtotal,
     true,
@@ -185,6 +200,8 @@ async function save() {
         maxOrderExtrasTotal,
         deliveryEnabled: deliveryEnabled.value,
         pickupEnabled: pickupEnabled.value,
+        freeDeliveryEnabled: freeDeliveryEnabled.value,
+        freeDeliveryThreshold,
         partner1Name: partner1Name.value.trim(),
         partner2Name: partner2Name.value.trim(),
       },

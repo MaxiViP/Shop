@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { Logger } from '@nestjs/common';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient, type Unit } from '../src/db/gen/client.js';
+import { PrismaClient, type Prisma, type StaffTelegramSession, type Unit } from '../src/db/gen/client.js';
 import { DbService } from '../src/db/db.service.js';
 import { StaffService } from '../src/staff/staff.service.js';
 import { NotificationService } from '../src/order/notification.service.js';
@@ -466,7 +466,8 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
     const f = await fixture();
     await f.bot.handle(callback(f, staffData(f.order.id, 'x')));
     const original = db.staffTelegramSession.updateMany.bind(db.staffTelegramSession);
-    vi.spyOn(db.staffTelegramSession, 'updateMany').mockImplementationOnce(async args => {
+    const writes: { updateMany(args: Parameters<typeof original>[0]): Promise<Awaited<ReturnType<typeof original>>> } = db.staffTelegramSession;
+    vi.spyOn(writes, 'updateMany').mockImplementationOnce(async args => {
       await original(args);
       throw new Error('Synthetic lost state-save response');
     });
@@ -544,8 +545,9 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
       await f.flow.start(f.identity.id, f.telegramId, 44, f.order.id, null, 'EXTRA', 'title');
       const original = await session(f), ready = gate<void>();
       const find = db.staffTelegramSession.findUnique.bind(db.staffTelegramSession);
+      const reads: { findUnique(args: { where: Prisma.StaffTelegramSessionWhereUniqueInput }): Promise<StaffTelegramSession | null> } = db.staffTelegramSession;
       let calls = 0, snapshots = 0;
-      const reader = vi.spyOn(db.staffTelegramSession, 'findUnique').mockImplementation(async args => {
+      const reader = vi.spyOn(reads, 'findUnique').mockImplementation(async args => {
         const index = ++calls;
         const row = await find(args);
         if (index <= 2) {

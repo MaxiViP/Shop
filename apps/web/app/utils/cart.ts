@@ -1,4 +1,5 @@
 import type { ProductListItem, Unit } from "../types/product";
+import type { PromoOption } from "../types/promo.ts";
 import { lineAmount, validQuantity, quickQuantity } from "./assembly.ts";
 
 export interface CartItem {
@@ -18,6 +19,19 @@ export interface CartQuote {
   valid: boolean;
   error: "TOTAL_OVERFLOW" | null;
   token: string | null;
+  delivery?: DeliveryQuote;
+  goodsTotal?: number | null;
+  promo?: PromoOption | null;
+  promoCodes?: PromoOption[];
+}
+export interface DeliveryQuote {
+  enabled: boolean;
+  threshold: number | null;
+  remaining: number | null;
+  progress: number;
+  eligible: boolean;
+  price: number | null;
+  total: number | null;
 }
 export interface ServerCartSnapshot extends CartQuote {
   revision: string;
@@ -25,6 +39,7 @@ export interface ServerCartSnapshot extends CartQuote {
 }
 
 export type ServerCartChange =
+  | { kind: 'promo'; promoCodeId: number | null }
   | { kind: 'add' | 'set'; productId: number; qty: number }
   | { kind: 'remove'; productId: number }
   | { kind: 'clear' };
@@ -152,6 +167,10 @@ function storedItem(value: unknown): CartItem | null {
       portionQty: p.portionQty === undefined ? p.min : p.portionQty as number,
       unit: p.unit as Unit,
       priceStatus: p.priceStatus === 'SOURCE' || p.priceStatus === 'AUDITED' ? p.priceStatus : 'ESTIMATED',
+      isSeasonal: p.isSeasonal === true,
+      isHit: p.isHit === true,
+      seasonalStartsAt: typeof p.seasonalStartsAt === 'string' ? p.seasonalStartsAt : null,
+      seasonalEndsAt: typeof p.seasonalEndsAt === 'string' ? p.seasonalEndsAt : null,
       category: { name: p.category.name, slug: p.category.slug },
       marketPoint: record(p.marketPoint) && typeof p.marketPoint.name === 'string' && typeof p.marketPoint.slug === 'string'
         ? { name: p.marketPoint.name, slug: p.marketPoint.slug } : null,

@@ -106,6 +106,8 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
   it('migrates nullable product fields without changing seller prices or historical orders', async () => {
     expect((await connection.query('SELECT * FROM "Product" ORDER BY id')).rows).toEqual(oldProducts.map(row => ({
       ...row, marketPointId: null, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
+      isSeasonal: false, isHit: false, seasonalStartsAt: null, seasonalEndsAt: null,
+      seasonalMode: 'OFF', seasonTemplateId: null, hitOrders: 0, hitSoldUnits: '0.000', hitRank: null,
     })));
     expect((await connection.query('SELECT * FROM "OrderItem" ORDER BY id')).rows).toEqual(oldItems.map(row => ({
       ...row, serviceMarkupPercentSnapshot: null,

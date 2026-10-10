@@ -158,6 +158,20 @@
       </UCard>
       <UCard>
         <template #header><h2 class="font-semibold">Публикация</h2></template>
+        <div class="grid sm:grid-cols-2 gap-4 mb-6">
+          <fieldset class="sm:col-span-2 grid gap-3">
+            <legend class="font-semibold">ХИТ</legend>
+            <UFormField label="Отметка ХИТ"><USelect v-model="form.hitMode" :items="hitModes" class="w-full" /></UFormField>
+            <p class="text-sm text-muted">{{ hitBadge ? 'Будет показана отметка «ХИТ».' : 'Отметка «ХИТ» выключена.' }} Автоматический результат: {{ source?.autoHit ? 'ХИТ' : 'без отметки' }}. <NuxtLink to="/admin/hits" class="text-primary underline">Рейтинг продаж</NuxtLink></p>
+          </fieldset>
+          <fieldset class="sm:col-span-2 grid gap-3 sm:grid-cols-2">
+            <legend class="font-semibold">СЕЗОН</legend>
+            <UFormField label="Сезонность"><USelect v-model="form.seasonalMode" :items="seasonModes" class="w-full" /></UFormField>
+            <UFormField label="Календарный шаблон" :required="form.seasonalMode === 'AUTO'"><USelectMenu v-model="form.seasonTemplateId" :items="seasonItems" value-key="value" :search-input="{ placeholder: 'Найти шаблон по названию или группе' }" class="w-full" /></UFormField>
+            <p class="sm:col-span-2 text-sm text-muted">{{ seasonTemplates?.find(item => item.id === form.seasonTemplateId)?.description ?? 'Выбирайте шаблон с учётом происхождения партии: местный, региональный, тепличный или импортный урожай.' }}</p>
+          </fieldset>
+          <p class="sm:col-span-2 text-sm text-muted">Автоматический режим повторяется каждый год по календарю Москвы. Отключённый шаблон не включает отметку.</p>
+        </div>
         <div class="flex flex-wrap gap-6 items-center">
           <USwitch v-model="form.active" label="Товар опубликован" />
           <UFormField label="Порядок"
@@ -203,6 +217,8 @@ import { priceStatusItems } from "~/utils/price-status";
 import type { Unit } from "~/types/product";
 import { MAX_QTY, manualQuantity, quantityErrors, quickQuantity } from "~/utils/assembly";
 import { qtyText } from "~/utils/qty";
+import type { HitMode, SeasonalMode, SeasonTemplate } from '~/types/badges';
+import { hitModes, seasonGroupLabel } from '~/utils/badges';
 const props = defineProps<{
   product?: AdminProduct;
   categories: AdminCategory[];
@@ -223,6 +239,9 @@ const form = reactive({
   step: source?.step ?? 1,
   portionQty: source?.portionQty ?? source?.min ?? 1,
   active: source?.active ?? true,
+  hitMode: source?.hitMode ?? ('AUTO' as HitMode),
+  seasonalMode: source?.seasonalMode ?? ('OFF' as SeasonalMode),
+  seasonTemplateId: source?.seasonTemplateId ?? 0,
   sort: source?.sort ?? 0,
 });
 const rubles = ref(source ? kopecksToRubles(source.price) : "");
@@ -230,6 +249,12 @@ const checkedDate = ref(source?.sourceCheckedAt?.slice(0, 10) ?? "");
 const pricing = ref<ProductPricing | null>(source ?? null);
 const pricingError = ref(false);
 const { data: marketPoints } = await useApi<MarketPoint[]>("/admin/market-map/points");
+const { data: seasonTemplates } = await useApi<SeasonTemplate[]>('/admin/seasons');
+const seasonModes = [{ label: 'Автоматически по шаблону', value: 'AUTO' }, { label: 'Вручную включить', value: 'MANUAL' }, { label: 'Выключить', value: 'OFF' }];
+const hitBadge = computed(() => form.hitMode === 'MANUAL' || (form.hitMode === 'AUTO' && source?.autoHit === true));
+const seasonItems = computed(() => [{ label: 'Без шаблона', value: 0 }, ...(seasonTemplates.value ?? []).map(template => ({
+  label: `${template.name} · ${seasonGroupLabel(template.group)}${template.active ? '' : ' (отключён)'}`, value: template.id,
+}))]);
 const pointItems = computed(() => [
   { label: "Без торговой точки", value: 0 },
   ...(marketPoints.value ?? []).filter(point => point.kind !== "ENTRY").map(point => ({ label: point.name, value: point.id })),
@@ -306,6 +331,9 @@ const busy = ref(false);
 const error = ref("");
 async function save() {
   if (busy.value) return;
+  if (form.seasonalMode === 'AUTO' && !form.seasonTemplateId) {
+    error.value = 'Выберите шаблон сезонности.'; return;
+  }
   if (Object.keys(quantityError.value).length) {
     error.value = 'Проверьте настройки количества товара.';
     return;
@@ -337,6 +365,9 @@ async function save() {
           name: form.name.trim(),
           description: form.description.trim() || null,
           price,
+          seasonalStartsAt: null,
+          seasonalEndsAt: null,
+          seasonTemplateId: form.seasonTemplateId || null,
           marketPointId: form.marketPointId || null,
           sourceUrl: form.sourceUrl.trim() || null,
           sourceCheckedAt: checkedDate.value ? `${checkedDate.value}T00:00:00.000Z` : null,

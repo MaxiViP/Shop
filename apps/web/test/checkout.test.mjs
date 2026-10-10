@@ -6,6 +6,7 @@ import { computed, ref, shallowRef, reactive, watch, nextTick } from "vue";
 import { createPinia } from "pinia";
 import { useCartStore } from "../app/stores/cart.ts";
 import { deliveryEligibility } from "../app/utils/shop-settings.ts";
+import { orderDeliveryMessage } from '../app/utils/delivery.ts';
 import { pickupDate } from "../app/utils/pickup.ts";
 import { recipientDefaults, recipientDraft } from "../app/utils/checkout-recipient.ts";
 import { checkoutErrors, checkoutFieldOrder, validOrderPhone } from "../app/utils/checkout-validation.ts";
@@ -109,18 +110,49 @@ async function fixture(t, authenticated = false, preserveDefault = false) {
     useCheckoutName: () => ({ name: ref(authenticated ? "User" : ""),
       rememberOnSuccess: () => () => { state.remembered = true; } }),
     useHeaderNotice: () => ({ show() {} }),
+    useOrderPolling() {},
     useSeoMeta() {},
     navigateTo: async path => { state.navigation.push(path); },
-    deliveryEligibility, pickupDate, recipientDefaults, recipientDraft,
+    deliveryEligibility, orderDeliveryMessage, pickupDate, recipientDefaults, recipientDraft,
     checkoutErrors, checkoutFieldOrder,
   };
   const setup = new AsyncFunction(...Object.keys(context),
-    executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, errors, shakeFields, selectAddress, selectedAddressId, selectedPhone, choosePhone, onPhoneInput, availablePhones, phoneData };");
+    executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, errors, shakeFields, selectAddress, selectedAddressId, selectedPhone, choosePhone, onPhoneInput, availablePhones, phoneData, deliveryQuote, deliveryNote };");
   const result = await setup(...Object.values(context));
   Object.assign(result.recipient.value, { name: "Recipient", ...(preserveDefault ? {} : { phone: "+79990000000" }) });
   if (!authenticated) Object.assign(result.recipient.value, { city: "City", street: "Street", house: "10", comment: "Call" });
   return { ...result, cart, pending, state, settings, settingsError, queueOffer, address, user };
 }
+
+test('checkout messages use server delivery costs and discard stale free-delivery quotes', async t => {
+  const f = await fixture(t);
+  const apply = delivery => f.cart.applyQuote({ ...f.cart.quote, delivery }, f.cart.key);
+  apply({ enabled: true, threshold: 5000, remaining: 0, progress: 100, eligible: true, price: 0, total: 5000 });
+  assert.equal(f.deliveryNote.value, 'Бесплатная доставка');
+  f.settings.value.freeDeliveryEnabled = false;
+  f.settings.value.freeDeliveryThreshold = 100_000;
+  assert.equal(f.deliveryNote.value, 'Бесплатная доставка', 'Current settings cannot replace the server quote');
+  f.cart.setQty(1, 600);
+  assert.equal(f.deliveryQuote.value, undefined);
+  assert.match(f.deliveryNote.value, /Стоимость рассчитывается после сборки/);
+  assert.doesNotMatch(f.deliveryNote.value, /Бесплатная доставка/);
+});
+
+test('checkout below the free-delivery threshold, disabled promotion and pickup keep distinct messages', async t => {
+  const f = await fixture(t);
+  const apply = delivery => f.cart.applyQuote({ ...f.cart.quote, delivery }, f.cart.key);
+  apply({ enabled: true, threshold: 5001, remaining: 1, progress: 99, eligible: false, price: null, total: null });
+  assert.equal(f.deliveryQuote.value.remaining, 1);
+  assert.match(f.deliveryNote.value, /Доставка оплачивается отдельно/);
+  assert.doesNotMatch(f.deliveryNote.value, /Бесплатная доставка|0 ₽/);
+  apply({ enabled: false, threshold: null, remaining: null, progress: 0, eligible: false, price: 48_765, total: 53_765 });
+  assert.match(f.deliveryNote.value, /487,65 ₽/);
+  f.form.type = 'PICKUP';
+  await nextTick();
+  assert.equal(f.deliveryQuote.value, undefined);
+  assert.equal(f.deliveryNote.value, 'Самовывоз — бесплатно. Оплачиваются только товары и услуги магазина.');
+  assert.doesNotMatch(f.deliveryNote.value, /Доставка/);
+});
 
 test("direct /checkout middleware redirects to /cart without browser globals or a loop", async () => {
   const source = await readFile(new URL("../app/pages/checkout.vue", import.meta.url), "utf8");
@@ -237,8 +269,8 @@ test("a slot that fills during checkout is removed from the selection", async t 
 for (const type of ['DELIVERY', 'PICKUP']) {
   test(`${type} checkout selects the first preorder slot and preserves a valid explicit future selection`, async t => {
     const f = await fixture(t);
-    const first = '2026-10-08T07:00:00.000Z';
-    const selected = '2026-10-09T09:00:00.000Z';
+    const first = new Date(Date.now() + 86400_000).toISOString();
+    const selected = new Date(Date.now() + 2 * 86400_000).toISOString();
     f.form.type = type;
     f.queueOffer.value = { ...f.queueOffer.value, preorderRequired: true, showScheduledOffer: true,
       market: { isOpen: false, today: '2026-10-07', nextOpenAt: '2026-10-08T06:00:00.000Z' },

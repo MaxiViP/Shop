@@ -320,7 +320,7 @@
         <section class="section">
           <h2 class="section__title">Оплата</h2>
           <p>После сборки заказа и фактического взвешивания товаров.</p>
-          <p v-if="form.type === 'DELIVERY'" class="section__hint">Доставка оплачивается отдельно.</p>
+          <p class="section__hint">{{ deliveryNote }}</p>
         </section>
 
         <UAlert
@@ -333,31 +333,33 @@
 
       <aside class="summary">
         <h2 class="summary__title">Ваш заказ</h2>
+        <CartFreeDelivery v-if="form.type === 'DELIVERY' && deliveryQuote" :quote="deliveryQuote" />
 
         <div v-if="cart.total !== null" class="summary__row">
           <span>Предварительная стоимость товаров</span>
 
           <span> ≈ {{ money(cart.total ?? 0) }} </span>
         </div>
+        <PromoSelector />
 
         <div class="summary__row">
           <span>{{ form.type === "PICKUP" ? "Самовывоз" : "Доставка" }}</span>
 
           <span>{{
-            form.type === "PICKUP" ? "Бесплатно" : "Рассчитывается"
+            form.type === "PICKUP" ? "Бесплатно" : deliveryCost(deliveryQuote?.price ?? null)
           }}</span>
         </div>
 
         <div v-if="cart.total !== null" class="summary__total">
-          <span> Предварительно за товары </span>
+          <span>{{ form.type === 'PICKUP' || deliveryQuote?.eligible ? 'Предварительный итог' : 'Предварительно за товары' }}</span>
 
-          <strong> ≈ {{ money(cart.total ?? 0) }} </strong>
+          <strong> ≈ {{ money(deliveryQuote?.total ?? cart.quote?.goodsTotal ?? cart.total ?? 0) }} </strong>
         </div>
 
         <div class="summary__submit">
           <div class="summary__submit-total">
             <small>Предварительно за товары</small>
-            <strong>{{ cart.total !== null ? money(cart.total) : 'Рассчитывается' }}</strong>
+            <strong>{{ cart.total !== null ? money(cart.quote?.goodsTotal ?? cart.total) : 'Рассчитывается' }}</strong>
           </div>
         <UButton
           type="submit"
@@ -373,9 +375,7 @@
         <p class="summary__note">
           Итоговая стоимость будет рассчитана после сборки и фактического
           взвешивания товаров. Оплата — после сборки заказа.
-          <span v-if="form.type === 'DELIVERY'"
-            >Доставка оплачивается отдельно.</span
-          >
+          <span>{{ deliveryNote }}</span>
         </p>
       </aside>
     </form>
@@ -390,6 +390,7 @@ import type { OrderCreated, OrderType, QueueOffer } from "~/types/order";
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
+import { deliveryCost, orderDeliveryMessage } from '~/utils/delivery';
 import { preorderLabel } from '~/utils/preorder';
 import { recipientDefaults, recipientDraft } from "~/utils/checkout-recipient";
 import { checkoutErrors, checkoutFieldOrder, type CheckoutField } from "~/utils/checkout-validation";
@@ -419,6 +420,8 @@ const eligibility = computed(() =>
     ? deliveryEligibility(cart.total, settings.value)
     : null,
 );
+const deliveryQuote = computed(() => ready.value && cart.quote?.valid && form.type === 'DELIVERY' ? cart.quote.delivery : undefined);
+useOrderPolling(async () => { await Promise.all([refreshQuote(), refreshSettings()]); }, () => 60_000);
 const api = useApiClient();
 const { name, rememberOnSuccess } = useCheckoutName();
 
@@ -469,6 +472,10 @@ const form = reactive({
   pickupTiming: "asap",
   pickupAt: "",
 });
+const deliveryNote = computed(() => orderDeliveryMessage({
+  type: form.type,
+  deliveryPrice: deliveryQuote.value?.price ?? null,
+}));
 const checkoutRequestId = ref<string | null>(null);
 const requestQuoteToken = ref<string | null>(null);
 watch(() => cart.quote?.token, token => {
@@ -533,6 +540,7 @@ const canSubmit = computed(
     ready.value &&
     cart.count > 0 &&
     cart.quote?.valid &&
+    (!cart.quote.promo || cart.quote.promo.eligible) &&
     (form.type === "DELIVERY"
       ? eligibility.value?.delivery
       : eligibility.value?.pickup),

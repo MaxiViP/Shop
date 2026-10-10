@@ -78,7 +78,8 @@
           </strong>
         </div>
 
-        <div id="order-summary" class="card__summary">
+        <OrderCosts v-if="order.promoCodeSnapshot" id="order-summary" :order="order" />
+        <div v-else id="order-summary" class="card__summary">
           <div>
             <span>Предварительная стоимость товаров</span>
             <strong>≈ {{ money(order.subtotal) }}</strong>
@@ -92,7 +93,7 @@
                   : 'Доставка'
               }}
             </span>
-            <strong>{{ knownMoney(order.deliveryPrice) }}</strong>
+            <strong>{{ deliveryCost(order.deliveryPrice) }}</strong>
           </div>
 
           <div class="card__total">
@@ -189,7 +190,7 @@
 
     <p v-if="order.status === 'ASSEMBLING'" class="order__note">Фактический вес, услуги и изменения цены войдут в итог после сборки. Предварительная сумма выше рассчитана по цене заказа.</p>
     <p v-else-if="!order.assemblyFinalizedAt && order.status !== 'CANCELED'" class="order__note">Мы соберём и взвесим товары. После сборки здесь появится точная сумма для оплаты.</p>
-    <p v-if="order.type === 'DELIVERY'" class="order__note">Доставка оплачивается отдельно и не входит в перевод магазину за товары.</p>
+    <p class="order__note">{{ orderDeliveryMessage(order) }}</p>
     <OrderExtras :extras="order.extras ?? []" />
     <OrderPayment :order="order" />
     <OrderCoordination :key="order.publicId" :base="`/orders/${order.publicId}`" :bps="order.weightToleranceBps" :assembling="order.status === 'ASSEMBLING'" :has-issues="order.issues.length > 0" :poll="active" @refresh="refreshOrder" />
@@ -221,6 +222,8 @@ import {
 import {
   deliveryProvider,
   deliveryStatus,
+  deliveryCost,
+  orderDeliveryMessage,
 } from '~/utils/delivery'
 import { knownMoney, money } from '~/utils/money'
 import { lineAmount } from '~/utils/assembly'

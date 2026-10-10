@@ -29,6 +29,7 @@ export const productQuerySchema = z
     q: text(100),
     category: text(100),
     marketPoint: text(180),
+    tag: z.enum(['seasonal', 'hit']).optional(),
     sort: productSortSchema.default('recommended'),
     page: z.coerce.number().int().positive().default(1),
     limit: z.coerce.number().int().min(1).max(60).default(24),

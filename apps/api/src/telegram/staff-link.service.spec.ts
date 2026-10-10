@@ -3,7 +3,7 @@ import { StaffLinkService } from './staff-link.service.js';
 
 function setup(role: 'SELLER' | 'ADMIN' | 'USER' = 'SELLER') {
   const user = { findUnique: vi.fn(async () => ({ role })) };
-  const upsertCode = vi.fn(async () => ({}));
+  const upsertCode = vi.fn<(args: { create: { codeHash: string } }) => Promise<object>>().mockResolvedValue({});
   let consumed = false;
   let expiry = new Date(Date.now() + 60_000);
   const findCode = vi.fn(async () => consumed ? null : {
@@ -34,9 +34,9 @@ describe('STAFF one-time Telegram linking', () => {
     const s = setup(role);
     const result = await s.links.createCode(7);
     expect(result.code).toMatch(/^[A-Za-z0-9_-]{22}$/);
-    const data = s.upsertCode.mock.calls[0]?.[0] as { create: { codeHash: string } };
-    expect(data.create.codeHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(data.create.codeHash).not.toContain(result.code);
+    const data = s.upsertCode.mock.calls[0]?.[0];
+    expect(data?.create.codeHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(data?.create.codeHash).not.toContain(result.code);
   });
   it('rejects USER role before issuing a code', async () => {
     const s = setup('USER');

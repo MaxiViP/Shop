@@ -5,6 +5,10 @@
       <p class="catalog__total" role="status">Найдено: {{ total }}</p>
     </div>
     <h1 class="sr-only">{{ title }}</h1>
+    <div v-if="tag" class="catalog__selection">
+      <span>{{ tag === 'seasonal' ? 'Сейчас в сезоне' : 'Хиты рынка' }}</span>
+      <UButton variant="link" color="neutral" icon="i-lucide-x" @click="clearTag">Все товары</UButton>
+    </div>
 
     <div ref="navigation" class="catalog__navigation" :style="{ top: `${headerOffset}px` }">
       <CategoryList v-model:sort="sort" class="catalog__categories" :items="categories" :query="categoryQuery" :active="activeCategory" @choose="chooseCategory" />
@@ -49,6 +53,9 @@ const { title, category = undefined, categories } = defineProps<{
   categories: Category[];
 }>();
 const router = useRouter();
+const route = useRoute();
+const tag = computed(() => route.query.tag === 'seasonal' || route.query.tag === 'hit' ? route.query.tag : null);
+async function clearTag() { const query = { ...route.query }; delete query.tag; await router.replace({ query }); }
 const activeCategory = ref(category ?? '');
 const navigation = ref<HTMLElement | null>(null);
 const groupList = ref<HTMLElement | null>(null);
@@ -121,6 +128,7 @@ async function chooseCategory(slug: string) {
 <style scoped>
 :global(html:has(.catalog)), :global(body:has(.catalog)), :global(#__nuxt:has(.catalog)) { min-width: 0; }
 .catalog { min-width: 0; padding-block: 0 var(--page-end); }
+.catalog__selection { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; font-weight: 600; }
 .catalog__head { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
 .catalog__head :deep(.breadcrumbs) { flex: 1; margin-bottom: 0; }
 .catalog__head :deep(.breadcrumbs__list) { flex-wrap: nowrap; }

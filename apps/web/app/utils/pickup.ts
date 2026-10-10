@@ -1,4 +1,8 @@
 // The single pickup point is in Moscow (UTC+03:00).
+export function moscowInput(value: string | null | undefined): string {
+  return value ? new Date(Date.parse(value) + 3 * 3600_000).toISOString().slice(0, 16) : '';
+}
+
 export function pickupDate(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null
   const date = new Date(`${value}+03:00`)

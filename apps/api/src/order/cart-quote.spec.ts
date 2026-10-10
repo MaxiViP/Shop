@@ -10,12 +10,20 @@ import {
 import { orderSchema } from './schema.js';
 
 const telegram = { notifyNewOrder: vi.fn().mockResolvedValue(undefined) } as unknown as TelegramService;
+const shopSettings = { findUniqueOrThrow: vi.fn().mockResolvedValue({ deliveryEnabled: true, freeDeliveryEnabled: false, freeDeliveryThreshold: null }) };
 
 const product = {
   id: 1,
   name: 'Яблоки',
   slug: 'apples',
   price: 350000,
+  priceStatus: 'ESTIMATED' as const,
+  isSeasonal: false,
+  isHit: false,
+  seasonalMode: 'OFF' as const,
+  seasonalStartsAt: null,
+  seasonalEndsAt: null,
+  seasonTemplate: null,
   priceQty: 1000,
   unit: 'GRAM' as const,
   min: 500,
@@ -33,6 +41,7 @@ describe('Current server cart quote', () => {
     const findMany = vi.fn().mockResolvedValue([product]);
     const service = new OrderService({
       product: { findMany },
+      shopSettings,
     } as unknown as DbService, telegram);
     const body = quoteSchema.parse({
       items: [{ productId: 1, qty: 1100, price: 1, lineTotal: 1 }],
@@ -73,7 +82,7 @@ describe('Current server cart quote', () => {
   });
   it('rejects tampered quantities using database rules before any order write', async () => {
     const create = vi.fn();
-    const tx = { $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
+    const tx = { shopSettings, $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
       product: { findMany: vi.fn().mockResolvedValue([{ ...product, step: 100 }]) },
       order: { create } };
     const db = { ...tx, $transaction: vi.fn((fn: (client: typeof tx) => Promise<unknown>) => fn(tx)) } as unknown as DbService;
@@ -154,7 +163,7 @@ describe('Current server cart quote', () => {
   });
   it('checks a quote fingerprint against fresh data before any order/guest write', async () => {
     const create = vi.fn();
-    const tx = { $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
+    const tx = { shopSettings, $queryRaw: vi.fn().mockResolvedValue([{ id: 1 }]),
       product: { findMany: vi.fn().mockResolvedValue([{ ...product, price: 250000 }]) },
       order: { create } };
     const db = { ...tx, $transaction: vi.fn((fn: (client: typeof tx) => Promise<unknown>) => fn(tx)) } as unknown as DbService;

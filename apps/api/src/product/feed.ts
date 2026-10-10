@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { Prisma, type PrismaClient } from '../db/gen/client.js';
 import type { ProductQuery } from './schema.js';
 import { customerProduct, productListSelect } from './select.js';
+import { hitSql, seasonalSql } from './badges.js';
 
 const tailSchema = z.object({
   id: z.number().int().positive(), name: z.string().max(1000),
@@ -24,6 +25,7 @@ export function feedScope(query: ProductQuery) {
     feed: query.feed, category: query.category ?? null, q: query.q ?? null,
     marketPoint: query.marketPoint ?? null, ids: query.ids?.toSorted((a, b) => a - b) ?? null,
     sort: query.sort,
+    tag: query.tag ?? null,
   })).digest('hex');
 }
 
@@ -75,6 +77,10 @@ export async function productFeed(db: PrismaClient, query: ProductQuery) {
   return db.$transaction(async tx => {
     const ceiling = cursor?.ceiling ?? (await tx.product.aggregate({ _max: { id: true } }))._max.id ?? 0;
     const filters = [Prisma.sql`p.active AND c.active AND p.id <= ${ceiling}`];
+    if (query.tag === 'hit') filters.push(hitSql());
+    if (query.tag === 'seasonal') {
+      filters.push(seasonalSql(new Date()));
+    }
     if (query.category) filters.push(query.feed === 'catalog'
       ? Prisma.sql`(c.sort, c.id) >= (SELECT sort, id FROM "Category" WHERE slug = ${query.category} AND active)`
       : Prisma.sql`c.slug = ${query.category}`);

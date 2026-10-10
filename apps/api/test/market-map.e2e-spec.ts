@@ -18,6 +18,11 @@ import { managedPath } from '../src/admin/images.service.js';
 
 interface Point { id: number; slug: string; isPublished: boolean; unitNumber: string | null; photoUrl: string | null }
 
+function assertMapped(point: { mapX: number | null; mapY: number | null }): asserts point is { mapX: number; mapY: number } {
+  expect(point.mapX).toBeTypeOf('number');
+  expect(point.mapY).toBeTypeOf('number');
+}
+
 describe.skipIf(!process.env.DATABASE_URL)('Market map / local PostgreSQL', () => {
   const schema = `market_map_test_${randomUUID().replaceAll('-', '')}`;
   let connection: pg.Client, db: PrismaClient, app: INestApplication<Server>, png: Buffer;
@@ -78,6 +83,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Market map / local PostgreSQL', () =
     expect(await db.marketLayout.findUniqueOrThrow({ where: { floor: 2 } })).toMatchObject({ escalator: null });
     const bar = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'fresh-bar' } });
     const batumi = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'batumi' } });
+    assertMapped(bar); assertMapped(batumi);
     expect(bar).toMatchObject({ floor: 2, unitNumber: null, photoUrl: null, isPublished: true });
     expect(bar.mapY).toBeGreaterThan(batumi.mapY);
     const publicPoints = (await admin().get('/api/market-map').expect(200)).body;
@@ -95,6 +101,8 @@ describe.skipIf(!process.env.DATABASE_URL)('Market map / local PostgreSQL', () =
     const georgia = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'gifts-georgia' } });
     const gornitsa = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'gornitsa' } });
     const pickles = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'pickles-sweets' } });
+    for (const point of entries) assertMapped(point);
+    assertMapped(butter); assertMapped(sausages); assertMapped(georgia); assertMapped(gornitsa); assertMapped(pickles);
     expect(entries[0]!.mapX).toBeLessThan(butter.mapX);
     expect(entries[0]!.mapY).toBeGreaterThan(butter.mapY);
     expect(entries[0]!.mapY).toBeLessThan(sausages.mapY);

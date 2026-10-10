@@ -39,6 +39,9 @@ const api = createServer(async (req, res) => {
   if (url.pathname === '/api/__stale-home') { staleSeed = 'next'; res.end('{}'); return; }
   if (url.pathname === '/api/auth/me') body = null;
   else if (url.pathname === '/api/categories') body = categories;
+  else if (url.pathname === '/api/home/slides') body = { serverNow: new Date().toISOString(), validUntil: new Date(Date.now() + 60_000).toISOString(),
+    slides: [{ id: 1, content: 'CUSTOM', title: 'Продукты с настоящего рынка', text: 'Выбирайте товары из разных лавок в одном каталоге.',
+      eyebrow: 'Прилавки рынка', image: '/images/hero/hero-0.webp', position: 'center', buttonLabel: 'В каталог', to: '/catalog', endsAt: null }] };
   else if (url.pathname === '/api/products') {
     requests.push(Object.fromEntries(url.searchParams));
     let items = products.filter(item => !url.searchParams.get('q') || item.name.includes(url.searchParams.get('q')));

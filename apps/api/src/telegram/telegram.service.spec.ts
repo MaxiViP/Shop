@@ -7,7 +7,9 @@ import { TelegramService } from './telegram.service.js';
 import type { TelegramOrder } from './message.js';
 
 const order: TelegramOrder = {
+  promoCodeSnapshot: null, promoTitleSnapshot: null, promoDiscount: 0, finalPromoDiscount: null,
   id: 154, status: 'NEW', type: 'PICKUP', customerName: 'Private customer', customerPhone: '+70000000000',
+  fulfillmentMode: 'ASAP', scheduledFor: null, buildingPart: null,
   city: null, street: null, house: null, flat: null, entrance: null,
   floor: null, intercom: null, comment: null, deliveryAt: null,
   subtotal: 12345, deliveryPrice: 0, total: 12345,

@@ -68,7 +68,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       return new CustomerUpdateService(typed, coordination, domainOrders,
         new CustomerShopService(typed, cart, checkout, domainOrders), checkout);
     };
-    const post = (path: string, body: unknown, cookie?: string) => {
+    const post = (path: string, body: Record<string, unknown>, cookie?: string) => {
       const value = request(app.getHttpServer())
         .post('/api/auth/' + path)
         .set('Origin', origin)

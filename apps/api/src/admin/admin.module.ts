@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { PromoModule } from '../promo/promo.module.js';
+import { AdminPromoCtrl } from './promo.ctrl.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { DbModule } from '../db/db.module.js';
 import { AdminProductsCtrl } from './products.ctrl.js';
@@ -20,9 +22,16 @@ import { FinanceService } from './finance.service.js';
 import { PayoutsService } from './payouts.service.js';
 import { DashboardCtrl } from './dashboard.ctrl.js';
 import { DashboardService } from './dashboard.service.js';
+import { AdminSlidesCtrl, PublicSlidesCtrl } from './slides.ctrl.js';
+import { SlidesService } from './slides.service.js';
+import { SeasonsCtrl } from './seasons.ctrl.js';
+import { SeasonsService } from './seasons.service.js';
+import { HitsCtrl } from './hits.ctrl.js';
+import { HitsService } from './hits.service.js';
 @Module({
-  imports: [AuthModule, DbModule, StaffModule],
+  imports: [AuthModule, DbModule, StaffModule, PromoModule],
   controllers: [
+    AdminPromoCtrl,
     AdminProductsCtrl,
     AdminCategoriesCtrl,
     AdminUsersCtrl,
@@ -35,6 +44,10 @@ import { DashboardService } from './dashboard.service.js';
     FinanceCtrl,
     PayoutsCtrl,
     DashboardCtrl,
+    AdminSlidesCtrl,
+    PublicSlidesCtrl,
+    SeasonsCtrl,
+    HitsCtrl,
   ],
   providers: [
     AdminProductsService,
@@ -47,6 +60,9 @@ import { DashboardService } from './dashboard.service.js';
     FinanceService,
     PayoutsService,
     DashboardService,
+    SlidesService,
+    SeasonsService,
+    HitsService,
   ],
 })
 export class AdminModule {}

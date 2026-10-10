@@ -7,7 +7,7 @@
     <p class="delivery__text">{{ site.delivery.priorityText }}</p>
     <h2 class="delivery__subtitle">Как рассчитывается стоимость?</h2>
     <p class="delivery__text">{{ site.delivery.pricingText }}</p>
-    <p class="delivery__text">Основной способ доставки — {{ site.delivery.providerLabel }}. Стоимость уточняется по адресу и актуальному расчёту сервиса.</p>
+    <p class="delivery__text">Основной способ доставки — {{ site.delivery.providerLabel }}. Платная доставка рассчитывается после сборки и оплачивается отдельно от продуктов. Условия бесплатной доставки показываются в корзине и сохраняются при оформлении заказа.</p>
     <h2 class="delivery__subtitle">Как заказать продукты домой?</h2>
     <p class="delivery__text">Выберите товары в каталоге, откройте корзину, укажите данные получателя и адрес доставки, затем оформите заказ.</p>
     <UButton class="delivery__action" to="/catalog">Перейти в каталог</UButton>

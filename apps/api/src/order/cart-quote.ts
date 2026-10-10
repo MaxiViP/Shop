@@ -8,6 +8,7 @@ import { goodsLine, goodsSum } from './pricing.js';
 
 // Strip unsolicited client prices. Only IDs and quantities are used.
 export const quoteSchema = z.object({
+  promoCodeId: z.number().int().positive().max(2_147_483_647).optional(),
   items: z
     .array(
       z.object({

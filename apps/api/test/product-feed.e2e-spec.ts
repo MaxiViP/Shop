@@ -195,4 +195,22 @@ describe.skipIf(!process.env.DATABASE_URL)('product feed / local PostgreSQL', ()
       await http().get('/api/products').query({ feed: 'home', seed, cursor: first.nextCursor, limit: 7 }).expect(409);
     } finally { await db.product.create({ data: removed }); }
   });
+
+  it('keeps badge filters in the cursor scope and carries both marks through every seeded page', async () => {
+    const categoryId = categoryIds.get('feed-fruits')!;
+    await db.product.updateMany({ where: { categoryId }, data: { isSeasonal: true, seasonalMode: 'MANUAL', isHit: true,
+      seasonalStartsAt: new Date(Date.now() - 60_000), seasonalEndsAt: new Date(Date.now() + 3600_000) } });
+    const query = { feed: 'home', seed, tag: 'seasonal', limit: 7 };
+    const first = await page(query);
+    expect(first.nextCursor).toBeTruthy();
+    const items = await walk(query, first);
+    expect(items).toHaveLength(await db.product.count({ where: { categoryId, active: true } }));
+    expect(items.every(item => 'isSeasonal' in item && item.isSeasonal === true && 'isHit' in item && item.isHit === true)).toBe(true);
+    await http().get('/api/products').query({ ...query, tag: 'hit', cursor: first.nextCursor }).expect(400);
+    const hits = await walk({ feed: 'catalog', tag: 'hit', sort: 'price_desc', limit: 7 });
+    expect(hits.map(item => item.id).toSorted()).toEqual(items.map(item => item.id).toSorted());
+    await db.product.updateMany({ where: { categoryId }, data: { seasonalMode: 'OFF' } });
+    expect(await page(query)).toMatchObject({ items: [], total: 0, nextCursor: null });
+    expect((await page({ feed: 'catalog', tag: 'hit', limit: 7 })).items).toHaveLength(7);
+  });
 });

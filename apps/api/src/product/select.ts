@@ -1,11 +1,18 @@
 import type { Prisma } from '../db/gen/client.js';
 import { customerPrice } from './pricing.js';
+import { hitActive, seasonalActive, seasonalBoundary, type HitProduct, type SeasonalProduct } from './badges.js';
 
-type ProductSource = { price: number; marketPoint: { slug: string; name: string; isPublished: boolean } | null };
+type ProductSource = SeasonalProduct & HitProduct & { price: number; marketPoint: { slug: string; name: string; isPublished: boolean } | null };
 
 export function customerProduct<T extends ProductSource>(product: T) {
   const point = product.marketPoint;
-  return { ...product, price: customerPrice(product.price),
+  const { seasonTemplate: _template, seasonalMode: _mode, hitMode: _hitMode, ...fields } = product;
+  const now = new Date();
+  return { ...fields, price: customerPrice(product.price),
+    ...(product.isHit === undefined ? {} : { isHit: hitActive(product) }),
+    ...(product.isSeasonal === undefined ? {} : { isSeasonal: seasonalActive(product, now),
+      seasonalStartsAt: product.seasonalMode ? null : product.seasonalStartsAt ?? null,
+      seasonalEndsAt: product.seasonalMode ? seasonalBoundary(product, now) : product.seasonalEndsAt ?? null }),
     marketPoint: point?.isPublished ? { slug: point.slug, name: point.name } : null };
 }
 
@@ -20,6 +27,13 @@ export const productListSelect = {
   step: true,
   min: true,
   portionQty: true,
+  isSeasonal: true,
+  isHit: true,
+  hitMode: true,
+  seasonalStartsAt: true,
+  seasonalEndsAt: true,
+  seasonalMode: true,
+  seasonTemplate: { select: { active: true, startMonth: true, endMonth: true } },
   marketPoint: { select: { slug: true, name: true, isPublished: true } },
   category: {
     select: {

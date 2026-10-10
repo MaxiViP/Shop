@@ -2,6 +2,8 @@ export interface PublicShopSettings {
   minDeliverySubtotal: number;
   deliveryEnabled: boolean;
   pickupEnabled: boolean;
+  freeDeliveryEnabled: boolean;
+  freeDeliveryThreshold: number | null;
 }
 export interface ExtraLimits {
   maxOrderExtraUnitPrice: number;

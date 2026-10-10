@@ -5,7 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { phone } from '../common/phone.js';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+import { PromoService, promoSnapshot } from '../promo/promo.service.js';
+import { payableGoods, promoOrderSelect } from '../promo/promo.js';
 import { DbService } from '../db/db.service.js';
 import { TelegramService } from '../telegram/telegram.service.js';
 import {
@@ -15,6 +17,7 @@ import {
 } from '../common/guest.js';
 import type { OrderInput } from './schema.js';
 import { totalWithDelivery } from './pricing.js';
+import { freeDelivery } from './free-delivery.js';
 import { SERVICE_MARKUP_PERCENT } from '../product/pricing.js';
 import { paymentSelect, paymentDetails } from './payment.js';
 import type { PaymentMethod, Prisma } from '../db/gen/client.js';
@@ -37,7 +40,7 @@ export const orderCreatedSelect = {
   status: true,
   fulfillmentMode: true,
   scheduledFor: true,
-  subtotal: true,
+  subtotal: true, ...promoOrderSelect,
   deliveryPrice: true,
   total: true,
   createdAt: true,
@@ -47,18 +50,31 @@ export const orderCreatedSelect = {
 @Injectable()
 export class OrderService {
   private readonly queue: QueueService;
+  private readonly promos: PromoService;
   constructor(
     private readonly db: DbService,
     private readonly telegram: TelegramService,
-  ) { this.queue = new QueueService(db); }
+  ) { this.queue = new QueueService(db); this.promos = new PromoService(db); }
 
-  async quote(data: QuoteInput, db: Prisma.TransactionClient = this.db) {
+  async quote(data: QuoteInput, db: Prisma.TransactionClient = this.db, userId: number | null = null) {
     const quantities = cartQuantities(data.items);
     const products = await db.product.findMany({
       where: { id: { in: [...quantities.keys()] }, active: true },
       select: cartProductSelect,
     });
-    return cartQuote(quantities, products);
+    const quote = cartQuote(quantities, products);
+    const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
+    const promo = data.promoCodeId ? await this.promos.preview(db, userId, data.promoCodeId, quote.subtotal) : null;
+    const goodsTotal = quote.subtotal === null ? null : quote.subtotal - (promo?.discount ?? 0);
+    const delivery = freeDelivery(quote.subtotal, settings);
+    const token = promo && quote.token ? createHash('sha256').update(JSON.stringify([
+      quote.token, promo.id, promo.discount, promo.status, promo.expiresAt,
+    ])).digest('hex') : quote.token;
+    return { ...quote, token, promo, goodsTotal, delivery: { ...delivery, total: delivery.price === null ? null : goodsTotal } };
+  }
+
+  promosForCart(db: Prisma.TransactionClient, userId: number, subtotal: number | null) {
+    return this.promos.options(db, userId, subtotal);
   }
 
   async create(
@@ -145,7 +161,7 @@ export class OrderService {
     const productIds = [...new Set(data.items.map(item => item.productId))].sort((a, b) => a - b);
     for (const id of productIds)
       await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${id} FOR SHARE`;
-    const quote = await this.quote(data, db);
+    const quote = await this.quote(data, db, userId);
     const settlement = await db.product.findMany({
       where: { id: { in: productIds } },
       select: { id: true, settlementMode: true, basePrice: true },
@@ -192,8 +208,11 @@ export class OrderService {
       data.fulfillmentMode ?? 'ASAP', data.scheduledFor);
     checkoutLimits(data.type, subtotal, settings);
 
-    const deliveryPrice = data.type === 'PICKUP' ? 0 : null;
-    const total = totalWithDelivery(subtotal, deliveryPrice);
+    const delivery = freeDelivery(subtotal, settings);
+    const freeDeliveryApplied = data.type === 'DELIVERY' && delivery.eligible;
+    const deliveryPrice = data.type === 'PICKUP' || freeDeliveryApplied ? 0 : null;
+    const redemption = data.promoCodeId ? await this.promos.redeem(db, userId, data.promoCodeId, subtotal) : null;
+    const total = totalWithDelivery(subtotal - (redemption?.discount ?? 0), deliveryPrice);
 
     const address = data.type === 'DELIVERY' ? data.address : undefined;
 
@@ -232,8 +251,11 @@ export class OrderService {
         deliveryAt: data.deliveryAt ? new Date(data.deliveryAt) : null,
 
         subtotal,
+        ...(redemption ? promoSnapshot(redemption.promo, redemption.discount) : {}),
         deliveryPrice,
         total,
+        freeDeliveryApplied,
+        freeDeliveryThresholdSnapshot: data.type === 'DELIVERY' ? delivery.threshold : null,
 
         userId,
         guestSessionId,
@@ -245,6 +267,13 @@ export class OrderService {
 
       select: orderCreatedSelect,
     });
+    if (redemption) {
+      const claimed = await db.promoCode.updateMany({
+        where: { id: redemption.promo.id, status: 'AVAILABLE', usedOrderId: null },
+        data: { status: 'USED', usedAt: new Date(), usedOrderId: order.id },
+      });
+      if (claimed.count !== 1) throw new ConflictException('Промокод уже использован');
+    }
 
     if (load.showScheduledOffer && mode === 'ASAP')
       await telegramEvent(db, { orderId: order.id, type: 'QUEUE_DELAY', dedupeKey: `queue-delay:${order.id}` });
@@ -272,7 +301,8 @@ export class OrderService {
           scheduledFor: true,
           total: true,
           finalTotal: true,
-          subtotal: true,
+          subtotal: true, ...promoOrderSelect,
+          deliveryPrice: true,
           finalSubtotal: true,
           payment: { select: paymentSelect },
           issues: issueSummary,
@@ -315,7 +345,8 @@ export class OrderService {
         scheduledFor: true,
         total: true,
         finalTotal: true,
-        subtotal: true,
+        subtotal: true, ...promoOrderSelect,
+        deliveryPrice: true,
         finalSubtotal: true,
         payment: { select: paymentSelect },
         issues: issueSummary,
@@ -426,7 +457,7 @@ export class OrderService {
 
         deliveryAt: true,
 
-        subtotal: true,
+        subtotal: true, ...promoOrderSelect,
         deliveryPrice: true,
         total: true,
         finalSubtotal: true,
@@ -508,7 +539,7 @@ export class OrderService {
       // Use the existing owner/guest authorization, while the order is locked.
       const order = await db.order.findFirst({
         where: access, select: {id:true, status:true, assemblyFinalizedAt:true,
-          finalSubtotal:true, payment:{select:paymentSelect}},
+          finalSubtotal:true, ...promoOrderSelect, payment:{select:paymentSelect}},
       });
       if (!order) throw new NotFoundException('Заказ не найден');
       if (
@@ -516,7 +547,7 @@ export class OrderService {
         !order.assemblyFinalizedAt ||
         !order.payment ||
         order.payment.status === 'CANCELED' ||
-        order.payment.amount !== order.finalSubtotal
+        order.payment.amount !== payableGoods(order)
       )
         throw new ConflictException('Оплата заказа сейчас недоступна');
       if (

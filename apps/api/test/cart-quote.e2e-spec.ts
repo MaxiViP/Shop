@@ -362,6 +362,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(result.rows).toEqual(legacyProducts.map((product) => ({
         ...product, portionQty: product.min, settlementMode: 'UNSET', basePrice: null,
         marketPointId: null, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
+        isSeasonal: false, isHit: false, seasonalStartsAt: null, seasonalEndsAt: null,
+        seasonalMode: 'OFF', seasonTemplateId: null, hitOrders: 0, hitSoldUnits: '0.000', hitRank: null,
       })));
       const column = await connection.query<{ is_nullable: string }>(
         `SELECT is_nullable FROM information_schema.columns
@@ -402,6 +404,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           'images',
           'marketPoint',
           'priceStatus',
+          'isSeasonal', 'isHit', 'seasonalStartsAt', 'seasonalEndsAt',
         ].sort(),
       );
       expect(await db.order.count()).toBe(before);
@@ -410,7 +413,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         .get('/api/shop/settings')
         .expect(200);
       expect(Object.keys(settings.body).sort()).toEqual(
-        ['minDeliverySubtotal', 'deliveryEnabled', 'pickupEnabled'].sort(),
+        ['minDeliverySubtotal', 'deliveryEnabled', 'pickupEnabled', 'freeDeliveryEnabled', 'freeDeliveryThreshold'].sort(),
       );
     });
     it('price decrease updates quote, blocks delivery below minimum but permits guest pickup', async () => {

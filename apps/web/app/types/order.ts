@@ -1,3 +1,5 @@
+import type { OrderPromo } from './promo';
+
 export type OrderStatus =
   | 'NEW'
   | 'CONFIRMED'
@@ -59,7 +61,7 @@ export interface YandexQuote {
   expiresAt: string | null
 }
 
-export interface StaffOrder {
+export interface StaffOrder extends OrderPromo {
   fulfillmentMode: FulfillmentMode
   scheduledFor: string | null
   queueRank: number | null
@@ -100,7 +102,7 @@ export interface StaffOrder {
   }[]
 }
 
-export interface OrderCreated {
+export interface OrderCreated extends OrderPromo {
   fulfillmentMode: FulfillmentMode
   scheduledFor: string | null
   id: number
@@ -122,12 +124,13 @@ export interface OrderCreated {
   }[]
 }
 
-export interface OrderSummary {
+export interface OrderSummary extends OrderPromo {
   fulfillmentMode: FulfillmentMode
   scheduledFor: string | null
   issues?: { id: number; status: string }[]
   customerUnread?: number
   subtotal: number
+  deliveryPrice: number | null
   finalSubtotal: number | null
   payment: OrderPayment | null
   id: number
@@ -147,7 +150,7 @@ export interface OrderSummary {
   }[]
 }
 
-export interface OrderDetail {
+export interface OrderDetail extends OrderPromo {
   fulfillmentMode: FulfillmentMode
   scheduledFor: string | null
   assemblyStartedAt: string | null

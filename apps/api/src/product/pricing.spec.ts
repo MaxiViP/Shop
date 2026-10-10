@@ -41,6 +41,8 @@ describe('KorzinaMarket seller/customer pricing', () => {
   });
   it('cart products, line totals and subtotal share the same customer price', () => {
     const source = { id: 1, name: 'Рис', slug: 'rice', price: 22000, unit: 'PIECE' as const,
+      priceStatus: 'ESTIMATED' as const, isSeasonal: false, isHit: false, seasonalMode: 'OFF' as const,
+      seasonalStartsAt: null, seasonalEndsAt: null, seasonTemplate: null,
       priceQty: 1, min: 1, step: 1, portionQty: 1, marketPoint: null, images: [],
       category: { name: 'Бакалея', slug: 'grocery' } };
     const quote = cartQuote(new Map([[1, 2]]), [source]);

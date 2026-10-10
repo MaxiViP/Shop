@@ -49,10 +49,17 @@
       <p v-if="pending" role="status">Загрузка…</p>
       <UAlert v-else-if="error" color="error" :title="apiError(error)" />
       <p v-else-if="!data?.items.length">Товары не найдены</p>
-      <div v-else class="overflow-x-auto border border-default rounded-lg">
+      <div class="flex flex-wrap gap-3 items-end">
+        <UFormField label="ХИТ для выбранных товаров"><USelect v-model="bulkHitMode" :items="hitModes" :disabled="busy" /></UFormField>
+        <UButton :disabled="busy || !hitSelection.length" :loading="busy" @click="assignHits">Применить к {{ hitSelection.length }} товарам</UButton>
+        <UButton v-if="hitSelection.length" variant="ghost" :disabled="busy" @click="hitSelection = []">Снять выбор</UButton>
+        <span class="text-sm text-muted">До 100 товаров. Выбор сохраняется между страницами.</span>
+      </div>
+      <div v-if="!pending && !error && data?.items.length" class="overflow-x-auto border border-default rounded-lg">
         <table class="w-full text-sm min-w-[1060px]">
           <thead class="bg-elevated text-left">
             <tr>
+              <th class="p-3">Выбор</th>
               <th class="p-3">Фото</th>
               <th>Название</th>
               <th>Категория</th>
@@ -64,6 +71,7 @@
               <th>Базовая цена</th>
               <th>Наценка</th>
               <th>Статус</th>
+              <th>ХИТ: режим / отметка</th>
               <th>Порядок</th>
               <th class="p-3">Действия</th>
             </tr>
@@ -74,6 +82,7 @@
               :key="product.id"
               class="border-t border-default"
             >
+              <td class="p-3"><UCheckbox :model-value="hitSelection.includes(product.id)" :disabled="busy || (hitSelection.length >= 100 && !hitSelection.includes(product.id))" :aria-label="`Выбрать ${product.name}`" @update:model-value="selectHit(product.id, $event === true)" /></td>
               <td class="p-3">
                 <img
                   v-if="product.images[0]"
@@ -105,6 +114,7 @@
                   product.active ? "Опубликован" : "Скрыт"
                 }}</UBadge>
               </td>
+              <td class="pr-3"><span>{{ product.hitMode }}</span> <UBadge v-if="product.isHit" color="warning">ХИТ</UBadge><span v-else>· Нет</span></td>
               <td>{{ product.sort }}</td>
               <td class="p-3">
                 <div class="flex flex-wrap gap-2">
@@ -168,6 +178,8 @@
 import type { AdminProduct, AdminCategory, AdminPage } from "~/types/admin";
 import type { MarketPoint } from '~/types/market-map';
 import { priceStatusItems, priceStatusLabels } from '~/utils/price-status';
+import type { HitMode } from '~/types/badges';
+import { hitModes } from '~/utils/badges';
 definePageMeta({ middleware: "admin", layout: "admin" });
 const section = ref("products");
 const search = ref("");
@@ -232,6 +244,22 @@ const asset = useAsset();
 const busy = ref(false);
 const confirm = ref(false);
 const selected = ref<AdminProduct>();
+const hitSelection = ref<number[]>([]);
+const bulkHitMode = ref<HitMode>('AUTO');
+function selectHit(id: number, checked: boolean) {
+  hitSelection.value = hitSelection.value.filter(value => value !== id);
+  if (checked && hitSelection.value.length < 100) hitSelection.value.push(id);
+}
+async function assignHits() {
+  if (busy.value || !hitSelection.value.length) return;
+  busy.value = true;
+  try {
+    await api('/admin/hits/assign', { method: 'POST', body: { ids: hitSelection.value, hitMode: bulkHitMode.value } });
+    hitSelection.value = [];
+    await refresh(); toast.add({ title: 'Режим ХИТ сохранён', color: 'success' });
+  } catch (value) { toast.add({ title: apiError(value), color: 'error' }); }
+  finally { busy.value = false; }
+}
 async function hide(product: AdminProduct) {
   if (busy.value) return;
   busy.value = true;
