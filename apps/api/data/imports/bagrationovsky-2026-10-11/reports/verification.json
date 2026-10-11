@@ -1,0 +1,40 @@
+{
+  "ok": true,
+  "storage": "FILE_QUEUE",
+  "workingDatabaseUnchanged": true,
+  "liveDatabaseWrites": 0,
+  "existingPoints": 60,
+  "existingProducts": 173,
+  "queueStores": 16,
+  "queueProductRecords": 168,
+  "myasberryReferenceOffers": 128,
+  "bylinkinoUnknownPrices": 40,
+  "reviewedDuplicateGroups": 12,
+  "mergedSourceOffers": 0,
+  "automaticPointLinks": 0,
+  "appliedMarkupPercent": null,
+  "repeat": {
+    "createdStores": 0,
+    "createdProducts": 0,
+    "queueContentUnchanged": true,
+    "queueMtimeUnchanged": true
+  },
+  "checks": {
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "newUnitTests": 10,
+    "newIsolatedDatabaseTests": 2,
+    "unavailableDatabasePreview": "passed",
+    "noWorkingDatabaseImport": true,
+    "noPublication": true
+  },
+  "tablesUnchanged": [
+    "MarketPoint",
+    "Product",
+    "ProductImage",
+    "Category",
+    "Order",
+    "OrderItem"
+  ]
+}

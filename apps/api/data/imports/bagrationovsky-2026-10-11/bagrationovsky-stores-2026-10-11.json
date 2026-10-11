@@ -1,0 +1,1337 @@
+{
+  "schemaVersion": "1.0",
+  "documentType": "MARKET_RESEARCH_NOT_LIVE_CATALOG_IMPORT",
+  "checkedOn": "2026-10-11",
+  "timezone": "Europe/Moscow",
+  "market": {
+    "name": "Вкусные сезоны, ТЦ Багратионовский",
+    "address": "Москва, ул. Барклая, 10",
+    "floor": 2
+  },
+  "summary": {
+    "existingSitePointCount": 69,
+    "additionalNamesForVerification": 16,
+    "additionalAddressesInOfficialSellerLists": 2,
+    "additionalDirectoryOnlyNames": 14,
+    "completeConfirmedStallPriceListsObtained": 0,
+    "onlineReferenceOfferCount": 128
+  },
+  "siteSnapshot": {
+    "url": "https://korzinamarket.ru/market-map",
+    "checkedOn": "2026-10-11",
+    "points": [
+      {
+        "slug": "chainyao",
+        "name": "Чайняо",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/chainyao"
+      },
+      {
+        "slug": "batumi",
+        "name": "Батуми",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/batumi"
+      },
+      {
+        "slug": "panasian",
+        "name": "Panasian",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/panasian"
+      },
+      {
+        "slug": "golden-monkey",
+        "name": "Голден Манки",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/golden-monkey"
+      },
+      {
+        "slug": "dagestan-stall",
+        "name": "Дагестанская лавка",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/dagestan-stall"
+      },
+      {
+        "slug": "plovbox",
+        "name": "Plovbox",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/plovbox"
+      },
+      {
+        "slug": "babka",
+        "name": "Бабка",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/babka"
+      },
+      {
+        "slug": "mamina-bakery",
+        "name": "Мамина пекарня",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/mamina-bakery"
+      },
+      {
+        "slug": "bo",
+        "name": "Bở",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/bo"
+      },
+      {
+        "slug": "beerimport",
+        "name": "Shop Beerimport",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/beerimport"
+      },
+      {
+        "slug": "tobacco-premium",
+        "name": "Tobacco Premium",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/tobacco-premium"
+      },
+      {
+        "slug": "dolce-coffee",
+        "name": "Dolce Coffee",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/dolce-coffee"
+      },
+      {
+        "slug": "mangal-house",
+        "name": "Мангал хаус",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/mangal-house"
+      },
+      {
+        "slug": "dolce-tea-bubbles",
+        "name": "Dolce Tea & Bubbles",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/dolce-tea-bubbles"
+      },
+      {
+        "slug": "vkusnye-sezony",
+        "name": "Вкусные сезоны",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/vkusnye-sezony"
+      },
+      {
+        "slug": "butterbrot",
+        "name": "ButterBrot",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/butterbrot"
+      },
+      {
+        "slug": "steak-ham-burgers",
+        "name": "Стейк’Хэм Бургерс",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/steak-ham-burgers"
+      },
+      {
+        "slug": "spices",
+        "name": "Специи",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/spices"
+      },
+      {
+        "slug": "georgian-cheese",
+        "name": "Грузинские сыры",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/georgian-cheese"
+      },
+      {
+        "slug": "belarusian-sausages",
+        "name": "Белорусские колбасы",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/belarusian-sausages"
+      },
+      {
+        "slug": "tambov-salo",
+        "name": "Тамбовское домашнее сало",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/tambov-salo"
+      },
+      {
+        "slug": "svetlana-pickles",
+        "name": "Соленья от Светланы",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/svetlana-pickles"
+      },
+      {
+        "slug": "four-brothers",
+        "name": "4 Брата",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/four-brothers"
+      },
+      {
+        "slug": "halal-meat",
+        "name": "Мясо халяль",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/halal-meat"
+      },
+      {
+        "slug": "grand-bazar",
+        "name": "Гранд Базар",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/grand-bazar"
+      },
+      {
+        "slug": "tea-coffee",
+        "name": "Чай кофе",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/tea-coffee"
+      },
+      {
+        "slug": "cezoni-market",
+        "name": "Cezoni Market",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/cezoni-market"
+      },
+      {
+        "slug": "mister-wine",
+        "name": "Mister Wine",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/mister-wine"
+      },
+      {
+        "slug": "vkusnaya-stall",
+        "name": "Вкусная лавка",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/vkusnaya-stall"
+      },
+      {
+        "slug": "household",
+        "name": "Бытовая химия",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/household"
+      },
+      {
+        "slug": "karavai-sv",
+        "name": "Каравай-СВ",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/karavai-sv"
+      },
+      {
+        "slug": "goldfish",
+        "name": "Золотая рыбка",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/goldfish"
+      },
+      {
+        "slug": "gifts-armenia",
+        "name": "Дары Армении",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/gifts-armenia"
+      },
+      {
+        "slug": "meat-paradise",
+        "name": "Мясной рай",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/meat-paradise"
+      },
+      {
+        "slug": "fish",
+        "name": "Рыба",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/fish"
+      },
+      {
+        "slug": "chilled-meat",
+        "name": "Мясо охлажденное",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/chilled-meat"
+      },
+      {
+        "slug": "poultry",
+        "name": "Птица домашняя",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/poultry"
+      },
+      {
+        "slug": "red-caviar",
+        "name": "Красная икра",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/red-caviar"
+      },
+      {
+        "slug": "vegetables-fruits-west",
+        "name": "Овощи и фрукты — левый ряд",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/vegetables-fruits-west"
+      },
+      {
+        "slug": "vegetables-fruits-east",
+        "name": "Овощи и фрукты — правый ряд",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/vegetables-fruits-east"
+      },
+      {
+        "slug": "fruits-dried",
+        "name": "Фрукты, сухофрукты",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/fruits-dried"
+      },
+      {
+        "slug": "gifts-georgia",
+        "name": "Дары Грузии",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/gifts-georgia"
+      },
+      {
+        "slug": "gornitsa",
+        "name": "Горница",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/gornitsa"
+      },
+      {
+        "slug": "pickles-sweets",
+        "name": "Соленья, восточные сладости",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/pickles-sweets"
+      },
+      {
+        "slug": "dried-fruits-nuts",
+        "name": "Сухофрукты, орехи",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/dried-fruits-nuts"
+      },
+      {
+        "slug": "fresh-bar",
+        "name": "Fresh Bar",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/fresh-bar"
+      },
+      {
+        "slug": "grills-stoves",
+        "name": "Мангалы, печи",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/grills-stoves"
+      },
+      {
+        "slug": "belarus-products",
+        "name": "Продукты из Белоруссии",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/belarus-products"
+      },
+      {
+        "slug": "artisan-cheese",
+        "name": "Ремесленные сыры",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/artisan-cheese"
+      },
+      {
+        "slug": "italian-stall",
+        "name": "Итальянская лавка",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/italian-stall"
+      },
+      {
+        "slug": "ryazan-dairy",
+        "name": "Рязанская молочная продукция",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/ryazan-dairy"
+      },
+      {
+        "slug": "cookery",
+        "name": "Кулинария",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/cookery"
+      },
+      {
+        "slug": "russian-traditions",
+        "name": "Русские традиции",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/russian-traditions"
+      },
+      {
+        "slug": "posto-preferito",
+        "name": "Posto Preferito",
+        "typeShownOnSite": "Фудкорт",
+        "url": "https://korzinamarket.ru/market-map/posto-preferito"
+      },
+      {
+        "slug": "chernozem-honey",
+        "name": "Мёд Черноземья",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/chernozem-honey"
+      },
+      {
+        "slug": "vendgame",
+        "name": "VendGame",
+        "typeShownOnSite": "Сервис",
+        "url": "https://korzinamarket.ru/market-map/vendgame"
+      },
+      {
+        "slug": "romanovskoe-osetrovoe-hozyaystvo",
+        "name": "Романовское осетровое хозяйство",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/romanovskoe-osetrovoe-hozyaystvo"
+      },
+      {
+        "slug": "borisovskie-syry",
+        "name": "Борисовские ремесленные сыры",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/borisovskie-syry"
+      },
+      {
+        "slug": "paseka-ryshkovyh",
+        "name": "Мед с частной пасеки Рышковых",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/paseka-ryshkovyh"
+      },
+      {
+        "slug": "domashnie-solenya",
+        "name": "Домашние соленья",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/domashnie-solenya"
+      },
+      {
+        "slug": "oktyabrskoe-moloko",
+        "name": "Октябрьское молоко",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/oktyabrskoe-moloko"
+      },
+      {
+        "slug": "chinese-tea",
+        "name": "Магазин Китайского чая",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/chinese-tea"
+      },
+      {
+        "slug": "pyem-chay",
+        "name": "ПЬЕМ ЧАЙ",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/pyem-chay"
+      },
+      {
+        "slug": "kondifud",
+        "name": "КОНДИФУД",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/kondifud"
+      },
+      {
+        "slug": "myasoed",
+        "name": "МЯСОЕД",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/myasoed"
+      },
+      {
+        "slug": "oriental-sweets-nuts",
+        "name": "Восточные сладости, орехи",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/oriental-sweets-nuts"
+      },
+      {
+        "slug": "bakery",
+        "name": "Булочная",
+        "typeShownOnSite": "Магазин",
+        "url": "https://korzinamarket.ru/market-map/bakery"
+      },
+      {
+        "slug": "myasnitskiy-ryad",
+        "name": "Мясницкий ряд",
+        "typeShownOnSite": "Лавка",
+        "url": "https://korzinamarket.ru/market-map/myasnitskiy-ryad"
+      },
+      {
+        "slug": "fermerskie-kolbasy",
+        "name": "Фермерские домашние колбасы",
+        "typeShownOnSite": "Лавка · В 50",
+        "url": "https://korzinamarket.ru/market-map/fermerskie-kolbasy"
+      }
+    ]
+  },
+  "officialMainListComparison": {
+    "sourceId": "market-main",
+    "allListedNamesHaveMatchesOnUserSite": true,
+    "notes": "В официальном списке «Магазин Китайского чая» и «ПЬЕМ ЧАЙ» идут рядом; на пользовательской карте это две карточки. Соответствие отдельных физических точек нужно проверить."
+  },
+  "additionalNames": [
+    {
+      "researchKey": "bylinkino",
+      "name": "Былинкино",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": "В-12",
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "OFFICIAL_SELLER_ADDRESS_LIST",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "artisan-cheese",
+        "ryazan-dairy"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Сыры",
+        "Молочная продукция",
+        "Полуфабрикаты"
+      ],
+      "assortmentEvidenceType": "SELLER_OFFICIAL",
+      "contacts": [
+        {
+          "phone": "+79775624403",
+          "scope": "MARKET_STALL",
+          "sourceId": "bylinkino-official"
+        }
+      ],
+      "sourceIds": [
+        "bylinkino-official",
+        "bylinkino-directory"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": "Официальный сайт указывает рынок и телефон точки; В-12 и второй этаж — из справочника. 40 названий ассортимента производителя вынесены в отдельный JSON; цены не опубликованы."
+    },
+    {
+      "researchKey": "snezhana",
+      "name": "Снежана",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": "В-24",
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "OFFICIAL_SELLER_ADDRESS_LIST",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "fermerskie-kolbasy"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Варёные колбасы",
+        "Варёно-копчёные колбасы",
+        "Полукопчёные колбасы",
+        "Сырокопчёные колбасы",
+        "Сосиски",
+        "Сардельки",
+        "Деликатесы",
+        "Полуфабрикаты",
+        "Заливные и паштеты"
+      ],
+      "assortmentEvidenceType": "SELLER_OFFICIAL",
+      "contacts": [
+        {
+          "phone": "+74959885290",
+          "scope": "COMPANY_GENERAL",
+          "sourceId": "snezhana-official"
+        }
+      ],
+      "sourceIds": [
+        "snezhana-official",
+        "snezhana-directory",
+        "snezhana-catalog"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": "Адрес есть на сайте производителя. Этаж и павильон — из справочника. Набор товаров на прилавке и розничные цены нужно получить у этой точки."
+    },
+    {
+      "researchKey": "myasberry",
+      "name": "МясБерри",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": null,
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "chilled-meat",
+        "cookery"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Замороженные полуфабрикаты"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [
+        {
+          "phone": "+78002505453",
+          "scope": "NETWORK_FROM_DIRECTORY",
+          "sourceId": "mb-directory"
+        }
+      ],
+      "sourceIds": [
+        "mb-directory",
+        "mb-moscow"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": "Барклая, 10 присутствует в справочнике, но не в текущем отображаемом списке фирменных магазинов сети. Отдельный JSON содержит цены московского онлайн-каталога; это не прайс точки на рынке.",
+      "onlinePriceReferenceFile": "myasberry-moscow-online-prices-2026-10-11.json"
+    },
+    {
+      "researchKey": "okraina",
+      "name": "Окраина",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": "П-23",
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "fermerskie-kolbasy"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Колбасные изделия"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [],
+      "sourceIds": [
+        "directory-p3",
+        "okraina-closure"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": "Существование физической точки требует подтверждения. Московский интернет-магазин прекратил работу 13.04.2026 по официальному объявлению. Старые цены и цены мурманского магазина не включены."
+    },
+    {
+      "researchKey": "petrovskie-kolbasy",
+      "name": "Петровские колбасы",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": "В-19",
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "fermerskie-kolbasy"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Колбасные изделия"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [],
+      "sourceIds": [
+        "directory-p3",
+        "petrovsky-official"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": "Название и павильон — запись справочника. Связь конкретной лавки с производителем «Петровский и К» и её розничный ассортимент не подтверждены."
+    },
+    {
+      "researchKey": "rublevsky",
+      "name": "Рублевский",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": null,
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "fermerskie-kolbasy"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Колбасные изделия"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [
+        {
+          "phone": "+79851003888",
+          "scope": "DIRECTORY_CONTACT",
+          "sourceId": "rublevsky-directory"
+        },
+        {
+          "phone": "+78005557114",
+          "scope": "COMPANY_GENERAL",
+          "sourceId": "rublevsky-official"
+        }
+      ],
+      "sourceIds": [
+        "rublevsky-directory",
+        "rublevsky-official"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": "В справочнике написано «Рублевский», бренд на официальном сайте — «Рублёвский». Официальная карта не предоставила загруженный список точек."
+    },
+    {
+      "researchKey": "serdtse-okeana",
+      "name": "Сердце Океана",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": "В54",
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "fish",
+        "red-caviar"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Рыба",
+        "Морепродукты"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [
+        {
+          "phone": "+79269322953",
+          "scope": "DIRECTORY_CONTACT",
+          "sourceId": "ocean-directory"
+        }
+      ],
+      "sourceIds": [
+        "ocean-directory"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": ""
+    },
+    {
+      "researchKey": "mir-bolgarii",
+      "name": "Мир Болгарии",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": null,
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "vkusnaya-stall"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Консервированная продукция"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [],
+      "sourceIds": [
+        "bulgaria-directory"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": ""
+    },
+    {
+      "researchKey": "uryuk-shop",
+      "name": "Uryuk. Shop",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": null,
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "dried-fruits-nuts",
+        "fruits-dried",
+        "spices"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Орехи",
+        "Семечки",
+        "Специи"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [
+        {
+          "phone": "+79165447333",
+          "scope": "DIRECTORY_CONTACT",
+          "sourceId": "uryuk-directory"
+        }
+      ],
+      "sourceIds": [
+        "uryuk-directory"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": ""
+    },
+    {
+      "researchKey": "molochnye-traditsii",
+      "name": "Молочные традиции",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": "В-46, В-47",
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "ryazan-dairy",
+        "artisan-cheese"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Молочная продукция"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [],
+      "sourceIds": [
+        "directory-p2"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": ""
+    },
+    {
+      "researchKey": "dary-tadzhikistana",
+      "name": "Дары Таджикистана",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": "Г-13–Г-16",
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "dried-fruits-nuts",
+        "fruits-dried"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Орехи",
+        "Сухофрукты"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [],
+      "sourceIds": [
+        "directory-p1"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": ""
+    },
+    {
+      "researchKey": "jam-directory-label",
+      "name": "Магазин варенья",
+      "nameType": "DIRECTORY_CATEGORY_LABEL",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": "В31",
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "russian-traditions",
+        "pickles-sweets"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Варенье"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [],
+      "sourceIds": [
+        "directory-p2"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": "Общее обозначение в справочнике; настоящее торговое название неизвестно."
+    },
+    {
+      "researchKey": "cheese-eggs-directory-label",
+      "name": "Магазин сыров и яиц",
+      "nameType": "DIRECTORY_CATEGORY_LABEL",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": "В37",
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "artisan-cheese",
+        "borisovskie-syry"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Сыры",
+        "Яйца"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [],
+      "sourceIds": [
+        "directory-p2"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": "Общее обозначение в справочнике; настоящее торговое название неизвестно."
+    },
+    {
+      "researchKey": "syrian-sweets-directory-label",
+      "name": "Магазин сирийских сладостей",
+      "nameType": "DIRECTORY_CATEGORY_LABEL",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": null,
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "oriental-sweets-nuts",
+        "pickles-sweets"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Сладости"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [],
+      "sourceIds": [
+        "directory-p2"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": "Общее обозначение в справочнике; настоящее торговое название неизвестно."
+    },
+    {
+      "researchKey": "lipetsky-fermer",
+      "name": "Липецкий фермер",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": null,
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "chilled-meat",
+        "meat-paradise"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Мясо",
+        "Полуфабрикаты"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [],
+      "sourceIds": [
+        "lipetsk-directory"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": ""
+    },
+    {
+      "researchKey": "dary-azerbaijana",
+      "name": "Дары Азербайджана",
+      "nameType": "BRAND_OR_TRADE_NAME",
+      "presentByNameOnUserMap": false,
+      "address": "Москва, ул. Барклая, 10",
+      "floor": 2,
+      "pavilion": null,
+      "floorAndPavilionEvidenceType": "DIRECTORY",
+      "addressEvidenceStatus": "DIRECTORY_ONLY",
+      "operationOnCheckedDateConfirmed": false,
+      "possibleExistingPointSlugs": [
+        "vkusnaya-stall"
+      ],
+      "possibleExistingPointMatchConfirmed": false,
+      "assortmentGroups": [
+        "Кондитерские изделия",
+        "Крупы",
+        "Консервы",
+        "Чай",
+        "Кофе"
+      ],
+      "assortmentEvidenceType": "DIRECTORY",
+      "contacts": [],
+      "sourceIds": [
+        "azerbaijan-directory"
+      ],
+      "retailStallPriceListStatus": "NOT_OBTAINED",
+      "retailStallPriceListComplete": false,
+      "allowAutomaticPublish": false,
+      "requiredChecks": [
+        "Работает ли точка сейчас",
+        "Название на вывеске и павильон",
+        "Не соответствует ли уже добавленной лавке",
+        "Датированный полный розничный прайс этой точки и наличие"
+      ],
+      "notes": ""
+    }
+  ],
+  "possibleAliasesExcludedFromNewShopCount": [
+    {
+      "name": "ОкМолоко",
+      "possibleExistingPointSlugs": [
+        "oktyabrskoe-moloko"
+      ],
+      "sourceIds": [
+        "directory-metro"
+      ],
+      "confirmedAlias": false
+    },
+    {
+      "name": "Casa Rinaldi",
+      "possibleExistingPointSlugs": [
+        "cezoni-market",
+        "italian-stall"
+      ],
+      "sourceIds": [
+        "directory-metro"
+      ],
+      "confirmedAlias": false
+    }
+  ],
+  "historicalOrUnconfirmedListingsExcludedFromNewShopCount": [
+    {
+      "name": "Белевская пастила",
+      "publicationDate": "2021-07-13",
+      "sourceIds": [
+        "pastila-archive"
+      ],
+      "possibleExistingPointSlugs": [
+        "russian-traditions"
+      ],
+      "currentOperationConfirmed": false
+    },
+    {
+      "name": "Sasha Bread",
+      "sourceIds": [
+        "sasha-directory",
+        "sasha-official"
+      ],
+      "currentOfficialAddressListIncludesBarclay10": false,
+      "currentOperationConfirmed": false
+    }
+  ],
+  "existingPointChecks": [
+    {
+      "slugs": [
+        "chinese-tea",
+        "pyem-chay"
+      ],
+      "issue": "Возможно, две карточки одной чайной лавки; проверить вывеску и павильон.",
+      "sourceId": "market-main"
+    },
+    {
+      "slugs": [
+        "vkusnye-sezony"
+      ],
+      "issue": "Вкусные сезоны — название всего рынка; уточнить, нужна ли отдельная карточка продавца.",
+      "sourceId": "market-main"
+    },
+    {
+      "slugs": [
+        "posto-preferito"
+      ],
+      "issue": "На сайте — фудкорт, в справочнике — магазин деликатесов из Европы; проверить тип точки.",
+      "sourceId": "directory-p1"
+    }
+  ],
+  "importRules": {
+    "automaticLiveImportAllowed": false,
+    "useAsResearchStaging": true,
+    "unknownPriceValue": null,
+    "neverConvertUnknownPriceToZero": true,
+    "sellerConfirmationRequiredForStallPrices": true,
+    "markupAppliedToSourcePrices": false,
+    "notes": "Предыдущая наценка +10% для vegetables-fruits-east не распространяется автоматически на эти сведения. Все опубликованные цены сохранены без наценки."
+  },
+  "sellerPriceListRequiredFields": [
+    "Название на вывеске",
+    "Павильон",
+    "Дата прайса",
+    "Артикул или SKU",
+    "Полное название",
+    "Вариант товара",
+    "Цена в рублях",
+    "Единица продажи и масса",
+    "Наличие",
+    "Состав и описание, если есть"
+  ],
+  "sources": [
+    {
+      "id": "site-map",
+      "url": "https://korzinamarket.ru/market-map",
+      "sourceType": "USER_SITE_LIVE_BROWSER",
+      "checkedOn": "2026-10-11",
+      "supports": "Названия и URL 69 карточек точек на карте пользователя; это не подтверждение работы физических магазинов."
+    },
+    {
+      "id": "market-main",
+      "url": "https://www.tcbag.ru/vkusseasons/",
+      "sourceType": "MARKET_OFFICIAL",
+      "checkedOn": "2026-10-11",
+      "supports": "Основной опубликованный список продуктовых точек рынка «Вкусные сезоны»."
+    },
+    {
+      "id": "snezhana-official",
+      "url": "https://www.snezhanafood.ru/shops/",
+      "sourceType": "SELLER_OFFICIAL",
+      "checkedOn": "2026-10-11",
+      "supports": "Снежана: адрес Барклая, 10, ТЦ Багратионовский. Этаж и павильон здесь не указаны."
+    },
+    {
+      "id": "snezhana-directory",
+      "url": "https://mestam.info/ru/moskva-8515/mesto/6040371-snejana-barklaya-10-v-24-pavilon-2-etaj",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Снежана: В-24, второй этаж; запись справочника без подтверждения продавцом на дату проверки."
+    },
+    {
+      "id": "snezhana-catalog",
+      "url": "https://www.snezhanafood.ru/production/",
+      "sourceType": "SELLER_OFFICIAL",
+      "checkedOn": "2026-10-11",
+      "supports": "Группы продукции производителя; опубликованного розничного прайса точки не найдено."
+    },
+    {
+      "id": "bylinkino-official",
+      "url": "https://www.bylinkino.ru/shop/",
+      "sourceType": "SELLER_OFFICIAL",
+      "checkedOn": "2026-10-11",
+      "supports": "Былинкино: Барклая, 10, Багратионовский рынок, телефон +7 977 562-44-03; 40 перечисленных названий продукции без числовых цен."
+    },
+    {
+      "id": "bylinkino-directory",
+      "url": "https://mestam.info/ru/moskva-8515/mesto/6042704-bilinkino-barklaya-10-v-12-pavilon-2-etaj",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Былинкино: В-12, второй этаж; запись справочника."
+    },
+    {
+      "id": "mb-directory",
+      "url": "https://mestam.info/ru/moskva-8515/mesto/5203425-myasberri-barklaya-10-2-etaj",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "МясБерри: Барклая, 10, второй этаж. В актуальном отображаемом списке магазинов самой сети этот адрес не найден."
+    },
+    {
+      "id": "mb-moscow",
+      "url": "https://moscow.xn--90aijnwad5i.xn--p1ai/",
+      "sourceType": "SELLER_OFFICIAL_ONLINE",
+      "checkedOn": "2026-10-11",
+      "supports": "Московский онлайн-каталог, цены 128 карточек в девяти разделах; наличие и цены точки на рынке не подтверждены."
+    },
+    {
+      "id": "directory-p3",
+      "url": "https://totadres.ru/moskva/address/83/barklaya_ulica/10/p/3",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Окраина: П-23; Петровские колбасы: В-19; второй этаж."
+    },
+    {
+      "id": "okraina-closure",
+      "url": "https://shop.okraina.ru/about/news/vazhnaya_informatsiya/",
+      "sourceType": "SELLER_OFFICIAL_DATED",
+      "checkedOn": "2026-10-11",
+      "supports": "Объявление 08.04.2026: московский интернет-магазин прекращает работу 13.04.2026 в 23:59. Это не сообщение о закрытии физической точки."
+    },
+    {
+      "id": "rublevsky-directory",
+      "url": "https://urbanplaces.su/ru_moskva/moskva/card-688838-rublevskij",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Рублевский: Барклая, 10, второй этаж, телефоны справочника."
+    },
+    {
+      "id": "rublevsky-official",
+      "url": "https://rublevskiy.ru/gde-kupit",
+      "sourceType": "SELLER_OFFICIAL",
+      "checkedOn": "2026-10-11",
+      "supports": "Официальная карта магазинов проверена, список адресов в браузере остался в состоянии загрузки; подтверждения адреса Барклая, 10 не получено."
+    },
+    {
+      "id": "petrovsky-official",
+      "url": "https://petrovskyik.ru/",
+      "sourceType": "MANUFACTURER_OFFICIAL",
+      "checkedOn": "2026-10-11",
+      "supports": "Каталог производителя Петровский и К; розничные цены и адрес проверяемой рыночной точки не подтверждены."
+    },
+    {
+      "id": "ocean-directory",
+      "url": "https://urbanplaces.su/ru_moskva/moskva/card-721332-serdtse-okeana",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Сердце Океана: В54, второй этаж; рыба и морепродукты."
+    },
+    {
+      "id": "bulgaria-directory",
+      "url": "https://mestam.info/ru/moskva-8515/mesto/6041917-mir-bolgarii-barklaya-10-2-etaj",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Мир Болгарии: второй этаж; консервированная продукция."
+    },
+    {
+      "id": "uryuk-directory",
+      "url": "https://mestam.info/ru/moskva-8515/mesto/5202283-uryuk-shop-barklaya-10-2-etaj",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Uryuk. Shop: второй этаж; орехи, семечки, специи."
+    },
+    {
+      "id": "directory-p2",
+      "url": "https://totadres.ru/moskva/address/83/barklaya_ulica/10/p/2",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Молочные традиции: В-46/В-47; магазин варенья: В31; магазин сыров и яиц: В37; магазин сирийских сладостей: второй этаж."
+    },
+    {
+      "id": "directory-p1",
+      "url": "https://totadres.ru/moskva/address/83/barklaya_ulica/10",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Дары Таджикистана: Г-13–Г-16, второй этаж; также запись Posto Preferito как магазина деликатесов."
+    },
+    {
+      "id": "lipetsk-directory",
+      "url": "https://urbanplaces.su/ru_moskva/moskva/card-704948-lipetskij-fermer",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Липецкий фермер: второй этаж; мясо и полуфабрикаты."
+    },
+    {
+      "id": "azerbaijan-directory",
+      "url": "https://urbanplaces.su/ru_moskva/moskva/card-691367-daryi-azerbajdzhana",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Дары Азербайджана: второй этаж; кондитерские изделия, крупы, консервы, чай и кофе."
+    },
+    {
+      "id": "directory-metro",
+      "url": "https://urbanplaces.su/ru_moskva/moskva/metro-bagrationovskaya",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Casa Rinaldi и ОкМолоко: Барклая, 10, второй этаж; возможно, бренды уже представленных точек."
+    },
+    {
+      "id": "pastila-archive",
+      "url": "https://www.tcbag.ru/project/%D0%B1%D0%B5%D0%BB%D0%B5%D0%B2%D1%81%D0%BA%D0%B0%D1%8F-%D0%BF%D0%B0%D1%81%D1%82%D0%B8%D0%BB%D0%B0/",
+      "sourceType": "MARKET_OFFICIAL_HISTORICAL",
+      "checkedOn": "2026-10-11",
+      "supports": "Белевская пастила: архивная публикация рынка от 13.07.2021; работа на дату проверки не подтверждена."
+    },
+    {
+      "id": "sasha-directory",
+      "url": "https://urbanplaces.su/ru_moskva/moskva/card-664115-sasha-bread",
+      "sourceType": "DIRECTORY",
+      "checkedOn": "2026-10-11",
+      "supports": "Sasha Bread: запись по адресу Барклая, 10."
+    },
+    {
+      "id": "sasha-official",
+      "url": "https://sashabread.store/",
+      "sourceType": "SELLER_OFFICIAL",
+      "checkedOn": "2026-10-11",
+      "supports": "В текущем официальном списке точек адрес Барклая, 10 не указан; цены других точек не использованы."
+    }
+  ]
+}
