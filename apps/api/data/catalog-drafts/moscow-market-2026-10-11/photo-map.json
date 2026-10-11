@@ -1,0 +1,919 @@
+{
+  "datasetId": "moscow-market-assortment-2026-10-11",
+  "revision": 2,
+  "status": "NOT_GENERATED",
+  "products": [
+    {
+      "catalogKey": "potatoes-sineglazka",
+      "proposedSlug": "vegetables-fruits-east-potatoes-sineglazka",
+      "slug": "vegetables-fruits-east-potatoes-sineglazka",
+      "productId": 63,
+      "fileName": "vegetables-fruits-east-potatoes-sineglazka.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "potatoes-washed",
+      "proposedSlug": "vegetables-fruits-east-potatoes-washed",
+      "slug": "vegetables-fruits-east-potatoes-washed",
+      "productId": 64,
+      "fileName": "vegetables-fruits-east-potatoes-washed.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "potatoes-red",
+      "proposedSlug": "vegetables-fruits-east-potatoes-red",
+      "slug": "vegetables-fruits-east-potatoes-red",
+      "productId": 65,
+      "fileName": "vegetables-fruits-east-potatoes-red.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "potatoes-baby",
+      "proposedSlug": "vegetables-fruits-east-potatoes-baby",
+      "slug": "vegetables-fruits-east-potatoes-baby",
+      "productId": 66,
+      "fileName": "vegetables-fruits-east-potatoes-baby.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "sweet-potato",
+      "proposedSlug": "vegetables-fruits-east-sweet-potato",
+      "slug": "vegetables-fruits-east-sweet-potato",
+      "productId": 67,
+      "fileName": "vegetables-fruits-east-sweet-potato.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "carrots",
+      "proposedSlug": "vegetables-fruits-east-carrots",
+      "slug": "vegetables-fruits-east-carrots",
+      "productId": 68,
+      "fileName": "vegetables-fruits-east-carrots.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "carrots-washed",
+      "proposedSlug": "vegetables-fruits-east-carrots-washed",
+      "slug": "vegetables-fruits-east-carrots-washed",
+      "productId": 69,
+      "fileName": "vegetables-fruits-east-carrots-washed.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "carrots-yellow",
+      "proposedSlug": "vegetables-fruits-east-carrots-yellow",
+      "slug": "vegetables-fruits-east-carrots-yellow",
+      "productId": 70,
+      "fileName": "vegetables-fruits-east-carrots-yellow.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "beetroot",
+      "proposedSlug": "vegetables-fruits-east-beetroot",
+      "slug": "vegetables-fruits-east-beetroot",
+      "productId": 71,
+      "fileName": "vegetables-fruits-east-beetroot.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "onions-yellow",
+      "proposedSlug": "vegetables-fruits-east-onions-yellow",
+      "slug": "vegetables-fruits-east-onions-yellow",
+      "productId": 72,
+      "fileName": "vegetables-fruits-east-onions-yellow.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "onions-red",
+      "proposedSlug": "vegetables-fruits-east-onions-red",
+      "slug": "vegetables-fruits-east-onions-red",
+      "productId": 73,
+      "fileName": "vegetables-fruits-east-onions-red.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "onions-white",
+      "proposedSlug": "vegetables-fruits-east-onions-white",
+      "slug": "vegetables-fruits-east-onions-white",
+      "productId": 74,
+      "fileName": "vegetables-fruits-east-onions-white.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "shallots",
+      "proposedSlug": "vegetables-fruits-east-shallots",
+      "slug": "vegetables-fruits-east-shallots",
+      "productId": 75,
+      "fileName": "vegetables-fruits-east-shallots.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "leeks",
+      "proposedSlug": "vegetables-fruits-east-leeks",
+      "slug": "vegetables-fruits-east-leeks",
+      "productId": 76,
+      "fileName": "vegetables-fruits-east-leeks.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "garlic",
+      "proposedSlug": "vegetables-fruits-east-garlic",
+      "slug": "vegetables-fruits-east-garlic",
+      "productId": 77,
+      "fileName": "vegetables-fruits-east-garlic.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "cabbage-white",
+      "proposedSlug": "vegetables-fruits-east-cabbage-white",
+      "slug": "vegetables-fruits-east-cabbage-white",
+      "productId": 78,
+      "fileName": "vegetables-fruits-east-cabbage-white.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "cabbage-red",
+      "proposedSlug": "vegetables-fruits-east-cabbage-red",
+      "slug": "vegetables-fruits-east-cabbage-red",
+      "productId": 79,
+      "fileName": "vegetables-fruits-east-cabbage-red.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "cabbage-peking",
+      "proposedSlug": "vegetables-fruits-east-cabbage-peking",
+      "slug": "vegetables-fruits-east-cabbage-peking",
+      "productId": 80,
+      "fileName": "vegetables-fruits-east-cabbage-peking.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "cabbage-savoy",
+      "proposedSlug": "vegetables-fruits-east-cabbage-savoy",
+      "slug": "vegetables-fruits-east-cabbage-savoy",
+      "productId": 81,
+      "fileName": "vegetables-fruits-east-cabbage-savoy.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "broccoli",
+      "proposedSlug": "vegetables-fruits-east-broccoli",
+      "slug": "vegetables-fruits-east-broccoli",
+      "productId": 82,
+      "fileName": "vegetables-fruits-east-broccoli.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "cauliflower",
+      "proposedSlug": "vegetables-fruits-east-cauliflower",
+      "slug": "vegetables-fruits-east-cauliflower",
+      "productId": 83,
+      "fileName": "vegetables-fruits-east-cauliflower.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "brussels-sprouts",
+      "proposedSlug": "vegetables-fruits-east-brussels-sprouts",
+      "slug": "vegetables-fruits-east-brussels-sprouts",
+      "productId": 84,
+      "fileName": "vegetables-fruits-east-brussels-sprouts.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "kohlrabi",
+      "proposedSlug": "vegetables-fruits-east-kohlrabi",
+      "slug": "vegetables-fruits-east-kohlrabi",
+      "productId": 85,
+      "fileName": "vegetables-fruits-east-kohlrabi.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "bok-choy",
+      "proposedSlug": "vegetables-fruits-east-bok-choy",
+      "slug": "vegetables-fruits-east-bok-choy",
+      "productId": 86,
+      "fileName": "vegetables-fruits-east-bok-choy.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "cucumbers-kurazh",
+      "proposedSlug": "vegetables-fruits-east-cucumbers-kurazh",
+      "slug": "vegetables-fruits-east-cucumbers-kurazh",
+      "productId": 87,
+      "fileName": "vegetables-fruits-east-cucumbers-kurazh.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "cucumbers-long",
+      "proposedSlug": "vegetables-fruits-east-cucumbers-long",
+      "slug": "vegetables-fruits-east-cucumbers-long",
+      "productId": 88,
+      "fileName": "vegetables-fruits-east-cucumbers-long.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "tomatoes-mahitos",
+      "proposedSlug": "vegetables-fruits-east-tomatoes-mahitos",
+      "slug": "vegetables-fruits-east-tomatoes-mahitos",
+      "productId": 89,
+      "fileName": "vegetables-fruits-east-tomatoes-mahitos.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "tomatoes-pink",
+      "proposedSlug": "vegetables-fruits-east-tomatoes-pink",
+      "slug": "pink-tomatoes",
+      "productId": 1,
+      "fileName": "pink-tomatoes.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "tomatoes-plum",
+      "proposedSlug": "vegetables-fruits-east-tomatoes-plum",
+      "slug": "vegetables-fruits-east-tomatoes-plum",
+      "productId": 90,
+      "fileName": "vegetables-fruits-east-tomatoes-plum.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "tomatoes-cherry",
+      "proposedSlug": "vegetables-fruits-east-tomatoes-cherry",
+      "slug": "vegetables-fruits-east-tomatoes-cherry",
+      "productId": 91,
+      "fileName": "vegetables-fruits-east-tomatoes-cherry.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "tomatoes-black-prince",
+      "proposedSlug": "vegetables-fruits-east-tomatoes-black-prince",
+      "slug": "vegetables-fruits-east-tomatoes-black-prince",
+      "productId": 92,
+      "fileName": "vegetables-fruits-east-tomatoes-black-prince.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "bell-peppers-red",
+      "proposedSlug": "vegetables-fruits-east-bell-peppers-red",
+      "slug": "vegetables-fruits-east-bell-peppers-red",
+      "productId": 93,
+      "fileName": "vegetables-fruits-east-bell-peppers-red.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "bell-peppers-yellow",
+      "proposedSlug": "vegetables-fruits-east-bell-peppers-yellow",
+      "slug": "vegetables-fruits-east-bell-peppers-yellow",
+      "productId": 94,
+      "fileName": "vegetables-fruits-east-bell-peppers-yellow.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "bell-peppers-green",
+      "proposedSlug": "vegetables-fruits-east-bell-peppers-green",
+      "slug": "vegetables-fruits-east-bell-peppers-green",
+      "productId": 95,
+      "fileName": "vegetables-fruits-east-bell-peppers-green.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "ramiro-peppers",
+      "proposedSlug": "vegetables-fruits-east-ramiro-peppers",
+      "slug": "vegetables-fruits-east-ramiro-peppers",
+      "productId": 96,
+      "fileName": "vegetables-fruits-east-ramiro-peppers.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "chili-green",
+      "proposedSlug": "vegetables-fruits-east-chili-green",
+      "slug": "vegetables-fruits-east-chili-green",
+      "productId": 97,
+      "fileName": "vegetables-fruits-east-chili-green.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "chili-red",
+      "proposedSlug": "vegetables-fruits-east-chili-red",
+      "slug": "vegetables-fruits-east-chili-red",
+      "productId": 98,
+      "fileName": "vegetables-fruits-east-chili-red.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "eggplants",
+      "proposedSlug": "vegetables-fruits-east-eggplants",
+      "slug": "vegetables-fruits-east-eggplants",
+      "productId": 99,
+      "fileName": "vegetables-fruits-east-eggplants.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "zucchini-light",
+      "proposedSlug": "vegetables-fruits-east-zucchini-light",
+      "slug": "vegetables-fruits-east-zucchini-light",
+      "productId": 100,
+      "fileName": "vegetables-fruits-east-zucchini-light.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "zucchini-green",
+      "proposedSlug": "vegetables-fruits-east-zucchini-green",
+      "slug": "vegetables-fruits-east-zucchini-green",
+      "productId": 101,
+      "fileName": "vegetables-fruits-east-zucchini-green.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "pumpkin-muscat",
+      "proposedSlug": "vegetables-fruits-east-pumpkin-muscat",
+      "slug": "vegetables-fruits-east-pumpkin-muscat",
+      "productId": 102,
+      "fileName": "vegetables-fruits-east-pumpkin-muscat.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "celeriac",
+      "proposedSlug": "vegetables-fruits-east-celeriac",
+      "slug": "vegetables-fruits-east-celeriac",
+      "productId": 103,
+      "fileName": "vegetables-fruits-east-celeriac.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "celery-stalks",
+      "proposedSlug": "vegetables-fruits-east-celery-stalks",
+      "slug": "vegetables-fruits-east-celery-stalks",
+      "productId": 104,
+      "fileName": "vegetables-fruits-east-celery-stalks.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "radishes",
+      "proposedSlug": "vegetables-fruits-east-radishes",
+      "slug": "vegetables-fruits-east-radishes",
+      "productId": 105,
+      "fileName": "vegetables-fruits-east-radishes.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "daikon",
+      "proposedSlug": "vegetables-fruits-east-daikon",
+      "slug": "vegetables-fruits-east-daikon",
+      "productId": 106,
+      "fileName": "vegetables-fruits-east-daikon.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "radish-green",
+      "proposedSlug": "vegetables-fruits-east-radish-green",
+      "slug": "vegetables-fruits-east-radish-green",
+      "productId": 107,
+      "fileName": "vegetables-fruits-east-radish-green.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "radish-black",
+      "proposedSlug": "vegetables-fruits-east-radish-black",
+      "slug": "vegetables-fruits-east-radish-black",
+      "productId": 108,
+      "fileName": "vegetables-fruits-east-radish-black.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "turnips",
+      "proposedSlug": "vegetables-fruits-east-turnips",
+      "slug": "vegetables-fruits-east-turnips",
+      "productId": 109,
+      "fileName": "vegetables-fruits-east-turnips.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "ginger-root",
+      "proposedSlug": "vegetables-fruits-east-ginger-root",
+      "slug": "vegetables-fruits-east-ginger-root",
+      "productId": 110,
+      "fileName": "vegetables-fruits-east-ginger-root.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "horseradish-root",
+      "proposedSlug": "vegetables-fruits-east-horseradish-root",
+      "slug": "vegetables-fruits-east-horseradish-root",
+      "productId": 111,
+      "fileName": "vegetables-fruits-east-horseradish-root.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "green-beans",
+      "proposedSlug": "vegetables-fruits-east-green-beans",
+      "slug": "vegetables-fruits-east-green-beans",
+      "productId": 112,
+      "fileName": "vegetables-fruits-east-green-beans.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "parsley-root",
+      "proposedSlug": "vegetables-fruits-east-parsley-root",
+      "slug": "vegetables-fruits-east-parsley-root",
+      "productId": 113,
+      "fileName": "vegetables-fruits-east-parsley-root.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "parsnip-root",
+      "proposedSlug": "vegetables-fruits-east-parsnip-root",
+      "slug": "vegetables-fruits-east-parsnip-root",
+      "productId": 114,
+      "fileName": "vegetables-fruits-east-parsnip-root.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "fennel",
+      "proposedSlug": "vegetables-fruits-east-fennel",
+      "slug": "vegetables-fruits-east-fennel",
+      "productId": 115,
+      "fileName": "vegetables-fruits-east-fennel.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "apples-gala",
+      "proposedSlug": "vegetables-fruits-east-apples-gala",
+      "slug": "vegetables-fruits-east-apples-gala",
+      "productId": 116,
+      "fileName": "vegetables-fruits-east-apples-gala.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "apples-fuji",
+      "proposedSlug": "vegetables-fruits-east-apples-fuji",
+      "slug": "vegetables-fruits-east-apples-fuji",
+      "productId": 117,
+      "fileName": "vegetables-fruits-east-apples-fuji.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "apples-granny-smith",
+      "proposedSlug": "vegetables-fruits-east-apples-granny-smith",
+      "slug": "vegetables-fruits-east-apples-granny-smith",
+      "productId": 118,
+      "fileName": "vegetables-fruits-east-apples-granny-smith.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "apples-golden",
+      "proposedSlug": "vegetables-fruits-east-apples-golden",
+      "slug": "vegetables-fruits-east-apples-golden",
+      "productId": 119,
+      "fileName": "vegetables-fruits-east-apples-golden.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "apples-red-chief",
+      "proposedSlug": "vegetables-fruits-east-apples-red-chief",
+      "slug": "vegetables-fruits-east-apples-red-chief",
+      "productId": 120,
+      "fileName": "vegetables-fruits-east-apples-red-chief.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "apples-pink-lady",
+      "proposedSlug": "vegetables-fruits-east-apples-pink-lady",
+      "slug": "vegetables-fruits-east-apples-pink-lady",
+      "productId": 121,
+      "fileName": "vegetables-fruits-east-apples-pink-lady.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "pears-conference",
+      "proposedSlug": "vegetables-fruits-east-pears-conference",
+      "slug": "vegetables-fruits-east-pears-conference",
+      "productId": 122,
+      "fileName": "vegetables-fruits-east-pears-conference.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "pears-packham",
+      "proposedSlug": "vegetables-fruits-east-pears-packham",
+      "slug": "vegetables-fruits-east-pears-packham",
+      "productId": 123,
+      "fileName": "vegetables-fruits-east-pears-packham.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "bananas",
+      "proposedSlug": "vegetables-fruits-east-bananas",
+      "slug": "vegetables-fruits-east-bananas",
+      "productId": 124,
+      "fileName": "vegetables-fruits-east-bananas.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "oranges",
+      "proposedSlug": "vegetables-fruits-east-oranges",
+      "slug": "vegetables-fruits-east-oranges",
+      "productId": 125,
+      "fileName": "vegetables-fruits-east-oranges.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "mandarins",
+      "proposedSlug": "vegetables-fruits-east-mandarins",
+      "slug": "vegetables-fruits-east-mandarins",
+      "productId": 126,
+      "fileName": "vegetables-fruits-east-mandarins.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "lemons",
+      "proposedSlug": "vegetables-fruits-east-lemons",
+      "slug": "limon",
+      "productId": 19,
+      "fileName": "limon.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "limes",
+      "proposedSlug": "vegetables-fruits-east-limes",
+      "slug": "vegetables-fruits-east-limes",
+      "productId": 127,
+      "fileName": "vegetables-fruits-east-limes.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "grapefruit",
+      "proposedSlug": "vegetables-fruits-east-grapefruit",
+      "slug": "vegetables-fruits-east-grapefruit",
+      "productId": 128,
+      "fileName": "vegetables-fruits-east-grapefruit.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "pomelo",
+      "proposedSlug": "vegetables-fruits-east-pomelo",
+      "slug": "vegetables-fruits-east-pomelo",
+      "productId": 129,
+      "fileName": "vegetables-fruits-east-pomelo.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "kumquat",
+      "proposedSlug": "vegetables-fruits-east-kumquat",
+      "slug": "vegetables-fruits-east-kumquat",
+      "productId": 130,
+      "fileName": "vegetables-fruits-east-kumquat.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "kiwi-green",
+      "proposedSlug": "vegetables-fruits-east-kiwi-green",
+      "slug": "vegetables-fruits-east-kiwi-green",
+      "productId": 131,
+      "fileName": "vegetables-fruits-east-kiwi-green.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "kiwi-gold",
+      "proposedSlug": "vegetables-fruits-east-kiwi-gold",
+      "slug": "vegetables-fruits-east-kiwi-gold",
+      "productId": 132,
+      "fileName": "vegetables-fruits-east-kiwi-gold.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "pineapple",
+      "proposedSlug": "vegetables-fruits-east-pineapple",
+      "slug": "vegetables-fruits-east-pineapple",
+      "productId": 133,
+      "fileName": "vegetables-fruits-east-pineapple.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "mango",
+      "proposedSlug": "vegetables-fruits-east-mango",
+      "slug": "mango",
+      "productId": 4,
+      "fileName": "mango.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "avocado-green",
+      "proposedSlug": "vegetables-fruits-east-avocado-green",
+      "slug": "vegetables-fruits-east-avocado-green",
+      "productId": 134,
+      "fileName": "vegetables-fruits-east-avocado-green.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "avocado-hass",
+      "proposedSlug": "vegetables-fruits-east-avocado-hass",
+      "slug": "vegetables-fruits-east-avocado-hass",
+      "productId": 135,
+      "fileName": "vegetables-fruits-east-avocado-hass.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "pomegranate",
+      "proposedSlug": "vegetables-fruits-east-pomegranate",
+      "slug": "vegetables-fruits-east-pomegranate",
+      "productId": 136,
+      "fileName": "vegetables-fruits-east-pomegranate.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "grapes-white-seedless",
+      "proposedSlug": "vegetables-fruits-east-grapes-white-seedless",
+      "slug": "vegetables-fruits-east-grapes-white-seedless",
+      "productId": 137,
+      "fileName": "vegetables-fruits-east-grapes-white-seedless.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "grapes-black-seedless",
+      "proposedSlug": "vegetables-fruits-east-grapes-black-seedless",
+      "slug": "vegetables-fruits-east-grapes-black-seedless",
+      "productId": 138,
+      "fileName": "vegetables-fruits-east-grapes-black-seedless.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "passion-fruit",
+      "proposedSlug": "vegetables-fruits-east-passion-fruit",
+      "slug": "vegetables-fruits-east-passion-fruit",
+      "productId": 139,
+      "fileName": "vegetables-fruits-east-passion-fruit.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "papaya",
+      "proposedSlug": "vegetables-fruits-east-papaya",
+      "slug": "vegetables-fruits-east-papaya",
+      "productId": 140,
+      "fileName": "vegetables-fruits-east-papaya.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "dragon-fruit",
+      "proposedSlug": "vegetables-fruits-east-dragon-fruit",
+      "slug": "vegetables-fruits-east-dragon-fruit",
+      "productId": 141,
+      "fileName": "vegetables-fruits-east-dragon-fruit.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "granadilla",
+      "proposedSlug": "vegetables-fruits-east-granadilla",
+      "slug": "vegetables-fruits-east-granadilla",
+      "productId": 142,
+      "fileName": "vegetables-fruits-east-granadilla.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "coconut",
+      "proposedSlug": "vegetables-fruits-east-coconut",
+      "slug": "vegetables-fruits-east-coconut",
+      "productId": 143,
+      "fileName": "vegetables-fruits-east-coconut.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "dill",
+      "proposedSlug": "vegetables-fruits-east-dill",
+      "slug": "vegetables-fruits-east-dill",
+      "productId": 144,
+      "fileName": "vegetables-fruits-east-dill.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "parsley-flat",
+      "proposedSlug": "vegetables-fruits-east-parsley-flat",
+      "slug": "vegetables-fruits-east-parsley-flat",
+      "productId": 145,
+      "fileName": "vegetables-fruits-east-parsley-flat.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "parsley-curly",
+      "proposedSlug": "vegetables-fruits-east-parsley-curly",
+      "slug": "vegetables-fruits-east-parsley-curly",
+      "productId": 146,
+      "fileName": "vegetables-fruits-east-parsley-curly.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "cilantro",
+      "proposedSlug": "vegetables-fruits-east-cilantro",
+      "slug": "vegetables-fruits-east-cilantro",
+      "productId": 147,
+      "fileName": "vegetables-fruits-east-cilantro.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "spring-onions",
+      "proposedSlug": "vegetables-fruits-east-spring-onions",
+      "slug": "vegetables-fruits-east-spring-onions",
+      "productId": 148,
+      "fileName": "vegetables-fruits-east-spring-onions.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "basil-green",
+      "proposedSlug": "vegetables-fruits-east-basil-green",
+      "slug": "vegetables-fruits-east-basil-green",
+      "productId": 149,
+      "fileName": "vegetables-fruits-east-basil-green.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "basil-purple",
+      "proposedSlug": "vegetables-fruits-east-basil-purple",
+      "slug": "vegetables-fruits-east-basil-purple",
+      "productId": 150,
+      "fileName": "vegetables-fruits-east-basil-purple.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "mint",
+      "proposedSlug": "vegetables-fruits-east-mint",
+      "slug": "vegetables-fruits-east-mint",
+      "productId": 151,
+      "fileName": "vegetables-fruits-east-mint.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "spinach",
+      "proposedSlug": "vegetables-fruits-east-spinach",
+      "slug": "vegetables-fruits-east-spinach",
+      "productId": 152,
+      "fileName": "vegetables-fruits-east-spinach.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "arugula",
+      "proposedSlug": "vegetables-fruits-east-arugula",
+      "slug": "vegetables-fruits-east-arugula",
+      "productId": 153,
+      "fileName": "vegetables-fruits-east-arugula.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "lettuce-green",
+      "proposedSlug": "vegetables-fruits-east-lettuce-green",
+      "slug": "vegetables-fruits-east-lettuce-green",
+      "productId": 154,
+      "fileName": "vegetables-fruits-east-lettuce-green.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "lettuce-red",
+      "proposedSlug": "vegetables-fruits-east-lettuce-red",
+      "slug": "vegetables-fruits-east-lettuce-red",
+      "productId": 155,
+      "fileName": "vegetables-fruits-east-lettuce-red.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "lettuce-romaine",
+      "proposedSlug": "vegetables-fruits-east-lettuce-romaine",
+      "slug": "vegetables-fruits-east-lettuce-romaine",
+      "productId": 156,
+      "fileName": "vegetables-fruits-east-lettuce-romaine.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "lettuce-iceberg",
+      "proposedSlug": "vegetables-fruits-east-lettuce-iceberg",
+      "slug": "vegetables-fruits-east-lettuce-iceberg",
+      "productId": 157,
+      "fileName": "vegetables-fruits-east-lettuce-iceberg.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "lettuce-lollo-rosso",
+      "proposedSlug": "vegetables-fruits-east-lettuce-lollo-rosso",
+      "slug": "vegetables-fruits-east-lettuce-lollo-rosso",
+      "productId": 158,
+      "fileName": "vegetables-fruits-east-lettuce-lollo-rosso.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "watercress",
+      "proposedSlug": "vegetables-fruits-east-watercress",
+      "slug": "vegetables-fruits-east-watercress",
+      "productId": 159,
+      "fileName": "vegetables-fruits-east-watercress.webp",
+      "netWeightGrams": 70
+    },
+    {
+      "catalogKey": "sorrel",
+      "proposedSlug": "vegetables-fruits-east-sorrel",
+      "slug": "vegetables-fruits-east-sorrel",
+      "productId": 160,
+      "fileName": "vegetables-fruits-east-sorrel.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "tarragon",
+      "proposedSlug": "vegetables-fruits-east-tarragon",
+      "slug": "vegetables-fruits-east-tarragon",
+      "productId": 161,
+      "fileName": "vegetables-fruits-east-tarragon.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "rosemary",
+      "proposedSlug": "vegetables-fruits-east-rosemary",
+      "slug": "vegetables-fruits-east-rosemary",
+      "productId": 162,
+      "fileName": "vegetables-fruits-east-rosemary.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "thyme",
+      "proposedSlug": "vegetables-fruits-east-thyme",
+      "slug": "vegetables-fruits-east-thyme",
+      "productId": 163,
+      "fileName": "vegetables-fruits-east-thyme.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "celery-leaves",
+      "proposedSlug": "vegetables-fruits-east-celery-leaves",
+      "slug": "vegetables-fruits-east-celery-leaves",
+      "productId": 164,
+      "fileName": "vegetables-fruits-east-celery-leaves.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "chives",
+      "proposedSlug": "vegetables-fruits-east-chives",
+      "slug": "vegetables-fruits-east-chives",
+      "productId": 165,
+      "fileName": "vegetables-fruits-east-chives.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "radicchio",
+      "proposedSlug": "vegetables-fruits-east-radicchio",
+      "slug": "vegetables-fruits-east-radicchio",
+      "productId": 166,
+      "fileName": "vegetables-fruits-east-radicchio.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "kale",
+      "proposedSlug": "vegetables-fruits-east-kale",
+      "slug": "vegetables-fruits-east-kale",
+      "productId": 167,
+      "fileName": "vegetables-fruits-east-kale.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "chard",
+      "proposedSlug": "vegetables-fruits-east-chard",
+      "slug": "vegetables-fruits-east-chard",
+      "productId": 168,
+      "fileName": "vegetables-fruits-east-chard.webp",
+      "netWeightGrams": null
+    },
+    {
+      "catalogKey": "strawberries-250g",
+      "proposedSlug": "vegetables-fruits-east-strawberries-250g",
+      "slug": "vegetables-fruits-east-strawberries-250g",
+      "productId": 169,
+      "fileName": "vegetables-fruits-east-strawberries-250g.webp",
+      "netWeightGrams": 250
+    },
+    {
+      "catalogKey": "blueberries-125g",
+      "proposedSlug": "vegetables-fruits-east-blueberries-125g",
+      "slug": "vegetables-fruits-east-blueberries-125g",
+      "productId": 170,
+      "fileName": "vegetables-fruits-east-blueberries-125g.webp",
+      "netWeightGrams": 125
+    },
+    {
+      "catalogKey": "raspberries-125g",
+      "proposedSlug": "vegetables-fruits-east-raspberries-125g",
+      "slug": "vegetables-fruits-east-raspberries-125g",
+      "productId": 171,
+      "fileName": "vegetables-fruits-east-raspberries-125g.webp",
+      "netWeightGrams": 125
+    },
+    {
+      "catalogKey": "blackberries-125g",
+      "proposedSlug": "vegetables-fruits-east-blackberries-125g",
+      "slug": "vegetables-fruits-east-blackberries-125g",
+      "productId": 172,
+      "fileName": "vegetables-fruits-east-blackberries-125g.webp",
+      "netWeightGrams": 125
+    },
+    {
+      "catalogKey": "physalis-100g",
+      "proposedSlug": "vegetables-fruits-east-physalis-100g",
+      "slug": "vegetables-fruits-east-physalis-100g",
+      "productId": 173,
+      "fileName": "vegetables-fruits-east-physalis-100g.webp",
+      "netWeightGrams": 100
+    }
+  ]
+}

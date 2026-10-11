@@ -1,0 +1,42 @@
+{
+  "datasetId": "moscow-market-assortment-2026-10-11",
+  "researchDateMoscow": "2026-10-11",
+  "productCount": 114,
+  "coreCount": 75,
+  "variableCount": 39,
+  "parts": [
+    {
+      "number": 1,
+      "file": "01-vegetables.json",
+      "category": "vegetables",
+      "count": 54
+    },
+    {
+      "number": 2,
+      "file": "02-fruits.json",
+      "category": "fruits",
+      "count": 30
+    },
+    {
+      "number": 3,
+      "file": "03-greens.json",
+      "category": "greens",
+      "count": 25
+    },
+    {
+      "number": 4,
+      "file": "04-berries.json",
+      "category": "berries",
+      "count": 5
+    }
+  ],
+  "canonicalFile": "catalog-all.json",
+  "importNotes": "README.md",
+  "photoBriefs": "photo-briefs.json",
+  "revision": 2,
+  "status": "LAUNCH_PRICE_ESTIMATES",
+  "marketPointSlug": "vegetables-fruits-east",
+  "pricingUpdatedAt": "2026-10-11T07:47:54Z",
+  "importFile": "shop-import.json",
+  "priceSelection": "price-selection.json"
+}

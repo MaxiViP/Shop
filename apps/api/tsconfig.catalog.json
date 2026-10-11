@@ -3,6 +3,11 @@
   "compilerOptions": {
     "incremental": false
   },
-  "include": ["data/bagrationovsky/**/*.ts", "test/bagrationovsky*.ts"],
+  "include": [
+    "data/catalog-import/**/*.ts",
+    "data/bagrationovsky/**/*.ts",
+    "test/catalog-import.e2e-spec.ts",
+    "test/bagrationovsky*.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

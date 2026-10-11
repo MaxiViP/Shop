@@ -1,0 +1,122 @@
+{
+  "status": "PASS",
+  "productCount": 114,
+  "counts": {
+    "vegetables": 54,
+    "fruits": 30,
+    "greens": 25,
+    "berries": 5
+  },
+  "coreCount": 75,
+  "variableCount": 39,
+  "issuesAreDataLimitationsNotImportValidationFailures": true,
+  "dataLimitations": [
+    {
+      "catalogKey": "potatoes-washed",
+      "issue": "ALL_OBSERVED_OFFERS_AWAITING_SUPPLY"
+    },
+    {
+      "catalogKey": "garlic",
+      "issue": "ALL_OBSERVED_OFFERS_AWAITING_SUPPLY"
+    },
+    {
+      "catalogKey": "cucumbers-kurazh",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "cucumbers-long",
+      "issue": "ONLY_APPROXIMATE_DIRECTORY_PRICE"
+    },
+    {
+      "catalogKey": "tomatoes-pink",
+      "issue": "ALL_OBSERVED_OFFERS_AWAITING_SUPPLY"
+    },
+    {
+      "catalogKey": "tomatoes-pink",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "tomatoes-cherry",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "tomatoes-black-prince",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "bell-peppers-red",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "eggplants",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "zucchini-light",
+      "issue": "ONLY_APPROXIMATE_DIRECTORY_PRICE"
+    },
+    {
+      "catalogKey": "apples-gala",
+      "issue": "ALL_OBSERVED_OFFERS_AWAITING_SUPPLY"
+    },
+    {
+      "catalogKey": "apples-gala",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "apples-fuji",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "passion-fruit",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "papaya",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "dragon-fruit",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "granadilla",
+      "issue": "ALL_OBSERVED_OFFERS_AWAITING_SUPPLY"
+    },
+    {
+      "catalogKey": "coconut",
+      "issue": "ALL_OBSERVED_OFFERS_AWAITING_SUPPLY"
+    },
+    {
+      "catalogKey": "coconut",
+      "issue": "OLDER_CACHE_RECHECK_REQUIRED"
+    },
+    {
+      "catalogKey": "parsley-curly",
+      "issue": "ONLY_APPROXIMATE_DIRECTORY_PRICE"
+    }
+  ],
+  "checks": [
+    "All 114 launch prices are positive integer kopecks before markup",
+    "Preview applies exactly 10 percent once; it is absent from shop-import product payloads",
+    "All names, descriptions, categories and original selling units preserved",
+    "All products assigned to user-selected vegetables-fruits-east, with unique matching slugs and photo names",
+    "All prices ESTIMATED; existing admin edits must be protected by importer",
+    "No zero directory values, unknown bunch weights or assumed fruit weights used",
+    "Western group proxies and Moscow fallback prices explicitly distinguished",
+    "All four parts exactly match the consolidated catalog",
+    "All selected price sources resolve; original evidence retained",
+    "No repository or database mutations performed in this task"
+  ],
+  "revision": 2,
+  "launchPricesFilled": 114,
+  "marketPointSlug": "vegetables-fruits-east",
+  "serviceMarkupPercent": 10,
+  "serviceMarkupIncludedInSellerPrice": false,
+  "priceSelectionCounts": {
+    "WESTERN_GROUP_PROXY_ESTIMATE": 14,
+    "WESTERN_DIRECTORY_ESTIMATE": 57,
+    "MOSCOW_REFERENCE_FALLBACK_ESTIMATE": 43
+  },
+  "databaseChecked": false
+}

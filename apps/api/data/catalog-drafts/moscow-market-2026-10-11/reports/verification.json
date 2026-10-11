@@ -1,0 +1,43 @@
+{
+  "ok": true,
+  "database": "localhost:5432/shop",
+  "schema": "public",
+  "marketPoint": {
+    "id": 41,
+    "slug": "vegetables-fruits-east",
+    "name": "Овощи и фрукты — правый ряд"
+  },
+  "created": 111,
+  "matched": 3,
+  "skipped": 0,
+  "totalDatabaseProducts": 173,
+  "preservedExistingPrices": 62,
+  "preservedExistingImages": 18,
+  "descriptionsChecked": 114,
+  "newInactiveEstimatedProducts": 111,
+  "saleQuantitiesAndPackWeightsChecked": true,
+  "newImageUrls": 0,
+  "historicalOrdersUnchanged": true,
+  "historicalOrderItemsUnchanged": true,
+  "photoMappingChecked": 114,
+  "duplicateBerriesCategories": 0,
+  "repeat": {
+    "total": 114,
+    "created": 0,
+    "matched": 114,
+    "updated": 0,
+    "unchanged": 114,
+    "skipped": 0,
+    "databaseSnapshotUnchanged": true
+  },
+  "checks": {
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "e2eTests": 24,
+    "newCatalogImportTests": 11,
+    "unavailableDatabaseFileValidation": "passed",
+    "missingDatabaseUrlFileValidation": "passed",
+    "remoteDatabaseBlocked": "passed"
+  }
+}

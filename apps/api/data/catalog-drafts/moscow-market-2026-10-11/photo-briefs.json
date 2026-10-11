@@ -1,0 +1,1163 @@
+{
+  "datasetId": "moscow-market-assortment-2026-10-11",
+  "status": "NOT_GENERATED",
+  "style": {
+    "format": "webp",
+    "targetSize": "1024x1024",
+    "background": "светлый нейтральный фон",
+    "composition": "один вид продукта, центр кадра, мягкая естественная тень",
+    "restrictions": [
+      "без надписей",
+      "без людей",
+      "без логотипов",
+      "без посторонних предметов"
+    ],
+    "generationRequestedNow": false,
+    "imageUrlsMustStayEmptyUntilFilesExist": true
+  },
+  "slugPolicy": "Slug привязан к выбранной точке vegetables-fruits-east. Возможные существующие дубли нужно разрешить до создания фото.",
+  "products": [
+    {
+      "catalogKey": "potatoes-sineglazka",
+      "slug": "vegetables-fruits-east-potatoes-sineglazka",
+      "name": "Картофель столовый «Синеглазка», немытый",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-potatoes-sineglazka.webp",
+      "alt": "Картофель столовый «Синеглазка», немытый",
+      "subject": "Картофель столовый «Синеглазка», немытый. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "potatoes-washed",
+      "slug": "vegetables-fruits-east-potatoes-washed",
+      "name": "Картофель столовый мытый",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-potatoes-washed.webp",
+      "alt": "Картофель столовый мытый",
+      "subject": "Картофель столовый мытый. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "potatoes-red",
+      "slug": "vegetables-fruits-east-potatoes-red",
+      "name": "Картофель краснокожий столовый",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-potatoes-red.webp",
+      "alt": "Картофель краснокожий столовый",
+      "subject": "Картофель краснокожий столовый. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "potatoes-baby",
+      "slug": "vegetables-fruits-east-potatoes-baby",
+      "name": "Картофель мелкий бэби",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-potatoes-baby.webp",
+      "alt": "Картофель мелкий бэби",
+      "subject": "Картофель мелкий бэби. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "sweet-potato",
+      "slug": "vegetables-fruits-east-sweet-potato",
+      "name": "Батат — сладкий картофель",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-sweet-potato.webp",
+      "alt": "Батат — сладкий картофель",
+      "subject": "Батат — сладкий картофель. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "carrots",
+      "slug": "vegetables-fruits-east-carrots",
+      "name": "Морковь столовая свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-carrots.webp",
+      "alt": "Морковь столовая свежая",
+      "subject": "Морковь столовая свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "carrots-washed",
+      "slug": "vegetables-fruits-east-carrots-washed",
+      "name": "Морковь столовая мытая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-carrots-washed.webp",
+      "alt": "Морковь столовая мытая",
+      "subject": "Морковь столовая мытая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "carrots-yellow",
+      "slug": "vegetables-fruits-east-carrots-yellow",
+      "name": "Морковь жёлтая для плова",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-carrots-yellow.webp",
+      "alt": "Морковь жёлтая для плова",
+      "subject": "Морковь жёлтая для плова. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "beetroot",
+      "slug": "vegetables-fruits-east-beetroot",
+      "name": "Свёкла столовая свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-beetroot.webp",
+      "alt": "Свёкла столовая свежая",
+      "subject": "Свёкла столовая свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "onions-yellow",
+      "slug": "vegetables-fruits-east-onions-yellow",
+      "name": "Лук репчатый жёлтый",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-onions-yellow.webp",
+      "alt": "Лук репчатый жёлтый",
+      "subject": "Лук репчатый жёлтый. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "onions-red",
+      "slug": "vegetables-fruits-east-onions-red",
+      "name": "Лук репчатый красный",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-onions-red.webp",
+      "alt": "Лук репчатый красный",
+      "subject": "Лук репчатый красный. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "onions-white",
+      "slug": "vegetables-fruits-east-onions-white",
+      "name": "Лук репчатый белый",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-onions-white.webp",
+      "alt": "Лук репчатый белый",
+      "subject": "Лук репчатый белый. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "shallots",
+      "slug": "vegetables-fruits-east-shallots",
+      "name": "Лук-шалот свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-shallots.webp",
+      "alt": "Лук-шалот свежий",
+      "subject": "Лук-шалот свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "leeks",
+      "slug": "vegetables-fruits-east-leeks",
+      "name": "Лук-порей свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-leeks.webp",
+      "alt": "Лук-порей свежий",
+      "subject": "Лук-порей свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "garlic",
+      "slug": "vegetables-fruits-east-garlic",
+      "name": "Чеснок в головках",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-garlic.webp",
+      "alt": "Чеснок в головках",
+      "subject": "Чеснок в головках. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "cabbage-white",
+      "slug": "vegetables-fruits-east-cabbage-white",
+      "name": "Капуста белокочанная свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-cabbage-white.webp",
+      "alt": "Капуста белокочанная свежая",
+      "subject": "Капуста белокочанная свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "cabbage-red",
+      "slug": "vegetables-fruits-east-cabbage-red",
+      "name": "Капуста краснокочанная свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-cabbage-red.webp",
+      "alt": "Капуста краснокочанная свежая",
+      "subject": "Капуста краснокочанная свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "cabbage-peking",
+      "slug": "vegetables-fruits-east-cabbage-peking",
+      "name": "Капуста пекинская свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-cabbage-peking.webp",
+      "alt": "Капуста пекинская свежая",
+      "subject": "Капуста пекинская свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "cabbage-savoy",
+      "slug": "vegetables-fruits-east-cabbage-savoy",
+      "name": "Капуста савойская свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-cabbage-savoy.webp",
+      "alt": "Капуста савойская свежая",
+      "subject": "Капуста савойская свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "broccoli",
+      "slug": "vegetables-fruits-east-broccoli",
+      "name": "Капуста брокколи свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-broccoli.webp",
+      "alt": "Капуста брокколи свежая",
+      "subject": "Капуста брокколи свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "cauliflower",
+      "slug": "vegetables-fruits-east-cauliflower",
+      "name": "Капуста цветная свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-cauliflower.webp",
+      "alt": "Капуста цветная свежая",
+      "subject": "Капуста цветная свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "brussels-sprouts",
+      "slug": "vegetables-fruits-east-brussels-sprouts",
+      "name": "Капуста брюссельская свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-brussels-sprouts.webp",
+      "alt": "Капуста брюссельская свежая",
+      "subject": "Капуста брюссельская свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "kohlrabi",
+      "slug": "vegetables-fruits-east-kohlrabi",
+      "name": "Капуста кольраби свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-kohlrabi.webp",
+      "alt": "Капуста кольраби свежая",
+      "subject": "Капуста кольраби свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "bok-choy",
+      "slug": "vegetables-fruits-east-bok-choy",
+      "name": "Капуста пак-чой свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-bok-choy.webp",
+      "alt": "Капуста пак-чой свежая",
+      "subject": "Капуста пак-чой свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "cucumbers-kurazh",
+      "slug": "vegetables-fruits-east-cucumbers-kurazh",
+      "name": "Огурцы короткоплодные «Кураж»",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-cucumbers-kurazh.webp",
+      "alt": "Огурцы короткоплодные «Кураж»",
+      "subject": "Огурцы короткоплодные «Кураж». Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "cucumbers-long",
+      "slug": "vegetables-fruits-east-cucumbers-long",
+      "name": "Огурцы длинноплодные гладкие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-cucumbers-long.webp",
+      "alt": "Огурцы длинноплодные гладкие",
+      "subject": "Огурцы длинноплодные гладкие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "tomatoes-mahitos",
+      "slug": "vegetables-fruits-east-tomatoes-mahitos",
+      "name": "Томаты красные «Махитос»",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-tomatoes-mahitos.webp",
+      "alt": "Томаты красные «Махитос»",
+      "subject": "Томаты красные «Махитос». Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "tomatoes-pink",
+      "slug": "vegetables-fruits-east-tomatoes-pink",
+      "name": "Томаты розовые мясистые",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-tomatoes-pink.webp",
+      "alt": "Томаты розовые мясистые",
+      "subject": "Томаты розовые мясистые. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "tomatoes-plum",
+      "slug": "vegetables-fruits-east-tomatoes-plum",
+      "name": "Томаты красные сливовидные",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-tomatoes-plum.webp",
+      "alt": "Томаты красные сливовидные",
+      "subject": "Томаты красные сливовидные. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "tomatoes-cherry",
+      "slug": "vegetables-fruits-east-tomatoes-cherry",
+      "name": "Томаты черри красные",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-tomatoes-cherry.webp",
+      "alt": "Томаты черри красные",
+      "subject": "Томаты черри красные. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "tomatoes-black-prince",
+      "slug": "vegetables-fruits-east-tomatoes-black-prince",
+      "name": "Томаты тёмные «Чёрный принц»",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-tomatoes-black-prince.webp",
+      "alt": "Томаты тёмные «Чёрный принц»",
+      "subject": "Томаты тёмные «Чёрный принц». Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "bell-peppers-red",
+      "slug": "vegetables-fruits-east-bell-peppers-red",
+      "name": "Перец сладкий болгарский красный",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-bell-peppers-red.webp",
+      "alt": "Перец сладкий болгарский красный",
+      "subject": "Перец сладкий болгарский красный. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "bell-peppers-yellow",
+      "slug": "vegetables-fruits-east-bell-peppers-yellow",
+      "name": "Перец сладкий болгарский жёлтый",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-bell-peppers-yellow.webp",
+      "alt": "Перец сладкий болгарский жёлтый",
+      "subject": "Перец сладкий болгарский жёлтый. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "bell-peppers-green",
+      "slug": "vegetables-fruits-east-bell-peppers-green",
+      "name": "Перец сладкий болгарский зелёный",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-bell-peppers-green.webp",
+      "alt": "Перец сладкий болгарский зелёный",
+      "subject": "Перец сладкий болгарский зелёный. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "ramiro-peppers",
+      "slug": "vegetables-fruits-east-ramiro-peppers",
+      "name": "Перец сладкий красный «Рамиро»",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-ramiro-peppers.webp",
+      "alt": "Перец сладкий красный «Рамиро»",
+      "subject": "Перец сладкий красный «Рамиро». Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "chili-green",
+      "slug": "vegetables-fruits-east-chili-green",
+      "name": "Перец острый чили зелёный, 1 шт.",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-chili-green.webp",
+      "alt": "Перец острый чили зелёный, 1 шт.",
+      "subject": "Перец острый чили зелёный, 1 шт.. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "chili-red",
+      "slug": "vegetables-fruits-east-chili-red",
+      "name": "Перец острый чили красный, 1 шт.",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-chili-red.webp",
+      "alt": "Перец острый чили красный, 1 шт.",
+      "subject": "Перец острый чили красный, 1 шт.. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "eggplants",
+      "slug": "vegetables-fruits-east-eggplants",
+      "name": "Баклажаны свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-eggplants.webp",
+      "alt": "Баклажаны свежие",
+      "subject": "Баклажаны свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "zucchini-light",
+      "slug": "vegetables-fruits-east-zucchini-light",
+      "name": "Кабачки светлые свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-zucchini-light.webp",
+      "alt": "Кабачки светлые свежие",
+      "subject": "Кабачки светлые свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "zucchini-green",
+      "slug": "vegetables-fruits-east-zucchini-green",
+      "name": "Цукини зелёные свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-zucchini-green.webp",
+      "alt": "Цукини зелёные свежие",
+      "subject": "Цукини зелёные свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "pumpkin-muscat",
+      "slug": "vegetables-fruits-east-pumpkin-muscat",
+      "name": "Тыква мускатная свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-pumpkin-muscat.webp",
+      "alt": "Тыква мускатная свежая",
+      "subject": "Тыква мускатная свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "celeriac",
+      "slug": "vegetables-fruits-east-celeriac",
+      "name": "Сельдерей корневой свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-celeriac.webp",
+      "alt": "Сельдерей корневой свежий",
+      "subject": "Сельдерей корневой свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "celery-stalks",
+      "slug": "vegetables-fruits-east-celery-stalks",
+      "name": "Сельдерей черешковый свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-celery-stalks.webp",
+      "alt": "Сельдерей черешковый свежий",
+      "subject": "Сельдерей черешковый свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "radishes",
+      "slug": "vegetables-fruits-east-radishes",
+      "name": "Редис красный свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-radishes.webp",
+      "alt": "Редис красный свежий",
+      "subject": "Редис красный свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "daikon",
+      "slug": "vegetables-fruits-east-daikon",
+      "name": "Дайкон — белая японская редька",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-daikon.webp",
+      "alt": "Дайкон — белая японская редька",
+      "subject": "Дайкон — белая японская редька. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "radish-green",
+      "slug": "vegetables-fruits-east-radish-green",
+      "name": "Редька зелёная свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-radish-green.webp",
+      "alt": "Редька зелёная свежая",
+      "subject": "Редька зелёная свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "radish-black",
+      "slug": "vegetables-fruits-east-radish-black",
+      "name": "Редька чёрная свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-radish-black.webp",
+      "alt": "Редька чёрная свежая",
+      "subject": "Редька чёрная свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "turnips",
+      "slug": "vegetables-fruits-east-turnips",
+      "name": "Репа столовая свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-turnips.webp",
+      "alt": "Репа столовая свежая",
+      "subject": "Репа столовая свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "ginger-root",
+      "slug": "vegetables-fruits-east-ginger-root",
+      "name": "Имбирь — свежий корень",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-ginger-root.webp",
+      "alt": "Имбирь — свежий корень",
+      "subject": "Имбирь — свежий корень. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "horseradish-root",
+      "slug": "vegetables-fruits-east-horseradish-root",
+      "name": "Хрен — свежий корень",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-horseradish-root.webp",
+      "alt": "Хрен — свежий корень",
+      "subject": "Хрен — свежий корень. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "green-beans",
+      "slug": "vegetables-fruits-east-green-beans",
+      "name": "Фасоль зелёная стручковая свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-green-beans.webp",
+      "alt": "Фасоль зелёная стручковая свежая",
+      "subject": "Фасоль зелёная стручковая свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "parsley-root",
+      "slug": "vegetables-fruits-east-parsley-root",
+      "name": "Петрушка корневая — свежий корень",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-parsley-root.webp",
+      "alt": "Петрушка корневая — свежий корень",
+      "subject": "Петрушка корневая — свежий корень. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "parsnip-root",
+      "slug": "vegetables-fruits-east-parsnip-root",
+      "name": "Пастернак — свежий корень",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-parsnip-root.webp",
+      "alt": "Пастернак — свежий корень",
+      "subject": "Пастернак — свежий корень. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "fennel",
+      "slug": "vegetables-fruits-east-fennel",
+      "name": "Фенхель овощной свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-fennel.webp",
+      "alt": "Фенхель овощной свежий",
+      "subject": "Фенхель овощной свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "apples-gala",
+      "slug": "vegetables-fruits-east-apples-gala",
+      "name": "Яблоки «Гала» свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-apples-gala.webp",
+      "alt": "Яблоки «Гала» свежие",
+      "subject": "Яблоки «Гала» свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "apples-fuji",
+      "slug": "vegetables-fruits-east-apples-fuji",
+      "name": "Яблоки «Фуджи» свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-apples-fuji.webp",
+      "alt": "Яблоки «Фуджи» свежие",
+      "subject": "Яблоки «Фуджи» свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "apples-granny-smith",
+      "slug": "vegetables-fruits-east-apples-granny-smith",
+      "name": "Яблоки «Гренни Смит» зелёные",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-apples-granny-smith.webp",
+      "alt": "Яблоки «Гренни Смит» зелёные",
+      "subject": "Яблоки «Гренни Смит» зелёные. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "apples-golden",
+      "slug": "vegetables-fruits-east-apples-golden",
+      "name": "Яблоки «Голден Делишес» свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-apples-golden.webp",
+      "alt": "Яблоки «Голден Делишес» свежие",
+      "subject": "Яблоки «Голден Делишес» свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "apples-red-chief",
+      "slug": "vegetables-fruits-east-apples-red-chief",
+      "name": "Яблоки «Ред Чиф» красные",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-apples-red-chief.webp",
+      "alt": "Яблоки «Ред Чиф» красные",
+      "subject": "Яблоки «Ред Чиф» красные. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "apples-pink-lady",
+      "slug": "vegetables-fruits-east-apples-pink-lady",
+      "name": "Яблоки «Пинк Леди» свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-apples-pink-lady.webp",
+      "alt": "Яблоки «Пинк Леди» свежие",
+      "subject": "Яблоки «Пинк Леди» свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "pears-conference",
+      "slug": "vegetables-fruits-east-pears-conference",
+      "name": "Груши «Конференция» свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-pears-conference.webp",
+      "alt": "Груши «Конференция» свежие",
+      "subject": "Груши «Конференция» свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "pears-packham",
+      "slug": "vegetables-fruits-east-pears-packham",
+      "name": "Груши «Пакхам» свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-pears-packham.webp",
+      "alt": "Груши «Пакхам» свежие",
+      "subject": "Груши «Пакхам» свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "bananas",
+      "slug": "vegetables-fruits-east-bananas",
+      "name": "Бананы свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-bananas.webp",
+      "alt": "Бананы свежие",
+      "subject": "Бананы свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "oranges",
+      "slug": "vegetables-fruits-east-oranges",
+      "name": "Апельсины свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-oranges.webp",
+      "alt": "Апельсины свежие",
+      "subject": "Апельсины свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "mandarins",
+      "slug": "vegetables-fruits-east-mandarins",
+      "name": "Мандарины свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-mandarins.webp",
+      "alt": "Мандарины свежие",
+      "subject": "Мандарины свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "lemons",
+      "slug": "vegetables-fruits-east-lemons",
+      "name": "Лимоны свежие, 1 шт.",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-lemons.webp",
+      "alt": "Лимоны свежие, 1 шт.",
+      "subject": "Лимоны свежие, 1 шт.. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "limes",
+      "slug": "vegetables-fruits-east-limes",
+      "name": "Лаймы свежие, 1 шт.",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-limes.webp",
+      "alt": "Лаймы свежие, 1 шт.",
+      "subject": "Лаймы свежие, 1 шт.. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "grapefruit",
+      "slug": "vegetables-fruits-east-grapefruit",
+      "name": "Грейпфруты свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-grapefruit.webp",
+      "alt": "Грейпфруты свежие",
+      "subject": "Грейпфруты свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "pomelo",
+      "slug": "vegetables-fruits-east-pomelo",
+      "name": "Помело белое свежее",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-pomelo.webp",
+      "alt": "Помело белое свежее",
+      "subject": "Помело белое свежее. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "kumquat",
+      "slug": "vegetables-fruits-east-kumquat",
+      "name": "Кумкват свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-kumquat.webp",
+      "alt": "Кумкват свежий",
+      "subject": "Кумкват свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "kiwi-green",
+      "slug": "vegetables-fruits-east-kiwi-green",
+      "name": "Киви зелёное свежее",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-kiwi-green.webp",
+      "alt": "Киви зелёное свежее",
+      "subject": "Киви зелёное свежее. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "kiwi-gold",
+      "slug": "vegetables-fruits-east-kiwi-gold",
+      "name": "Киви жёлтое Gold",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-kiwi-gold.webp",
+      "alt": "Киви жёлтое Gold",
+      "subject": "Киви жёлтое Gold. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "pineapple",
+      "slug": "vegetables-fruits-east-pineapple",
+      "name": "Ананас свежий, 1 шт.",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-pineapple.webp",
+      "alt": "Ананас свежий, 1 шт.",
+      "subject": "Ананас свежий, 1 шт.. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "mango",
+      "slug": "vegetables-fruits-east-mango",
+      "name": "Манго свежее, 1 шт.",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-mango.webp",
+      "alt": "Манго свежее, 1 шт.",
+      "subject": "Манго свежее, 1 шт.. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "avocado-green",
+      "slug": "vegetables-fruits-east-avocado-green",
+      "name": "Авокадо зеленокожее, 1 шт.",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-avocado-green.webp",
+      "alt": "Авокадо зеленокожее, 1 шт.",
+      "subject": "Авокадо зеленокожее, 1 шт.. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "avocado-hass",
+      "slug": "vegetables-fruits-east-avocado-hass",
+      "name": "Авокадо «Хасс», 1 шт.",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-avocado-hass.webp",
+      "alt": "Авокадо «Хасс», 1 шт.",
+      "subject": "Авокадо «Хасс», 1 шт.. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "pomegranate",
+      "slug": "vegetables-fruits-east-pomegranate",
+      "name": "Гранаты свежие",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-pomegranate.webp",
+      "alt": "Гранаты свежие",
+      "subject": "Гранаты свежие. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "grapes-white-seedless",
+      "slug": "vegetables-fruits-east-grapes-white-seedless",
+      "name": "Виноград белый кишмиш",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-grapes-white-seedless.webp",
+      "alt": "Виноград белый кишмиш",
+      "subject": "Виноград белый кишмиш. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "grapes-black-seedless",
+      "slug": "vegetables-fruits-east-grapes-black-seedless",
+      "name": "Виноград чёрный кишмиш",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-grapes-black-seedless.webp",
+      "alt": "Виноград чёрный кишмиш",
+      "subject": "Виноград чёрный кишмиш. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "passion-fruit",
+      "slug": "vegetables-fruits-east-passion-fruit",
+      "name": "Маракуйя свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-passion-fruit.webp",
+      "alt": "Маракуйя свежая",
+      "subject": "Маракуйя свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "papaya",
+      "slug": "vegetables-fruits-east-papaya",
+      "name": "Папайя свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-papaya.webp",
+      "alt": "Папайя свежая",
+      "subject": "Папайя свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "dragon-fruit",
+      "slug": "vegetables-fruits-east-dragon-fruit",
+      "name": "Питахайя — драконий фрукт с красной кожурой",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-dragon-fruit.webp",
+      "alt": "Питахайя — драконий фрукт с красной кожурой",
+      "subject": "Питахайя — драконий фрукт с красной кожурой. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "granadilla",
+      "slug": "vegetables-fruits-east-granadilla",
+      "name": "Гранадилла свежая, 1 шт.",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-granadilla.webp",
+      "alt": "Гранадилла свежая, 1 шт.",
+      "subject": "Гранадилла свежая, 1 шт.. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "coconut",
+      "slug": "vegetables-fruits-east-coconut",
+      "name": "Кокос зрелый свежий, 1 шт.",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-coconut.webp",
+      "alt": "Кокос зрелый свежий, 1 шт.",
+      "subject": "Кокос зрелый свежий, 1 шт.. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "dill",
+      "slug": "vegetables-fruits-east-dill",
+      "name": "Укроп свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-dill.webp",
+      "alt": "Укроп свежий",
+      "subject": "Укроп свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "parsley-flat",
+      "slug": "vegetables-fruits-east-parsley-flat",
+      "name": "Петрушка листовая свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-parsley-flat.webp",
+      "alt": "Петрушка листовая свежая",
+      "subject": "Петрушка листовая свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "parsley-curly",
+      "slug": "vegetables-fruits-east-parsley-curly",
+      "name": "Петрушка кудрявая свежая, 1 пучок",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-parsley-curly.webp",
+      "alt": "Петрушка кудрявая свежая, 1 пучок",
+      "subject": "Петрушка кудрявая свежая, 1 пучок. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "cilantro",
+      "slug": "vegetables-fruits-east-cilantro",
+      "name": "Кинза свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-cilantro.webp",
+      "alt": "Кинза свежая",
+      "subject": "Кинза свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "spring-onions",
+      "slug": "vegetables-fruits-east-spring-onions",
+      "name": "Лук зелёный свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-spring-onions.webp",
+      "alt": "Лук зелёный свежий",
+      "subject": "Лук зелёный свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "basil-green",
+      "slug": "vegetables-fruits-east-basil-green",
+      "name": "Базилик зелёный свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-basil-green.webp",
+      "alt": "Базилик зелёный свежий",
+      "subject": "Базилик зелёный свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "basil-purple",
+      "slug": "vegetables-fruits-east-basil-purple",
+      "name": "Базилик фиолетовый свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-basil-purple.webp",
+      "alt": "Базилик фиолетовый свежий",
+      "subject": "Базилик фиолетовый свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "mint",
+      "slug": "vegetables-fruits-east-mint",
+      "name": "Мята свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-mint.webp",
+      "alt": "Мята свежая",
+      "subject": "Мята свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "spinach",
+      "slug": "vegetables-fruits-east-spinach",
+      "name": "Шпинат свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-spinach.webp",
+      "alt": "Шпинат свежий",
+      "subject": "Шпинат свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "arugula",
+      "slug": "vegetables-fruits-east-arugula",
+      "name": "Руккола свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-arugula.webp",
+      "alt": "Руккола свежая",
+      "subject": "Руккола свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "lettuce-green",
+      "slug": "vegetables-fruits-east-lettuce-green",
+      "name": "Салат листовой зелёный свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-lettuce-green.webp",
+      "alt": "Салат листовой зелёный свежий",
+      "subject": "Салат листовой зелёный свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "lettuce-red",
+      "slug": "vegetables-fruits-east-lettuce-red",
+      "name": "Салат листовой красный свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-lettuce-red.webp",
+      "alt": "Салат листовой красный свежий",
+      "subject": "Салат листовой красный свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "lettuce-romaine",
+      "slug": "vegetables-fruits-east-lettuce-romaine",
+      "name": "Салат ромэн свежий, 1 кочан",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-lettuce-romaine.webp",
+      "alt": "Салат ромэн свежий, 1 кочан",
+      "subject": "Салат ромэн свежий, 1 кочан. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "lettuce-iceberg",
+      "slug": "vegetables-fruits-east-lettuce-iceberg",
+      "name": "Салат айсберг свежий, 1 кочан",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-lettuce-iceberg.webp",
+      "alt": "Салат айсберг свежий, 1 кочан",
+      "subject": "Салат айсберг свежий, 1 кочан. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "lettuce-lollo-rosso",
+      "slug": "vegetables-fruits-east-lettuce-lollo-rosso",
+      "name": "Салат «Лолло Россо» свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-lettuce-lollo-rosso.webp",
+      "alt": "Салат «Лолло Россо» свежий",
+      "subject": "Салат «Лолло Россо» свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "watercress",
+      "slug": "vegetables-fruits-east-watercress",
+      "name": "Кресс-салат свежий, упаковка 70 г",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-watercress.webp",
+      "alt": "Кресс-салат свежий, упаковка 70 г",
+      "subject": "Кресс-салат свежий, упаковка 70 г. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "sorrel",
+      "slug": "vegetables-fruits-east-sorrel",
+      "name": "Щавель свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-sorrel.webp",
+      "alt": "Щавель свежий",
+      "subject": "Щавель свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "tarragon",
+      "slug": "vegetables-fruits-east-tarragon",
+      "name": "Эстрагон — тархун свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-tarragon.webp",
+      "alt": "Эстрагон — тархун свежий",
+      "subject": "Эстрагон — тархун свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "rosemary",
+      "slug": "vegetables-fruits-east-rosemary",
+      "name": "Розмарин свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-rosemary.webp",
+      "alt": "Розмарин свежий",
+      "subject": "Розмарин свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "thyme",
+      "slug": "vegetables-fruits-east-thyme",
+      "name": "Тимьян свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-thyme.webp",
+      "alt": "Тимьян свежий",
+      "subject": "Тимьян свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "celery-leaves",
+      "slug": "vegetables-fruits-east-celery-leaves",
+      "name": "Сельдерей листовой свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-celery-leaves.webp",
+      "alt": "Сельдерей листовой свежий",
+      "subject": "Сельдерей листовой свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "chives",
+      "slug": "vegetables-fruits-east-chives",
+      "name": "Шнитт-лук — сибулет свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-chives.webp",
+      "alt": "Шнитт-лук — сибулет свежий",
+      "subject": "Шнитт-лук — сибулет свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "radicchio",
+      "slug": "vegetables-fruits-east-radicchio",
+      "name": "Салат радиккьо свежий",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-radicchio.webp",
+      "alt": "Салат радиккьо свежий",
+      "subject": "Салат радиккьо свежий. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "kale",
+      "slug": "vegetables-fruits-east-kale",
+      "name": "Капуста листовая кейл свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-kale.webp",
+      "alt": "Капуста листовая кейл свежая",
+      "subject": "Капуста листовая кейл свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "chard",
+      "slug": "vegetables-fruits-east-chard",
+      "name": "Мангольд — листовая свёкла свежая",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-chard.webp",
+      "alt": "Мангольд — листовая свёкла свежая",
+      "subject": "Мангольд — листовая свёкла свежая. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "strawberries-250g",
+      "slug": "vegetables-fruits-east-strawberries-250g",
+      "name": "Клубника свежая, упаковка 250 г",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-strawberries-250g.webp",
+      "alt": "Клубника свежая, упаковка 250 г",
+      "subject": "Клубника свежая, упаковка 250 г. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "blueberries-125g",
+      "slug": "vegetables-fruits-east-blueberries-125g",
+      "name": "Голубика свежая, упаковка 125 г",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-blueberries-125g.webp",
+      "alt": "Голубика свежая, упаковка 125 г",
+      "subject": "Голубика свежая, упаковка 125 г. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "raspberries-125g",
+      "slug": "vegetables-fruits-east-raspberries-125g",
+      "name": "Малина свежая, упаковка 125 г",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-raspberries-125g.webp",
+      "alt": "Малина свежая, упаковка 125 г",
+      "subject": "Малина свежая, упаковка 125 г. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "blackberries-125g",
+      "slug": "vegetables-fruits-east-blackberries-125g",
+      "name": "Ежевика свежая, упаковка 125 г",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-blackberries-125g.webp",
+      "alt": "Ежевика свежая, упаковка 125 г",
+      "subject": "Ежевика свежая, упаковка 125 г. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    },
+    {
+      "catalogKey": "physalis-100g",
+      "slug": "vegetables-fruits-east-physalis-100g",
+      "name": "Физалис ягодный свежий, упаковка 100 г",
+      "status": "PLANNED",
+      "fileName": "vegetables-fruits-east-physalis-100g.webp",
+      "alt": "Физалис ягодный свежий, упаковка 100 г",
+      "subject": "Физалис ягодный свежий, упаковка 100 г. Показать характерный цвет, форму и фактуру целого свежего продукта.",
+      "isIllustration": true
+    }
+  ],
+  "revision": 2,
+  "marketPointSlug": "vegetables-fruits-east"
+}
