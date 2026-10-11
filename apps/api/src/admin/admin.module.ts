@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ResearchDraftsCtrl } from './research-drafts.ctrl.js';
+import { ResearchDraftsService } from './research-drafts.service.js';
 import { PromoModule } from '../promo/promo.module.js';
 import { AdminPromoCtrl } from './promo.ctrl.js';
 import { AuthModule } from '../auth/auth.module.js';
@@ -48,6 +50,7 @@ import { HitsService } from './hits.service.js';
     PublicSlidesCtrl,
     SeasonsCtrl,
     HitsCtrl,
+    ResearchDraftsCtrl,
   ],
   providers: [
     AdminProductsService,
@@ -63,6 +66,7 @@ import { HitsService } from './hits.service.js';
     SlidesService,
     SeasonsService,
     HitsService,
+    ResearchDraftsService,
   ],
 })
 export class AdminModule {}

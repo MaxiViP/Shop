@@ -1126,3 +1126,26 @@ model CartItem {
   @@id([cartId, productId])
   @@index([productId])
 }
+
+model ResearchStoreDraft {
+  key       String   @id @db.VarChar(180)
+  datasetId String   @db.VarChar(100)
+  source    Json
+  review    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([datasetId])
+}
+
+model ResearchProductDraft {
+  key       String   @id @db.VarChar(180)
+  datasetId String   @db.VarChar(100)
+  source    Json
+  review    Json
+  sale      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([datasetId])
+}

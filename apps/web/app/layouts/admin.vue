@@ -31,6 +31,7 @@ const navigation = [
   { to: '/admin/orders', label: 'Заказы', icon: 'i-lucide-clipboard-list' },
   { to: '/admin/products', label: 'Товары и категории', icon: 'i-lucide-package' },
   { to: '/admin/market-map', label: 'Карта рынка', icon: 'i-lucide-map' },
+  { to: '/admin/research-drafts', label: 'Черновики рынка', icon: 'i-lucide-list-checks' },
   { to: '/admin/slides', label: 'Слайды главной', icon: 'i-lucide-images' },
   { to: '/admin/hits', label: 'Хиты рынка', icon: 'i-lucide-chart-no-axes-combined' },
   { to: '/admin/seasons', label: 'Сезонность', icon: 'i-lucide-calendar-days' },

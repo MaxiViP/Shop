@@ -24,6 +24,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.build.json && tsc --noEmit -p tsconfig.catalog.json",
     "catalog:import": "tsx data/catalog-import/run.ts",
     "bagrationovsky:import": "tsx data/bagrationovsky/run.ts",
+    "bagrationovsky:drafts": "tsx data/bagrationovsky/db-run.ts",
     "seed:seasons": "tsx prisma/seed-seasons.ts"
   },
   "dependencies": {
