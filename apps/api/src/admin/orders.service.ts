@@ -46,7 +46,7 @@ export class AdminOrdersService {
       user: { select: { id: true, name: true, phone: true } },
       items: { select: { id: true, productName: true, status: true, qty: true,
         actualQty: true, total: true, actualTotal: true, price: true, actualPrice: true, priceQty: true,
-        settlementModeSnapshot: true, basePriceSnapshot: true }, orderBy: { id: 'asc' } },
+        settlementModeSnapshot: true, basePriceSnapshot: true, unit: true, priceUnit: true, actualWeightGrams: true }, orderBy: { id: 'asc' } },
       extras: { where: { status: 'ACTIVE' }, select: { amount: true } },
       messages: { orderBy: { id: 'asc' }, take: 100,
         select: { id: true, text: true, createdAt: true } },

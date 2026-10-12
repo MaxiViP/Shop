@@ -1,6 +1,7 @@
 import type { Category } from "~/types/category";
 import type { Product } from "~/types/product";
 import { canonicalUrl, site } from "~~/shared/utils/site";
+import { priceUnit } from './sale';
 
 export interface Breadcrumb {
   label: string;
@@ -52,6 +53,7 @@ export function productSchema(product: Product) {
   const url = canonicalUrl(`/product/${encodeURIComponent(product.slug)}`);
   const price = (product.price / 100).toFixed(2);
   const image = product.images.map(({ url }) => publicImageUrl(url)).filter(Boolean);
+  const base = priceUnit(product);
   return {
     "@context": "https://schema.org", "@type": "Product",
     "@id": `${url}#product`, name: product.name, sku: String(product.id),
@@ -65,8 +67,8 @@ export function productSchema(product: Product) {
         "@type": "UnitPriceSpecification", price, priceCurrency: "RUB",
         referenceQuantity: {
           "@type": "QuantitativeValue", value: product.priceQty,
-          unitCode: product.unit === "GRAM" ? "GRM" : "C62",
-          unitText: { GRAM: "г", PIECE: "шт.", BUNCH: "пучок", PACK: "уп." }[product.unit],
+          unitCode: base === "GRAM" ? "GRM" : "C62",
+          unitText: { GRAM: "г", PIECE: "шт.", BUNCH: "пучок", PACK: "уп." }[base],
         },
       },
       // Publication (active) is not inventory. Add availability when the API exposes it.

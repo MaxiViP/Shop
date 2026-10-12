@@ -29,7 +29,7 @@
     </div>
 
     <div class="success__actions">
-      <p v-if="order">Предварительно за товары: ≈ {{ money(order.subtotal) }}</p>
+      <p v-if="order">Предварительно за товары: {{ order.subtotal === null ? 'после взвешивания' : `≈ ${money(order.subtotal)}` }}</p>
       <UButton v-if="order" :to="`/order/${order.publicId}`">Открыть заказ</UButton>
       <UButton to="/catalog">
         Продолжить покупки

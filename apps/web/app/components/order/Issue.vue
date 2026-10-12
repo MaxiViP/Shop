@@ -10,13 +10,12 @@
     </div>
     <template v-if="issue.type === 'WEIGHT_DEVIATION'">
       <p>
-        Заказано: {{ qtyText("GRAM", issue.requestedQty) }} · Допуск: ±{{
+        Заказано: {{ qtyText(issue.orderItem.unit, issue.requestedQty, issue.orderItem) }} <template v-if="issue.orderItem.unit === 'GRAM'">· Допуск: ±{{
           bpsPercent(bps)
-        }}%
+        }}%</template>
       </p>
       <p>
-        Собрано: {{ qtyText("GRAM", issue.actualQty ?? 0) }} · Отклонение:
-        {{ deviation }}%
+        Собрано: {{ qtyText(issue.orderItem.unit, issue.actualQty ?? 0, issue.orderItem) }}{{ issue.actualWeightGrams ? ` · ${qtyText('GRAM', issue.actualWeightGrams)}` : '' }} <template v-if="issue.orderItem.unit === 'GRAM'">· Отклонение: {{ deviation }}%</template>
       </p>
       <p v-if="issue.actualQty">
         Стоимость:
@@ -24,7 +23,7 @@
           money(
             lineAmount(
               issue.orderItem.actualPrice ?? issue.orderItem.price,
-              issue.actualQty,
+              variableWeight(issue.orderItem) ? issue.actualWeightGrams ?? 0 : issue.actualQty,
               issue.orderItem.priceQty,
             ),
           )
@@ -32,6 +31,7 @@
       </p>
     </template>
     <p v-else>Исходного товара нет в наличии. Он останется в истории заказа.</p>
+    <p v-if="issue.type === 'WEIGHT_DEVIATION' && variableWeight(issue.orderItem)" class="text-muted">Целый экземпляр можно заменить после согласования в чате. Нарезка без согласия продавца не предусмотрена.</p>
     <div
       v-if="issue.type === 'REPLACEMENT' && issue.proposedName &&
         (issue.status === 'WAITING_CUSTOMER' || issue.resolution === 'ACCEPT_REPLACEMENT')"
@@ -47,23 +47,24 @@
       <div>
         <p class="font-semibold">{{ issue.resolution === "ACCEPT_REPLACEMENT" ? "Замена принята" : "Предлагаем замену" }}: {{ issue.proposedName }}</p>
         <p v-if="issue.proposedUnit && issue.proposedQty">
-          {{ qtyText(issue.proposedUnit, issue.proposedQty) }}
+          {{ qtyText(issue.proposedUnit, issue.proposedQty, proposedSale ?? undefined) }}
         </p>
         <p
           v-if="
-            issue.proposedPrice && issue.proposedPriceQty && issue.proposedQty
+            issue.proposedPrice && issue.proposedPriceQty && issue.proposedQty && proposedQuantity !== null
           "
         >
           {{
             money(
               lineAmount(
                 issue.proposedPrice,
-                issue.proposedQty,
+                proposedQuantity!,
                 issue.proposedPriceQty,
               ),
             )
           }}
         </p>
+        <p v-if="proposedSale && variableWeight(proposedSale) && proposedQuantity === null">Стоимость уточняется после взвешивания.</p>
       </div>
     </div>
     <div
@@ -74,14 +75,14 @@
         v-if="issue.type === 'WEIGHT_DEVIATION'"
         :disabled="busy"
         @click="decide('ACCEPT_ACTUAL')"
-        >Согласен на {{ qtyText("GRAM", issue.actualQty ?? 0) }}</UButton
+        >Согласен на {{ qtyText(issue.orderItem.unit, issue.actualQty ?? 0, issue.orderItem) }}{{ issue.actualWeightGrams ? ` · ${qtyText('GRAM', issue.actualWeightGrams)}` : '' }}</UButton
       >
       <UButton
         v-if="issue.type === 'WEIGHT_DEVIATION'"
         variant="outline"
         :disabled="busy"
         @click="decide('REQUEST_REDUCE')"
-        >Попросить уменьшить</UButton
+        >{{ variableWeight(issue.orderItem) ? 'Попросить другой экземпляр' : 'Попросить уменьшить' }}</UButton
       >
       <UButton
         v-if="issue.type === 'REPLACEMENT'"
@@ -170,6 +171,7 @@
 
 <script setup lang="ts">
 import type { OrderIssue } from "~/types/coordination";
+import { variableWeight, estimatedQuantity } from '~/utils/sale';
 const props = defineProps<{
   issue: OrderIssue;
   base: string;
@@ -182,6 +184,12 @@ const props = defineProps<{
   assembling: boolean;
 }>();
 const emit = defineEmits<{ refresh: [] }>();
+const proposedSale = computed(() => props.issue.proposedUnit ? { unit: props.issue.proposedUnit, saleModel: props.issue.proposedSaleModel,
+  priceUnit: props.issue.proposedPriceUnit, wholeLabel: props.issue.proposedWholeLabel, estimatedWeightGrams: props.issue.proposedEstimatedWeightGrams } : null);
+const proposedQuantity = computed(() => {
+  if (!proposedSale.value || !props.issue.proposedQty) return null;
+  try { return estimatedQuantity(proposedSale.value, props.issue.proposedQty); } catch { return null; }
+});
 const api = useApiClient();
 const asset = useAsset();
 const toast = useToast();

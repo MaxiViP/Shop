@@ -28,7 +28,7 @@
 
         <div>
           <dt>Товары</dt>
-          <dd>{{ money(tracking.order.finalSubtotal ?? tracking.order.subtotal) }}</dd>
+          <dd>{{ knownMoney(tracking.order.finalSubtotal ?? tracking.order.subtotal, 'После взвешивания') }}</dd>
         </div>
 
         <div>
@@ -85,7 +85,7 @@
 <script setup lang="ts">
 import type { PublicTracking } from '~/types/order'
 import { deliveryProvider, deliveryStatus, deliveryCost } from '~/utils/delivery'
-import { knownMoney, money } from '~/utils/money'
+import { knownMoney } from '~/utils/money'
 
 const route = useRoute()
 const token = String(route.params.token)

@@ -217,15 +217,15 @@
           <dl class="item__glance">
             <div>
               <dt>Заказано</dt>
-              <dd>{{ qtyText(item.unit, item.qty) }}</dd>
+              <dd>{{ qtyText(item.unit, item.qty, item) }}</dd>
             </div>
             <div>
               <dt>Предварительно</dt>
-              <dd>{{ money(item.total) }}</dd>
+              <dd>{{ knownMoney(item.total, 'После взвешивания') }}</dd>
             </div>
             <div v-if="item.actualQty !== null">
               <dt>Факт</dt>
-              <dd>{{ qtyText(item.unit, item.actualQty) }}</dd>
+              <dd>{{ qtyText(item.unit, item.actualQty, item) }}{{ item.actualWeightGrams ? ` · ${qtyText('GRAM', item.actualWeightGrams)}` : '' }}</dd>
             </div>
           </dl>
 
@@ -247,6 +247,7 @@
               <UButton type="button" color="neutral" variant="soft" :loading="itemLoading === item.id" :disabled="itemLoading !== null" @click="returnToAssembly(item.id)">Вернуть в сборку</UButton>
             </div>
             <OrderWeight v-if="item.unit === 'GRAM' && item.status !== 'MISSING'" :requested="item.qty" :actual="actual[item.id] ?? item.qty" :price="item.actualPrice ?? item.price" :price-qty="item.priceQty" :bps="order.weightToleranceBps" :approved="approvedWeight(order.issues?.find(issue => issue.orderItemId === item.id), item.actualQty)" />
+            <OrderWholeWeight v-if="variableWeight(item) && item.status !== 'MISSING'" v-model="drafts.weights[item.id]!" :item="item" :count="actual[item.id] ?? item.qty" :editable="order.status === 'ASSEMBLING' && item.status === 'PENDING'" />
             <OrderItemPrice :order-id="id" :item="item" :editable="canChangePrice(item)" :disabled="itemLoading !== null || Boolean(actionLoading)" @busy="priceBusy = $event" @refresh="refresh" />
           </div>
         </article>
@@ -267,7 +268,7 @@
       <div v-else class="summary">
         <div class="summary__row">
           <span>Предварительная стоимость товаров</span>
-          <strong>{{ money(order.subtotal) }}</strong>
+          <strong>{{ knownMoney(order.subtotal, 'После взвешивания') }}</strong>
         </div>
 
         <div v-if="order.finalSubtotal !== null" class="summary__row">
@@ -582,6 +583,7 @@ import { apiError } from '~/utils/api-error'
 import { deliveryProvider, deliveryStatus } from '~/utils/delivery'
 import { knownMoney, kopecksToRubles, money, rublesToKopecks } from '~/utils/money'
 import { qtyText } from '~/utils/qty'
+import { variableWeight, needsWeightApproval, approvedItemWeight, actualQuantity, priceUnit } from '~/utils/sale'
 import { pickupTime } from '~/utils/pickup'
 import { focusedAssemblyItem } from '~/utils/assembly'
 
@@ -691,12 +693,12 @@ function toggleItem(itemId: number) {
 }
 
 const toleranceBlocked = computed(() => order.value.status === 'ASSEMBLING' && (order.value.issues?.some(issue => ['WAITING_CUSTOMER', 'WAITING_SELLER'].includes(issue.status)) || order.value.items.some(item => {
-  if (item.unit !== 'GRAM' || item.status === 'MISSING') return false
-  const qty = item.status === 'PENDING' ? actual[item.id] : item.actualQty
-  if (item.status === 'PICKED' && approvedWeight(order.value.issues?.find(issue => issue.orderItemId === item.id), item.actualQty)) return false
+  if (item.status !== 'PICKED') return false
+  const qty = item.actualQty
+  if (approvedItemWeight(order.value.issues?.find(issue => issue.orderItemId === item.id), item)) return false
   if (typeof qty !== 'number' || !Number.isSafeInteger(qty) || qty <= 0) return false
   try {
-    return outsideTolerance(item.unit, item.qty, qty, order.value.weightToleranceBps)
+    return needsWeightApproval(item, order.value.weightToleranceBps)
   } catch {
     return true
   }
@@ -956,11 +958,15 @@ async function pick(itemId: number) {
   itemLoading.value = itemId
 
   try {
+    const item = order.value.items.find(row => row.id === itemId)!
+    const pieceWeights = variableWeight(item) ? drafts.weights[itemId] : undefined
+    actualQuantity({ ...item, actualQty, pieceWeights: pieceWeights ?? null, actualWeightGrams: pieceWeights?.reduce((sum, weight) => sum + weight, 0) ?? null })
     await api(`/staff/orders/${id}/items/${itemId}`, {
       method: 'PATCH',
       body: {
         status: 'PICKED',
         actualQty,
+        pieceWeights,
       },
     })
     await refresh()
@@ -1103,7 +1109,7 @@ function optional(value: string) {
 }
 
 function itemPrice(item: StaffOrderDetail['items'][number]) {
-  return `Цена заказа ${money(item.price)} / ${qtyText(item.unit, item.priceQty)}`
+  return `Цена заказа ${money(item.price)} / ${qtyText(priceUnit(item), item.priceQty)}`
 }
 
 function canChangePrice(item: StaffOrderDetail['items'][number]) {

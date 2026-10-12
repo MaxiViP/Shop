@@ -7,13 +7,14 @@ import { ImagesService } from './images.service.js';
 import { quantityErrors, type ProductQuantity } from '../order/assembly.js';
 import { priceBreakdown } from '../product/pricing.js';
 import { hitActive, type HitProduct } from '../product/badges.js';
+import { saleErrors, type Sale } from '../product/sale.js';
 
 function adminProduct<T extends { price: number } & HitProduct>(product: T) {
   return { ...product, autoHit: product.isHit === true, isHit: hitActive(product), ...priceBreakdown(product.price) };
 }
 
-function validateQuantity(product: ProductQuantity) {
-  const errors = Object.values(quantityErrors(product));
+function validateQuantity(product: ProductQuantity & Sale & { priceQty: number }) {
+  const errors = Object.values({ ...quantityErrors(product), ...saleErrors(product) });
   if (errors.length) throw new BadRequestException(errors);
 }
 

@@ -41,7 +41,7 @@ export default defineNuxtPlugin((app) => {
     }
     const fromMemory = cart.mode === "guest" && cart.restored;
     const guest = fromMemory
-      ? cart.items.map((item) => ({ product: item.product, qty: item.qty }))
+      ? cart.items.map((item) => ({ ...item }))
       : pendingGuest ?? savedGuest().items;
     pendingGuest = guest.length ? guest : null;
     // Persist synchronous guest edits before the auth transition can suppress
@@ -56,7 +56,8 @@ export default defineNuxtPlugin((app) => {
       if (current !== generation) return;
       let warning = "";
       if (guest.length) {
-        const items = guest.map((item) => ({ productId: item.product.id, qty: item.qty }));
+        const items = guest.map(item => ({ productId: item.product.id, qty: item.qty,
+          ...((item.product.priceUnit === 'GRAM' && item.product.unit !== 'GRAM') || (item.quantityUnit && item.quantityUnit !== item.product.unit) ? { quantityUnit: item.quantityUnit ?? item.product.unit, weightMinGrams: item.weightMinGrams, weightMaxGrams: item.weightMaxGrams } : {}) }));
         try {
           try {
             snapshot = await api<ServerCartSnapshot>("/cart/merge", {

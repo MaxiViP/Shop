@@ -1,0 +1,993 @@
+{
+  "version": 1,
+  "localOnly": true,
+  "databaseCheckedAt": "2026-10-12T08:41:08.492Z",
+  "patches": [
+    {
+      "productId": 23,
+      "slug": "cezoni-market-casa-rinaldi-carnaroli-500g",
+      "name": "Рис Casa Rinaldi Карнароли 500 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.544Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 24,
+      "slug": "cezoni-market-casa-rinaldi-modena-spray-250ml",
+      "name": "Уксус бальзамический Casa Rinaldi Modena спрей 250 мл",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.549Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 25,
+      "slug": "cezoni-market-black-olives-350g",
+      "name": "Оливки CEZONI черные в рассоле 350 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.552Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 26,
+      "slug": "cezoni-market-grilled-artichokes-350g",
+      "name": "Артишоки CEZONI гриль 350 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.554Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 27,
+      "slug": "cezoni-market-cantuccini-cherry-almond-180g",
+      "name": "Печенье Кантуччини Вишня и миндаль CEZONI 180 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.558Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 28,
+      "slug": "cezoni-market-butter-biscuits-180g",
+      "name": "Печенье CEZONI домашнее на сливочном масле 180 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.560Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 29,
+      "slug": "cezoni-market-dalla-costa-fast-races-250g",
+      "name": "Паста детская Dalla Costa «Быстрые гонки» 250 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.562Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 30,
+      "slug": "cezoni-market-classic-grissini-150g",
+      "name": "Гриссини классические CEZONI 150 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.564Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 31,
+      "slug": "cezoni-market-nadawilli-wheat-germ-oil-250ml",
+      "name": "Масло зародышей пшеницы Nadawilli 250 мл",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.568Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 32,
+      "slug": "cezoni-market-nadawilli-walnut-oil-250ml",
+      "name": "Масло грецкого ореха Nadawilli 250 мл",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.571Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 33,
+      "slug": "cezoni-market-nadawilli-pumpkin-oil-250ml",
+      "name": "Масло тыквенное Nadawilli 250 мл",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.573Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 34,
+      "slug": "cezoni-market-nadawilli-garlic-sunflower-oil-250ml",
+      "name": "Масло подсолнечное чесночное Nadawilli 250 мл",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.576Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 35,
+      "slug": "cezoni-market-nadawilli-sunflower-oil-500ml",
+      "name": "Масло подсолнечное Nadawilli 500 мл",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.578Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 36,
+      "slug": "cezoni-market-nadawilli-sunflower-oil-250ml",
+      "name": "Масло подсолнечное Nadawilli 250 мл",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.581Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 37,
+      "slug": "cezoni-market-sun-dried-tomatoes-260ml",
+      "name": "Томаты вяленые CEZONI в масле 260 мл",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.583Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 38,
+      "slug": "cezoni-market-iori-satsebeli-bbq-270g",
+      "name": "Соус сацебели шашлычный IORI 270 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.585Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 39,
+      "slug": "cezoni-market-iori-narsharab-350g",
+      "name": "Соус Наршараб IORI 350 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.587Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 40,
+      "slug": "cezoni-market-iori-satsebeli-classic-265g",
+      "name": "Соус сацебели классический IORI 265 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.589Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 41,
+      "slug": "cezoni-market-iori-tkemali-classic-285g",
+      "name": "Соус ткемали классический IORI 285 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.591Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 42,
+      "slug": "cezoni-market-iori-tkemali-bbq-285g",
+      "name": "Соус ткемали шашлычный IORI 285 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.593Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 43,
+      "slug": "cezoni-market-iori-tomato-basil-265g",
+      "name": "Соус томатный с базиликом IORI 265 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.595Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 44,
+      "slug": "cezoni-market-iori-green-adjika-120g",
+      "name": "Аджика абхазская зелёная IORI 120 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.597Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 45,
+      "slug": "cezoni-market-iori-classic-adjika-135g",
+      "name": "Аджика абхазская классическая IORI 135 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.599Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 46,
+      "slug": "cezoni-market-nocellara-green-olives-350g",
+      "name": "Оливки зеленые Ночеллара CEZONI 350 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.601Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 47,
+      "slug": "cezoni-market-de-luca-linguine-012-500g",
+      "name": "Паста De Luca Linguine №012 500 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.603Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 48,
+      "slug": "cezoni-market-de-luca-lasagna-129-500g",
+      "name": "Паста De Luca Lasagna №129 500 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.604Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 49,
+      "slug": "cezoni-market-valgri-young-peas-350g",
+      "name": "Горошек молодой Valgri 350 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.606Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 50,
+      "slug": "cezoni-market-valgri-spanish-white-beans-350g",
+      "name": "Фасоль белая испанская Valgri 350 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.609Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 51,
+      "slug": "cezoni-market-valgri-cannellini-350g",
+      "name": "Фасоль Cannellini Valgri 350 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.610Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 52,
+      "slug": "cezoni-market-valgri-tondini-350g",
+      "name": "Фасоль Tondini Valgri 350 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.612Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 53,
+      "slug": "cezoni-market-valgri-borlotti-350g",
+      "name": "Фасоль Borlotti Valgri 350 г",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.614Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 54,
+      "slug": "cezoni-market-nonno-giovanni-dop-250ml",
+      "name": "Оливковое масло Nonno Giovanni DOP 250 мл",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.616Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 55,
+      "slug": "cezoni-market-nonno-giovanni-dop-500ml",
+      "name": "Оливковое масло Nonno Giovanni DOP 500 мл",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.618Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    },
+    {
+      "productId": 56,
+      "slug": "cezoni-market-donna-carmela-igp-500ml",
+      "name": "Оливковое масло Donna Carmela IGP 500 мл",
+      "expectedUpdatedAt": "2026-10-06T17:06:39.619Z",
+      "sourceUrl": "https://cezoni.com/collection/all",
+      "before": {
+        "unit": "PIECE",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": null,
+        "priceUnit": null
+      },
+      "after": {
+        "unit": "PACK",
+        "priceQty": 1,
+        "min": 1,
+        "step": 1,
+        "portionQty": 1,
+        "saleModel": "PACK",
+        "priceUnit": "PACK"
+      },
+      "status": "CONFIRMED",
+      "evidenceIds": [
+        "cezoni"
+      ]
+    }
+  ]
+}

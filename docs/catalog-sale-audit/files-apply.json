@@ -1,0 +1,20 @@
+{
+  "apply": true,
+  "changes": [
+    {
+      "file": "apps/api/data/market-products/types.ts",
+      "action": "APPLY",
+      "before": "unit: 'GRAM' | 'PIECE';",
+      "after": "unit: 'GRAM' | 'PIECE' | 'BUNCH' | 'PACK';\n  saleModel?: 'PACK';\n  priceUnit?: 'PACK';"
+    },
+    {
+      "file": "apps/api/data/market-products/2026-10-06.ts",
+      "action": "APPLY",
+      "before": "unit: 'PIECE' as const, priceQty: 1",
+      "after": "unit: marketPointSlug === 'cezoni-market' ? 'PACK' as const : 'PIECE' as const,\n    ...(marketPointSlug === 'cezoni-market' ? { saleModel: 'PACK' as const, priceUnit: 'PACK' as const } : {}), priceQty: 1"
+    }
+  ],
+  "scope": "FINAL_RETAINED_SOURCE_CHANGES",
+  "verifiedAt": "2026-10-12T11:08:02.419Z",
+  "verifiedSourceProducts": 34
+}

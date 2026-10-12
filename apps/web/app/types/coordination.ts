@@ -1,4 +1,5 @@
 import type { Unit } from "./order";
+import type { Sale, SaleModel } from '../utils/sale';
 export interface OrderIssue {
   id: number;
   orderItemId: number;
@@ -9,19 +10,29 @@ export interface OrderIssue {
   requestedQty: number;
   actualQty: number | null;
   approvedActualQty: number | null;
+  actualWeightGrams?: number | null;
+  pieceWeights?: number[] | null;
+  approvedWeightGrams?: number | null;
+  approvedPieceWeights?: number[] | null;
   proposedName: string | null;
   proposedPrice: number | null;
   proposedPriceQty: number | null;
   proposedQty: number | null;
   proposedUnit: Unit | null;
+  proposedSaleModel?: SaleModel | null;
+  proposedPriceUnit?: Unit | null;
+  proposedWholeLabel?: string | null;
+  proposedEstimatedWeightGrams?: number | null;
   proposedImageUrl: string | null;
   updatedAt: string;
-  orderItem: {
+  orderItem: Sale & {
     productName: string;
     unit: Unit;
     price: number;
     actualPrice: number | null;
     priceQty: number;
+    weightMinGrams?: number | null;
+    weightMaxGrams?: number | null;
   };
 }
 export interface Coordination {

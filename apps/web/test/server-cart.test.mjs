@@ -66,7 +66,7 @@ test("fresh authenticated product route waits for restore, then sets desired tot
   assert.equal(f.cart.qty(1), 800);
   assert.equal(f.cart.displayTotal, 280000);
   assert.equal(await f.actions.add(product), true);
-  assert.equal(f.cart.qty(1), 1300);
+  assert.equal(f.cart.qty(1), 900);
 });
 
 test("stale website mutation refreshes bot changes without overwriting them", async () => {

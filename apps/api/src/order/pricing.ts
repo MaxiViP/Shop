@@ -1,6 +1,24 @@
 import { BadRequestException } from '@nestjs/common';
 import { lineAmount, sumAmounts } from './assembly.js';
 import { payableGoods } from '../promo/promo.js';
+import { actualQuantity, estimatedQuantity, type Sale, type WeighedItem } from '../product/sale.js';
+
+export function requestedLine(item: Sale & { price: number; priceQty: number; qty: number }): number | null {
+  try {
+    const qty = estimatedQuantity(item, item.qty);
+    return qty === null ? null : goodsLine(item.price, qty, item.priceQty);
+  } catch (error) {
+    if (error instanceof RangeError) throw new BadRequestException(error.message);
+    throw error;
+  }
+}
+export function pickedLine(item: WeighedItem & { price: number; actualPrice?: number | null; priceQty: number }): number {
+  try { return goodsLine(item.actualPrice ?? item.price, actualQuantity(item), item.priceQty); }
+  catch (error) {
+    if (error instanceof RangeError) throw new BadRequestException(error.message);
+    throw error;
+  }
+}
 
 export function goodsLine(price: number, qty: number, priceQty: number) {
   try {
@@ -52,14 +70,14 @@ export function totalWithDelivery(
 
 // Apply together with Delivery.price in a transaction holding the Order row lock.
 export function deliveryTotals(
-  order: { subtotal: number; finalSubtotal: number | null; freeDeliveryApplied?: boolean; promoDiscount?: number; finalPromoDiscount?: number | null },
+  order: { subtotal: number | null; finalSubtotal: number | null; freeDeliveryApplied?: boolean; promoDiscount?: number; finalPromoDiscount?: number | null },
   price: number,
 ) {
   positiveDeliveryPrice(price);
   const customerPrice = order.freeDeliveryApplied ? 0 : price;
   return {
     deliveryPrice: customerPrice,
-    total: totalWithDelivery(order.subtotal - (order.promoDiscount ?? 0), customerPrice),
+    total: totalWithDelivery(order.subtotal === null ? null : order.subtotal - (order.promoDiscount ?? 0), customerPrice),
     finalTotal: totalWithDelivery(payableGoods(order), customerPrice),
   };
 }

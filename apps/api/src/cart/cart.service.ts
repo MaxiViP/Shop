@@ -12,9 +12,12 @@ import { orderSchema, type OrderInput } from '../order/schema.js';
 import { cartProductSelect, cartQuantityValid } from '../order/cart-quote.js';
 import { manualQuantity } from '../order/assembly.js';
 import { customerProduct } from '../product/select.js';
+import { compatibleQuantityUnit, variableWeight, type SaleUnit } from '../product/sale.js';
+
+type CartQuantity = { productId: number; qty: number; quantityUnit?: SaleUnit; weightMinGrams?: number | null; weightMaxGrams?: number | null };
 
 export type CartChange =
-  | { kind: 'add' | 'set'; productId: number; qty: number }
+  | ({ kind: 'add' | 'set' } & CartQuantity)
   | { kind: 'plus' | 'minus' | 'remove'; productId: number }
   | { kind: 'promo'; promoCodeId: number | null }
   | { kind: 'clear' };
@@ -95,9 +98,11 @@ export class CartService {
           });
           if (!product) throw new NotFoundException('Товар больше недоступен');
           const old = cart.items.find((item) => item.productId === productId);
+          if (old && !compatibleQuantityUnit(old.quantityUnit, product) && change.kind !== 'set')
+            throw new BadRequestException('Способ продажи изменился. Выберите число целых экземпляров заново.');
           if (
-            (change.kind === 'add' || change.kind === 'set') &&
-            !cartQuantityValid(change.qty, product.min, product.step)
+            ((change.kind === 'set' && !cartQuantityValid(change.qty, product.min, product.step)) ||
+            (change.kind === 'add' && (!Number.isSafeInteger(change.qty) || change.qty <= 0 || change.qty > 1_000_000 || change.qty % product.step !== 0)))
           )
             throw new BadRequestException(
               'Количество не соответствует шагу или пределу товара',
@@ -116,17 +121,24 @@ export class CartService {
           }
           if (
             qty === null ||
-            !cartQuantityValid(qty, product.min, product.step)
+            !cartQuantityValid(qty, product.min, product.step) || (variableWeight(product) && qty > 100)
           )
             throw new BadRequestException(
               'Количество не соответствует шагу или пределу товара',
             );
           if (!old && cart.items.length >= 50)
             throw new BadRequestException('В корзине не больше 50 товаров');
+          const constraints = change.kind === 'add' || change.kind === 'set' ? {
+            weightMinGrams: change.weightMinGrams === undefined ? old?.weightMinGrams ?? null : change.weightMinGrams,
+            weightMaxGrams: change.weightMaxGrams === undefined ? old?.weightMaxGrams ?? null : change.weightMaxGrams,
+          } : { weightMinGrams: old?.weightMinGrams ?? null, weightMaxGrams: old?.weightMaxGrams ?? null };
+          if ((!variableWeight(product) && (constraints.weightMinGrams !== null || constraints.weightMaxGrams !== null)) ||
+            (constraints.weightMinGrams !== null && constraints.weightMaxGrams !== null && constraints.weightMinGrams > constraints.weightMaxGrams))
+            throw new BadRequestException('Проверьте ограничения веса целого экземпляра');
           await db.cartItem.upsert({
             where: { cartId_productId: { cartId: cart.id, productId } },
-            create: { cartId: cart.id, productId, qty },
-            update: { qty },
+            create: { cartId: cart.id, productId, qty, quantityUnit: product.unit, ...constraints },
+            update: { qty, quantityUnit: product.unit, ...constraints },
           });
         }
       }
@@ -138,14 +150,14 @@ export class CartService {
     });
   }
 
-  merge(userId: number, revision: string, items: { productId: number; qty: number }[]) {
+  merge(userId: number, revision: string, items: CartQuantity[]) {
     return this.db.$transaction(async (db) => {
       const cart = await this.locked(db, userId);
       if (cart.revision !== revision)
         throw new ConflictException('Корзина уже изменилась. Откройте /cart.');
       const existing = new Set(cart.items.map((item) => item.productId));
       const incoming = new Set<number>();
-      const additions: { productId: number; qty: number }[] = [];
+      const additions: CartQuantity[] = [];
       for (const item of items) {
         if (incoming.has(item.productId))
           throw new BadRequestException('Повторяющийся товар в корзине');
@@ -159,12 +171,17 @@ export class CartService {
         await db.$queryRaw`SELECT id FROM "Product" WHERE id = ANY(${ids}::int[]) ORDER BY id FOR SHARE`;
         const products = await db.product.findMany({
           where: { id: { in: ids }, active: true },
-          select: { id: true, min: true, step: true },
+          select: { id: true, min: true, step: true, unit: true, priceUnit: true },
         });
         for (const item of additions) {
           const product = products.find((row) => row.id === item.productId);
           if (!product || !cartQuantityValid(item.qty, product.min, product.step))
             throw new BadRequestException('Проверьте доступность и количество товаров');
+          if (!compatibleQuantityUnit(item.quantityUnit, product) || (variableWeight(product) && item.qty > 100))
+            throw new BadRequestException('Выберите число целых экземпляров заново');
+          if ((item.weightMinGrams != null || item.weightMaxGrams != null) && !variableWeight(product) ||
+            (item.weightMinGrams != null && item.weightMaxGrams != null && item.weightMinGrams > item.weightMaxGrams))
+            throw new BadRequestException('Проверьте ограничения веса');
         }
         await db.cartItem.createMany({
           data: additions.map((item) => ({ cartId: cart.id, ...item })),

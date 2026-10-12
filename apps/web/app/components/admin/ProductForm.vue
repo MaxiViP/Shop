@@ -50,6 +50,7 @@
           ><h2 class="font-semibold">Цена и количество</h2></template
         >
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <UFormField label="Способ продажи" :error="quantityError.saleModel" help="Нарезку, фасовку и оценочный вес подтвердите у продавца."><USelect v-model="form.saleModel" :items="saleOptions" value-key="value" class="w-full" @update:model-value="chooseSale" /></UFormField>
           <UFormField label="Цена продавца, ₽" required help="Исходная цена без сервиса KorzinaMarket."
             ><UInput
               v-model="rubles"
@@ -64,7 +65,10 @@
           <UFormField label="Достоверность цены" help="Статус относится к цене продавца; сервис добавляется автоматически.">
             <USelect v-model="form.priceStatus" :items="priceStatusItems" class="w-full" />
           </UFormField>
-          <UFormField :label="`Цена за количество (${quantityLabel})`"
+          <UFormField label="Единица цены" :error="quantityError.priceQty"><USelect v-model="form.priceUnit" :items="units" class="w-full" /></UFormField>
+          <UFormField v-if="variableWeight(form)" label="Название экземпляра"><USelect v-model="form.wholeLabel" :items="[...wholeLabels]" class="w-full" /></UFormField>
+          <UFormField v-if="variableWeight(form)" label="Оценочный вес одного экземпляра, г" :error="quantityError.estimatedWeightGrams" help="Только подтвержденная оценка продавца. Оставьте пустым, если вес неизвестен."><UInput v-model="estimate" type="number" min="1" :max="MAX_QTY" class="w-full" /></UFormField>
+          <UFormField :label="`Цена за количество (${priceQuantityLabel})`"
             ><UInput
               v-model.number="form.priceQty"
               type="number"
@@ -94,7 +98,7 @@
               required
               class="w-full"
           /></UFormField>
-          <UFormField :label="`Быстро добавить (${quantityLabel})`" :error="quantityError.portionQty" help="Столько товара добавляется одним нажатием + в каталоге."
+          <UFormField :label="`Первое добавление (${quantityLabel})`" :error="quantityError.portionQty" help="Первое нажатие добавляет порцию; следующие + и − используют шаг."
             ><UInput
               v-model.number="form.portionQty"
               type="number"
@@ -215,8 +219,10 @@ import type { AdminProduct, AdminCategory, ProductPricing } from "~/types/admin"
 import type { MarketPoint } from "~/types/market-map";
 import { priceStatusItems } from "~/utils/price-status";
 import type { Unit } from "~/types/product";
-import { MAX_QTY, manualQuantity, quantityErrors, quickQuantity } from "~/utils/assembly";
+import { MAX_QTY, manualQuantity, quantityErrors } from "~/utils/assembly";
 import { qtyText } from "~/utils/qty";
+import { priceUnit, saleErrors, variableWeight, wholeLabels, type SaleModel } from '~/utils/sale';
+import { nextCartQty } from '~/utils/cart';
 import type { HitMode, SeasonalMode, SeasonTemplate } from '~/types/badges';
 import { hitModes, seasonGroupLabel } from '~/utils/badges';
 const props = defineProps<{
@@ -238,6 +244,10 @@ const form = reactive({
   min: source?.min ?? 1,
   step: source?.step ?? 1,
   portionQty: source?.portionQty ?? source?.min ?? 1,
+  saleModel: source?.saleModel ?? null as SaleModel | null,
+  priceUnit: source?.priceUnit ?? source?.unit ?? 'PIECE' as Unit,
+  wholeLabel: (source?.wholeLabel ?? 'шт.') as typeof wholeLabels[number],
+  estimatedWeightGrams: source?.estimatedWeightGrams ?? null as number | null,
   active: source?.active ?? true,
   hitMode: source?.hitMode ?? ('AUTO' as HitMode),
   seasonalMode: source?.seasonalMode ?? ('OFF' as SeasonalMode),
@@ -245,6 +255,23 @@ const form = reactive({
   sort: source?.sort ?? 0,
 });
 const rubles = ref(source ? kopecksToRubles(source.price) : "");
+const estimate = ref(source?.estimatedWeightGrams?.toString() ?? '');
+watch(estimate, value => { form.estimatedWeightGrams = value === '' ? null : Number(value); });
+const saleOptions = [
+  { label: 'Существующий режим', value: null },
+  { label: 'На развес', value: 'WEIGHT_LOOSE' }, { label: 'Поштучно', value: 'PIECE_FIXED' },
+  { label: 'Пучками', value: 'BUNCH' }, { label: 'Упаковками', value: 'PACK' },
+  { label: 'Целиком с взвешиванием', value: 'WHOLE_VARIABLE_WEIGHT' }, { label: 'Нарезка по весу', value: 'CUT_TO_WEIGHT' },
+];
+function chooseSale() {
+  if (!form.saleModel) return;
+  const mode = form.saleModel;
+  form.unit = mode === 'PACK' ? 'PACK' : mode === 'BUNCH' ? 'BUNCH' : ['WHOLE_VARIABLE_WEIGHT', 'PIECE_FIXED'].includes(mode) ? 'PIECE' : 'GRAM';
+  form.priceUnit = mode === 'WHOLE_VARIABLE_WEIGHT' ? 'GRAM' : form.unit;
+  // The administrator must check the existing price before changing its base.
+  if (form.unit !== 'GRAM') form.min = form.step = form.portionQty = 1;
+  if (!variableWeight(form)) { form.estimatedWeightGrams = null; estimate.value = ''; }
+}
 const checkedDate = ref(source?.sourceCheckedAt?.slice(0, 10) ?? "");
 const pricing = ref<ProductPricing | null>(source ?? null);
 const pricingError = ref(false);
@@ -284,13 +311,14 @@ const units = [
 const quantityLabel = computed(
   () => ({ GRAM: "г", PIECE: "шт.", BUNCH: "пуч.", PACK: "уп." })[form.unit],
 );
-const quantityError = computed(() => quantityErrors(form));
+const priceQuantityLabel = computed(() => ({ GRAM: 'г', PIECE: 'шт.', BUNCH: 'пуч.', PACK: 'уп.' })[priceUnit(form)]);
+const quantityError = computed<Record<string, string | undefined>>(() => ({ ...quantityErrors(form), ...saleErrors({ ...form, wholeLabel: variableWeight(form) ? form.wholeLabel : null }) }));
 const preview = computed(() => {
   if (Object.keys(quantityError.value).length) return null;
   const quick: number[] = [];
   const manual = [form.min];
   for (let i = 0; i < 3; i++) {
-    const next = quickQuantity(quick.at(-1), form);
+    const next = nextCartQty(quick.at(-1), form);
     if (next !== null) quick.push(next);
     if (i < 2) {
       const nextManual = manualQuantity(manual.at(-1)!, form, 1);
@@ -362,6 +390,7 @@ async function save() {
         method: source ? "PATCH" : "POST",
         body: {
           ...form,
+          wholeLabel: variableWeight(form) ? form.wholeLabel : null,
           name: form.name.trim(),
           description: form.description.trim() || null,
           price,

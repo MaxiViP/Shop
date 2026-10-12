@@ -1,0 +1,22 @@
+{
+  "dataDirectories": [
+    "bagrationovsky",
+    "catalog-drafts",
+    "catalog-import",
+    "imports",
+    "market-products",
+    "product-photos",
+    "sale-audit"
+  ],
+  "points": [
+    "docs/market-map.md",
+    "apps/api/prisma/migrations/20261006120000_market_map/migration.sql",
+    "apps/api/data/imports/bagrationovsky-2026-10-11/bagrationovsky-stores-2026-10-11.json"
+  ],
+  "referenceOnly": [
+    "apps/api/data/product-photos/",
+    "product-photo-slugs.json",
+    "product-photo-slugs-copy.json"
+  ],
+  "excluded": "Test fixtures are not catalog products."
+}

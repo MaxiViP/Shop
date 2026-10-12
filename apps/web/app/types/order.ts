@@ -1,4 +1,5 @@
 import type { OrderPromo } from './promo';
+import type { Sale } from '../utils/sale';
 
 export type OrderStatus =
   | 'NEW'
@@ -110,7 +111,7 @@ export interface OrderCreated extends OrderPromo {
   type: OrderType
   status: OrderStatus
 
-  subtotal: number
+  subtotal: number | null
   deliveryPrice: number | null
   total: number | null
 
@@ -120,7 +121,7 @@ export interface OrderCreated extends OrderPromo {
     id: number
     productName: string
     qty: number
-    total: number
+    total: number | null
   }[]
 }
 
@@ -129,7 +130,7 @@ export interface OrderSummary extends OrderPromo {
   scheduledFor: string | null
   issues?: { id: number; status: string }[]
   customerUnread?: number
-  subtotal: number
+  subtotal: number | null
   deliveryPrice: number | null
   finalSubtotal: number | null
   payment: OrderPayment | null
@@ -164,6 +165,8 @@ export interface OrderDetail extends OrderPromo {
     resolution: string | null
     actualQty: number | null
     approvedActualQty: number | null
+    approvedWeightGrams?: number | null
+    approvedPieceWeights?: number[] | null
     proposedName: string | null
     proposedQty: number | null
     proposedUnit: Unit | null
@@ -194,7 +197,7 @@ export interface OrderDetail extends OrderPromo {
 
   deliveryAt: string | null
 
-  subtotal: number
+  subtotal: number | null
   deliveryPrice: number | null
   total: number | null
   finalSubtotal: number | null
@@ -205,7 +208,7 @@ export interface OrderDetail extends OrderPromo {
 
   delivery: DeliveryInfo | null
 
-  items: {
+  items: (Sale & {
     id: number
     productName: string
     productSlug: string
@@ -221,8 +224,12 @@ export interface OrderDetail extends OrderPromo {
 
     qty: number
     actualQty: number | null
-    total: number
-  }[]
+    actualWeightGrams?: number | null
+    pieceWeights?: number[] | null
+    weightMinGrams?: number | null
+    weightMaxGrams?: number | null
+    total: number | null
+  })[]
 }
 
 export interface OrderExtra {
@@ -271,7 +278,7 @@ export interface PublicTracking {
     id: number
     status: OrderStatus
     deliveryAt: string | null
-    subtotal: number
+    subtotal: number | null
     deliveryPrice: number | null
     total: number | null
     finalSubtotal: number | null

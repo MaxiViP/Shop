@@ -7,14 +7,15 @@ import {
   GoneException,
   Logger,
 } from '@nestjs/common';
-import type { Prisma, OrderChatMessage, MessageAuthor } from '../db/gen/client.js';
+import { Prisma, type OrderChatMessage, type MessageAuthor } from '../db/gen/client.js';
 import type { z } from 'zod';
 import { DbService } from '../db/db.service.js';
 import { OrderService } from './order.service.js';
 import { NotificationService } from './notification.service.js';
-import { actionNotification, chatUnread, message, customerIssueActions, compositionQty, compositionMoney } from './coordination.js';
+import { actionNotification, chatUnread, message, customerIssueActions, compositionItem, compositionMoney } from './coordination.js';
 import { cancelOrder } from './cancel.js';
-import { goodsLine } from './pricing.js';
+import { requestedLine } from './pricing.js';
+import { variableWeight } from '../product/sale.js';
 import { customerPrice, SERVICE_MARKUP_PERCENT } from '../product/pricing.js';
 import { chatSchema } from './coordination.schema.js';
 import { imageChatSchema, imageRevisionSchema } from './coordination.schema.js';
@@ -132,6 +133,8 @@ export class CoordinationService {
               price: true,
               actualPrice: true,
               priceQty: true,
+              saleModel: true, priceUnit: true, wholeLabel: true, actualWeightGrams: true,
+              weightMinGrams: true, weightMaxGrams: true,
             },
           },
         },
@@ -210,6 +213,7 @@ export class CoordinationService {
         ['ACCEPT_ACTUAL', 'REQUEST_REDUCE'].includes(data.action) &&
         (issue.type !== 'WEIGHT_DEVIATION' ||
           issue.actualQty !== issue.orderItem.actualQty ||
+          (variableWeight(issue.orderItem) && (issue.actualWeightGrams !== issue.orderItem.actualWeightGrams || JSON.stringify(issue.pieceWeights) !== JSON.stringify(issue.orderItem.pieceWeights))) ||
           issue.orderItem.status !== 'PICKED')
       )
         throw stale();
@@ -220,7 +224,7 @@ export class CoordinationService {
       ) {
         await db.orderItem.update({
           where: { id: issue.orderItemId },
-          data: { status: 'MISSING', actualQty: 0, actualTotal: 0 },
+          data: { status: 'MISSING', actualQty: 0, actualTotal: 0, actualWeightGrams: null, pieceWeights: Prisma.DbNull },
         });
       }
       if (data.action === 'ACCEPT_REPLACEMENT') {
@@ -252,16 +256,18 @@ export class CoordinationService {
             productName: issue.proposedName,
             productSlug: issue.proposedSlug,
             unit: issue.proposedUnit,
+            saleModel: issue.proposedSaleModel,
+            priceUnit: issue.proposedPriceUnit,
+            wholeLabel: issue.proposedWholeLabel,
+            estimatedWeightGrams: issue.proposedEstimatedWeightGrams,
             price: issue.proposedPrice,
             serviceMarkupPercentSnapshot: original.serviceMarkupPercentSnapshot ?? SERVICE_MARKUP_PERCENT,
             priceQty: issue.proposedPriceQty,
             qty: issue.proposedQty,
             image: issue.proposedImageUrl,
-            total: goodsLine(
-              issue.proposedPrice,
-              issue.proposedQty,
-              issue.proposedPriceQty,
-            ),
+            total: requestedLine({ unit: issue.proposedUnit, saleModel: issue.proposedSaleModel,
+              priceUnit: issue.proposedPriceUnit, estimatedWeightGrams: issue.proposedEstimatedWeightGrams,
+              price: issue.proposedPrice, qty: issue.proposedQty, priceQty: issue.proposedPriceQty }),
           },
         });
         replacementItemId = replacement.id;
@@ -275,14 +281,16 @@ export class CoordinationService {
           resolvedAt: data.action === 'REQUEST_REDUCE' ? null : new Date(),
           approvedActualQty:
             data.action === 'ACCEPT_ACTUAL' ? issue.actualQty : null,
+          approvedWeightGrams: data.action === 'ACCEPT_ACTUAL' ? issue.orderItem.actualWeightGrams : null,
+          approvedPieceWeights: data.action === 'ACCEPT_ACTUAL' ? issue.orderItem.pieceWeights ?? Prisma.DbNull : Prisma.DbNull,
           replacementItemId,
         },
       });
       const text =
         data.action === 'ACCEPT_ACTUAL'
-          ? `Покупатель согласился на ${issue.actualQty} г: ${issue.orderItem.productName}.`
+          ? `Покупатель согласился на ${compositionItem(issue.actualQty!, issue.orderItem, issue.orderItem.actualWeightGrams)}: ${issue.orderItem.productName}.`
           : data.action === 'REQUEST_REDUCE'
-            ? `Покупатель попросил уменьшить вес: ${issue.orderItem.productName}.`
+            ? `${variableWeight(issue.orderItem) ? 'Покупатель попросил другой целый экземпляр. Обсудите замену в чате' : 'Покупатель попросил уменьшить количество'}: ${issue.orderItem.productName}.`
             : data.action === 'ACCEPT_REPLACEMENT'
               ? `Покупатель выбрал замену: ${issue.proposedName}.`
               : `Покупатель убрал из заказа: ${issue.orderItem.productName}.`;
@@ -343,7 +351,8 @@ export class CoordinationService {
       if (original.serviceMarkupPercentSnapshot === null)
         await db.orderItem.update({ where: { id: issue.orderItemId }, data: { serviceMarkupPercentSnapshot: percent } });
       const price = customerPrice(product.price, percent);
-      const total = goodsLine(price, data.qty, product.priceQty);
+      if (variableWeight(product) && data.qty > 100) throw new BadRequestException('До 100 целых экземпляров в позиции');
+      const total = requestedLine({ ...product, price, qty: data.qty });
       const updated = await db.orderIssue.update({
         where: { id: issue.id },
         data: {
@@ -359,13 +368,17 @@ export class CoordinationService {
           proposedPriceQty: product.priceQty,
           proposedQty: data.qty,
           proposedUnit: product.unit,
+          proposedSaleModel: product.saleModel,
+          proposedPriceUnit: product.priceUnit,
+          proposedWholeLabel: product.wholeLabel,
+          proposedEstimatedWeightGrams: product.estimatedWeightGrams,
           proposedImageUrl: product.images[0]?.url ?? null,
         },
       });
       const notice = await message(
         db,
         id,
-        `Для товара «${issue.orderItem.productName}» предложена замена: ${product.name}, ${compositionQty(data.qty, product.unit)}, ${compositionMoney(total)}.`,
+        `Для товара «${issue.orderItem.productName}» предложена замена: ${product.name}, ${compositionItem(data.qty, product)}, ${total === null ? 'стоимость после взвешивания' : compositionMoney(total)}.`,
         'SYSTEM',
         actor.userId,
         issue.id,

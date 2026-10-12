@@ -1,0 +1,374 @@
+{
+  "checkedOn": "2026-10-12",
+  "sources": [
+    {
+      "id": "cezoni",
+      "url": "https://cezoni.com/collection/all",
+      "scope": "EXACT_SELLER_SKUS",
+      "confidence": "HIGH",
+      "finding": "Сопоставлены 34 SKU из снимка 2026-10-06. Фиксированная потребительская фасовка; цены не обновлялись.",
+      "verifiedSkus": [
+        {
+          "slug": "cezoni-market-casa-rinaldi-carnaroli-500g",
+          "name": "Рис Casa Rinaldi Карнароли 500 г"
+        },
+        {
+          "slug": "cezoni-market-casa-rinaldi-modena-spray-250ml",
+          "name": "Уксус бальзамический Casa Rinaldi Modena спрей 250 мл"
+        },
+        {
+          "slug": "cezoni-market-black-olives-350g",
+          "name": "Оливки CEZONI черные в рассоле 350 г"
+        },
+        {
+          "slug": "cezoni-market-grilled-artichokes-350g",
+          "name": "Артишоки CEZONI гриль 350 г"
+        },
+        {
+          "slug": "cezoni-market-cantuccini-cherry-almond-180g",
+          "name": "Печенье Кантуччини Вишня и миндаль CEZONI 180 г"
+        },
+        {
+          "slug": "cezoni-market-butter-biscuits-180g",
+          "name": "Печенье CEZONI домашнее на сливочном масле 180 г"
+        },
+        {
+          "slug": "cezoni-market-dalla-costa-fast-races-250g",
+          "name": "Паста детская Dalla Costa «Быстрые гонки» 250 г"
+        },
+        {
+          "slug": "cezoni-market-classic-grissini-150g",
+          "name": "Гриссини классические CEZONI 150 г"
+        },
+        {
+          "slug": "cezoni-market-nadawilli-wheat-germ-oil-250ml",
+          "name": "Масло зародышей пшеницы Nadawilli 250 мл"
+        },
+        {
+          "slug": "cezoni-market-nadawilli-walnut-oil-250ml",
+          "name": "Масло грецкого ореха Nadawilli 250 мл"
+        },
+        {
+          "slug": "cezoni-market-nadawilli-pumpkin-oil-250ml",
+          "name": "Масло тыквенное Nadawilli 250 мл"
+        },
+        {
+          "slug": "cezoni-market-nadawilli-garlic-sunflower-oil-250ml",
+          "name": "Масло подсолнечное чесночное Nadawilli 250 мл"
+        },
+        {
+          "slug": "cezoni-market-nadawilli-sunflower-oil-500ml",
+          "name": "Масло подсолнечное Nadawilli 500 мл"
+        },
+        {
+          "slug": "cezoni-market-nadawilli-sunflower-oil-250ml",
+          "name": "Масло подсолнечное Nadawilli 250 мл"
+        },
+        {
+          "slug": "cezoni-market-sun-dried-tomatoes-260ml",
+          "name": "Томаты вяленые CEZONI в масле 260 мл"
+        },
+        {
+          "slug": "cezoni-market-iori-satsebeli-bbq-270g",
+          "name": "Соус сацебели шашлычный IORI 270 г"
+        },
+        {
+          "slug": "cezoni-market-iori-narsharab-350g",
+          "name": "Соус Наршараб IORI 350 г"
+        },
+        {
+          "slug": "cezoni-market-iori-satsebeli-classic-265g",
+          "name": "Соус сацебели классический IORI 265 г"
+        },
+        {
+          "slug": "cezoni-market-iori-tkemali-classic-285g",
+          "name": "Соус ткемали классический IORI 285 г"
+        },
+        {
+          "slug": "cezoni-market-iori-tkemali-bbq-285g",
+          "name": "Соус ткемали шашлычный IORI 285 г"
+        },
+        {
+          "slug": "cezoni-market-iori-tomato-basil-265g",
+          "name": "Соус томатный с базиликом IORI 265 г"
+        },
+        {
+          "slug": "cezoni-market-iori-green-adjika-120g",
+          "name": "Аджика абхазская зелёная IORI 120 г"
+        },
+        {
+          "slug": "cezoni-market-iori-classic-adjika-135g",
+          "name": "Аджика абхазская классическая IORI 135 г"
+        },
+        {
+          "slug": "cezoni-market-nocellara-green-olives-350g",
+          "name": "Оливки зеленые Ночеллара CEZONI 350 г"
+        },
+        {
+          "slug": "cezoni-market-de-luca-linguine-012-500g",
+          "name": "Паста De Luca Linguine №012 500 г"
+        },
+        {
+          "slug": "cezoni-market-de-luca-lasagna-129-500g",
+          "name": "Паста De Luca Lasagna №129 500 г"
+        },
+        {
+          "slug": "cezoni-market-valgri-young-peas-350g",
+          "name": "Горошек молодой Valgri 350 г"
+        },
+        {
+          "slug": "cezoni-market-valgri-spanish-white-beans-350g",
+          "name": "Фасоль белая испанская Valgri 350 г"
+        },
+        {
+          "slug": "cezoni-market-valgri-cannellini-350g",
+          "name": "Фасоль Cannellini Valgri 350 г"
+        },
+        {
+          "slug": "cezoni-market-valgri-tondini-350g",
+          "name": "Фасоль Tondini Valgri 350 г"
+        },
+        {
+          "slug": "cezoni-market-valgri-borlotti-350g",
+          "name": "Фасоль Borlotti Valgri 350 г"
+        },
+        {
+          "slug": "cezoni-market-nonno-giovanni-dop-250ml",
+          "name": "Оливковое масло Nonno Giovanni DOP 250 мл"
+        },
+        {
+          "slug": "cezoni-market-nonno-giovanni-dop-500ml",
+          "name": "Оливковое масло Nonno Giovanni DOP 500 мл"
+        },
+        {
+          "slug": "cezoni-market-donna-carmela-igp-500ml",
+          "name": "Оливковое масло Donna Carmela IGP 500 мл"
+        }
+      ]
+    },
+    {
+      "id": "grand-bazar",
+      "url": "https://grandbazar.su/shop/",
+      "scope": "EXACT_SELLER_CATALOG_PARTIAL",
+      "confidence": "MEDIUM",
+      "finding": "Прямая загрузка недоступна, индекс содержит каталог. Часть SKU имеет обозначения x2/x3; состав продаваемого набора требует сверки."
+    },
+    {
+      "id": "romanovo",
+      "url": "https://romanovo.ru/ikra",
+      "scope": "SELLER_PAGE_SKUS_UNAVAILABLE",
+      "confidence": "LOW",
+      "finding": "Страница доступна, но динамические карточки STANDARD/PREMIUM не раскрыты. Фасовки из исходного файла не подтверждены повторной проверкой; изменения не применены."
+    },
+    {
+      "id": "vegetables",
+      "url": "https://delivery.danilovskymarket.ru/shops/ovoshi-danilovskogo-rynka",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Весовые овощи с разными порциями. Каталог не доказывает возможность отпустить произвольные граммы крупного целого экземпляра."
+    },
+    {
+      "id": "fruits",
+      "url": "https://apeti.ru/catalog/frukty/",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Есть весовые и штучные варианты фруктов; цена конкретного SKU должна сохранять свою базу."
+    },
+    {
+      "id": "greens",
+      "url": "https://apeti.ru/catalog/zelen/",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Наблюдаются граммовые порции 50/100 г и салат микс 140 г за единицу. Физический пучок не равен стандартным 100 г."
+    },
+    {
+      "id": "berries",
+      "url": "https://apeti.ru/catalog/yagody/",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Голубика и малина по 125 г, клубника по 250 г в этом каталоге; это не подтверждение упаковок выбранной точки."
+    },
+    {
+      "id": "blueberries",
+      "url": "https://apeti.ru/product/golubika.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Ценовая база килограмм, расчетная порция 125 г; подпись изображения не доказывает фиксированную цену лотка."
+    },
+    {
+      "id": "dorado",
+      "url": "https://apeti.ru/product/dorado_srednyaya_okhlazhdennaya.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Цена за килограмм; рыба взвешивается до чистки. Диапазон 400/600 относится только к этому SKU."
+    },
+    {
+      "id": "bone-cut",
+      "url": "https://delivery.danilovskymarket.ru/products/myaso-ptica-delikatesy/govyadina/bulonka-govyazhya-na-kosti-mt",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Продавец указывает минимальный вес 1,5 кг и пересчет после взвешивания; перенос минимума на другие отрубы запрещен."
+    },
+    {
+      "id": "meat",
+      "url": "https://delivery.danilovskymarket.ru/shops/lavka-myasnye-tradicii",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Фарш и мякоть представлены порциями 500 г; язык и отрубы на кости имеют другие расчетные массы. Нарезка у точек Shop не подтверждена."
+    },
+    {
+      "id": "lamb",
+      "url": "https://delivery.danilovskymarket.ru/shops/fermerskoe-myaso?category=baranina",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Нога, лопатка, ребра и порционно рубленная корейка различаются. Название и фотография не заменяют условия отпуска."
+    },
+    {
+      "id": "rabbit",
+      "url": "https://apeti.ru/catalog/myaso_krolika/filter/chast_tushi-is-tushka/",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Каталог тушек содержит расчетную массу кролика и цену за килограмм. Масса чужого SKU не используется в Shop."
+    },
+    {
+      "id": "duck",
+      "url": "https://delivery.danilovskymarket.ru/products/myaso-ptica-delikatesy/utka-gus/utka-domashnyaya-zamorozhennaya-3-kg",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Весовая тушка: расчет указан за 3 кг, окончательная стоимость после взвешивания. Это не фиксированная упаковка 3 кг."
+    },
+    {
+      "id": "liver",
+      "url": "https://apeti.ru/product/pechen_govyazhya_1_kg.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Охлажденная печень с килограммовой ценовой базой; возможность отделения у выбранной точки остается открытой."
+    },
+    {
+      "id": "nuts",
+      "url": "https://apeti.ru/product/mindal_ochishchennyy_zharenyy_na_razves_100_g.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Развесной миндаль: текущая порция 250 г и килограммовая цена. Сегмент URL 100_g устарел; он не доказательство порции."
+    },
+    {
+      "id": "cheese",
+      "url": "https://apeti.ru/product/syr_rassolnyy_aparan_na_razves.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Рассольный сыр на развес, в контейнере и с килограммовой ценой. Сам контейнер не означает фиксированную упаковочную цену."
+    },
+    {
+      "id": "sausage",
+      "url": "https://delivery.danilovskymarket.ru/products/myasnye-delikatesy-kolbasa-salo-rulety-sosiski-sardelki-pashtety-khumus/kolbasnie_izdeliya1/kolbasa-krovyanaya-s-govyazhim-yazykom",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Колбаса явно обозначена на развес, порция 300 г. Отпуск других колбас батонами/нарезкой требует проверки."
+    },
+    {
+      "id": "pickles",
+      "url": "https://apeti.ru/catalog/domashnie/filter/tip_produkta-is-ogurtsi/",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Бочковые огурцы на развес, расчетная порция 250 г; отличается от готовой банки."
+    },
+    {
+      "id": "pickle-jar",
+      "url": "https://apeti.ru/product/ogurtsy_domashnie_s_zelenyu_v_zalivke_3_l.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Отдельный продукт в банке 3 л с ценой за банку. Не переводить бочковые соленья в PACK по аналогии."
+    },
+    {
+      "id": "eggs",
+      "url": "https://apeti.ru/product/yaytso_kurinoe_zheltoe_s1_10sht.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Цена за десяток яиц. В карточке PACK один лоток должен сохранять стоимость всего десятка."
+    },
+    {
+      "id": "tea-loose",
+      "url": "https://apeti.ru/product/chay_chernyy_taezhnyy_na_razves_100_g.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Чай обозначен как развесной, хотя в названии 100 г. На странице есть несогласованность подписи ценовой базы и расчетной суммы; конвертация цен запрещена."
+    },
+    {
+      "id": "dairy",
+      "url": "https://apeti.ru/product/moloko_apeti_pasterizovannoe_3_2_1_l.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Отдельный SKU молока объемом 1 л с ценой за эту фасовку. Вес в граммах из литров не выводится."
+    },
+    {
+      "id": "sweets-loose",
+      "url": "https://apeti.ru/product/khalva_takhinno_podsolnechnaya_na_razves_100_g.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Развесная халва порцией 250 г. Заголовок фасовки не доказывает готовую упаковку конкретного другого продавца."
+    },
+    {
+      "id": "dried-fruits",
+      "url": "https://apeti.ru/catalog/sukhofrukty/",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Финики и изюм встречаются на развес; отдельные финики по 500 г/1 кг имеют цену за единицу. Нужна SKU-проверка."
+    },
+    {
+      "id": "seafood",
+      "url": "https://apeti.ru/product/krevetki_korolevskie_ochishchennye_s_khvostikom_1_kg.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Креветки отдельного калибра 21/25 с килограммовой ценой. Это не подтверждение возможности разделить упаковку 70/90 в Shop."
+    },
+    {
+      "id": "heart",
+      "url": "https://apeti.ru/product/serdtse_govyazhe_1_kg.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Сердце с килограммовой ценой и иной расчетной массой. Разрезание и масса экземпляра выбранной точки не подтверждены."
+    },
+    {
+      "id": "baked-pack",
+      "url": "https://apeti.ru/product/kruassan_7_days_s_kremom_vanil_65_g.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Фабричный круассан 65 г в индивидуальной упаковке за единицу. Отпуск свежей выпечки другой пекарни отдельно проверяется."
+    },
+    {
+      "id": "honey",
+      "url": "https://apeti.ru/product/myed_aragats_gornyy_armyanskiy_v_sotakh_350_g.html",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Отдельный SKU сотового меда 350 г с ценой за эту фасовку. Данных о нарезке и фасовке 500 г пасеки Shop нет."
+    },
+    {
+      "id": "coffee",
+      "url": "https://apeti.ru/catalog/kofe/",
+      "scope": "MARKET_ANALOG",
+      "confidence": "HIGH",
+      "finding": "Фасованный кофе 250 г за единицу отличается от развесного кофе порцией 100 г с килограммовой ценой."
+    },
+    {
+      "id": "bakery",
+      "url": "https://delivery.danilovskymarket.ru/shops/sasha-bread-bakery",
+      "scope": "MARKET_ANALOG",
+      "confidence": "MEDIUM",
+      "finding": "Разные SKU хлеба, багетов, круассанов и подготовленных сладостей с собственной расчетной массой; это не доказательство нарезки или порции другой пекарни."
+    },
+    {
+      "id": "foodcity",
+      "url": "https://dm.foodcity.ru/",
+      "scope": "UNAVAILABLE",
+      "confidence": "NONE",
+      "finding": "Доступные инструменты чтения не получили каталог. Данные и условия продаж из него не утверждаются."
+    },
+    {
+      "id": "korzina",
+      "url": "https://korzinamarket.ru/",
+      "scope": "UNAVAILABLE",
+      "confidence": "NONE",
+      "finding": "Прямая загрузка сайта недоступна инструменту исследования. Полная инвентаризация относится к доступной локальной БД, не к неизвестному состоянию production."
+    }
+  ]
+}

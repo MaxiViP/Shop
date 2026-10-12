@@ -8,21 +8,24 @@
 <script setup lang="ts">
 import type { ProductListItem } from "~/types/product";
 import { money } from "~/utils/money";
+import { priceUnit } from '../../utils/sale.ts';
 
 const { product } = defineProps<{
   product: ProductListItem;
 }>();
 
 const unit = computed(() => {
-  if (product.unit === "GRAM") {
+  const base = priceUnit(product);
+  if (base === "GRAM") {
     return product.priceQty === 1000 ? "кг" : `${product.priceQty} г`;
   }
 
-  return {
+  const label = {
     PIECE: "шт.",
     BUNCH: "пучок",
     PACK: "уп.",
-  }[product.unit];
+  }[base];
+  return product.priceQty === 1 ? label : `${product.priceQty} ${label}`;
 });
 </script>
 

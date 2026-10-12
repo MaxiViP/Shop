@@ -9,10 +9,14 @@ export interface ExtraLimits {
   maxOrderExtraUnitPrice: number;
   maxOrderExtrasTotal: number;
 }
+type Eligibility = { remaining: number | null; progress: number; delivery: boolean; pickup: boolean };
+export function deliveryEligibility(subtotal: number, settings: PublicShopSettings): Eligibility & { remaining: number };
+export function deliveryEligibility(subtotal: number | null, settings: PublicShopSettings): Eligibility;
 export function deliveryEligibility(
-  subtotal: number,
+  subtotal: number | null,
   settings: PublicShopSettings,
 ) {
+  if (subtotal === null) return { remaining: null, progress: 0, delivery: settings.deliveryEnabled, pickup: settings.pickupEnabled };
   const remaining = Math.max(0, settings.minDeliverySubtotal - subtotal);
   return {
     remaining,

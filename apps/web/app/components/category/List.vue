@@ -1,19 +1,27 @@
 <template>
   <div class="categories" :class="{ 'categories--tracked': active !== undefined }">
-    <UModal v-model:open="open" title="Все категории" description="Выберите категорию или найдите её по названию" :content="{ onOpenAutoFocus: focusSearch }" :ui="{ content: 'categories__dialog top-auto inset-x-0 bottom-0 translate-x-0 translate-y-0 w-full max-w-none rounded-t-xl sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:right-auto sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[calc(100vw-2rem)] sm:max-w-lg sm:rounded-lg', overlay: 'categories__overlay', body: 'categories__body' }">
+    <UModal v-model:open="open" title="Все категории" description="Выберите категорию или найдите её по названию" :content="{ onOpenAutoFocus: focusPanel }" :ui="{ content: 'categories__dialog top-auto inset-x-0 bottom-0 translate-x-0 translate-y-0 w-full max-w-none rounded-t-xl sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:right-auto sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[calc(100vw-2rem)] sm:max-w-lg sm:rounded-lg', overlay: 'categories__overlay', body: 'categories__body', footer: 'categories__footer' }">
       <UButton class="categories__toggle" type="button" icon="i-lucide-layout-grid" color="neutral" variant="soft" aria-label="Все категории" :aria-expanded="open" aria-haspopup="dialog" />
       <template #close><UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" aria-label="Закрыть категории" /></template>
       <template #body>
         <div ref="panel" class="categories__panel">
-          <div class="categories__search">
-            <UInput v-model="search" icon="i-lucide-search" placeholder="Найти категорию" aria-label="Поиск категорий" maxlength="160" class="categories__input" />
-            <UButton v-if="search" type="button" icon="i-lucide-x" variant="ghost" color="neutral" aria-label="Очистить поиск категорий" @click="search = ''; focusInput()" />
-          </div>
           <nav class="categories__grid" aria-label="Полный список категорий">
             <NuxtLink v-if="!search.trim() || 'все'.includes(search.trim().toLocaleLowerCase('ru-RU'))" :to="link('/catalog')" class="categories__card" :class="{ 'categories__card--active': active === '' }" :aria-current="current('')" @click="chooseCategory($event, '')">Все товары</NuxtLink>
             <NuxtLink v-for="item in filtered" :key="item.id" :to="link(`/catalog/${item.slug}`)" class="categories__card" :class="{ 'categories__card--active': active === item.slug }" :aria-current="current(item.slug)" @click="chooseCategory($event, item.slug)">{{ item.name }}</NuxtLink>
           </nav>
           <p v-if="search.trim() && !filtered.length && !'все'.includes(search.trim().toLocaleLowerCase('ru-RU'))" class="categories__empty" role="status">Категории не найдены</p>
+        </div>
+      </template>
+      <template #footer>
+        <div ref="searchBar" class="categories__search" :class="{ 'categories__search--open': searchOpen }">
+          <div class="categories__search-field" :inert="!searchOpen" :aria-hidden="!searchOpen">
+            <UInput v-model="search" placeholder="Найти категорию" aria-label="Поиск категорий" maxlength="160" :tabindex="searchOpen ? 0 : -1" class="categories__input" :ui="{ base: 'pe-14' }">
+              <template #trailing>
+                <UButton type="button" icon="i-lucide-x" variant="ghost" color="neutral" class="categories__search-clear" aria-label="Закрыть поиск категорий" @click="closeSearch" />
+              </template>
+            </UInput>
+          </div>
+          <UButton type="button" icon="i-lucide-search" variant="soft" color="neutral" class="categories__search-toggle" :aria-label="searchOpen ? 'Свернуть поиск категорий' : 'Открыть поиск категорий'" :aria-expanded="searchOpen" @click="toggleSearch" />
         </div>
       </template>
     </UModal>
@@ -34,7 +42,9 @@ const props = defineProps<{ items: Category[]; query?: Record<string, string>; a
 const emit = defineEmits<{ choose: [slug: string]; 'update:sort': [value: ProductSort] }>();
 const nav = ref<HTMLElement | null>(null);
 const panel = ref<HTMLElement | null>(null);
+const searchBar = ref<HTMLElement | null>(null);
 const open = ref(false);
+const searchOpen = ref(false);
 const search = ref('');
 const filtered = computed(() => {
   const value = search.value.trim().toLocaleLowerCase('ru-RU');
@@ -62,21 +72,50 @@ function fitPanel() {
   if (!dialog) return;
   const viewport = window.visualViewport;
   dialog.style.setProperty('--categories-height', (viewport?.height ?? window.innerHeight) + 'px');
+  dialog.style.setProperty('--categories-center', ((viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight) / 2) + 'px');
   dialog.style.setProperty('--categories-keyboard', Math.max(0, window.innerHeight - (viewport ? viewport.height + viewport.offsetTop : window.innerHeight)) + 'px');
 }
-function focusInput() { panel.value?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true }); }
-function focusSearch(event: Event) { event.preventDefault(); void nextTick(() => { fitPanel(); focusInput(); }); }
+function resetSearch() {
+  searchBar.value?.querySelector<HTMLInputElement>('input')?.blur();
+  searchOpen.value = false;
+  search.value = '';
+}
+function closeSearch() {
+  resetSearch();
+  searchBar.value?.querySelector<HTMLButtonElement>('.categories__search-toggle')?.focus({ preventScroll: true });
+}
+function toggleSearch() {
+  if (searchOpen.value) return closeSearch();
+  searchOpen.value = true;
+  const field = searchBar.value?.querySelector<HTMLElement>('.categories__search-field');
+  // Focus inside the tap event so mobile browsers can open the keyboard.
+  if (field) field.inert = false;
+  searchBar.value?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+}
+function focusPanel(event: Event) {
+  event.preventDefault();
+  void nextTick(() => {
+    const dialog = panel.value?.closest<HTMLElement>('[role="dialog"]');
+    if (!dialog || !open.value) return;
+    fitPanel();
+    dialog.style.removeProperty('--categories-open-height');
+    dialog.style.setProperty('--categories-open-height', dialog.offsetHeight + 'px');
+    dialog.focus({ preventScroll: true });
+  });
+}
 onMounted(() => {
   revealActive();
   window.visualViewport?.addEventListener('resize', fitPanel);
   window.visualViewport?.addEventListener('scroll', fitPanel);
+  window.addEventListener('resize', fitPanel);
 });
 onBeforeUnmount(() => {
   window.visualViewport?.removeEventListener('resize', fitPanel);
   window.visualViewport?.removeEventListener('scroll', fitPanel);
+  window.removeEventListener('resize', fitPanel);
 });
 watch(() => props.active, revealActive, { flush: 'post' });
-watch(open, value => { if (!value) search.value = ''; });
+watch(open, value => { if (!value) resetSearch(); });
 </script>
 
 <style scoped>
@@ -87,17 +126,27 @@ watch(open, value => { if (!value) search.value = ''; });
 .categories:not(.categories--tracked) .categories__item.router-link-exact-active, .categories__item--active { border-color: var(--ui-primary); color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-bg-elevated)); }
 .categories__item:focus-visible, .categories__card:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: -2px; }
 .categories__toggle { flex: none; width: var(--touch-target); height: var(--touch-target); padding: 0; }
-.categories__search { display: flex; align-items: center; gap: 0.25rem; margin-bottom: 0.75rem; }
-.categories__input { min-width: 0; flex: 1; }
-.categories__input :deep(input) { font-size: 1rem; }
+.categories__search { display: grid; width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr) var(--touch-target); align-items: center; gap: 0.25rem; }
+.categories__search-field { width: 0; min-width: 0; justify-self: end; overflow: hidden; opacity: 0; transition: width 200ms ease, opacity 200ms ease; }
+.categories__search--open .categories__search-field { width: 100%; opacity: 1; }
+.categories__input { width: 100%; min-width: 0; }
+.categories__input :deep(input) { min-height: var(--touch-target); font-size: 1rem; }
+.categories__search-toggle, .categories__search-clear { width: var(--touch-target); height: var(--touch-target); padding: 0; }
 .categories__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
 .categories__card { display: flex; align-items: center; min-height: var(--touch-target); padding: 0.75rem; border: 1px solid var(--ui-border); border-radius: 0.5rem; font-size: 0.875rem; overflow-wrap: anywhere; }
 .categories__card--active { color: var(--ui-primary); border-color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 10%, var(--ui-bg)); }
 .categories__empty { padding-block: 1rem; color: var(--ui-text-muted); }
-:global(.categories__dialog) { z-index: 101; max-height: min(88dvh, calc(var(--categories-height, 100dvh) - 1rem)); }
+:global(.categories__dialog) { z-index: 101; height: var(--categories-open-height, auto); max-height: min(88dvh, calc(var(--categories-height, 100dvh) - 1rem)); }
 :global(.categories__overlay) { z-index: 100; }
-:global(.categories__body) { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+:global(.categories__body) { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 1rem; }
+:global(.categories__footer) { flex: none; padding: 0.75rem max(1rem, var(--safe-right)) max(0.75rem, var(--safe-bottom)) max(1rem, var(--safe-left)); }
 @media (width < 40rem) {
   :global(.categories__dialog) { bottom: var(--categories-keyboard, 0px); }
+}
+@media (width >= 40rem) {
+  :global(.categories__dialog) { top: var(--categories-center, 50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .categories__search-field { transition: none; }
 }
 </style>

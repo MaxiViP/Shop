@@ -1,6 +1,6 @@
 import { ConflictException } from '@nestjs/common';
-import type { OrderItem, Prisma, MessageAuthor, NotificationType, OrderIssue, IssueResolution, Unit, ChatImageRetention } from '../db/gen/client.js';
-import { outsideTolerance, approvedWeight } from './assembly.js';
+import { Prisma, type OrderItem, type MessageAuthor, type NotificationType, type OrderIssue, type IssueResolution, type Unit, type ChatImageRetention } from '../db/gen/client.js';
+import { approvedItemWeight, needsWeightApproval, variableWeight, type Sale } from '../product/sale.js';
 
 import { chatEvent, telegramEvent } from './outbox.js';
 
@@ -16,6 +16,12 @@ export function customerIssueActions(issue: Pick<OrderIssue, 'status' | 'type' |
 export function compositionQty(qty: number, unit: Unit) {
   return new Intl.NumberFormat('ru-RU').format(qty) + ' ' +
     ({ GRAM: 'г', PIECE: 'шт.', PACK: 'уп.', BUNCH: 'пуч.' } satisfies Record<Unit, string>)[unit];
+}
+
+export function compositionItem(qty: number, item: Sale, weight?: number | null): string {
+  return variableWeight(item)
+    ? `${qty} ${item.unit === 'BUNCH' ? 'пуч.' : item.wholeLabel ?? 'шт.'}${weight ? `, ${compositionQty(weight, 'GRAM')}` : ''}`
+    : compositionQty(qty, item.unit);
 }
 
 export function compositionMoney(kopecks: number) {
@@ -111,12 +117,7 @@ export async function syncIssue(
   });
   const outside =
     item.status === 'PICKED' &&
-    outsideTolerance(
-      item.unit,
-      item.qty,
-      item.actualQty!,
-      order.weightToleranceBps,
-    );
+    needsWeightApproval(item, order.weightToleranceBps);
   if (!previous && item.status !== 'MISSING' && !outside) return false;
   if (previous?.replacementItemId)
     throw new ConflictException('Исходный товар уже заменён');
@@ -135,6 +136,8 @@ export async function syncIssue(
       status,
       requestedQty: item.qty,
       actualQty: item.actualQty,
+      actualWeightGrams: item.actualWeightGrams,
+      pieceWeights: item.pieceWeights ?? Prisma.DbNull,
       createdById: userId,
     },
     update: {
@@ -142,7 +145,11 @@ export async function syncIssue(
       status,
       version: { increment: 1 },
       actualQty: item.actualQty,
+      actualWeightGrams: item.actualWeightGrams,
+      pieceWeights: item.pieceWeights ?? Prisma.DbNull,
       approvedActualQty: null,
+      approvedWeightGrams: null,
+      approvedPieceWeights: Prisma.DbNull,
       resolution: status === 'RESOLVED' ? 'SELLER_ADJUSTED' : null,
       resolvedAt: status === 'RESOLVED' ? new Date() : null,
       proposedProductId: null,
@@ -151,6 +158,10 @@ export async function syncIssue(
       proposedPrice: null,
       proposedPriceQty: null,
       proposedUnit: null,
+      proposedSaleModel: null,
+      proposedPriceUnit: null,
+      proposedWholeLabel: null,
+      proposedEstimatedWeightGrams: null,
       proposedQty: null,
       proposedImageUrl: null,
     },
@@ -168,7 +179,7 @@ export async function syncIssue(
     item.status === 'MISSING'
       ? `${item.productName} — нет в наличии.`
       : outside
-        ? `${item.productName}: заказано ${compositionQty(item.qty, item.unit)}, собрано ${compositionQty(item.actualQty!, item.unit)}. Требуется ваше решение.`
+        ? `${item.productName}: заказано ${compositionItem(item.qty, item)}, собрано ${compositionItem(item.actualQty!, item, item.actualWeightGrams)}. Требуется ваше решение.${variableWeight(item) ? ' Целый экземпляр нельзя уменьшить нарезкой без согласия продавца; обсудите замену в чате.' : ''}`
         : status === 'RESOLVED'
           ? `${item.productName}: фактическое количество скорректировано.`
           : `${item.productName}: возвращён в сборку; прежнее предложение недействительно.`,
@@ -192,12 +203,12 @@ export async function checkIssues(
   for (const item of items) {
     if (
       item.status !== 'PICKED' ||
-      !outsideTolerance(item.unit, item.qty, item.actualQty!, bps)
+      !needsWeightApproval(item, bps)
     )
       continue;
-    const approval = approvedWeight(
+    const approval = approvedItemWeight(
       issues.find((issue) => issue.orderItemId === item.id),
-      item.actualQty,
+      item,
     );
     if (!approval)
       throw new ConflictException({

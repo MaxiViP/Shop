@@ -1,0 +1,328 @@
+{
+  "checkedOn": "2026-10-12",
+  "databaseAvailable": true,
+  "databaseCheckedAt": "2026-10-12T08:41:08.492Z",
+  "databaseTotal": 173,
+  "databaseActive": 62,
+  "databaseInactive": 111,
+  "uniqueCatalogCandidates": 319,
+  "catalogReportRows": 479,
+  "researchReportRows": 168,
+  "databaseCategories": {
+    "vegetables": 62,
+    "fruits": 35,
+    "greens": 30,
+    "myaso": 1,
+    "pasta-grains": 6,
+    "sauces-spices": 9,
+    "preserves-pickles": 10,
+    "sweets-biscuits": 3,
+    "grocery": 2,
+    "oils": 9,
+    "tea-coffee": 1,
+    "berries": 5
+  },
+  "scopes": [
+    {
+      "scope": "DATABASE_ACTIVE",
+      "count": 62,
+      "categories": {
+        "vegetables": 9,
+        "fruits": 7,
+        "greens": 5,
+        "myaso": 1,
+        "pasta-grains": 6,
+        "sauces-spices": 9,
+        "preserves-pickles": 10,
+        "sweets-biscuits": 3,
+        "grocery": 2,
+        "oils": 9,
+        "tea-coffee": 1
+      }
+    },
+    {
+      "scope": "DATABASE_INACTIVE",
+      "count": 111,
+      "categories": {
+        "vegetables": 53,
+        "fruits": 28,
+        "greens": 25,
+        "berries": 5
+      }
+    },
+    {
+      "scope": "SOURCE_SNAPSHOT",
+      "count": 40,
+      "categories": {
+        "pasta-grains": 6,
+        "sauces-spices": 9,
+        "preserves-pickles": 10,
+        "sweets-biscuits": 3,
+        "grocery": 2,
+        "oils": 9,
+        "tea-coffee": 1
+      }
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "count": 146,
+      "categories": {
+        "fish": 14,
+        "seafood": 11,
+        "cheese": 8,
+        "honey": 6,
+        "pickles": 7,
+        "dairy": 9,
+        "tea-coffee": 21,
+        "sweets-biscuits": 9,
+        "meat": 22,
+        "poultry": 7,
+        "nuts-dried-fruits": 7,
+        "bakery": 8,
+        "sausages": 17
+      }
+    },
+    {
+      "scope": "STARTER_DRAFT",
+      "count": 114,
+      "categories": {
+        "vegetables": 54,
+        "fruits": 30,
+        "greens": 25,
+        "berries": 5
+      }
+    },
+    {
+      "scope": "SEED",
+      "count": 6,
+      "categories": {
+        "vegetables": 2,
+        "fruits": 2,
+        "greens": 2
+      }
+    }
+  ],
+  "researchQueue": {
+    "count": 168,
+    "categories": {
+      "Из теста": 23,
+      "Из мяса": 37,
+      "Овощные": 4,
+      "Для детей": 16,
+      "Барбекю": 11,
+      "Блинчики, сырники": 19,
+      "Выпечка": 16,
+      "Сыр для жарки": 2,
+      "Сыры": 26,
+      "Молочная продукция": 9,
+      "Полуфабрикаты": 5
+    },
+    "imported": false
+  },
+  "confirmedDatabaseUnitErrors": 34,
+  "appliedDatabaseChanges": 34,
+  "appliedSourceChanges": 34,
+  "confirmedQuantityGridErrors": 0,
+  "suspectedDatabaseRows": 31,
+  "wholeCandidates": [
+    {
+      "scope": "DATABASE_INACTIVE",
+      "slug": "vegetables-fruits-east-cabbage-white",
+      "name": "Капуста белокочанная свежая",
+      "productId": 78
+    },
+    {
+      "scope": "DATABASE_INACTIVE",
+      "slug": "vegetables-fruits-east-cabbage-red",
+      "name": "Капуста краснокочанная свежая",
+      "productId": 79
+    },
+    {
+      "scope": "DATABASE_INACTIVE",
+      "slug": "vegetables-fruits-east-cabbage-peking",
+      "name": "Капуста пекинская свежая",
+      "productId": 80
+    },
+    {
+      "scope": "DATABASE_INACTIVE",
+      "slug": "vegetables-fruits-east-cabbage-savoy",
+      "name": "Капуста савойская свежая",
+      "productId": 81
+    },
+    {
+      "scope": "DATABASE_INACTIVE",
+      "slug": "vegetables-fruits-east-broccoli",
+      "name": "Капуста брокколи свежая",
+      "productId": 82
+    },
+    {
+      "scope": "DATABASE_INACTIVE",
+      "slug": "vegetables-fruits-east-cauliflower",
+      "name": "Капуста цветная свежая",
+      "productId": 83
+    },
+    {
+      "scope": "DATABASE_INACTIVE",
+      "slug": "vegetables-fruits-east-pumpkin-muscat",
+      "name": "Тыква мускатная свежая",
+      "productId": 102
+    },
+    {
+      "scope": "DATABASE_INACTIVE",
+      "slug": "vegetables-fruits-east-pomelo",
+      "name": "Помело белое свежее",
+      "productId": 129
+    },
+    {
+      "scope": "DATABASE_INACTIVE",
+      "slug": "vegetables-fruits-east-papaya",
+      "name": "Папайя свежая",
+      "productId": 140
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-chilled-sturgeon",
+      "name": "Осетр охлажденный, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "romanovskoe-osetrovoe-hozyaystvo-chilled-sterlet",
+      "name": "Стерлядь охлажденная, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "myasoed-rabbit",
+      "name": "Кролик, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "myasoed-beef-tongue",
+      "name": "Язык говяжий, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "halal-meat-lamb-leg",
+      "name": "Баранина нога, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "halal-meat-lamb-shoulder",
+      "name": "Баранина лопатка, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "halal-meat-halal-chicken",
+      "name": "Курица халяль, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "goldfish-live-carp",
+      "name": "Карп живой, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "goldfish-chilled-trout",
+      "name": "Форель охлажденная, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "goldfish-chilled-dorado",
+      "name": "Дорадо охлажденная, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "goldfish-chilled-seabass",
+      "name": "Сибас охлажденный, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "goldfish-frozen-mackerel",
+      "name": "Скумбрия замороженная, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "goldfish-salted-herring",
+      "name": "Сельдь соленая, кг",
+      "productId": null
+    },
+    {
+      "scope": "UNIMPORTED_SELLER_DRAFT",
+      "slug": "goldfish-hot-smoked-mackerel",
+      "name": "Скумбрия горячего копчения, кг",
+      "productId": null
+    },
+    {
+      "scope": "STARTER_DRAFT",
+      "slug": "vegetables-fruits-east-cabbage-white",
+      "name": "Капуста белокочанная свежая",
+      "productId": 78
+    },
+    {
+      "scope": "STARTER_DRAFT",
+      "slug": "vegetables-fruits-east-cabbage-red",
+      "name": "Капуста краснокочанная свежая",
+      "productId": 79
+    },
+    {
+      "scope": "STARTER_DRAFT",
+      "slug": "vegetables-fruits-east-cabbage-peking",
+      "name": "Капуста пекинская свежая",
+      "productId": 80
+    },
+    {
+      "scope": "STARTER_DRAFT",
+      "slug": "vegetables-fruits-east-cabbage-savoy",
+      "name": "Капуста савойская свежая",
+      "productId": 81
+    },
+    {
+      "scope": "STARTER_DRAFT",
+      "slug": "vegetables-fruits-east-broccoli",
+      "name": "Капуста брокколи свежая",
+      "productId": 82
+    },
+    {
+      "scope": "STARTER_DRAFT",
+      "slug": "vegetables-fruits-east-cauliflower",
+      "name": "Капуста цветная свежая",
+      "productId": 83
+    },
+    {
+      "scope": "STARTER_DRAFT",
+      "slug": "vegetables-fruits-east-pumpkin-muscat",
+      "name": "Тыква мускатная свежая",
+      "productId": 102
+    },
+    {
+      "scope": "STARTER_DRAFT",
+      "slug": "vegetables-fruits-east-pomelo",
+      "name": "Помело белое свежее",
+      "productId": 129
+    },
+    {
+      "scope": "STARTER_DRAFT",
+      "slug": "vegetables-fruits-east-papaya",
+      "name": "Папайя свежая",
+      "productId": 140
+    }
+  ],
+  "uniqueWholeCandidateCount": 23,
+  "sellerConfirmationDatabaseCount": 139,
+  "excludedSeasonalSuggestions": 14,
+  "photoManifestReferences": 146,
+  "photoReferencesMissingFromSellerDatasets": [],
+  "databaseFullInventoryCompleted": true,
+  "productionInventoryCompleted": false
+}

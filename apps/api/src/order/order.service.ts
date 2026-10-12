@@ -62,7 +62,7 @@ export class OrderService {
       where: { id: { in: [...quantities.keys()] }, active: true },
       select: cartProductSelect,
     });
-    const quote = cartQuote(quantities, products);
+    const quote = cartQuote(quantities, products, data.items);
     const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
     const promo = data.promoCodeId ? await this.promos.preview(db, userId, data.promoCodeId, quote.subtotal) : null;
     const goodsTotal = quote.subtotal === null ? null : quote.subtotal - (promo?.discount ?? 0);
@@ -192,13 +192,19 @@ export class OrderService {
         serviceMarkupPercentSnapshot: SERVICE_MARKUP_PERCENT,
         priceQty: product.priceQty,
         unit: product.unit,
+        saleModel: product.saleModel,
+        priceUnit: product.priceUnit,
+        wholeLabel: product.wholeLabel,
+        estimatedWeightGrams: product.estimatedWeightGrams,
+        weightMinGrams: item.weightMinGrams,
+        weightMaxGrams: item.weightMaxGrams,
         qty: item.qty,
-        total: item.lineTotal!,
+        total: item.lineTotal,
       };
     });
 
     const now = new Date();
-    const subtotal = quote.subtotal!;
+    const subtotal = quote.subtotal;
     // Serializes slot reservations, settings changes and concurrent checkout offers.
     await db.$queryRaw`SELECT id FROM "ShopSettings" WHERE id = 1 FOR UPDATE`;
     if (data.deliveryAt) await assertMarketTime(db, now, new Date(data.deliveryAt));
@@ -211,8 +217,9 @@ export class OrderService {
     const delivery = freeDelivery(subtotal, settings);
     const freeDeliveryApplied = data.type === 'DELIVERY' && delivery.eligible;
     const deliveryPrice = data.type === 'PICKUP' || freeDeliveryApplied ? 0 : null;
-    const redemption = data.promoCodeId ? await this.promos.redeem(db, userId, data.promoCodeId, subtotal) : null;
-    const total = totalWithDelivery(subtotal - (redemption?.discount ?? 0), deliveryPrice);
+    if (data.promoCodeId && subtotal === null) throw new BadRequestException('Промокод доступен после расчёта стоимости товаров.');
+    const redemption = data.promoCodeId ? await this.promos.redeem(db, userId, data.promoCodeId, subtotal!) : null;
+    const total = totalWithDelivery(subtotal === null ? null : subtotal - (redemption?.discount ?? 0), deliveryPrice);
 
     const address = data.type === 'DELIVERY' ? data.address : undefined;
 
@@ -432,6 +439,7 @@ export class OrderService {
         issues: { orderBy: { id: 'asc' }, select: {
           orderItemId: true, replacementItemId: true, type: true, status: true, resolution: true,
           actualQty: true, approvedActualQty: true,
+          actualWeightGrams: true, pieceWeights: true, approvedWeightGrams: true, approvedPieceWeights: true,
           proposedName: true, proposedQty: true, proposedUnit: true,
           proposedPrice: true, proposedPriceQty: true,
         } },
@@ -496,6 +504,9 @@ export class OrderService {
             actualPrice: true,
             priceQty: true,
             unit: true,
+
+            saleModel: true, priceUnit: true, wholeLabel: true, estimatedWeightGrams: true,
+            weightMinGrams: true, weightMaxGrams: true, actualWeightGrams: true, pieceWeights: true,
 
             qty: true,
             actualQty: true,

@@ -1,5 +1,10 @@
 export default defineAppConfig({
   ui: {
+    modal: {
+      slots: {
+        header: "justify-between",
+      },
+    },
     container: {
       base: "min-w-0 px-(--page-x) sm:px-(--page-x) lg:px-(--page-x)",
     },

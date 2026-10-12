@@ -53,7 +53,7 @@ const { search, submitSearch, clearSearch } = useProductSearch();
   padding: 0.25rem 0.4rem 0.25rem 1rem;
   border: 1px solid var(--ui-border);
   border-radius: 2rem;
-  background: var(--ui-bg);
+  background: color-mix(in srgb, var(--ui-bg) 98%, var(--ui-text) 2%);
   box-shadow: 0 4px 24px #0002;
   z-index: 20;
 }

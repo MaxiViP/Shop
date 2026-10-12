@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MAX_QTY, quantityErrors } from '../order/assembly.js';
+import { saleErrors, saleModels, wholeLabels } from '../product/sale.js';
 
 export const idSchema = z.coerce.number().int().positive().max(2_147_483_647);
 const name = z.string().trim().min(1).max(160);
@@ -26,6 +27,10 @@ const productFields = z.strictObject({
   step: qty,
   min: qty,
   portionQty: qty,
+  saleModel: z.enum(saleModels).nullable().optional(),
+  priceUnit: z.enum(['GRAM', 'PIECE', 'BUNCH', 'PACK']).nullable().optional(),
+  wholeLabel: z.enum(wholeLabels).nullable().optional(),
+  estimatedWeightGrams: qty.nullable().optional(),
   categoryId: z.number().int().positive(),
   marketPointId: idSchema.nullable().optional(),
   sourceUrl: z.url({ protocol: /^https?$/ }).max(2000).nullable().optional(),
@@ -42,7 +47,7 @@ const productFields = z.strictObject({
 export const productSchema = productFields.superRefine((data, ctx) => {
   if (data.seasonalMode === 'AUTO' && !data.seasonTemplateId)
     ctx.addIssue({ code: 'custom', path: ['seasonTemplateId'], message: 'Выберите шаблон сезонности.' });
-  for (const [field, message] of Object.entries(quantityErrors(data)))
+  for (const [field, message] of Object.entries({ ...quantityErrors(data), ...saleErrors(data) }))
     ctx.addIssue({ code: 'custom', path: [field], message });
   if (data.seasonalStartsAt && data.seasonalEndsAt && data.seasonalEndsAt <= data.seasonalStartsAt)
     ctx.addIssue({ code: 'custom', path: ['seasonalEndsAt'], message: 'Окончание сезонности должно быть позже начала.' });

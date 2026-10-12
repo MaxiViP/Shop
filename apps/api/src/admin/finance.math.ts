@@ -1,9 +1,10 @@
 import { lineAmount } from '../order/assembly.js';
-import type { SettlementMode } from '../db/gen/client.js';
+import type { SettlementMode, Unit } from '../db/gen/client.js';
 
 export type FinanceItem = {
   id: number; productName: string; status: 'PENDING' | 'PICKED' | 'MISSING';
-  qty: number; actualQty: number | null; total: number; actualTotal: number | null;
+  qty: number; actualQty: number | null; total: number | null; actualTotal: number | null;
+  unit?: Unit; priceUnit?: Unit | null; actualWeightGrams?: number | null;
   price: number; actualPrice: number | null; priceQty: number;
   settlementModeSnapshot: SettlementMode | null; basePriceSnapshot: number | null;
 };
@@ -18,17 +19,19 @@ export function splitMarkup(markup: bigint) {
 }
 export function financeLine(item: FinanceItem) {
   const qty = item.status === 'MISSING' ? 0 : item.actualQty ?? item.qty;
-  const saleAmount = qty > 0 ? item.actualTotal ?? item.total : 0;
+  const pending = qty > 0 && item.actualTotal === null && item.total === null;
+  const saleAmount = qty > 0 ? item.actualTotal ?? item.total ?? 0 : 0;
+  const pricedQty = item.priceUnit === 'GRAM' && item.unit !== 'GRAM' ? item.actualWeightGrams ?? 0 : qty;
   const mode = item.settlementModeSnapshot;
   const category = mode === null || (mode === 'SHARED_MARKUP' && item.basePriceSnapshot === null)
     ? 'LEGACY' : mode;
-  const baseAmount = category === 'SHARED_MARKUP' && qty > 0
-    ? lineAmount(item.basePriceSnapshot!, qty, item.priceQty) : 0;
+  const baseAmount = category === 'SHARED_MARKUP' && pricedQty > 0
+    ? lineAmount(item.basePriceSnapshot!, pricedQty, item.priceQty) : 0;
   const sharedMarkup = category === 'SHARED_MARKUP' ? saleAmount - baseAmount : 0;
   return {
     id: item.id, productName: item.productName, mode: category, qty,
     orderPrice: item.price, finalPrice: item.actualPrice ?? item.price, priceQty: item.priceQty,
-    saleAmount, baseAmount, sharedMarkup,
+    saleAmount, baseAmount, sharedMarkup, pending,
   };
 }
 export type CalculatedLine = ReturnType<typeof financeLine>;

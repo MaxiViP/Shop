@@ -108,9 +108,12 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
       ...row, marketPointId: null, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
       isSeasonal: false, isHit: false, hitMode: 'AUTO', seasonalStartsAt: null, seasonalEndsAt: null,
       seasonalMode: 'OFF', seasonTemplateId: null, hitOrders: 0, hitSoldUnits: '0.000', hitRank: null,
+      saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null,
     })));
     expect((await connection.query('SELECT * FROM "OrderItem" ORDER BY id')).rows).toEqual(oldItems.map(row => ({
       ...row, serviceMarkupPercentSnapshot: null,
+      saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null,
+      weightMinGrams: null, weightMaxGrams: null, actualWeightGrams: null, pieceWeights: null,
     })));
     expect((await db.order.findUniqueOrThrow({ where: { id: -1 } })).total).toBe(10000);
     const indexes = await connection.query('SELECT indexname FROM pg_indexes WHERE schemaname = $1 AND indexname = $2', [schema, 'Product_marketPointId_idx']);
@@ -157,7 +160,7 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
     expect(rows).toHaveLength(40);
     for (const source of marketProducts) {
       const row = rows.find(product => product.slug === source.slug)!;
-      expect(row).toMatchObject({ price: source.sellerPrice, unit: 'PIECE', priceQty: 1, step: 1, min: 1, portionQty: 1,
+      expect(row).toMatchObject({ price: source.sellerPrice, unit: source.unit, priceQty: 1, step: 1, min: 1, portionQty: 1,
         sourceUrl: source.sourceUrl, sourceCheckedAt: new Date(sourceCheckedAt), marketPoint: { slug: source.marketPointSlug }, images: [] });
     }
     expect(await db.marketPoint.count()).toBe(60);

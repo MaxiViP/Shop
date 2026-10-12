@@ -28,6 +28,7 @@
 import type { ProductListItem } from "~/types/product";
 import { qtyText } from "~/utils/qty";
 import { manualQuantity } from "~/utils/assembly";
+import { validCartQty } from '~/utils/cart';
 
 const { product } = defineProps<{
   product: ProductListItem;
@@ -35,7 +36,10 @@ const { product } = defineProps<{
 
 const value = defineModel<number>({ required: true });
 const decreased = computed(() => manualQuantity(value.value, product, -1));
-const increased = computed(() => manualQuantity(value.value, product, 1));
+const increased = computed(() => {
+  const next = manualQuantity(value.value, product, 1);
+  return next !== null && validCartQty(next, product) ? next : null;
+});
 
 function dec() {
   if (decreased.value !== null) value.value = decreased.value;
@@ -45,7 +49,7 @@ function inc() {
   if (increased.value !== null) value.value = increased.value;
 }
 
-const label = computed(() => qtyText(product.unit, value.value));
+const label = computed(() => qtyText(product.unit, value.value, product));
 </script>
 
 <style scoped>

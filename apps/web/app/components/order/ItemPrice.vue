@@ -4,7 +4,7 @@
       Изменить цену позиции
     </UButton>
     <form v-if="editable && editing" class="item-price__form" @submit.prevent="save">
-      <p class="item-price__original">Цена заказа {{ money(item.price) }} / {{ qtyText(item.unit, item.priceQty) }}</p>
+      <p class="item-price__original">Цена заказа {{ money(item.price) }} / {{ qtyText(priceUnit(item), item.priceQty) }}</p>
       <UFormField label="Фактическая цена продавца, ₽" help="Введите цену продавца без сервиса. Сервис KorzinaMarket рассчитается автоматически." class="item-price__field">
         <UInput v-model="rubles" type="text" inputmode="decimal" :disabled="busy || Boolean(retry)" maxlength="12" />
       </UFormField>
@@ -25,6 +25,7 @@ import type { StaffOrderDetail } from '~/types/order';
 import { apiError } from '~/utils/api-error';
 import { kopecksToRubles, money, rublesToKopecks } from '~/utils/money';
 import { qtyText } from '~/utils/qty';
+import { priceUnit } from '~/utils/sale';
 
 const props = defineProps<{
   orderId: number;

@@ -67,7 +67,7 @@ describe('dated market product dataset', () => {
   });
   it('contains only positive seller kopecks, piece quantities and a fixed source date', () => {
     for (const row of marketProducts) {
-      expect(row).toMatchObject({ unit: 'PIECE', priceQty: 1, step: 1, min: 1, portionQty: 1, sourceCheckedAt });
+      expect(row).toMatchObject({ unit: row.marketPointSlug === 'cezoni-market' ? 'PACK' : 'PIECE', priceQty: 1, step: 1, min: 1, portionQty: 1, sourceCheckedAt });
       expect(Number.isInteger(row.sellerPrice)).toBe(true);
       expect(row.sellerPrice).toBeGreaterThan(0);
       expect(row).not.toHaveProperty('images');

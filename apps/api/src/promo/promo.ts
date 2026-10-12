@@ -12,7 +12,7 @@ export function discountAmount(goods: number, terms: PromoTerms) {
   return Math.min(goods, discount, terms.maxDiscount ?? goods);
 }
 export type DiscountedOrder = {
-  subtotal?: number; finalSubtotal: number | null; promoDiscount?: number; finalPromoDiscount?: number | null;
+  subtotal?: number | null; finalSubtotal: number | null; promoDiscount?: number; finalPromoDiscount?: number | null;
 };
 export function payableGoods(order: DiscountedOrder) {
   return order.finalSubtotal === null ? null

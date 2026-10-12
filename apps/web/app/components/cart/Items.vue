@@ -34,6 +34,9 @@
           >
         </div>
 
+        <p v-if="variableWeight(item.product)" class="item__message text-muted">{{ item.product.unit === 'BUNCH' ? 'Пучки взвесят' : 'Продается целиком' }}. Вес и окончательную стоимость уточним при сборке.</p>
+        <p v-else-if="item.product.unit === 'GRAM'" class="item__message text-muted">Стоимость может измениться после взвешивания.</p>
+
         <p
           v-if="ready && cartLineMessage(cart.quoteLine(item.product.id))"
           class="item__message text-error"
@@ -78,6 +81,7 @@
         >
           {{ money(cart.lineTotal(item) ?? 0) }}
         </strong>
+        <CartWeightLimits v-if="variableWeight(item.product)" :item="item" />
 
         <UButton
           class="item__remove"
@@ -112,6 +116,7 @@ import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
 import { cartLineMessage, type CartItem } from "~/utils/cart";
 import { qtyText } from "~/utils/qty";
+import { variableWeight } from '~/utils/sale';
 
 const props = defineProps<{ disabled?: boolean }>();
 const emit = defineEmits<{ removed: [item: CartItem] }>();
@@ -316,10 +321,9 @@ onBeforeUnmount(cancelAll);
 }
 
 .item__qty :deep(.qty__value) {
-  overflow: hidden;
   font-size: 0.8125rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: normal;
+  white-space: normal;
 }
 
 .item__qty :deep(button),
@@ -356,9 +360,9 @@ onBeforeUnmount(cancelAll);
 }
 
 /* Two rows once the actual card width has room for price + quantity. */
-@container cart-items (min-width: 19rem) {
+@container cart-items (min-width: 26rem) {
   .item__content {
-    grid-template-columns: minmax(0, 1fr) 6rem var(--touch-target);
+    grid-template-columns: minmax(0, 1fr) 8rem var(--touch-target);
     grid-template-rows: repeat(2, var(--touch-target));
     column-gap: 0.125rem;
   }
@@ -392,7 +396,7 @@ onBeforeUnmount(cancelAll);
   }
 
   .item__content {
-    grid-template-columns: minmax(0, 1fr) 6.5rem 9rem 6rem var(--touch-target);
+    grid-template-columns: minmax(0, 1fr) 6.5rem 11rem 6rem var(--touch-target);
     grid-template-rows: var(--touch-target);
     column-gap: 0.5rem;
   }

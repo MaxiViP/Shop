@@ -1,0 +1,51 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "width": 320,
+      "modelsInOneCategory": 6,
+      "portionsAndSteps": true,
+      "fixedPieceCounts": true,
+      "bunchesAndPacks": true,
+      "threeBunches": true,
+      "wholeCountAndKgPrice": true,
+      "wholeFishCountsAndKgPrice": true,
+      "readableCartQuantityLabels": true,
+      "unknownSubtotalOrderable": true,
+      "overflow": false,
+      "touchTargets": true
+    },
+    {
+      "width": 390,
+      "modelsInOneCategory": 6,
+      "portionsAndSteps": true,
+      "fixedPieceCounts": true,
+      "bunchesAndPacks": true,
+      "threeBunches": true,
+      "wholeCountAndKgPrice": true,
+      "wholeFishCountsAndKgPrice": true,
+      "readableCartQuantityLabels": true,
+      "unknownSubtotalOrderable": true,
+      "overflow": false,
+      "touchTargets": true
+    },
+    {
+      "width": 1280,
+      "modelsInOneCategory": 6,
+      "portionsAndSteps": true,
+      "fixedPieceCounts": true,
+      "bunchesAndPacks": true,
+      "threeBunches": true,
+      "wholeCountAndKgPrice": true,
+      "wholeFishCountsAndKgPrice": true,
+      "readableCartQuantityLabels": true,
+      "unknownSubtotalOrderable": true,
+      "overflow": false,
+      "touchTargets": true
+    }
+  ],
+  "guestCheckout": true,
+  "noClientPrices": true,
+  "assemblyIndividualWeights": true,
+  "networkScope": "LOCAL_FIXTURES_ONLY"
+}

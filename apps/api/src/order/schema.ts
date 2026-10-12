@@ -41,12 +41,19 @@ export const orderSchema = z
           productId: z.number().int().positive(),
 
           qty: z.number().int().positive().max(MAX_QTY),
+          quantityUnit: z.enum(['GRAM', 'PIECE', 'BUNCH', 'PACK']).nullable().optional(),
+          // Explicit buyer limits, per whole specimen. Null estimates are never limits.
+          weightMinGrams: z.number().int().positive().max(MAX_QTY).nullable().optional(),
+          weightMaxGrams: z.number().int().positive().max(MAX_QTY).nullable().optional(),
         }),
       )
       .min(1)
       .max(50),
   })
   .superRefine((data, ctx) => {
+    for (const [index, item] of data.items.entries())
+      if (item.weightMinGrams && item.weightMaxGrams && item.weightMinGrams > item.weightMaxGrams)
+        ctx.addIssue({ code: 'custom', path: ['items', index, 'weightMaxGrams'], message: 'Максимальный вес должен быть не меньше минимального.' });
     if ((data.fulfillmentMode === 'SCHEDULED') !== Boolean(data.scheduledFor))
       ctx.addIssue({ code: 'custom', path: ['scheduledFor'], message: 'Выберите время подготовки заказа' });
     if (data.type === 'PICKUP' && data.deliveryAt)

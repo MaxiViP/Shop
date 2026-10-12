@@ -61,7 +61,7 @@ export function newOrderMessage(order: TelegramOrder): string {
     order.scheduledFor.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }));
 
   const footer = [
-    '', 'Товары: ' + money(order.subtotal),
+    '', 'Товары: ' + (order.subtotal === null ? 'после взвешивания' : money(order.subtotal)),
     ...(order.promoCodeSnapshot ? ['Промокод: ' + clip(order.promoCodeSnapshot, 32) + ' · скидка ' + money(order.promoDiscount)] : []),
     'Доставка: ' + (order.deliveryPrice === null ? 'рассчитывается' : money(order.deliveryPrice)),
     'Итого: ' + (order.total === null ? 'уточняется' : money(order.total)),
@@ -72,7 +72,7 @@ export function newOrderMessage(order: TelegramOrder): string {
   let shown = 0;
   for (const item of order.items) {
     const line = '• ' + clip(item.productName, 180) + ' — ' + quantity(item.qty, item.unit) +
-      '\n  ' + money(item.total) + '\n';
+      '\n  ' + (item.total === null ? 'после взвешивания' : money(item.total)) + '\n';
     // Reserve room for totals/comment and the omitted-items count; never split a surrogate pair.
     if (text.length + line.length + tail.length + 80 > 4000) break;
     text += line;

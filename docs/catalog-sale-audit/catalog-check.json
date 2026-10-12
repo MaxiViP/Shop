@@ -1,0 +1,73 @@
+{
+  "checkedAt": "2026-10-12T11:08:06.529Z",
+  "passed": true,
+  "databaseProducts": 173,
+  "active": 62,
+  "inactive": 111,
+  "catalogSourceRows": 479,
+  "uniqueCatalogCandidates": 319,
+  "researchOffers": 168,
+  "productionInventoryCompleted": false,
+  "checks": [
+    {
+      "name": "Every local Product appears exactly once",
+      "passed": true
+    },
+    {
+      "name": "Original quantities, identity, prices and activity are recorded",
+      "passed": true
+    },
+    {
+      "name": "All source snapshots, starter rows and seed rows are included separately",
+      "passed": true
+    },
+    {
+      "name": "Every research offer is recorded without importing it",
+      "passed": true
+    },
+    {
+      "name": "Unconfirmed statements never become applied product facts",
+      "passed": true
+    },
+    {
+      "name": "Every evidence reference resolves to a dated source",
+      "passed": true
+    },
+    {
+      "name": "The only database plan is an exact count-preserving pack correction",
+      "passed": true
+    },
+    {
+      "name": "Applied IDs and fields match the plan; repeated dry-run is empty",
+      "passed": true
+    },
+    {
+      "name": "All protected database columns and legacy orders match the backup",
+      "passed": true
+    },
+    {
+      "name": "Source checksum: apps/api/data/market-products/types.ts",
+      "passed": true
+    },
+    {
+      "name": "Source checksum: apps/api/data/market-products/2026-10-06.ts",
+      "passed": true
+    },
+    {
+      "name": "Source checksum: apps/api/data/market-products/2026-10-07-estimated.ts",
+      "passed": true
+    },
+    {
+      "name": "Source checksum: apps/api/prisma/seed.ts",
+      "passed": true
+    },
+    {
+      "name": "Source checksum: apps/api/data/catalog-drafts/moscow-market-2026-10-11/shop-import.json",
+      "passed": true
+    },
+    {
+      "name": "Source checksum: apps/api/data/imports/bagrationovsky-2026-10-11/prepared/import-queue.json",
+      "passed": true
+    }
+  ]
+}

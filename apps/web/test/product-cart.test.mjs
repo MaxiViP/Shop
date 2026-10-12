@@ -77,7 +77,7 @@ async function detail(t, cart) {
   };
   const setup = new AsyncFunction(...Object.keys(context), executable + "\nreturn { add, qty, total, cartQty };");
   const state = await setup(...Object.values(context));
-  assert.match(pageSource, /:disabled="!cart\.restored \|\| cart\.serverBusy \|\| total === null" @click="add"/);
+  assert.match(pageSource, /:disabled="!cart\.restored \|\| cart\.serverBusy \|\| !validCartQty\(qty, product\)" @click="add"/);
   return { ...state, notices };
 }
 

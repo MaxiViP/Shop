@@ -1,0 +1,214 @@
+{
+  "checkedAt": "2026-10-12T11:03:16.762Z",
+  "apply": false,
+  "localOnly": true,
+  "changes": [
+    {
+      "productId": 23,
+      "slug": "cezoni-market-casa-rinaldi-carnaroli-500g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 24,
+      "slug": "cezoni-market-casa-rinaldi-modena-spray-250ml",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 25,
+      "slug": "cezoni-market-black-olives-350g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 26,
+      "slug": "cezoni-market-grilled-artichokes-350g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 27,
+      "slug": "cezoni-market-cantuccini-cherry-almond-180g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 28,
+      "slug": "cezoni-market-butter-biscuits-180g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 29,
+      "slug": "cezoni-market-dalla-costa-fast-races-250g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 30,
+      "slug": "cezoni-market-classic-grissini-150g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 31,
+      "slug": "cezoni-market-nadawilli-wheat-germ-oil-250ml",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 32,
+      "slug": "cezoni-market-nadawilli-walnut-oil-250ml",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 33,
+      "slug": "cezoni-market-nadawilli-pumpkin-oil-250ml",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 34,
+      "slug": "cezoni-market-nadawilli-garlic-sunflower-oil-250ml",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 35,
+      "slug": "cezoni-market-nadawilli-sunflower-oil-500ml",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 36,
+      "slug": "cezoni-market-nadawilli-sunflower-oil-250ml",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 37,
+      "slug": "cezoni-market-sun-dried-tomatoes-260ml",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 38,
+      "slug": "cezoni-market-iori-satsebeli-bbq-270g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 39,
+      "slug": "cezoni-market-iori-narsharab-350g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 40,
+      "slug": "cezoni-market-iori-satsebeli-classic-265g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 41,
+      "slug": "cezoni-market-iori-tkemali-classic-285g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 42,
+      "slug": "cezoni-market-iori-tkemali-bbq-285g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 43,
+      "slug": "cezoni-market-iori-tomato-basil-265g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 44,
+      "slug": "cezoni-market-iori-green-adjika-120g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 45,
+      "slug": "cezoni-market-iori-classic-adjika-135g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 46,
+      "slug": "cezoni-market-nocellara-green-olives-350g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 47,
+      "slug": "cezoni-market-de-luca-linguine-012-500g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 48,
+      "slug": "cezoni-market-de-luca-lasagna-129-500g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 49,
+      "slug": "cezoni-market-valgri-young-peas-350g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 50,
+      "slug": "cezoni-market-valgri-spanish-white-beans-350g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 51,
+      "slug": "cezoni-market-valgri-cannellini-350g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 52,
+      "slug": "cezoni-market-valgri-tondini-350g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 53,
+      "slug": "cezoni-market-valgri-borlotti-350g",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 54,
+      "slug": "cezoni-market-nonno-giovanni-dop-250ml",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 55,
+      "slug": "cezoni-market-nonno-giovanni-dop-500ml",
+      "action": "UNCHANGED",
+      "fields": {}
+    },
+    {
+      "productId": 56,
+      "slug": "cezoni-market-donna-carmela-igp-500ml",
+      "action": "UNCHANGED",
+      "fields": {}
+    }
+  ],
+  "changed": 0,
+  "skipped": 0,
+  "unchanged": 34
+}

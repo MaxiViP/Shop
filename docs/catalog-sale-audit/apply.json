@@ -1,0 +1,656 @@
+{
+  "checkedAt": "2026-10-12T08:45:06.626Z",
+  "apply": true,
+  "localOnly": true,
+  "changes": [
+    {
+      "productId": 23,
+      "slug": "cezoni-market-casa-rinaldi-carnaroli-500g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 24,
+      "slug": "cezoni-market-casa-rinaldi-modena-spray-250ml",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 25,
+      "slug": "cezoni-market-black-olives-350g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 26,
+      "slug": "cezoni-market-grilled-artichokes-350g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 27,
+      "slug": "cezoni-market-cantuccini-cherry-almond-180g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 28,
+      "slug": "cezoni-market-butter-biscuits-180g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 29,
+      "slug": "cezoni-market-dalla-costa-fast-races-250g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 30,
+      "slug": "cezoni-market-classic-grissini-150g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 31,
+      "slug": "cezoni-market-nadawilli-wheat-germ-oil-250ml",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 32,
+      "slug": "cezoni-market-nadawilli-walnut-oil-250ml",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 33,
+      "slug": "cezoni-market-nadawilli-pumpkin-oil-250ml",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 34,
+      "slug": "cezoni-market-nadawilli-garlic-sunflower-oil-250ml",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 35,
+      "slug": "cezoni-market-nadawilli-sunflower-oil-500ml",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 36,
+      "slug": "cezoni-market-nadawilli-sunflower-oil-250ml",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 37,
+      "slug": "cezoni-market-sun-dried-tomatoes-260ml",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 38,
+      "slug": "cezoni-market-iori-satsebeli-bbq-270g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 39,
+      "slug": "cezoni-market-iori-narsharab-350g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 40,
+      "slug": "cezoni-market-iori-satsebeli-classic-265g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 41,
+      "slug": "cezoni-market-iori-tkemali-classic-285g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 42,
+      "slug": "cezoni-market-iori-tkemali-bbq-285g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 43,
+      "slug": "cezoni-market-iori-tomato-basil-265g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 44,
+      "slug": "cezoni-market-iori-green-adjika-120g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 45,
+      "slug": "cezoni-market-iori-classic-adjika-135g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 46,
+      "slug": "cezoni-market-nocellara-green-olives-350g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 47,
+      "slug": "cezoni-market-de-luca-linguine-012-500g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 48,
+      "slug": "cezoni-market-de-luca-lasagna-129-500g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 49,
+      "slug": "cezoni-market-valgri-young-peas-350g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 50,
+      "slug": "cezoni-market-valgri-spanish-white-beans-350g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 51,
+      "slug": "cezoni-market-valgri-cannellini-350g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 52,
+      "slug": "cezoni-market-valgri-tondini-350g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 53,
+      "slug": "cezoni-market-valgri-borlotti-350g",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 54,
+      "slug": "cezoni-market-nonno-giovanni-dop-250ml",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 55,
+      "slug": "cezoni-market-nonno-giovanni-dop-500ml",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    },
+    {
+      "productId": 56,
+      "slug": "cezoni-market-donna-carmela-igp-500ml",
+      "action": "APPLIED",
+      "fields": {
+        "unit": {
+          "before": "PIECE",
+          "after": "PACK"
+        },
+        "saleModel": {
+          "before": null,
+          "after": "PACK"
+        },
+        "priceUnit": {
+          "before": null,
+          "after": "PACK"
+        }
+      }
+    }
+  ],
+  "changed": 34,
+  "skipped": 0,
+  "unchanged": 0
+}

@@ -1,3 +1,4 @@
+import type { Sale } from '../utils/sale';
 export type Unit = "GRAM" | "PIECE" | "BUNCH" | "PACK";
 
 export type ProductSort =
@@ -5,7 +6,7 @@ export type ProductSort =
 
 export type ProductPriceStatus = 'ESTIMATED' | 'SOURCE' | 'AUDITED';
 
-export interface ProductListItem {
+export interface ProductListItem extends Sale {
   id: number;
   name: string;
   slug: string;

@@ -1,5 +1,5 @@
 <template>
-  <UContainer class="checkout">
+  <UContainer class="checkout" :class="{ 'checkout--delivery-notice': freeDelivery }">
     <header class="checkout__head">
       <h1 class="checkout__title">Корзина и оформление</h1>
       <UButton v-if="cart.restored && cart.count" variant="ghost" color="neutral" :disabled="loading || cart.serverBusy" class="checkout__clear" @click="clearCart">
@@ -331,15 +331,19 @@
         />
       </fieldset>
 
-      <aside class="summary">
+      <aside ref="summaryElement" class="summary">
         <h2 class="summary__title">Ваш заказ</h2>
         <CartFreeDelivery v-if="form.type === 'DELIVERY' && deliveryQuote" :quote="deliveryQuote" />
+        <UButton v-if="freeDelivery && !freeDelivery.eligible" to="/catalog" variant="soft" block class="summary__add-products">
+          ＋ Добрать продукты
+        </UButton>
 
         <div v-if="cart.total !== null" class="summary__row">
           <span>Предварительная стоимость товаров</span>
 
           <span> ≈ {{ money(cart.total ?? 0) }} </span>
         </div>
+        <p v-if="ready && cart.quote?.pendingWeight" class="summary__note">Вес целых экземпляров неизвестен. Общую стоимость сообщим после сборки. {{ cart.quote.knownSubtotal ? `Сейчас рассчитано за остальные позиции: ${money(cart.quote.knownSubtotal)}.` : '' }}</p>
         <PromoSelector />
 
         <div class="summary__row">
@@ -357,9 +361,18 @@
         </div>
 
         <div class="summary__submit">
+          <div v-if="freeDelivery" class="summary__delivery-notice" role="status" aria-live="polite">
+            <p v-if="freeDelivery.eligible" class="summary__delivery-success">
+              <UIcon name="i-lucide-check" class="summary__delivery-icon" aria-hidden="true" /> Бесплатная доставка доступна!
+            </p>
+            <button v-else type="button" class="summary__delivery-notice-button" @click="scrollToSummary">
+              <span class="summary__delivery-message">До бесплатной доставки осталось <strong>{{ money(freeDelivery.remaining) }}</strong></span>
+              <UIcon name="i-lucide-chevron-down" class="summary__delivery-icon" aria-hidden="true" />
+            </button>
+          </div>
           <div class="summary__submit-total">
             <small>Предварительно за товары</small>
-            <strong>{{ cart.total !== null ? money(cart.quote?.goodsTotal ?? cart.total) : 'Рассчитывается' }}</strong>
+            <strong>{{ cart.total !== null ? money(cart.quote?.goodsTotal ?? cart.total) : cart.quote?.pendingWeight ? 'После взвешивания' : 'Рассчитывается' }}</strong>
           </div>
         <UButton
           type="submit"
@@ -416,11 +429,24 @@ const {
   refresh: refreshQuote,
 } = useCartQuote();
 const eligibility = computed(() =>
-  ready.value && cart.total !== null && settings.value && !settingsError.value
+  ready.value && cart.quote?.valid && settings.value && !settingsError.value
     ? deliveryEligibility(cart.total, settings.value)
     : null,
 );
 const deliveryQuote = computed(() => ready.value && cart.quote?.valid && form.type === 'DELIVERY' ? cart.quote.delivery : undefined);
+const freeDelivery = computed(() => {
+  const quote = deliveryQuote.value;
+  return quote?.enabled && quote.remaining !== null
+    ? { remaining: quote.remaining, eligible: quote.eligible }
+    : null;
+});
+const summaryElement = ref<HTMLElement | null>(null);
+function scrollToSummary() {
+  summaryElement.value?.scrollIntoView({
+    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+    block: 'start',
+  });
+}
 useOrderPolling(async () => { await Promise.all([refreshQuote(), refreshSettings()]); }, () => 60_000);
 const api = useApiClient();
 const { name, rememberOnSuccess } = useCheckoutName();
@@ -782,6 +808,7 @@ async function submit() {
           items: cart.items.map((item) => ({
             productId: item.product.id,
             qty: item.qty,
+            ...((item.product.priceUnit === 'GRAM' && item.product.unit !== 'GRAM') || (item.quantityUnit && item.quantityUnit !== item.product.unit) ? { quantityUnit: item.quantityUnit ?? item.product.unit, weightMinGrams: item.weightMinGrams, weightMaxGrams: item.weightMaxGrams } : {}),
           })),
         },
       });
@@ -853,7 +880,7 @@ useSeoMeta({
   animation: checkout-shake 350ms ease-in-out;
 }
 .form__field {
-  scroll-margin-block: 5rem calc(7rem + var(--safe-bottom));
+  scroll-margin-block: 5rem calc(var(--submit-space) + 1rem + var(--safe-bottom));
 }
 @keyframes checkout-shake {
   20%, 60% { transform: translateX(-4px); }
@@ -914,8 +941,14 @@ useSeoMeta({
 }
 
 .checkout {
+  --submit-space: 6rem;
+
   min-width: 0;
-  padding-block: var(--page-start) calc(var(--page-end) + 6rem + var(--safe-bottom));
+  padding-block: var(--page-start) calc(var(--page-end) + var(--submit-space) + var(--safe-bottom));
+}
+
+.checkout--delivery-notice {
+  --submit-space: 9rem;
 }
 
 .checkout__clear,
@@ -946,7 +979,7 @@ useSeoMeta({
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.25rem 0.75rem;
   padding: 0.75rem max(var(--page-x), var(--safe-right))
     max(0.75rem, var(--safe-bottom)) max(var(--page-x), var(--safe-left));
   border-top: 1px solid var(--ui-border);
@@ -969,6 +1002,100 @@ useSeoMeta({
 .summary__submit :deep(button) {
   min-height: var(--touch-target);
   white-space: nowrap;
+}
+
+.summary__delivery-notice {
+  grid-column: 1 / -1;
+  min-width: 0;
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.summary__submit .summary__delivery-notice-button,
+.summary__delivery-success {
+  display: flex;
+  min-height: var(--touch-target);
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.125rem 0.25rem;
+  text-align: center;
+  white-space: normal;
+}
+
+.summary__delivery-notice-button {
+  width: 100%;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 25%, var(--ui-border));
+  border-radius: 0.625rem;
+  background: color-mix(in srgb, var(--ui-primary) 10%, var(--ui-bg));
+  color: var(--ui-text-muted);
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 100ms ease;
+}
+
+.summary__submit .summary__delivery-notice-button {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+}
+
+.summary__delivery-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.summary__delivery-message strong {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.summary__delivery-icon {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  color: var(--ui-primary);
+}
+
+.summary__delivery-notice-button .summary__delivery-icon {
+  animation: delivery-chevron-turn 6s ease-in-out infinite;
+}
+
+@keyframes delivery-chevron-turn {
+  0%, 75% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.summary__delivery-notice-button strong,
+.summary__delivery-notice-button:hover,
+.summary__delivery-success {
+  color: var(--ui-primary);
+}
+
+.summary__delivery-notice-button:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+.summary__delivery-notice-button:hover {
+  border-color: color-mix(in srgb, var(--ui-primary) 50%, var(--ui-border));
+  background: color-mix(in srgb, var(--ui-primary) 16%, var(--ui-bg));
+}
+
+.summary__delivery-notice-button:active {
+  background: color-mix(in srgb, var(--ui-primary) 20%, var(--ui-bg));
+  transform: scale(0.99);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summary__delivery-notice-button { transition: none; transform: none; }
+  .summary__delivery-notice-button:active { transform: none; }
+  .summary__delivery-notice-button .summary__delivery-icon { animation: none; }
+}
+
+.summary__add-products {
+  min-height: var(--touch-target);
+  margin-bottom: 1rem;
 }
 
 .type__item:focus-visible,
@@ -1165,6 +1292,7 @@ useSeoMeta({
 .summary {
   min-width: 0;
   align-self: start;
+  scroll-margin-top: calc(var(--header-height) + var(--safe-top) + 1rem);
   padding: var(--card-padding);
   border: 1px solid var(--ui-border);
   border-radius: 1rem;

@@ -5,6 +5,7 @@ import type { Prisma } from '../db/gen/client.js';
 import { customerProduct, productListSelect } from '../product/select.js';
 import { validQuantity } from './assembly.js';
 import { goodsLine, goodsSum } from './pricing.js';
+import { compatibleQuantityUnit, estimatedQuantity, variableWeight } from '../product/sale.js';
 
 // Strip unsolicited client prices. Only IDs and quantities are used.
 export const quoteSchema = z.object({
@@ -18,6 +19,9 @@ export const quoteSchema = z.object({
           .number()
           .min(-Number.MAX_SAFE_INTEGER)
           .max(Number.MAX_SAFE_INTEGER),
+        quantityUnit: z.enum(['GRAM', 'PIECE', 'BUNCH', 'PACK']).nullable().optional(),
+        weightMinGrams: z.number().int().positive().max(1_000_000).nullable().optional(),
+        weightMaxGrams: z.number().int().positive().max(1_000_000).nullable().optional(),
       }),
     )
     .min(1)
@@ -51,6 +55,7 @@ export function cartQuantities(items: QuoteInput['items']) {
 export function cartQuote(
   quantities: Map<number, number>,
   products: CartProduct[],
+  requestedItems: QuoteInput['items'] = [],
 ) {
   const byId = new Map(products.map((product) => [product.id, product]));
   const items = [...quantities].map(([productId, qty]) => {
@@ -58,25 +63,41 @@ export function cartQuote(
     let product: ReturnType<typeof customerProduct<CartProduct>> | null = null;
     let status: LineStatus = 'UNAVAILABLE';
     let lineTotal: number | null = null;
+    const preferences = requestedItems.filter(item => item.productId === productId);
+    const weightMinGrams = preferences[0]?.weightMinGrams ?? null;
+    const weightMaxGrams = preferences[0]?.weightMaxGrams ?? null;
+    const quantityUnit = preferences[0]?.quantityUnit ?? null;
     if (source) {
       status = cartQuantityValid(qty, source.min, source.step)
         ? 'AVAILABLE'
         : 'INVALID_QUANTITY';
+      if (preferences.some(item => (item.weightMinGrams ?? null) !== weightMinGrams || (item.weightMaxGrams ?? null) !== weightMaxGrams) ||
+        (weightMinGrams !== null && weightMaxGrams !== null && weightMinGrams > weightMaxGrams) ||
+        ((weightMinGrams !== null || weightMaxGrams !== null) && !variableWeight(source)) ||
+        (requestedItems.length > 0 && preferences.some(item => !compatibleQuantityUnit(item.quantityUnit, source)))) status = 'INVALID_QUANTITY';
       try {
         product = customerProduct(source);
         if (status === 'AVAILABLE') {
-          lineTotal = goodsLine(product.price, qty, product.priceQty);
+          if (variableWeight(product) && qty > 100) status = 'INVALID_QUANTITY';
+          const pricedQty = estimatedQuantity(product, qty);
+          if (status === 'AVAILABLE' && pricedQty !== null)
+            lineTotal = goodsLine(product.price, pricedQty, product.priceQty);
         }
       } catch (error) {
-        if (!(error instanceof BadRequestException)) throw error;
+        if (!(error instanceof BadRequestException) && !(error instanceof RangeError)) throw error;
         status = 'PRICE_OVERFLOW';
       }
     }
-    return { productId, qty, product, status, lineTotal };
+    return { productId, qty, product, status, lineTotal,
+      ...(source && (variableWeight(source) || quantityUnit !== null) ? { quantityUnit, weightMinGrams, weightMaxGrams } : {}) };
   });
   let subtotal: number | null = null;
   let error: 'TOTAL_OVERFLOW' | null = null;
-  if (items.every((item) => item.status === 'AVAILABLE')) {
+  let knownSubtotal: number | null = null;
+  try { knownSubtotal = goodsSum(items.filter(item => item.status === 'AVAILABLE' && item.lineTotal !== null).map(item => item.lineTotal!)); }
+  catch (cause) { if (!(cause instanceof BadRequestException)) throw cause; error = 'TOTAL_OVERFLOW'; }
+  const available = items.every((item) => item.status === 'AVAILABLE');
+  if (available && items.every(item => item.lineTotal !== null)) {
     try {
       subtotal = goodsSum(items.map((item) => item.lineTotal!));
     } catch (cause) {
@@ -87,7 +108,7 @@ export function cartQuote(
   // A comparison fingerprint, NOT a trusted price, reservation or idempotency key.
   // Create recalculates it from freshly read products before any write.
   const token =
-    subtotal === null
+    !available || error !== null
       ? null
       : createHash('sha256')
           .update(
@@ -105,10 +126,15 @@ export function cartQuote(
                     p.min,
                     p.step,
                     p.portionQty,
+                    p.saleModel,
+                    p.priceUnit,
+                    p.estimatedWeightGrams,
+                    item.weightMinGrams,
+                    item.weightMaxGrams,
                   ];
                 }),
             ),
           )
           .digest('hex');
-  return { items, subtotal, valid: subtotal !== null, error, token };
+  return { items, subtotal, knownSubtotal: available ? knownSubtotal : null, pendingWeight: available && items.some(item => item.lineTotal === null), valid: available && error === null, error, token };
 }

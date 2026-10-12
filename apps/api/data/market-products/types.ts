@@ -9,7 +9,9 @@ export interface MarketProduct {
   marketPointSlug: string;
   sourceUrl: string;
   sourceCheckedAt: string;
-  unit: 'GRAM' | 'PIECE';
+  unit: 'GRAM' | 'PIECE' | 'BUNCH' | 'PACK';
+  saleModel?: 'PACK';
+  priceUnit?: 'PACK';
   priceQty: number;
   step: number;
   min: number;

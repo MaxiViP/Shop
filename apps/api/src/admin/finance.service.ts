@@ -12,6 +12,7 @@ const orderSelect = {
     id: true, productName: true, status: true, qty: true, actualQty: true,
     total: true, actualTotal: true, price: true, actualPrice: true, priceQty: true,
     settlementModeSnapshot: true, basePriceSnapshot: true,
+    unit: true, priceUnit: true, actualWeightGrams: true,
   } },
   extras: { where: { status: 'ACTIVE' }, select: { amount: true } },
 } satisfies Prisma.OrderSelect;

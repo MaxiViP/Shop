@@ -37,21 +37,21 @@ const product = {
 test("quick-add starts with a product name and a formatted portion in its accessible label", () => {
   assert.deepEqual(quickAddState(product, 0), {
     added: false,
-    label: "В корзину",
+    label: "Добавить 500 г",
     ariaLabel: "Добавить Яблоки в корзину: 500 г",
   });
 });
 
 for (const [unit, qty, portionQty, label, portion] of [
-  ["GRAM", 500, 500, "500 г", "500 г"],
-  ["GRAM", 1000, 500, "1 кг", "500 г"],
-  ["GRAM", 1500, 500, "1,5 кг", "500 г"],
-  ["PIECE", 3, 2, "3 шт.", "2 шт."],
-  ["PACK", 2, 1, "2 уп.", "1 уп."],
-  ["BUNCH", 2, 1, "2 пуч.", "1 пуч."],
+  ["GRAM", 500, 500, "500 г", "100 г"],
+  ["GRAM", 1000, 500, "1 кг", "100 г"],
+  ["GRAM", 1500, 500, "1,5 кг", "100 г"],
+  ["PIECE", 3, 2, "3 шт.", "1 шт."],
+  ["PACK", 2, 1, "2 упаковки", "1 упаковку"],
+  ["BUNCH", 2, 1, "2 пучка", "1 пучок"],
 ]) {
   test(`quick-add button displays ${label} and announces the next portion`, () => {
-    assert.deepEqual(quickAddState({ ...product, unit, portionQty }, qty), {
+    assert.deepEqual(quickAddState({ ...product, unit, portionQty, step: unit === 'GRAM' ? 100 : 1 }, qty), {
       added: true,
       label,
       ariaLabel: `В корзине ${label}. Добавить ещё ${portion}`,
@@ -110,10 +110,11 @@ test("saved guest cart survives the first add after restoration", () => {
   assert.equal(cart.quoteReady, false);
 });
 for (const unit of ["GRAM", "PIECE", "PACK", "BUNCH"]) {
-  test(`${unit}: quick add uses a portion, independent of manual step`, () => {
+  test(`${unit}: first add uses a portion and later controls use the step`, () => {
     const cart = store();
-    for (const expected of [500, 1000, 1500]) {
-      assert.equal(cart.add({ ...product, unit }), true);
+    const item = { ...product, unit, ...(unit === 'GRAM' ? {} : { min: 1, step: 1, portionQty: 1 }) };
+    for (const expected of unit === 'GRAM' ? [500, 600, 700] : [1, 2, 3]) {
+      assert.equal(cart.add(item), true);
       assert.equal(cart.qty(1), expected);
     }
   });
@@ -121,7 +122,7 @@ for (const unit of ["GRAM", "PIECE", "PACK", "BUNCH"]) {
 test("other grids, upper bound and invalid legacy quantity are not silently rounded", () => {
   for (const [min, step, expected] of [
     [1, 1, [1, 2, 3]],
-    [1000, 250, [1000, 2000, 3000]],
+    [1000, 250, [1000, 1250, 1500]],
   ]) {
     let qty;
     for (const next of expected) {
@@ -140,9 +141,9 @@ test("detail sets a desired total while card adds a portion", () => {
   cart.put(product, 800);
   assert.equal(cart.qty(1), 800);
   cart.add(product);
-  assert.equal(cart.qty(1), 1300);
+  assert.equal(cart.qty(1), 900);
   assert.equal(cart.put(product, 1001), false);
-  assert.equal(cart.qty(1), 1300);
+  assert.equal(cart.qty(1), 900);
 });
 test("price decrease/increase changes eligibility using only server subtotal", () => {
   const cart = store();
@@ -224,11 +225,11 @@ test("storage supports legacy/versioned rows and rejects malformed data safely",
 });
 
 for (const config of [
-  { unit: 'GRAM', min: 500, step: 100, portionQty: 500, quick: [500, 1000, 1500], manual: [500, 600, 700] },
-  { unit: 'GRAM', min: 500, step: 250, portionQty: 1000, quick: [1000, 2000, 3000], manual: [500, 750, 1000] },
+  { unit: 'GRAM', min: 500, step: 100, portionQty: 500, quick: [500, 600, 700], manual: [500, 600, 700] },
+  { unit: 'GRAM', min: 500, step: 250, portionQty: 1000, quick: [1000, 1250, 1500], manual: [500, 750, 1000] },
   { unit: 'PIECE', min: 1, step: 1, portionQty: 1, quick: [1, 2, 3], manual: [1, 2, 3] },
-  { unit: 'PIECE', min: 1, step: 1, portionQty: 2, quick: [2, 4, 6], manual: [1, 2, 3] },
-  { unit: 'PIECE', min: 2, step: 1, portionQty: 3, quick: [3, 6, 9], manual: [2, 3, 4] },
+  { unit: 'PIECE', min: 1, step: 1, portionQty: 2, quick: [2, 3, 4], manual: [1, 2, 3] },
+  { unit: 'PIECE', min: 2, step: 1, portionQty: 3, quick: [3, 4, 5], manual: [2, 3, 4] },
   { unit: 'PACK', min: 1, step: 1, portionQty: 1, quick: [1, 2, 3], manual: [1, 2, 3] },
   { unit: 'BUNCH', min: 1, step: 1, portionQty: 1, quick: [1, 2, 3], manual: [1, 2, 3] },
 ]) {
@@ -290,12 +291,12 @@ test('legacy cart backfills only a missing portion and keeps saved quantities fo
   const cart = store();
   cart.restore(decoded.items);
   assert.equal(cart.add(cart.items[0].product), true);
-  assert.equal(cart.qty(1), 1000);
-  const next = { ...quote(350000, 1000), items: [{ ...quote(350000, 1000).items[0], product: { ...product, portionQty: 1000 } }] };
+  assert.equal(cart.qty(1), 501);
+  const next = { ...quote(350000, 501), items: [{ ...quote(350000, 501).items[0], product: { ...product, step: 1, portionQty: 1000 } }] };
   cart.applyQuote(next, cart.key);
   assert.equal(cart.items[0].product.portionQty, 1000);
   assert.equal(cart.add(cart.items[0].product), true);
-  assert.equal(cart.qty(1), 2000);
+  assert.equal(cart.qty(1), 502);
   const roundTrip = decodeCart(JSON.stringify({ version: 1, items: cart.items }));
   assert.equal(roundTrip.items[0].product.portionQty, 1000);
   for (const portionQty of [0, -1, 0.5, '500', null]) {
@@ -318,16 +319,16 @@ test('price previews use exact backend rounding and report limits', () => {
 test('quantity formatting keeps whole grams without losing precision in kilograms', () => {
   for (const [qty, text] of [[500, '500 г'], [1000, '1 кг'], [1500, '1,5 кг'], [1250, '1,25 кг'], [1001, '1,001 кг'], [1005, '1,005 кг']])
     assert.equal(qtyText('GRAM', qty), text);
-  for (const [unit, text] of [['PIECE', '2 шт.'], ['PACK', '2 уп.'], ['BUNCH', '2 пуч.']])
+  for (const [unit, text] of [['PIECE', '2 шт.'], ['PACK', '2 упаковки'], ['BUNCH', '2 пучка']])
     assert.equal(qtyText(unit, 2), text);
 });
 
 for (const [unit, min, step, portionQty, start, expected] of [
-  ["GRAM", 500, 100, 500, 1500, [1000, 500, 0]],
-  ["GRAM", 500, 100, 500, 1300, [800, 0]],
-  ["GRAM", 500, 250, 1000, 1500, [500, 0]],
+  ["GRAM", 500, 100, 500, 1500, [1400, 1300, 1200, 1100, 1000, 900, 800, 700, 600, 500, 0]],
+  ["GRAM", 500, 100, 500, 1300, [1200, 1100, 1000, 900, 800, 700, 600, 500, 0]],
+  ["GRAM", 500, 250, 1000, 1500, [1250, 1000, 750, 500, 0]],
   ["PIECE", 1, 1, 1, 3, [2, 1, 0]],
-  ["PIECE", 2, 1, 3, 6, [3, 0]],
+  ["PIECE", 2, 1, 3, 6, [5, 4, 3, 2, 0]],
   ["PACK", 1, 1, 1, 2, [1, 0]],
   ["BUNCH", 1, 1, 1, 1, [0]],
 ]) {
@@ -371,25 +372,26 @@ test("card and header totals stay server-authoritative through portion edits", (
   assert.equal(cart.total, null);
   assert.equal(cart.quoteLine(product.id), undefined);
   assert.equal(cart.applyQuote(quote(350000, 1500, 12345), previousKey), false);
-  cart.applyQuote(quote(350000, 1000, 90000), cart.key);
+  cart.applyQuote(quote(350000, 1400, 90000), cart.key);
   assert.equal(cart.total, 90000);
   assert.equal(cart.quoteLine(product.id).lineTotal, 90000);
 });
 
 for (const qty of [600, 700]) {
-  test(`card minus removes manual ${qty}g below min, without rounding to 500g`, () => {
+  test(`card minus reduces manual ${qty}g by the step and retains the minimum`, () => {
     const cart = store();
     cart.restore([{ product, qty }]);
     assert.equal(cart.subtract(product), true);
-    assert.equal(cart.count, 0);
+    assert.equal(cart.qty(1), qty - 100);
+    assert.equal(cart.count, 1);
   });
 }
-test("card plus preserves manually chosen 700g: 700 + portion 500 = 1200", () => {
+test("card plus preserves manually chosen 700g: 700 + step 100 = 800", () => {
   const cart = store();
   cart.restore([{ product, qty: 700 }]);
   assert.equal(cart.add(product), true);
-  assert.equal(cart.qty(product.id), 1200);
-  assert.equal(manualQuantity(1200, product, 1), 1300);
+  assert.equal(cart.qty(product.id), 800);
+  assert.equal(manualQuantity(800, product, 1), 900);
 });
 
 test("same-quantity put preserves fresh quote and reconciled server product, not catalog prices", () => {
@@ -431,7 +433,7 @@ test("display amounts retain server values while current totals remain unavailab
   assert.equal(cart.total, null);
   assert.equal(cart.quoteReady, false);
   assert.equal(cart.lineTotal(cart.items[0]), null);
-  cart.applyQuote(quote(350000, 1000, 150000), cart.key);
+  cart.applyQuote(quote(350000, 600, 150000), cart.key);
   assert.equal(cart.displayTotal, 150000);
   assert.equal(cart.displayLineTotal(1), 150000);
   // No server amount exists for a newly added product.

@@ -1,10 +1,14 @@
 import type { ProductListItem, Unit } from "../types/product";
 import type { PromoOption } from "../types/promo.ts";
-import { lineAmount, validQuantity, quickQuantity } from "./assembly.ts";
+import { lineAmount, validQuantity, quickQuantity, manualQuantity } from "./assembly.ts";
+import { estimatedQuantity, variableWeight, type SaleModel } from './sale.ts';
 
 export interface CartItem {
   product: ProductListItem;
   qty: number;
+  quantityUnit?: Unit | null;
+  weightMinGrams?: number | null;
+  weightMaxGrams?: number | null;
 }
 export interface CartQuoteLine {
   productId: number;
@@ -12,6 +16,9 @@ export interface CartQuoteLine {
   product: ProductListItem | null;
   status: "AVAILABLE" | "UNAVAILABLE" | "INVALID_QUANTITY" | "PRICE_OVERFLOW";
   lineTotal: number | null;
+  quantityUnit?: Unit | null;
+  weightMinGrams?: number | null;
+  weightMaxGrams?: number | null;
 }
 export interface CartQuote {
   items: CartQuoteLine[];
@@ -19,6 +26,8 @@ export interface CartQuote {
   valid: boolean;
   error: "TOTAL_OVERFLOW" | null;
   token: string | null;
+  pendingWeight?: boolean;
+  knownSubtotal?: number | null;
   delivery?: DeliveryQuote;
   goodsTotal?: number | null;
   promo?: PromoOption | null;
@@ -40,14 +49,15 @@ export interface ServerCartSnapshot extends CartQuote {
 
 export type ServerCartChange =
   | { kind: 'promo'; promoCodeId: number | null }
-  | { kind: 'add' | 'set'; productId: number; qty: number }
+  | { kind: 'add' | 'set'; productId: number; qty: number; quantityUnit?: Unit; weightMinGrams?: number | null; weightMaxGrams?: number | null }
   | { kind: 'remove'; productId: number }
   | { kind: 'clear' };
 
 export function previewTotal(product: ProductListItem, qty: number): number | null {
   if (!validQuantity(qty, product)) return null;
   try {
-    return lineAmount(product.price, qty, product.priceQty);
+    const pricedQty = estimatedQuantity(product, qty);
+    return pricedQty === null ? null : lineAmount(product.price, pricedQty, product.priceQty);
   } catch (error) {
     if (!(error instanceof RangeError)) throw error;
     return null;
@@ -55,28 +65,31 @@ export function previewTotal(product: ProductListItem, qty: number): number | nu
 }
 export function validCartQty(
   qty: number,
-  product: Pick<ProductListItem, "min" | "step">,
+  product: Pick<ProductListItem, "min" | "step"> & Partial<Pick<ProductListItem, 'unit' | 'priceUnit' | 'saleModel'>>,
 ) {
-  return validQuantity(qty, product);
+  return validQuantity(qty, product) && (!product.unit || !variableWeight({ ...product, unit: product.unit }) || qty <= 100);
 }
 export function nextCartQty(
   current: number | undefined,
-  product: Pick<ProductListItem, "min" | "step" | "portionQty">,
+  product: Pick<ProductListItem, "min" | "step" | "portionQty"> & Partial<Pick<ProductListItem, 'unit' | 'priceUnit' | 'saleModel'>>,
 ) {
-  return quickQuantity(current, product);
+  const next = current ? manualQuantity(current, product, 1) : quickQuantity(current, product);
+  return next !== null && validCartQty(next, product) ? next : null;
 }
-// Quick removal mirrors quick-add portions; manual editors keep using step.
+// First add uses portionQty; subsequent controls use step.
 export function previousCartQty(
   current: number,
   product: Pick<ProductListItem, "min" | "step" | "portionQty">,
 ) {
   if (!validCartQty(current, product) || nextCartQty(undefined, product) === null)
     return null;
-  const next = current - product.portionQty;
+  const next = current - product.step;
   return next < product.min ? 0 : validCartQty(next, product) ? next : null;
 }
 export function cartKey(items: CartItem[]) {
-  return JSON.stringify(items.map((item) => [item.product.id, item.qty]));
+  return JSON.stringify(items.map(item => variableWeight(item.product) || item.weightMinGrams || item.weightMaxGrams
+    ? [item.product.id, item.qty, item.quantityUnit ?? item.product.unit, item.weightMinGrams ?? null, item.weightMaxGrams ?? null]
+    : [item.product.id, item.qty]));
 }
 export function reconcileCart(
   items: CartItem[],
@@ -106,7 +119,7 @@ export function reconcileCart(
       product.unit !== item.product.unit
     )
       priceChanged = true;
-    return { product, qty: item.qty };
+    return { ...item, product, ...(variableWeight(product) || product.unit !== item.product.unit ? { quantityUnit: item.quantityUnit ?? item.product.unit } : {}) };
   });
   return { items: updated, priceChanged };
 }
@@ -155,6 +168,9 @@ function storedItem(value: unknown): CartItem | null {
     return null;
   return {
     qty: value.qty,
+    ...(value.quantityUnit !== undefined ? { quantityUnit: typeof value.quantityUnit === 'string' && ['GRAM', 'PIECE', 'PACK', 'BUNCH'].includes(value.quantityUnit) ? value.quantityUnit as Unit : p.unit as Unit } : {}),
+    ...(positiveInt(value.weightMinGrams) && value.weightMinGrams <= 1_000_000 ? { weightMinGrams: value.weightMinGrams } : {}),
+    ...(positiveInt(value.weightMaxGrams) && value.weightMaxGrams <= 1_000_000 ? { weightMaxGrams: value.weightMaxGrams } : {}),
     product: {
       id: p.id,
       name: p.name,
@@ -166,6 +182,10 @@ function storedItem(value: unknown): CartItem | null {
       // Old carts keep their quantities; current product data arrives through quote.
       portionQty: p.portionQty === undefined ? p.min : p.portionQty as number,
       unit: p.unit as Unit,
+      ...(typeof p.saleModel === 'string' && ['WEIGHT_LOOSE', 'PIECE_FIXED', 'BUNCH', 'PACK', 'WHOLE_VARIABLE_WEIGHT', 'CUT_TO_WEIGHT'].includes(p.saleModel) ? { saleModel: p.saleModel as SaleModel } : {}),
+      ...(typeof p.priceUnit === 'string' && ['GRAM', 'PIECE', 'BUNCH', 'PACK'].includes(p.priceUnit) ? { priceUnit: p.priceUnit as Unit } : {}),
+      ...(typeof p.wholeLabel === 'string' ? { wholeLabel: p.wholeLabel } : {}),
+      ...(positiveInt(p.estimatedWeightGrams) ? { estimatedWeightGrams: p.estimatedWeightGrams } : {}),
       priceStatus: p.priceStatus === 'SOURCE' || p.priceStatus === 'AUDITED' ? p.priceStatus : 'ESTIMATED',
       isSeasonal: p.isSeasonal === true,
       isHit: p.isHit === true,

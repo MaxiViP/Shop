@@ -41,6 +41,7 @@
       </NuxtLink>
 
       <ProductOrigin :point="product.marketPoint" :price-status="product.priceStatus" />
+      <p v-if="variableWeight(product)" class="card__sale">{{ product.unit === 'BUNCH' ? 'Пучками' : 'Целиком' }}. Вес и стоимость уточняются при сборке.</p>
 
       <div class="card__bottom">
         <ProductPrice :product="product" />
@@ -80,7 +81,7 @@
             :title="totalLabel"
             :aria-label="totalLabel"
           >
-            {{ lineTotal !== null ? money(lineTotal) : "…" }}
+            {{ quantityLabel }}
           </span>
           <UButton
             icon="i-lucide-plus"
@@ -105,6 +106,7 @@ import { quickAddState } from "~/utils/quick-add";
 import { nextCartQty, previousCartQty } from "~/utils/cart";
 import { qtyText } from "~/utils/qty";
 import { money } from "~/utils/money";
+import { variableWeight } from '~/utils/sale';
 
 const { product } = defineProps<{
   product: ProductListItem;
@@ -136,11 +138,11 @@ const cartProduct = computed(
     product,
 );
 const quantityLabel = computed(() =>
-  qtyText(cartProduct.value.unit, cartQty.value),
+  qtyText(cartProduct.value.unit, cartQty.value, cartProduct.value),
 );
 const action = computed(() => quickAddState(cartProduct.value, cartQty.value));
 const portion = computed(() =>
-  qtyText(cartProduct.value.unit, cartProduct.value.portionQty),
+  qtyText(cartProduct.value.unit, cartProduct.value.step, cartProduct.value),
 );
 const lineTotal = computed(() => cart.displayLineTotal(product.id));
 const totalLabel = computed(() =>
@@ -150,7 +152,7 @@ const totalLabel = computed(() =>
         : "Последний расчёт позиции, сумма уточняется: ") +
       money(lineTotal.value)
     : cart.quoteReady
-      ? "Проверьте позицию в корзине"
+      ? variableWeight(cartProduct.value) ? 'Стоимость после взвешивания' : "Проверьте позицию в корзине"
       : "Стоимость позиции рассчитывается",
 );
 
@@ -498,7 +500,7 @@ async function subtract() {
 
   text-align: left;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .card__add-icon {
@@ -565,7 +567,8 @@ async function subtract() {
 
   text-align: center;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .card__total--stale {
@@ -599,9 +602,11 @@ async function subtract() {
   }
 
   .card__total {
-    font-size: 0.68rem;
+    font-size: 0.625rem;
   }
 }
+
+.card__sale { margin-block: 0.25rem; font-size: 0.75rem; line-height: 1.3; color: var(--ui-text-muted); }
 
 .card__badges { position: absolute; top: var(--card-inset); left: 0; z-index: 4; display: grid; justify-items: start; gap: 0.25rem; pointer-events: none; }
 .card__ribbon { padding: 0.25rem 0.625rem 0.25rem 0.5rem; border-radius: 0 0.375rem 0.375rem 0; color: #fff; font-size: clamp(0.625rem, 1.8vw, 0.6875rem); font-weight: 800; line-height: 1.25; letter-spacing: 0.025em; box-shadow: 0 1px 3px rgb(0 0 0 / 15%); }

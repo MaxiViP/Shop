@@ -1,6 +1,7 @@
 import { useCartStore } from "../stores/cart.ts";
 import { nextCartQty, previousCartQty, validCartQty } from "../utils/cart.ts";
 import type { ProductListItem } from "../types/product";
+import { variableWeight } from '../utils/sale.ts';
 
 export function useCartActions() {
   const cart = useCartStore();
@@ -8,9 +9,11 @@ export function useCartActions() {
   async function put(product: ProductListItem, qty: number) {
     if (!cart.restored || !validCartQty(qty, product)) return false;
     const before = cart.qty(product.id);
+    const item = cart.items.find(row => row.product.id === product.id);
     const changed = cart.mode === "guest"
       ? cart.put(product, qty)
-      : await cart.changeServer({ kind: "set", productId: product.id, qty });
+      : await cart.changeServer({ kind: "set", productId: product.id, qty, quantityUnit: product.unit,
+        weightMinGrams: variableWeight(product) ? item?.weightMinGrams : null, weightMaxGrams: variableWeight(product) ? item?.weightMaxGrams : null });
     if (changed && cart.qty(product.id) > before) cart.noteAddition();
     return changed;
   }
@@ -26,7 +29,7 @@ export function useCartActions() {
     const next = nextCartQty(before || undefined, product);
     if (next === null) return false;
     const changed = await cart.changeServer({
-      kind: "add", productId: product.id, qty: product.portionQty,
+      kind: "add", productId: product.id, qty: next - before,
     });
     if (changed && cart.qty(product.id) > before) cart.noteAddition();
     return changed;
@@ -57,6 +60,12 @@ export function useCartActions() {
     }
     return cart.changeServer({ kind: "remove", productId: id });
   }
+  async function setWeightLimits(id: number, min: number | null, max: number | null) {
+    const item = cart.items.find(row => row.product.id === id);
+    if (!cart.restored || !item) return false;
+    return cart.mode === 'guest' ? cart.setWeightLimits(id, min, max) : cart.changeServer({ kind: 'set', productId: id,
+      qty: item.qty, quantityUnit: item.product.unit, weightMinGrams: min, weightMaxGrams: max });
+  }
 
   async function clear() {
     if (!cart.restored) return false;
@@ -67,5 +76,5 @@ export function useCartActions() {
     return cart.changeServer({ kind: "clear" });
   }
 
-  return { add, put, subtract, setQty, remove, clear };
+  return { add, put, subtract, setQty, setWeightLimits, remove, clear };
 }

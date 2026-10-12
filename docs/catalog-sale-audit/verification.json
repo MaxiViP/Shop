@@ -1,0 +1,272 @@
+{
+  "checkedAt": "2026-10-12T11:03:18.261Z",
+  "localOnly": true,
+  "checks": [
+    {
+      "table": "Product",
+      "beforeCount": 173,
+      "afterCount": 173,
+      "beforeHash": "0b7ec6b52502c4ca03e1bd37b184c0c90d14f4960353ec9599b72279471c11c6",
+      "afterHash": "0b7ec6b52502c4ca03e1bd37b184c0c90d14f4960353ec9599b72279471c11c6",
+      "preserved": true,
+      "excludedFields": [
+        "unit",
+        "updatedAt"
+      ]
+    },
+    {
+      "table": "ProductImage",
+      "beforeCount": 18,
+      "afterCount": 18,
+      "beforeHash": "e1d107757bb94daadd011b3cc50fe661c5edce561b8ae72a5b08507730e17640",
+      "afterHash": "e1d107757bb94daadd011b3cc50fe661c5edce561b8ae72a5b08507730e17640",
+      "preserved": true,
+      "excludedFields": []
+    },
+    {
+      "table": "Category",
+      "beforeCount": 12,
+      "afterCount": 12,
+      "beforeHash": "10e0176b4a8f58df4802d4237b484e059763089902203bb5c13e606764916094",
+      "afterHash": "10e0176b4a8f58df4802d4237b484e059763089902203bb5c13e606764916094",
+      "preserved": true,
+      "excludedFields": []
+    },
+    {
+      "table": "MarketPoint",
+      "beforeCount": 60,
+      "afterCount": 60,
+      "beforeHash": "e5c58495c92588f276d15099d13cf84382dc443556d8049026eec4f6ac911590",
+      "afterHash": "e5c58495c92588f276d15099d13cf84382dc443556d8049026eec4f6ac911590",
+      "preserved": true,
+      "excludedFields": []
+    },
+    {
+      "table": "ShopSettings",
+      "beforeCount": 1,
+      "afterCount": 1,
+      "beforeHash": "a6a0e90a7817879a7a55728cdcdbb7b4f1c7dd74654ff7403b4ddc90b41d4e24",
+      "afterHash": "a6a0e90a7817879a7a55728cdcdbb7b4f1c7dd74654ff7403b4ddc90b41d4e24",
+      "preserved": true,
+      "excludedFields": []
+    },
+    {
+      "table": "Order",
+      "beforeCount": 21,
+      "afterCount": 21,
+      "beforeHash": "918463e8cac04057f19b4b1a5819ca437ebaba3a0de1beb0102dff70ad927920",
+      "afterHash": "918463e8cac04057f19b4b1a5819ca437ebaba3a0de1beb0102dff70ad927920",
+      "preserved": true,
+      "excludedFields": []
+    },
+    {
+      "table": "OrderItem",
+      "beforeCount": 52,
+      "afterCount": 52,
+      "beforeHash": "552cca7948871d3b93971675de5467a3bf3163dc45b760fc382e5f129e306f6f",
+      "afterHash": "552cca7948871d3b93971675de5467a3bf3163dc45b760fc382e5f129e306f6f",
+      "preserved": true,
+      "excludedFields": []
+    },
+    {
+      "table": "OrderIssue",
+      "beforeCount": 0,
+      "afterCount": 0,
+      "beforeHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "preserved": true,
+      "excludedFields": []
+    },
+    {
+      "table": "Cart",
+      "beforeCount": 0,
+      "afterCount": 0,
+      "beforeHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "preserved": true,
+      "excludedFields": []
+    },
+    {
+      "table": "CartItem",
+      "beforeCount": 0,
+      "afterCount": 0,
+      "beforeHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "preserved": true,
+      "excludedFields": []
+    }
+  ],
+  "unitChecks": [
+    {
+      "productId": 23,
+      "slug": "cezoni-market-casa-rinaldi-carnaroli-500g",
+      "applied": true
+    },
+    {
+      "productId": 24,
+      "slug": "cezoni-market-casa-rinaldi-modena-spray-250ml",
+      "applied": true
+    },
+    {
+      "productId": 25,
+      "slug": "cezoni-market-black-olives-350g",
+      "applied": true
+    },
+    {
+      "productId": 26,
+      "slug": "cezoni-market-grilled-artichokes-350g",
+      "applied": true
+    },
+    {
+      "productId": 27,
+      "slug": "cezoni-market-cantuccini-cherry-almond-180g",
+      "applied": true
+    },
+    {
+      "productId": 28,
+      "slug": "cezoni-market-butter-biscuits-180g",
+      "applied": true
+    },
+    {
+      "productId": 29,
+      "slug": "cezoni-market-dalla-costa-fast-races-250g",
+      "applied": true
+    },
+    {
+      "productId": 30,
+      "slug": "cezoni-market-classic-grissini-150g",
+      "applied": true
+    },
+    {
+      "productId": 31,
+      "slug": "cezoni-market-nadawilli-wheat-germ-oil-250ml",
+      "applied": true
+    },
+    {
+      "productId": 32,
+      "slug": "cezoni-market-nadawilli-walnut-oil-250ml",
+      "applied": true
+    },
+    {
+      "productId": 33,
+      "slug": "cezoni-market-nadawilli-pumpkin-oil-250ml",
+      "applied": true
+    },
+    {
+      "productId": 34,
+      "slug": "cezoni-market-nadawilli-garlic-sunflower-oil-250ml",
+      "applied": true
+    },
+    {
+      "productId": 35,
+      "slug": "cezoni-market-nadawilli-sunflower-oil-500ml",
+      "applied": true
+    },
+    {
+      "productId": 36,
+      "slug": "cezoni-market-nadawilli-sunflower-oil-250ml",
+      "applied": true
+    },
+    {
+      "productId": 37,
+      "slug": "cezoni-market-sun-dried-tomatoes-260ml",
+      "applied": true
+    },
+    {
+      "productId": 38,
+      "slug": "cezoni-market-iori-satsebeli-bbq-270g",
+      "applied": true
+    },
+    {
+      "productId": 39,
+      "slug": "cezoni-market-iori-narsharab-350g",
+      "applied": true
+    },
+    {
+      "productId": 40,
+      "slug": "cezoni-market-iori-satsebeli-classic-265g",
+      "applied": true
+    },
+    {
+      "productId": 41,
+      "slug": "cezoni-market-iori-tkemali-classic-285g",
+      "applied": true
+    },
+    {
+      "productId": 42,
+      "slug": "cezoni-market-iori-tkemali-bbq-285g",
+      "applied": true
+    },
+    {
+      "productId": 43,
+      "slug": "cezoni-market-iori-tomato-basil-265g",
+      "applied": true
+    },
+    {
+      "productId": 44,
+      "slug": "cezoni-market-iori-green-adjika-120g",
+      "applied": true
+    },
+    {
+      "productId": 45,
+      "slug": "cezoni-market-iori-classic-adjika-135g",
+      "applied": true
+    },
+    {
+      "productId": 46,
+      "slug": "cezoni-market-nocellara-green-olives-350g",
+      "applied": true
+    },
+    {
+      "productId": 47,
+      "slug": "cezoni-market-de-luca-linguine-012-500g",
+      "applied": true
+    },
+    {
+      "productId": 48,
+      "slug": "cezoni-market-de-luca-lasagna-129-500g",
+      "applied": true
+    },
+    {
+      "productId": 49,
+      "slug": "cezoni-market-valgri-young-peas-350g",
+      "applied": true
+    },
+    {
+      "productId": 50,
+      "slug": "cezoni-market-valgri-spanish-white-beans-350g",
+      "applied": true
+    },
+    {
+      "productId": 51,
+      "slug": "cezoni-market-valgri-cannellini-350g",
+      "applied": true
+    },
+    {
+      "productId": 52,
+      "slug": "cezoni-market-valgri-tondini-350g",
+      "applied": true
+    },
+    {
+      "productId": 53,
+      "slug": "cezoni-market-valgri-borlotti-350g",
+      "applied": true
+    },
+    {
+      "productId": 54,
+      "slug": "cezoni-market-nonno-giovanni-dop-250ml",
+      "applied": true
+    },
+    {
+      "productId": 55,
+      "slug": "cezoni-market-nonno-giovanni-dop-500ml",
+      "applied": true
+    },
+    {
+      "productId": 56,
+      "slug": "cezoni-market-donna-carmela-igp-500ml",
+      "applied": true
+    }
+  ],
+  "passed": true
+}

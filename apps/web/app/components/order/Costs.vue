@@ -1,6 +1,6 @@
 <template>
   <dl class="order-costs">
-    <div><dt>Стоимость товаров{{ order.finalSubtotal === null ? ' (предварительно)' : ' и услуг' }}</dt><dd>{{ money(order.finalSubtotal ?? order.subtotal) }}</dd></div>
+    <div><dt>Стоимость товаров{{ order.finalSubtotal === null ? ' (предварительно)' : ' и услуг' }}</dt><dd>{{ knownMoney(order.finalSubtotal ?? order.subtotal, 'После взвешивания') }}</dd></div>
     <div v-if="order.promoCodeSnapshot" class="order-costs__discount"><dt>Скидка по промокоду<small>{{ order.promoTitleSnapshot }} · {{ order.promoCodeSnapshot }}</small></dt><dd>−{{ money(order.finalPromoDiscount ?? order.promoDiscount ?? 0) }}</dd></div>
     <div><dt>Доставка</dt><dd>{{ knownMoney(order.deliveryPrice, 'Уточняется') }}</dd></div>
     <div class="order-costs__total"><dt>Итог заказа</dt><dd>{{ knownMoney(order.finalTotal ?? order.total, 'После расчёта доставки') }}</dd></div>
@@ -10,7 +10,7 @@
 <script setup lang="ts">
 import type { OrderPromo } from '~/types/promo';
 import { money, knownMoney } from '~/utils/money';
-defineProps<{ order: OrderPromo & { subtotal: number; finalSubtotal: number | null; deliveryPrice: number | null; total: number | null; finalTotal: number | null } }>();
+defineProps<{ order: OrderPromo & { subtotal: number | null; finalSubtotal: number | null; deliveryPrice: number | null; total: number | null; finalTotal: number | null } }>();
 </script>
 
 <style scoped>

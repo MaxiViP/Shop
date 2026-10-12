@@ -1,6 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import type { ProductListItem } from "~/types/product";
+import { variableWeight } from '../utils/sale.ts';
 import {
   cartKey,
   nextCartQty,
@@ -96,12 +97,15 @@ export const useCartStore = defineStore("cart", () => {
     if (!item && items.value.length >= 50) return false;
     // The same desired quantity is a no-op. Keep reconciled server product data,
     // rather than replacing it with a potentially older catalog snapshot.
-    if (item?.qty === qty) return true;
+    if (item?.qty === qty && (!item.quantityUnit || item.quantityUnit === product.unit) &&
+      (variableWeight(product) || (!item.weightMinGrams && !item.weightMaxGrams))) return true;
     invalidateQuote();
     if (item) {
       item.product = product;
       item.qty = qty;
-    } else items.value.push({ product, qty });
+      if (variableWeight(product) || item.quantityUnit !== undefined) item.quantityUnit = product.unit;
+      if (!variableWeight(product)) { delete item.weightMinGrams; delete item.weightMaxGrams; }
+    } else items.value.push({ product, qty, ...(variableWeight(product) ? { quantityUnit: product.unit } : {}) });
     return true;
   }
 
@@ -110,6 +114,15 @@ export const useCartStore = defineStore("cart", () => {
 
     if (!item) return false;
     return put(item.product, qty);
+  }
+  function setWeightLimits(id: number, min: number | null, max: number | null) {
+    const item = items.value.find(row => row.product.id === id);
+    if (!item || (min !== null && (!Number.isSafeInteger(min) || min < 1 || min > 1_000_000)) ||
+      (max !== null && (!Number.isSafeInteger(max) || max < 1 || max > 1_000_000)) || (min !== null && max !== null && min > max)) return false;
+    item.weightMinGrams = min;
+    item.weightMaxGrams = max;
+    invalidateQuote();
+    return true;
   }
 
   function remove(id: number) {
@@ -176,7 +189,8 @@ export const useCartStore = defineStore("cart", () => {
     const next = snapshot.items.map((line) => {
       const product = line.product ?? snapshot.products.find((p) => p.id === line.productId);
       if (!product) throw new Error("Cart product metadata is missing");
-      return { product, qty: line.qty };
+      return { product, qty: line.qty, ...(variableWeight(product) || (line.quantityUnit && line.quantityUnit !== product.unit) ? { quantityUnit: line.quantityUnit ?? product.unit,
+        weightMinGrams: line.weightMinGrams, weightMaxGrams: line.weightMaxGrams } : {}) };
     });
     for (const item of next) {
       const previous = items.value.find((row) => row.product.id === item.product.id);
@@ -254,6 +268,7 @@ export const useCartStore = defineStore("cart", () => {
     qty,
     total,
     lineTotal,
+    setWeightLimits,
     displayTotal,
     displayLineTotal,
     add,

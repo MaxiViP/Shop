@@ -59,7 +59,7 @@ test("layout and page share quotes, retries and cancellation across cart edits a
     await nextTick();
     assert.equal(requests.length, 2);
     assert.equal(requests[0].signal.aborted, true);
-    requests[1].resolve(response(1000, 90000));
+    requests[1].resolve(response(600, 90000));
     await nextTick();
     requests[0].resolve(response(500, 1)); // A slow response cannot replace the latest quote.
     await nextTick();
@@ -106,7 +106,7 @@ test("layout and page share quotes, retries and cancellation across cart edits a
   }
 });
 
-test("500 -> 1000 -> 1500 has one lifecycle per key change with many injected consumers", async () => {
+test("500 -> 600 -> 700 has one lifecycle per key change with many injected consumers", async () => {
   const previousApi = globalThis.useApiClient;
   const requests = [];
   globalThis.useApiClient = () => (url, options) => new Promise(resolve => {
@@ -142,16 +142,16 @@ test("500 -> 1000 -> 1500 has one lifecycle per key change with many injected co
     cart.add(product);
     await nextTick();
     assert.equal(requests.length, 3);
-    assert.deepEqual(requests.map(request => request.body.items[0].qty), [500, 1000, 1500]);
+    assert.deepEqual(requests.map(request => request.body.items[0].qty), [500, 600, 700]);
     assert.equal(requests[1].signal.aborted, true);
     assert.equal(cart.displayTotal, 125000);
     assert.equal(cart.total, null);
-    requests[2].resolve(response(1500, 150000));
+    requests[2].resolve(response(700, 150000));
     await nextTick();
-    requests[1].resolve(response(1000, 1)); // Deliberately ignore abort, as a slow transport might.
+    requests[1].resolve(response(600, 1)); // Deliberately ignore abort, as a slow transport might.
     await nextTick();
     assert.equal(requests.length, 3); // Applying a quote must not trigger another request.
-    assert.equal(cart.qty(1), 1500);
+    assert.equal(cart.qty(1), 700);
     assert.equal(cart.total, 150000);
     assert.equal(cart.displayLineTotal(1), 150000);
   } finally {

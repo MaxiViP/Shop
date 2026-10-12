@@ -364,6 +364,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         marketPointId: null, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
         isSeasonal: false, isHit: false, seasonalStartsAt: null, seasonalEndsAt: null,
         seasonalMode: 'OFF', seasonTemplateId: null, hitOrders: 0, hitSoldUnits: '0.000', hitRank: null,
+        hitMode: 'AUTO', saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null,
       })));
       const column = await connection.query<{ is_nullable: string }>(
         `SELECT is_nullable FROM information_schema.columns
@@ -397,6 +398,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           'price',
           'priceQty',
           'portionQty',
+          'saleModel', 'priceUnit', 'wholeLabel', 'estimatedWeightGrams',
           'unit',
           'min',
           'step',

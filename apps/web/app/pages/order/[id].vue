@@ -62,11 +62,11 @@
               {{ item.productName }}
             </strong>
             <p v-if="replacementIds.has(item.id)" class="item__state">🔁 Замена исходного товара</p>
-            <p class="item__qty">Заказано: {{ qtyText(item.unit, item.qty) }}</p>
-            <p v-if="item.actualPrice !== null && item.actualPrice !== item.price" class="item__price-change">Цена изменена: {{ money(item.price) }} → {{ money(item.actualPrice) }} / {{ qtyText(item.unit, item.priceQty) }}</p>
+            <p class="item__qty">Заказано: {{ qtyText(item.unit, item.qty, item) }}</p>
+            <p v-if="item.actualPrice !== null && item.actualPrice !== item.price" class="item__price-change">Цена изменена: {{ money(item.price) }} → {{ money(item.actualPrice) }} / {{ qtyText(priceUnit(item), item.priceQty) }}</p>
             <p v-if="item.status === 'MISSING'" class="item__state">❌ Нет в наличии</p>
             <p v-else-if="item.status === 'PICKED' && item.actualQty !== null" class="item__state">
-              Собрано: {{ qtyText(item.unit, item.actualQty) }}
+              Собрано: {{ qtyText(item.unit, item.actualQty, item) }}{{ item.actualWeightGrams ? ` · ${qtyText('GRAM', item.actualWeightGrams)}` : '' }}
             </p>
             <p v-if="proposal(item.id)" class="item__state">
               {{ proposal(item.id) }}
@@ -74,7 +74,7 @@
           </div>
 
           <strong v-if="item.status !== 'MISSING'">
-            {{ item.status === 'PICKED' && item.actualTotal !== null ? money(item.actualTotal) : `≈ ${money(item.total)}` }}
+            {{ item.status === 'PICKED' && item.actualTotal !== null ? money(item.actualTotal) : item.total === null ? 'После взвешивания' : `≈ ${money(item.total)}` }}
           </strong>
         </div>
 
@@ -82,7 +82,7 @@
         <div v-else id="order-summary" class="card__summary">
           <div>
             <span>Предварительная стоимость товаров</span>
-            <strong>≈ {{ money(order.subtotal) }}</strong>
+            <strong>{{ order.subtotal === null ? 'После взвешивания' : `≈ ${money(order.subtotal)}` }}</strong>
           </div>
 
           <div v-if="order.type === 'DELIVERY'">
@@ -228,6 +228,7 @@ import {
 import { knownMoney, money } from '~/utils/money'
 import { lineAmount } from '~/utils/assembly'
 import { qtyText } from '~/utils/qty'
+import { priceUnit } from '~/utils/sale'
 import { pickupTime } from '~/utils/pickup'
 
 const route = useRoute()

@@ -1,0 +1,212 @@
+{
+  "checkedAt": "2026-10-12T11:16:24.843Z",
+  "productionWrites": false,
+  "commit": false,
+  "push": false,
+  "deploy": false,
+  "prisma": {
+    "format": "PASSED",
+    "validate": "PASSED",
+    "generate": "PASSED",
+    "appliedLocally": [
+      "20261011130000_research_drafts",
+      "20261012120000_sale_models"
+    ]
+  },
+  "apiUnit": {
+    "filesPassed": 68,
+    "passed": 1122,
+    "skipped": 3,
+    "sourceLog": "shop-sale-api-tests.log",
+    "laterSaleAndQuoteProfilePassed": 32,
+    "aggregateDeduplicatedCountClaimed": false
+  },
+  "apiE2e": {
+    "passed": 56,
+    "scope": "LATEST_SUCCESSFUL_RUN_PER_FILE",
+    "files": {
+      "sale-models.e2e-spec.ts": 8,
+      "cart-quote.e2e-spec.ts": 24,
+      "market-products.e2e-spec.ts": 13,
+      "catalog-import.e2e-spec.ts": 11
+    }
+  },
+  "webProfile": {
+    "passed": 103,
+    "failed": 0,
+    "sourceLog": "shop-sale-web-tests.log",
+    "allUnrelatedWebTestsRun": false
+  },
+  "typecheck": {
+    "apps": [
+      "api",
+      "web",
+      "telegram-gateway"
+    ],
+    "passed": true,
+    "sourceLog": "shop-sale-typecheck-final.log",
+    "finalCatalogTypecheck": true
+  },
+  "lint": {
+    "apps": [
+      "api",
+      "web",
+      "telegram-gateway"
+    ],
+    "passed": true,
+    "sourceLog": "shop-sale-lint-final.log",
+    "finalAuditScripts": true
+  },
+  "build": {
+    "api": true,
+    "web": true,
+    "telegramGateway": true,
+    "finalWebLog": "shop-sale-web-build-final.log",
+    "apiAndGatewayCompletedBeforeResume": true
+  },
+  "browser": {
+    "passed": true,
+    "cases": [
+      {
+        "width": 320,
+        "modelsInOneCategory": 6,
+        "portionsAndSteps": true,
+        "fixedPieceCounts": true,
+        "bunchesAndPacks": true,
+        "threeBunches": true,
+        "wholeCountAndKgPrice": true,
+        "wholeFishCountsAndKgPrice": true,
+        "readableCartQuantityLabels": true,
+        "unknownSubtotalOrderable": true,
+        "overflow": false,
+        "touchTargets": true
+      },
+      {
+        "width": 390,
+        "modelsInOneCategory": 6,
+        "portionsAndSteps": true,
+        "fixedPieceCounts": true,
+        "bunchesAndPacks": true,
+        "threeBunches": true,
+        "wholeCountAndKgPrice": true,
+        "wholeFishCountsAndKgPrice": true,
+        "readableCartQuantityLabels": true,
+        "unknownSubtotalOrderable": true,
+        "overflow": false,
+        "touchTargets": true
+      },
+      {
+        "width": 1280,
+        "modelsInOneCategory": 6,
+        "portionsAndSteps": true,
+        "fixedPieceCounts": true,
+        "bunchesAndPacks": true,
+        "threeBunches": true,
+        "wholeCountAndKgPrice": true,
+        "wholeFishCountsAndKgPrice": true,
+        "readableCartQuantityLabels": true,
+        "unknownSubtotalOrderable": true,
+        "overflow": false,
+        "touchTargets": true
+      }
+    ],
+    "guestCheckout": true,
+    "noClientPrices": true,
+    "assemblyIndividualWeights": true,
+    "networkScope": "LOCAL_FIXTURES_ONLY",
+    "readableCartQuantityLabels": true,
+    "threeBunches": true,
+    "assemblyWidths": [
+      390,
+      1280
+    ],
+    "artifactFolder": "ui/"
+  },
+  "catalog": {
+    "checkedAt": "2026-10-12T11:08:06.529Z",
+    "passed": true,
+    "databaseProducts": 173,
+    "active": 62,
+    "inactive": 111,
+    "catalogSourceRows": 479,
+    "uniqueCatalogCandidates": 319,
+    "researchOffers": 168,
+    "productionInventoryCompleted": false,
+    "checks": [
+      {
+        "name": "Every local Product appears exactly once",
+        "passed": true
+      },
+      {
+        "name": "Original quantities, identity, prices and activity are recorded",
+        "passed": true
+      },
+      {
+        "name": "All source snapshots, starter rows and seed rows are included separately",
+        "passed": true
+      },
+      {
+        "name": "Every research offer is recorded without importing it",
+        "passed": true
+      },
+      {
+        "name": "Unconfirmed statements never become applied product facts",
+        "passed": true
+      },
+      {
+        "name": "Every evidence reference resolves to a dated source",
+        "passed": true
+      },
+      {
+        "name": "The only database plan is an exact count-preserving pack correction",
+        "passed": true
+      },
+      {
+        "name": "Applied IDs and fields match the plan; repeated dry-run is empty",
+        "passed": true
+      },
+      {
+        "name": "All protected database columns and legacy orders match the backup",
+        "passed": true
+      },
+      {
+        "name": "Source checksum: apps/api/data/market-products/types.ts",
+        "passed": true
+      },
+      {
+        "name": "Source checksum: apps/api/data/market-products/2026-10-06.ts",
+        "passed": true
+      },
+      {
+        "name": "Source checksum: apps/api/data/market-products/2026-10-07-estimated.ts",
+        "passed": true
+      },
+      {
+        "name": "Source checksum: apps/api/prisma/seed.ts",
+        "passed": true
+      },
+      {
+        "name": "Source checksum: apps/api/data/catalog-drafts/moscow-market-2026-10-11/shop-import.json",
+        "passed": true
+      },
+      {
+        "name": "Source checksum: apps/api/data/imports/bagrationovsky-2026-10-11/prepared/import-queue.json",
+        "passed": true
+      }
+    ]
+  },
+  "databasePreservation": {
+    "passed": true,
+    "artifact": "verification.json"
+  },
+  "dryRun": {
+    "changed": 0,
+    "unchanged": 34,
+    "skipped": 0,
+    "artifact": "dry-run.json",
+    "sourceFilesUnchanged": 2
+  },
+  "logDirectory": "C:/Users/batti/AppData/Local/Temp/",
+  "unresolvedDatabaseSellerConfirmations": 139,
+  "productionInventoryCompleted": false
+}

@@ -1,7 +1,9 @@
 <template>
   <UContainer v-if="product" class="product">
-    <AppBreadcrumbs :items="breadcrumbs" />
-    <AppBackButton class="product__back" :fallback="product.category.slug ? `/catalog/${product.category.slug}` : '/catalog'" />
+    <div class="product__navigation">
+      <AppBreadcrumbs :items="breadcrumbs" />
+      <AppBackButton class="product__back" :fallback="product.category.slug ? `/catalog/${product.category.slug}` : '/catalog'" />
+    </div>
     <ProductGallery :images="product.images" :name="product.name" />
 
     <section class="product__info">
@@ -21,10 +23,11 @@
       </div>
 
       <ProductPrice :product="product" />
+      <p v-if="variableWeight(product)" class="product__text">{{ product.unit === 'BUNCH' ? 'Продается пучками' : 'Продается целиком' }}. Вес и стоимость уточняются при сборке.</p>
       <ProductOrigin :point="product.marketPoint" :price-status="product.priceStatus" class="mt-3" />
 
       <div class="product__buy">
-        <UAlert v-if="cartQty && !validCartQty(cartQty, product)" color="warning" title="Сохранённое количество не соответствует текущему шагу. Выберите новое и нажмите «Обновить количество»." />
+        <UAlert v-if="cartQty && !validCartQty(cartQty, product)" color="warning" title="Сохранённое количество не соответствует текущему шагу. Выберите новое и нажмите «Обновить количество в корзине»." />
         <ProductQty v-model="qty" :product="product" />
 
         <div class="product__purchase">
@@ -32,8 +35,10 @@
             В корзине: {{ qtyText(product.unit, cartQty) }}
           </span>
 
-          <UButton size="lg" class="product__btn" :disabled="!cart.restored || cart.serverBusy || total === null" @click="add">
-            {{ total === null ? 'Проверьте количество и стоимость' : `${cartQty ? 'Обновить количество' : 'В корзину'} · ${money(total)}` }}
+          <UButton size="lg" class="product__btn" :disabled="!cart.restored || cart.serverBusy || !validCartQty(qty, product)" @click="add">
+            <span class="product__btn-label">
+              {{ cartQty ? 'Обновить количество в корзине' : quickAddState({ ...product, portionQty: qty }, 0).label }}<span v-if="total !== null" class="product__btn-price"> · ≈ {{ money(total) }}</span>
+            </span>
           </UButton>
         </div>
       </div>
@@ -56,6 +61,8 @@ import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
 import { qtyText } from "~/utils/qty";
 import { previewTotal, validCartQty } from "~/utils/cart";
+import { variableWeight } from '~/utils/sale';
+import { quickAddState } from '~/utils/quick-add';
 
 const route = useRoute();
 const slug = String(route.params.slug);
@@ -65,7 +72,7 @@ const actions = useCartActions();
 const notice = useHeaderNotice();
 
 async function add() {
-  if (!cart.restored || !product.value || total.value === null) return;
+  if (!cart.restored || !product.value || !validCartQty(qty.value, product.value)) return;
 
   const updated = await actions.put(product.value, qty.value);
   notice.show({ target: 'cart', text: updated ? 'Количество в корзине сохранено' : 'Проверьте количество и лимит позиций в корзине' });
@@ -80,7 +87,7 @@ if (error.value || !product.value) {
   });
 }
 
-const qty = ref(product.value.min);
+const qty = ref(product.value.portionQty);
 watch(() => [cart.restored, cart.qty(product.value!.id)], () => {
   const current = cart.qty(product.value!.id);
   if (current) qty.value = validCartQty(current, product.value!) ? current : product.value!.min;
@@ -114,9 +121,25 @@ useJsonLd(() => [productSchema(product.value!), breadcrumbSchema(breadcrumbs.val
 .product {
   display: grid;
   min-width: 0;
-  gap: var(--card-padding);
-  padding-block: var(--page-start) var(--page-end);
+  gap: calc(var(--card-padding) / 2) var(--card-padding);
+  padding-block: 0 var(--page-end);
 }
+
+.product__navigation {
+  display: grid;
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+
+.product__navigation :deep(.breadcrumbs) { margin-bottom: 0; }
+.product__navigation :deep(.breadcrumbs__list) { flex-wrap: nowrap; }
+.product__navigation :deep(.breadcrumbs__item) { flex: none; white-space: nowrap; }
+.product__navigation :deep(.breadcrumbs__item:nth-last-child(-n + 2)) { flex: 0 1 auto; overflow: hidden; }
+.product__navigation :deep(.breadcrumbs__item:nth-last-child(2)) { min-width: calc(var(--touch-target) + 1rem); }
+.product__navigation :deep(.breadcrumbs__item:nth-last-child(2) a) { display: block; min-width: 0; overflow: hidden; line-height: var(--touch-target); text-overflow: ellipsis; }
+.product__navigation :deep(.breadcrumbs__item:nth-last-child(2) a:focus-visible) { outline-offset: -2px; }
+.product__navigation :deep([aria-current="page"]) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.product__navigation :deep([aria-hidden="true"]) { flex: none; }
 
 .product__info {
   min-width: 0;
@@ -174,8 +197,19 @@ useJsonLd(() => [productSchema(product.value!), breadcrumbSchema(breadcrumbs.val
 
 .product__btn {
   width: 100%;
+  min-width: 0;
   min-height: var(--touch-target);
   justify-content: center;
+  text-align: center;
+  white-space: normal;
+}
+
+.product__btn-label {
+  min-width: 0;
+}
+
+.product__btn-price {
+  white-space: nowrap;
 }
 
 .product__purchase {
@@ -193,7 +227,7 @@ useJsonLd(() => [productSchema(product.value!), breadcrumbSchema(breadcrumbs.val
 @media (min-width: 48rem) {
   .product {
     grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
-    gap: clamp(2rem, 5vw, 4rem);
+    column-gap: clamp(2rem, 5vw, 4rem);
   }
 
   .product__description {
@@ -215,7 +249,7 @@ useJsonLd(() => [productSchema(product.value!), breadcrumbSchema(breadcrumbs.val
         0,
         0.9fr
       );
-    gap: 2rem;
+    column-gap: 2rem;
   }
   .product__description {
     grid-column: auto;

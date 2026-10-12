@@ -1,5 +1,6 @@
 import type { ProductPriceStatus, Unit } from "./product";
 import type { HitMode, SeasonalMode, SeasonTemplate } from './badges';
+import type { Sale } from '../utils/sale';
 export interface AdminImage {
   visible: boolean;
   id: number;
@@ -22,7 +23,7 @@ export interface ProductPricing {
   serviceMarkup: number;
   customerPrice: number;
 }
-export interface AdminProduct extends ProductPricing {
+export interface AdminProduct extends ProductPricing, Sale {
   priceStatus: ProductPriceStatus;
   id: number;
   name: string;

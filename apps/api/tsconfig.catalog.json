@@ -6,8 +6,10 @@
   "include": [
     "data/catalog-import/**/*.ts",
     "data/bagrationovsky/**/*.ts",
+    "data/sale-audit/**/*.ts",
     "test/catalog-import.e2e-spec.ts",
-    "test/bagrationovsky*.ts"
+    "test/bagrationovsky*.ts",
+    "test/sale-models.e2e-spec.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

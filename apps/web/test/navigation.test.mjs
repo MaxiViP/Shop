@@ -42,6 +42,45 @@ test('hybrid navigation keeps its leading menu and trailing controls outside the
   assert.match(list, /visualViewport/); assert.match(list, /removeEventListener/);
 });
 
+test('category modal focuses the dialog first, focuses search only on demand and resets it on collapse or close', async t => {
+  const stops = [], properties = new Map();
+  let inputFocus = 0, inputBlur = 0, dialogFocus = 0, toggleFocus = 0, prevented = 0;
+  const field = { inert: true };
+  const input = { focus() { assert.equal(field.inert, false); inputFocus++; }, blur() { inputBlur++; } };
+  const toggle = { focus() { toggleFocus++; } };
+  const dialog = { offsetHeight: 420, style: { setProperty: (key, value) => properties.set(key, value), removeProperty: key => properties.delete(key) }, focus() { dialogFocus++; } };
+  const props = { items: [{ id: 1, slug: 'cheese', name: 'Сыры' }, { id: 2, slug: 'fruit', name: 'Фрукты' }] };
+  const context = { ref, computed, nextTick, defineProps: () => props, defineEmits: () => () => {},
+    watch: (...args) => { stops.push(watch(...args)); }, onMounted() {}, onBeforeUnmount() {},
+    window: { innerHeight: 800, visualViewport: { height: 800, offsetTop: 0 } } };
+  const script = executable(parse(list).descriptor.scriptSetup.content);
+  const state = new Function(...Object.keys(context), script + '\nreturn { open, search, searchOpen, filtered, panel, searchBar, focusPanel, toggleSearch, closeSearch };')(...Object.values(context));
+  t.after(() => stops.forEach(stop => stop()));
+  state.panel.value = { closest: () => dialog };
+  state.searchBar.value = { querySelector: selector => selector === 'input' ? input : selector === '.categories__search-field' ? field : toggle };
+  state.open.value = true;
+  state.focusPanel({ preventDefault() { prevented++; } });
+  await nextTick();
+  assert.equal(prevented, 1); assert.equal(dialogFocus, 1); assert.equal(inputFocus, 0);
+  assert.equal(state.searchOpen.value, false); assert.equal(state.filtered.value.length, 2);
+  assert.equal(properties.get('--categories-open-height'), '420px');
+  state.toggleSearch();
+  assert.equal(inputFocus, 1, 'Input focus stays in the synchronous tap handler');
+  assert.equal(state.searchOpen.value, true);
+  state.search.value = ' сЫР '; assert.deepEqual(state.filtered.value.map(item => item.id), [1]);
+  state.toggleSearch();
+  assert.equal(state.searchOpen.value, false); assert.equal(state.search.value, '');
+  assert.equal(state.filtered.value.length, 2); assert.equal(toggleFocus, 1);
+  state.toggleSearch(); state.search.value = 'несуществующая';
+  state.closeSearch(); assert.equal(state.searchOpen.value, false); assert.equal(state.search.value, '');
+  state.toggleSearch(); state.search.value = 'сыр'; state.open.value = false;
+  await nextTick();
+  assert.equal(state.searchOpen.value, false); assert.equal(state.search.value, ''); assert.equal(state.filtered.value.length, 2);
+  assert.ok(inputBlur >= 3);
+  state.open.value = true; await nextTick();
+  assert.equal(state.searchOpen.value, false); assert.equal(state.filtered.value.length, 2);
+});
+
 const windowCode = executable(await readFile(new URL('../app/composables/useGridWindow.ts', import.meta.url), 'utf8'));
 test('long feeds bound mounted cards, preserve measured row height while scrolling, and release observers', t => {
   const mounted = [], disposed = [], stops = [], listeners = new Map(), frames = new Map();

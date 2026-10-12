@@ -14,6 +14,15 @@ enum Unit {
   PACK
 }
 
+enum SaleModel {
+  WEIGHT_LOOSE
+  PIECE_FIXED
+  BUNCH
+  PACK
+  WHOLE_VARIABLE_WEIGHT
+  CUT_TO_WEIGHT
+}
+
 enum UserRole {
   USER
   SELLER
@@ -138,15 +147,20 @@ model Product {
   description String?
 
   // Original seller price in kopecks; service markup is calculated on the backend.
-  price          Int
-  priceStatus    ProductPriceStatus @default(ESTIMATED)
-  settlementMode SettlementMode     @default(UNSET)
-  basePrice      Int?
-  priceQty       Int                @default(1)
-  unit           Unit
-  step           Int                @default(1)
-  min            Int                @default(1)
-  portionQty     Int
+  price                Int
+  priceStatus          ProductPriceStatus @default(ESTIMATED)
+  settlementMode       SettlementMode     @default(UNSET)
+  basePrice            Int?
+  priceQty             Int                @default(1)
+  unit                 Unit
+  step                 Int                @default(1)
+  min                  Int                @default(1)
+  portionQty           Int
+  // Null keeps the original unit-based behavior of existing products/orders.
+  saleModel            SaleModel?
+  priceUnit            Unit?
+  wholeLabel           String?            @db.VarChar(20)
+  estimatedWeightGrams Int?
 
   active Boolean @default(true)
   sort   Int     @default(0)
@@ -373,7 +387,7 @@ model Order {
 
   deliveryAt DateTime?
 
-  subtotal      Int
+  subtotal      Int?
   deliveryPrice Int?
   total         Int?
 
@@ -527,12 +541,20 @@ model OrderItem {
   basePriceSnapshot            Int?
   priceQty                     Int
   unit                         Unit
+  saleModel                    SaleModel?
+  priceUnit                    Unit?
+  wholeLabel                   String?         @db.VarChar(20)
+  estimatedWeightGrams         Int?
+  weightMinGrams               Int?
+  weightMaxGrams               Int?
+  actualWeightGrams            Int?
+  pieceWeights                 Json?
 
   status OrderItemStatus @default(PENDING)
 
   qty       Int
   actualQty Int?
-  total     Int
+  total     Int?
 
   actualTotal    Int?
   priceChanges   OrderItemPriceChange[]
@@ -769,39 +791,47 @@ enum IssueResolution {
 }
 
 model OrderIssue {
-  suspendedStatus     IssueStatus?
-  suspendedResolution IssueResolution?
-  suspendedResolvedAt DateTime?
-  id                  Int                 @id @default(autoincrement())
-  orderId             Int
-  order               Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderItemId         Int                 @unique
-  orderItem           OrderItem           @relation("ItemIssue", fields: [orderItemId], references: [id], onDelete: Cascade)
-  type                IssueType
-  status              IssueStatus         @default(WAITING_CUSTOMER)
-  version             Int                 @default(1)
-  requestedQty        Int
-  actualQty           Int?
-  approvedActualQty   Int?
-  resolution          IssueResolution?
-  resolvedAt          DateTime?
-  createdById         Int?
-  createdBy           User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  proposedProductId   Int?
-  proposedProduct     Product?            @relation(fields: [proposedProductId], references: [id], onDelete: SetNull)
-  proposedName        String?
-  proposedSlug        String?
-  proposedPrice       Int?
-  proposedPriceQty    Int?
-  proposedUnit        Unit?
-  proposedQty         Int?
-  proposedImageUrl    String?
-  replacementItemId   Int?                @unique
-  replacementItem     OrderItem?          @relation("IssueReplacement", fields: [replacementItemId], references: [id], onDelete: SetNull)
-  messages            OrderChatMessage[]
-  notifications       OrderNotification[]
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  suspendedStatus              IssueStatus?
+  suspendedResolution          IssueResolution?
+  suspendedResolvedAt          DateTime?
+  id                           Int                 @id @default(autoincrement())
+  orderId                      Int
+  order                        Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId                  Int                 @unique
+  orderItem                    OrderItem           @relation("ItemIssue", fields: [orderItemId], references: [id], onDelete: Cascade)
+  type                         IssueType
+  status                       IssueStatus         @default(WAITING_CUSTOMER)
+  version                      Int                 @default(1)
+  requestedQty                 Int
+  actualQty                    Int?
+  approvedActualQty            Int?
+  approvedWeightGrams          Int?
+  approvedPieceWeights         Json?
+  actualWeightGrams            Int?
+  pieceWeights                 Json?
+  resolution                   IssueResolution?
+  resolvedAt                   DateTime?
+  createdById                  Int?
+  createdBy                    User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  proposedProductId            Int?
+  proposedProduct              Product?            @relation(fields: [proposedProductId], references: [id], onDelete: SetNull)
+  proposedName                 String?
+  proposedSlug                 String?
+  proposedPrice                Int?
+  proposedPriceQty             Int?
+  proposedUnit                 Unit?
+  proposedSaleModel            SaleModel?
+  proposedPriceUnit            Unit?
+  proposedWholeLabel           String?             @db.VarChar(20)
+  proposedEstimatedWeightGrams Int?
+  proposedQty                  Int?
+  proposedImageUrl             String?
+  replacementItemId            Int?                @unique
+  replacementItem              OrderItem?          @relation("IssueReplacement", fields: [replacementItemId], references: [id], onDelete: SetNull)
+  messages                     OrderChatMessage[]
+  notifications                OrderNotification[]
+  createdAt                    DateTime            @default(now())
+  updatedAt                    DateTime            @updatedAt
 
   @@index([orderId, status])
 }
@@ -1120,6 +1150,10 @@ model CartItem {
   productId Int
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   qty       Int
+  // Preserve quantity meaning when an administrator changes a sale mode.
+  quantityUnit Unit?
+  weightMinGrams Int?
+  weightMaxGrams Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

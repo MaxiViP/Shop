@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 
 export function checkoutLimits(
   type: 'DELIVERY' | 'PICKUP',
-  subtotal: number,
+  subtotal: number | null,
   settings: {
     minDeliverySubtotal: number;
     deliveryEnabled: boolean;
@@ -15,7 +15,7 @@ export function checkoutLimits(
   } else {
     if (!settings.deliveryEnabled)
       throw new BadRequestException('Доставка временно недоступна.');
-    if (subtotal < settings.minDeliverySubtotal)
+    if (subtotal !== null && subtotal < settings.minDeliverySubtotal)
       throw new BadRequestException(
         `Минимальная сумма товаров для доставки — ${settings.minDeliverySubtotal / 100} ₽.`,
       );

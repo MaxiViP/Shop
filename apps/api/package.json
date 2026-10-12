@@ -15,7 +15,7 @@
     "dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "lint": "oxlint src/ test/ data/catalog-import/ data/bagrationovsky/",
+    "lint": "oxlint src/ test/ data/catalog-import/ data/bagrationovsky/ data/sale-audit/ data/market-products/",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
@@ -23,6 +23,9 @@
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "typecheck": "tsc --noEmit -p tsconfig.build.json && tsc --noEmit -p tsconfig.catalog.json",
     "catalog:import": "tsx data/catalog-import/run.ts",
+    "catalog:sale-audit": "tsx data/sale-audit/build.ts",
+    "catalog:sale-apply": "tsx data/sale-audit/run.ts",
+    "catalog:sale-check": "node data/sale-audit/check.mjs",
     "bagrationovsky:import": "tsx data/bagrationovsky/run.ts",
     "bagrationovsky:drafts": "tsx data/bagrationovsky/db-run.ts",
     "seed:seasons": "tsx prisma/seed-seasons.ts"

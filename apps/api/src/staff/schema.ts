@@ -6,6 +6,7 @@ export const itemSchema = z.discriminatedUnion('status', [
     status: z.literal('PICKED'),
 
     actualQty: z.number().int().positive().max(1_000_000),
+    pieceWeights: z.array(z.number().int().positive().max(1_000_000)).min(1).max(100).optional(),
   }),
 
   z.object({

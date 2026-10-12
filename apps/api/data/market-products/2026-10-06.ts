@@ -16,7 +16,8 @@ type Row = { slug: string; name: string; sellerPrice: number; categorySlug: type
 function products(marketPointSlug: keyof typeof expectedCounts, sourceUrl: string, rows: Row[]) {
   return rows.map(row => ({ ...row, slug: `${marketPointSlug}-${row.slug}`, marketPointSlug,
     sourceUrl, sourceCheckedAt, priceStatus: 'SOURCE' as const,
-    unit: 'PIECE' as const, priceQty: 1, step: 1, min: 1, portionQty: 1 }));
+    unit: marketPointSlug === 'cezoni-market' ? 'PACK' as const : 'PIECE' as const,
+    ...(marketPointSlug === 'cezoni-market' ? { saleModel: 'PACK' as const, priceUnit: 'PACK' as const } : {}), priceQty: 1, step: 1, min: 1, portionQty: 1 }));
 }
 
 export const marketProducts = [

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { assembledDiscount, payableGoods, promoOrderSelect } from '../promo/promo.js';
-import type { OrderItem, OrderStatus, OrderType, UserRole, Prisma } from '../db/gen/client.js';
+import { Prisma, type OrderItem, type OrderStatus, type OrderType, type UserRole } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import type { DeliveryInput, ItemInput, ItemPriceInput } from './schema.js';
 import {
@@ -15,9 +15,12 @@ import {
   positiveDeliveryPrice,
   totalWithDelivery,
   goodsLine,
+  pickedLine,
+  requestedLine,
   goodsSum,
 } from '../order/pricing.js';
-import { checkIssues, syncIssue, issueSummary, compositionQty, compositionMoney } from '../order/coordination.js';
+import { checkIssues, syncIssue, issueSummary, compositionQty, compositionItem, compositionMoney } from '../order/coordination.js';
+import { priceUnit, variableWeight } from '../product/sale.js';
 import { cancelOrder, restoreOrder, restoreProblem, cancellationHistory } from '../order/cancel.js';
 import { inAppEvent, telegramEvent } from '../order/outbox.js';
 import { NotificationService } from '../order/notification.service.js';
@@ -96,6 +99,9 @@ export class StaffService {
             productName: true,
             qty: true,
             unit: true,
+
+            saleModel: true, priceUnit: true, wholeLabel: true, estimatedWeightGrams: true,
+            weightMinGrams: true, weightMaxGrams: true, actualWeightGrams: true, pieceWeights: true,
             status: true,
           },
         },
@@ -206,6 +212,8 @@ export class StaffService {
             priceChanges: lastPriceChange,
             priceQty: true,
             unit: true,
+            saleModel: true, priceUnit: true, wholeLabel: true, estimatedWeightGrams: true,
+            weightMinGrams: true, weightMaxGrams: true, actualWeightGrams: true, pieceWeights: true,
 
             qty: true,
             actualQty: true,
@@ -265,7 +273,7 @@ export class StaffService {
       const issue = await db.orderIssue.findUnique({ where: { orderItemId: item.id } });
       if (issue?.replacementItemId) throw new ConflictException('Исходный товар уже заменён');
       if (issue?.status === 'RESOLVED' && issue.resolution === 'REMOVE_ITEM') throw new ConflictException('Покупатель убрал этот товар из заказа');
-      if (data.status !== 'PENDING' && item.status === data.status && (data.status !== 'PICKED' || item.actualQty === data.actualQty)) return item;
+      if (data.status !== 'PENDING' && item.status === data.status && (data.status !== 'PICKED' || (item.actualQty === data.actualQty && JSON.stringify(item.pieceWeights ?? undefined) === JSON.stringify(data.pieceWeights)))) return item;
 
       if (data.status === 'PENDING') {
         if (item.status !== 'PICKED' && item.status !== 'MISSING') {
@@ -280,6 +288,7 @@ export class StaffService {
           data: {
             status: 'PENDING',
             actualQty: null,
+            ...(variableWeight(item) ? { actualWeightGrams: null, pieceWeights: Prisma.DbNull } : {}),
             actualTotal: null,
           },
         });
@@ -304,6 +313,7 @@ export class StaffService {
           data: {
             status: 'MISSING',
             actualQty: 0,
+            ...(variableWeight(item) ? { actualWeightGrams: null, pieceWeights: Prisma.DbNull } : {}),
             actualTotal: 0,
           },
         });
@@ -313,7 +323,7 @@ export class StaffService {
         return updated;
       }
 
-      const updated = await this.pickItem(db, order, item, data.actualQty, userId, actor);
+      const updated = await this.pickItem(db, order, item, data.actualQty, userId, actor, true, data.pieceWeights);
       changed = true;
       return updated;
     });
@@ -357,11 +367,12 @@ export class StaffService {
         return { item: saved, changed: false };
       }
       // Validate even a pending item before persisting a price that cannot be assembled.
-      goodsLine(price, item.status === 'PICKED' ? item.actualQty! : item.qty, item.priceQty);
+      if (item.status === 'PICKED') pickedLine({ ...item, actualPrice: price });
+      else requestedLine({ ...item, price });
       const updated = await db.orderItem.update({ where: { id: item.id }, data: {
         actualPrice: price === item.price ? null : price,
         serviceMarkupPercentSnapshot: percent,
-        ...(item.status === 'PICKED' ? { actualTotal: goodsLine(price, item.actualQty!, item.priceQty) } : {}),
+        ...(item.status === 'PICKED' ? { actualTotal: pickedLine({ ...item, actualPrice: price }) } : {}),
       } });
       const change = await db.orderItemPriceChange.create({ data: {
         orderId, itemId, requestId: data.requestId, previousPrice, newPrice: price, sellerPrice: data.sellerPrice,
@@ -369,7 +380,7 @@ export class StaffService {
       } });
       await recordStaffAudit(db, orderId, actor, 'ITEM_PRICE_CHANGE', 'ITEM', itemId);
       const notice = await message(db, orderId,
-        `${item.productName}: цена изменена ${compositionMoney(previousPrice)} → ${compositionMoney(price)} за ${compositionQty(item.priceQty, item.unit)}.`,
+        `${item.productName}: цена изменена ${compositionMoney(previousPrice)} → ${compositionMoney(price)} за ${compositionQty(item.priceQty, priceUnit(item))}.`,
         'SYSTEM', actor.userId, null, 'customer', 'CHAT_MESSAGE');
       await inAppEvent(db, { orderId, type: 'ITEM_PRICE_CHANGED', priceChangeId: change.id,
         messageId: notice.id, dedupeKey: `message:${notice.id}` });
@@ -395,14 +406,17 @@ export class StaffService {
   // The same snapshot-price and audit path serves manual, one-tap and bulk picking.
   private async pickItem(db: Prisma.TransactionClient,
     order: { id: number; weightToleranceBps: number }, item: OrderItem, actualQty: number,
-    userId: number | null, actor?: StaffActor, notify = true) {
-    const actualTotal = goodsLine(item.actualPrice ?? item.price, actualQty, item.priceQty);
+    userId: number | null, actor?: StaffActor, notify = true, pieceWeights?: number[]) {
+    const weighed = { ...item, actualQty, pieceWeights: pieceWeights ?? null,
+      actualWeightGrams: pieceWeights ? pieceWeights.reduce((sum, weight) => sum + weight, 0) : null };
+    const actualTotal = pickedLine(weighed);
     const updated = await db.orderItem.update({
-      where: { id: item.id }, data: { status: 'PICKED', actualQty, actualTotal },
+      where: { id: item.id }, data: { status: 'PICKED', actualQty, actualTotal,
+        ...(variableWeight(item) ? { actualWeightGrams: weighed.actualWeightGrams, pieceWeights: pieceWeights ?? Prisma.DbNull } : {}) },
     });
     const issueMessage = await syncIssue(db, order, updated, userId);
     if (!issueMessage && notify) await message(db, order.id,
-      `${item.productName}: заказано ${compositionQty(item.qty, item.unit)}, собрано ${compositionQty(actualQty, item.unit)}.`,
+      `${item.productName}: заказано ${compositionItem(item.qty, item)}, собрано ${compositionItem(actualQty, item, weighed.actualWeightGrams)}.`,
       'SYSTEM', userId, null, 'customer', 'CHAT_MESSAGE');
     await recordStaffAudit(db, order.id, actor, 'ITEM_PICKED', 'ITEM', item.id);
     return updated;
@@ -428,7 +442,7 @@ export class StaffService {
         if (existing.unit === 'GRAM') throw new BadRequestException('Для весового товара укажите фактический вес');
         return 0; // Duplicate/stale button: no second mutation or audit.
       }
-      const eligible = items.filter(item => !item.issue && !item.replacementFor);
+      const eligible = items.filter(item => !item.issue && !item.replacementFor && !variableWeight(item));
       if (itemId !== undefined && !eligible.length)
         throw new ConflictException('Позиция требует отдельного решения');
       // Validate the complete set before the first write; the transaction also rolls back on any later failure.
@@ -479,19 +493,20 @@ export class StaffService {
       if (!items.length || items.some((item) => item.status === 'PENDING'))
         throw new BadRequestException('Сначала обработайте все товары');
       // Validate quantities before tolerance/approval checks; invalid data is a business error.
-      for (const item of items) if (item.status === 'PICKED') goodsLine(item.actualPrice ?? item.price, item.actualQty ?? 0, item.priceQty);
+      for (const item of items) if (item.status === 'PICKED') pickedLine(item);
       await checkIssues(db, id, items, order.weightToleranceBps);
       const amounts = items.map((item) => {
         if (item.status === 'MISSING') return 0;
-        const amount = goodsLine(
-          item.actualPrice ?? item.price,
-          item.actualQty ?? 0,
-          item.priceQty,
-        );
+        const amount = pickedLine(item);
         return amount;
       });
       const extras = await db.orderExtra.findMany({ where: { orderId: id, status: 'ACTIVE' } });
       const finalSubtotal = goodsSum([...amounts, ...extras.map(extra => goodsLine(extra.unitPrice, extra.quantity, 1))]);
+      // Unknown whole-item estimates cannot promise free delivery at checkout.
+      // Evaluate the saved threshold once actual goods are known, without changing legacy orders.
+      const newlyFree = order.subtotal === null && order.type === 'DELIVERY' && order.freeDeliveryThresholdSnapshot !== null &&
+        goodsSum(amounts) >= order.freeDeliveryThresholdSnapshot;
+      const deliveryPrice = newlyFree ? 0 : order.deliveryPrice;
       const finalPromoDiscount = assembledDiscount(order, goodsSum(amounts));
       const amountDue = finalSubtotal - finalPromoDiscount;
       if (finalSubtotal === 0)
@@ -536,7 +551,8 @@ export class StaffService {
           assemblyFinalizedAt: new Date(),
           finalSubtotal,
           finalPromoDiscount,
-          finalTotal: totalWithDelivery(amountDue, order.deliveryPrice),
+          finalTotal: totalWithDelivery(amountDue, deliveryPrice),
+          ...(newlyFree ? { deliveryPrice: 0, freeDeliveryApplied: true } : {}),
         },
       });
       await recordStaffAudit(db, id, actor, 'FINISH_ASSEMBLY');
@@ -942,6 +958,7 @@ export class StaffService {
         subtotal: true,
         finalSubtotal: true, ...promoOrderSelect,
         freeDeliveryApplied: true,
+        freeDeliveryThresholdSnapshot: true,
         promoTypeSnapshot: true, promoAmountSnapshot: true, promoPercentBpsSnapshot: true, promoMaxDiscountSnapshot: true,
         weightToleranceBps: true,
         assemblyFinalizedAt: true,
