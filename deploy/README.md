@@ -18,7 +18,7 @@ Internet -> Nginx :443 (korzinamarket.ru)
 
 Приложения работают от `shop`, Node.js 24 установлен системно в `/usr/bin/node`.
 NVM для systemd не используется. pnpm берётся из `packageManager` репозитория
-(`pnpm@11.24.0`). API запускается как `node apps/api/dist/main.js` — явный ESM
+(`pnpm@11.24.0`). API запускается как `node current/apps/api/dist/main.js` — явный ESM
 entrypoint текущей сборки; web — готовый Nitro output, без dev/watch/preview.
 Root `compose.yml` остаётся development-конфигурацией.
 
@@ -276,10 +276,10 @@ sudo bash deploy/deploy.sh
 sudo systemctl is-active shop-api shop-web
 sudo ss -ltnp
 
-curl --fail http://127.0.0.1:4001/api/health
+curl --fail http://127.0.0.1:4001/api/health/ready
 curl --fail -I http://127.0.0.1:3000
 curl --fail -I https://korzinamarket.ru
-curl --fail https://korzinamarket.ru/api/health
+curl --fail https://korzinamarket.ru/api/health/ready
 curl -I http://korzinamarket.ru
 curl -I https://www.korzinamarket.ru
 ```
@@ -296,27 +296,21 @@ curl -I https://www.korzinamarket.ru
 Git/install/build/Prisma работают от `shop`, systemd и установка файлов — от root.
 Secrets читаются Node как env-данные, не исполняются shell и не передаются в argv.
 
-Deploy создаёт раздельные каталоги `uploads/products` и `uploads/chat/.incoming`
-с владельцем `shop:shop` и правами `0750`, устанавливает API/Web units и
-ежедневный `shop-chat-cleanup.timer`,
-останавливает процессы на время in-place сборки, устанавливает зависимости по
-lockfile, генерирует Prisma Client и выполняет build. Затем применяет только
-**`prisma migrate deploy --config apps/api/prisma7.config.ts`**. CLI вызывается
-через установленный `apps/api/node_modules/prisma/build/index.js`; это эквивалент
-workspace-команды с явно загруженным `api.env`. Сейчас цепочка содержит **19
-миграций**, включая business settings, delivery attempt и OTP identity. На пустой
-БД применится вся цепочка; на существующей — только ожидающие миграции.
+Deploy собирает каждый релиз в `/opt/korzinamarket-releases/<commit>-<suffix>`: frozen install, Prisma generate, typecheck, lint, unit/frontend tests и production build. Живые артефакты не перезаписываются. Systemd запускает API/Web/cleanup из `/opt/korzinamarket/current` — атомарно заменяемой ссылки. При первом переходе сохраняются tracked-исходники (`git archive`) и только runtime node_modules/API dist/Web output. Произвольные ignored-файлы, `.git`, ENV и uploads не копируются в legacy-релиз.
 
-После успешных стадий скрипт включает автозапуск, перезапускает API/Web и проверяет
-локальные и публичные URL. `migrate dev`, `db push`, Prisma reset и seed не
-используются. Build выполняется до миграций, чтобы ошибка сборки не обновляла БД.
+Только после успешной сборки останавливаются cleanup timer, уже запущенный cleanup service и API/Web, создаётся pg_dump в закрытом root-каталоге `/var/backups/korzinamarket-<suffix>`, проверяется читаемость dump через pg_restore --list, применяются ожидающие миграции и переключается current. Настройки `db.env` должны соответствовать БД из `api.env`, чтобы backup сохранял правильную базу. Новая миграция `20261013120000_normalized_product_price` добавляет вычисляемую цену для сортировки и индекс; исходные цены/количества/заказы не меняются. Не заменять её `db push` и не записывать normalizedPrice вручную.
 
-Это простой deploy **с окном недоступности**, без атомарного переключения releases.
-При ошибке после остановки процессы могут остаться остановленными; не запускать
-старый output вслепую поверх уже изменённой schema. Разобрать причину и повторить
-deploy; автоматического rollback БД нет. Перед обновлением работающего магазина
-сделать backup. Изменения исходников или неожиданные generated files останавливают
-скрипт, а не отбрасываются. Root development Compose на сервере не запускать.
+Проверяются `/api/health/ready` (схема и ShopSettings) и SSR `/catalog`. `/api/health` остаётся liveness и не подтверждает готовность SMS/Yandex. Функциональный вход и внешние интеграции проверяются отдельно.
+
+Перед заменой systemd units сохраняются их прежние файлы в закрытом root-каталоге. При отказе trap восстанавливает эти файлы и current; API/Web перезапускаются только если прежние артефакты существовали и восстановление указателя/units удалось. Cleanup timer запускается при recovery только если до deploy был активен. На первом bootstrap без прежних сборок либо при неудачном восстановлении нужна ручная помощь; скрипт не заявляет об успешном rollback и сохраняет исходный ненулевой exit code. Это восстановление **приложения**, не откат БД. Деструктивные миграции требуют отдельного плана: автоматически восстанавливать dump поверх работающей БД запрещено. Старые релизы и backup не удаляются автоматически; контролируйте свободное место и храните резервные копии вне сервера. Окно недоступности сохраняется на время backup/миграций/перезапуска.
+
+`node --test deploy/test-release.mjs` проверяет шесть изолированных сценариев: отказ до остановки, восстановление релиза, восстановление units, отказ переключения ссылки, отсутствие baseline и отказ restart. Проверяется сохранение исходного exit code; тесты не вызывают PostgreSQL/systemd. Фактический запуск root/systemd на VPS этой проверкой не заменяется.
+
+## Зависимости и границы recovery
+
+Этот инфраструктурный PR отделён от исправлений приложения. Перед применением нужны endpoint `/api/health/ready` и миграция normalizedPrice из PR приложения (#2); объединять инфраструктуру после него. Production deploy здесь не выполнялся. До merge проверить на отдельном staging VPS переход со старых units, действующие drop-ins, права `shop`, pg_dump/pg_restore, заполненность диска и отказ после миграции.
+
+Recovery не восстанавливает состояние systemd `enabled/disabled`, внешние процессы записи, ENV или схемы БД; drop-ins не заменяются. При смене несовместимых unit-параметров отдельно проверить daemon-reload/restart. Активные внешние writers должны быть остановлены вручную: pg_dump даёт согласованный snapshot, но сам по себе не запрещает новые записи. `pg_restore --list` проверяет структуру архива, но полноценное восстановление на отдельной БД всё равно обязательно. Возвращённый старый релиз должен оставаться совместим с уже применёнными миграциями. При частичной неуспешной миграции диагностировать `_prisma_migrations` отдельно, а не повторять deploy вслепую.
 
 ## 6. Первый online test и ограничения
 
