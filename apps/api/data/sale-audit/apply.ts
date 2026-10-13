@@ -33,8 +33,8 @@ const schema = z.strictObject({
     }),
   ),
 });
-export async function readPlan() {
-  const path = new URL(
+export async function readPlan(file?: string) {
+  const path = file ?? new URL(
     '../../../../docs/catalog-sale-audit/plan.json',
     import.meta.url,
   );

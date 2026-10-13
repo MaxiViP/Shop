@@ -1,3 +1,6 @@
+import { ResearchDraftsService } from '../src/admin/research-drafts.service.js';
+import { ProductService } from '../src/product/product.service.js';
+import { productQuerySchema } from '../src/product/schema.js';
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
@@ -470,6 +473,46 @@ describe.skipIf(!process.env.DATABASE_URL)(
         (await db.product.findUniqueOrThrow({ where: { id: p.id } }))
           .portionQty,
       ).toBe(2);
+    });
+    it('rejects hidden-category quotes, cart changes, merges and checkout while retaining existing orders', async () => {
+      const product = await db.product.findUniqueOrThrow({ where: { id: looseId } });
+      const snapshot = await cart.get(customerId);
+      await db.category.update({ where: { id: product.categoryId }, data: { active: false } });
+      try {
+        const quote = await orders.quote({ items: [{ productId: looseId, qty: 500 }] });
+        expect(quote.valid).toBe(false);
+        expect(quote.items[0]?.status).toBe('UNAVAILABLE');
+        await expect(orders.create(null, undefined, { ...buyer, items: [{ productId: looseId, qty: 500 }] })).rejects.toThrow();
+        await expect(cart.change(customerId, snapshot.revision, { kind: 'add', productId: looseId, qty: 500 })).rejects.toThrow();
+        const freshUser = (await db.user.create({ data: {} })).id;
+        const fresh = await cart.get(freshUser);
+        await expect(cart.merge(freshUser, fresh.revision, [{ productId: looseId, qty: 500 }])).rejects.toThrow();
+      } finally { await db.category.update({ where: { id: product.categoryId }, data: { active: true } }); }
+    });
+
+    it('sorts actual price bases consistently and recomputes the derived price on edits', async () => {
+      const category = await db.category.create({ data: { name: 'Sort audit', slug: 'sort-audit' } });
+      const base = { categoryId: category.id, unit: 'GRAM' as const, min: 100, step: 100, portionQty: 100 };
+      const small = await db.product.create({ data: { ...base, name: 'Sort audit expensive', slug: 'sort-small', price: 9000, priceQty: 100 } });
+      const kilo = await db.product.create({ data: { ...base, name: 'Sort audit cheap', slug: 'sort-kilo', price: 50000, priceQty: 1000 } });
+      const products = new ProductService(db as unknown as DbService);
+      const query = productQuerySchema.parse({ category: category.slug, sort: 'price_asc' });
+      expect((await products.list(query)).items.map(item => item.id)).toEqual([kilo.id, small.id]);
+      expect((await products.list({ ...query, feed: 'catalog' })).items.filter(item => item.category.slug === category.slug).map(item => item.id)).toEqual([kilo.id, small.id]);
+      const changed = await db.product.update({ where: { id: small.id }, data: { priceQty: 1000 } });
+      expect(Number(changed.normalizedPrice)).toBe(9900);
+      expect((await products.list(query)).items.map(item => item.id)).toEqual([small.id, kilo.id]);
+    });
+
+    it('preserves concurrent review fields, rejects stale versions and records the actor', async () => {
+      const service = new ResearchDraftsService(db as unknown as DbService);
+      const key = 'review-concurrency';
+      const initial = await db.researchStoreDraft.create({ data: { key, datasetId: 'bagrationovsky-2026-10-11', source: {},
+        review: { status: 'PENDING', marketPointId: null, productId: null, confirmedSku: null, notes: null, reviewedOn: null } } });
+      await Promise.all([service.storeReview(key, { status: 'VERIFIED' }, sellerId), service.storeReview(key, { notes: 'Concurrent note' }, sellerId)]);
+      expect((await db.researchStoreDraft.findUniqueOrThrow({ where: { key } })).review).toMatchObject({ status: 'VERIFIED', notes: 'Concurrent note' });
+      await expect(service.storeReview(key, { status: 'REJECTED', expectedUpdatedAt: initial.updatedAt.toISOString() }, sellerId)).rejects.toThrow('Черновик уже изменён');
+      expect(await db.adminAudit.count({ where: { entityId: key, actorId: sellerId } })).toBe(2);
     });
   },
 );

@@ -1,18 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
-import { stripTypeScriptTypes } from 'node:module';
+import { readFileSync, existsSync } from 'node:fs';
+import { stripTypeScriptTypes, registerHooks } from 'node:module';
+// Execute real ES modules; resolve Nuxt's root alias and extensionless TS imports.
+registerHooks({ resolve(specifier, context, nextResolve) {
+  if (specifier.startsWith('~~/')) return nextResolve(new URL('../' + specifier.slice(3) + '.ts', import.meta.url).href, context);
+  if (specifier.startsWith('.') && context.parentURL && !/\.[a-z]+$/.test(specifier)) {
+    const ts = new URL(specifier + '.ts', context.parentURL);
+    if (existsSync(ts)) return nextResolve(ts.href, context);
+  }
+  return nextResolve(specifier, context);
+} });
+const seo = await import('../app/utils/seo.ts');
+const { site, canonicalUrl, pageRobots } = await import('../shared/utils/site.ts');
 
 function source(path) {
   return stripTypeScriptTypes(readFileSync(new URL(path, import.meta.url), 'utf8'))
     .replace(/^import .+;\r?$/gm, '').replace(/\bexport (?=(?:const|function|interface))/g, '');
 }
-const delivery = new Function(source('../app/utils/delivery.ts') + '\nreturn deliveryProvider;')();
-const siteModule = new Function('deliveryProvider', source('../shared/utils/site.ts')
-  + '\nreturn { site, canonicalUrl, isPublicPage, pageRobots };')(delivery);
-const { site, canonicalUrl, pageRobots } = siteModule;
-const seo = new Function('site', 'canonicalUrl', source('../app/utils/seo.ts')
-  + '\nreturn { categorySeo, productSeo, productSchema, breadcrumbSchema, storeSchema, serializeJsonLd };')(site, canonicalUrl);
 
 test('canonical domain and query normalization cannot inherit request hosts', () => {
   assert.equal(canonicalUrl('/catalog/future/?sort=price_desc&utm_source=test'), site.url + '/catalog/future');

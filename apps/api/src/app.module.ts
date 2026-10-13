@@ -1,3 +1,4 @@
+import { DbModule } from './db/db.module.js';
 import { Module } from '@nestjs/common';
 import { PromoModule } from './promo/promo.module.js';
 import { TelegramWebhookModule } from './telegram/telegram-webhook.module.js';
@@ -17,6 +18,7 @@ import { MarketMapModule } from './market-map/market-map.module.js';
 
 @Module({
   imports: [
+    DbModule,
     PromoModule,
     AdminModule,
     MarketMapModule,

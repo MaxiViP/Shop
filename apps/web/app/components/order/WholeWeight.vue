@@ -19,8 +19,9 @@ import { money } from '~/utils/money';
 import { lineAmount } from '~/utils/assembly';
 const props = defineProps<{ item: OrderDetail['items'][number]; count: number; editable: boolean }>();
 const weights = defineModel<number[]>({ required: true });
-watch(() => props.count, count => {
+watch(() => [props.count, props.editable, weights.value.length] as const, ([count]) => {
   if (!props.editable || !Number.isSafeInteger(count) || count < 1 || count > 100) return;
+  if (weights.value.length === count) return;
   weights.value = Array.from({ length: count }, (_, index) => (weights.value ?? [])[index] ?? 0);
 }, { immediate: true });
 const totalWeight = computed(() => (props.editable ? weights.value : props.item.pieceWeights ?? []).reduce((sum, weight) => sum + Number(weight), 0));

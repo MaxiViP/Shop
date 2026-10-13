@@ -91,8 +91,8 @@ describe.skipIf(!process.env.DATABASE_URL)('product feed / local PostgreSQL', ()
   });
 
   it.each(['recommended', 'price_asc', 'price_desc', 'name', 'newest'] as const)('paginates all products in %s order without repeats or omissions, including ties', async (sort: ProductSort) => {
-    const orderBy = sort === 'price_asc' ? [{ price: 'asc' as const }, { name: 'asc' as const }, { id: 'asc' as const }]
-      : sort === 'price_desc' ? [{ price: 'desc' as const }, { name: 'asc' as const }, { id: 'asc' as const }]
+    const orderBy = sort === 'price_asc' ? [{ normalizedPrice: 'asc' as const }, { name: 'asc' as const }, { id: 'asc' as const }]
+      : sort === 'price_desc' ? [{ normalizedPrice: 'desc' as const }, { name: 'asc' as const }, { id: 'asc' as const }]
         : sort === 'newest' ? [{ createdAt: 'desc' as const }, { name: 'asc' as const }, { id: 'asc' as const }]
           : sort === 'name' ? [{ name: 'asc' as const }, { id: 'asc' as const }]
             : [{ sort: 'asc' as const }, { name: 'asc' as const }, { id: 'asc' as const }];
@@ -177,7 +177,7 @@ describe.skipIf(!process.env.DATABASE_URL)('product feed / local PostgreSQL', ()
       expect(cards.some(item => item.id === added.id)).toBe(false);
     } finally {
       await db.product.delete({ where: { id: added.id } });
-      await db.product.create({ data: removed });
+      await db.product.create({ data: { ...removed, normalizedPrice: undefined } });
     }
   });
 
@@ -193,7 +193,7 @@ describe.skipIf(!process.env.DATABASE_URL)('product feed / local PostgreSQL', ()
     await db.product.delete({ where: { id: removed.id } });
     try {
       await http().get('/api/products').query({ feed: 'home', seed, cursor: first.nextCursor, limit: 7 }).expect(409);
-    } finally { await db.product.create({ data: removed }); }
+    } finally { await db.product.create({ data: { ...removed, normalizedPrice: undefined } }); }
   });
 
   it('keeps badge filters in the cursor scope and carries both marks through every seeded page', async () => {

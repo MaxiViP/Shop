@@ -1,3 +1,4 @@
+import { orderableProductWhere } from '../product/select.js';
 import {
   BadRequestException,
   ConflictException,
@@ -240,8 +241,9 @@ export class CoordinationService {
           throw stale();
         if (!issue.proposedProductId) throw stale();
         await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${issue.proposedProductId} FOR SHARE`;
-        const product = await db.product.findUnique({
-          where: { id: issue.proposedProductId },
+        await db.$queryRaw`SELECT id FROM "Category" WHERE id = (SELECT "categoryId" FROM "Product" WHERE id = ${issue.proposedProductId}) FOR SHARE`;
+        const product = await db.product.findFirst({
+          where: { ...orderableProductWhere, id: issue.proposedProductId },
           select: { settlementMode: true, basePrice: true },
         });
         if (!product) throw stale();
@@ -327,8 +329,9 @@ export class CoordinationService {
       )
         throw stale();
       await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${data.productId} FOR UPDATE`;
+      await db.$queryRaw`SELECT id FROM "Category" WHERE id = (SELECT "categoryId" FROM "Product" WHERE id = ${data.productId}) FOR SHARE`;
       const product = await db.product.findFirst({
-        where: { id: data.productId, active: true },
+        where: { ...orderableProductWhere, id: data.productId },
         include: {
           images: {
             where: { visible: true },

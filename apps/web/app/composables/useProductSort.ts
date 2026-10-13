@@ -2,8 +2,8 @@ import type { ProductSort } from '~/types/product';
 
 export const productSortOptions: { label: string; value: ProductSort; icon: string }[] = [
   { label: 'Рекомендуемые', value: 'recommended', icon: 'i-lucide-sparkles' },
-  { label: 'Сначала дешевле', value: 'price_asc', icon: 'i-lucide-arrow-down-wide-narrow' },
-  { label: 'Сначала дороже', value: 'price_desc', icon: 'i-lucide-arrow-up-wide-narrow' },
+  { label: 'Дешевле за кг/ед.', value: 'price_asc', icon: 'i-lucide-arrow-down-wide-narrow' },
+  { label: 'Дороже за кг/ед.', value: 'price_desc', icon: 'i-lucide-arrow-up-wide-narrow' },
   { label: 'Новинки', value: 'newest', icon: 'i-lucide-clock' },
   { label: 'По названию', value: 'name', icon: 'i-lucide-a-large-small' },
 ];

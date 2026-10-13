@@ -76,3 +76,18 @@ describe('STAFF position list', () => {
     expect(callbacks).not.toContain('s:6:a:6');
   });
 });
+
+it.each(['PIECE', 'BUNCH'] as const)('routes weighed %s items to the website without offering invalid confirmations', unit => {
+  const order = fixture();
+  const item = { ...order.items[0]!, unit, priceUnit: 'GRAM' as const,
+    saleModel: unit === 'PIECE' ? 'WHOLE_VARIABLE_WEIGHT' as const : 'BUNCH' as const,
+    price: 11000, priceQty: 1000, total: null };
+  order.items = [item];
+  const url = 'https://shop.example/staff/orders/6';
+  const view = itemView(order, item, url);
+  expect(view.text).toContain('1 кг');
+  expect(view.text).not.toContain('1000 шт.');
+  expect(buttons(view)).toContainEqual({ text: '⚖️ Взвесить на сайте', url });
+  expect(buttons(view).some(button => button.callback_data?.match(/:(?:a|q|w):/))).toBe(false);
+  expect(buttons(itemPage(order, 0)).some(button => button.callback_data?.match(/:(?:a|k)(?::|$)/))).toBe(false);
+});

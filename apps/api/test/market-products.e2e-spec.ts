@@ -109,6 +109,7 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
       isSeasonal: false, isHit: false, hitMode: 'AUTO', seasonalStartsAt: null, seasonalEndsAt: null,
       seasonalMode: 'OFF', seasonTemplateId: null, hitOrders: 0, hitSoldUnits: '0.000', hitRank: null,
       saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null,
+      normalizedPrice: (Math.floor((Number(row.price) * 110 + 50) / 100) * (row.unit === 'GRAM' ? 1000 : 1) / Number(row.priceQty)).toFixed(12),
     })));
     expect((await connection.query('SELECT * FROM "OrderItem" ORDER BY id')).rows).toEqual(oldItems.map(row => ({
       ...row, serviceMarkupPercentSnapshot: null,

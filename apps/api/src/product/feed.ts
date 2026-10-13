@@ -8,7 +8,7 @@ import { hitSql, seasonalSql } from './badges.js';
 
 const tailSchema = z.object({
   id: z.number().int().positive(), name: z.string().max(1000),
-  price: z.number().int(), sort: z.number().int(), createdAt: z.iso.datetime(),
+  price: z.number().nonnegative().max(1_000_000_000_000), sort: z.number().int(), createdAt: z.iso.datetime(),
   categorySort: z.number().int(), categoryId: z.number().int().positive(),
   position: z.number().int().positive().optional(),
 }).strict();
@@ -19,10 +19,20 @@ const cursorSchema = z.object({
 type Cursor = z.infer<typeof cursorSchema>;
 type FeedRow = Omit<Cursor['tail'], 'createdAt'> & { createdAt: Date };
 type Key = { column: keyof Cursor['tail']; direction: 'asc' | 'desc' };
+// Reuse shuffle ranks across pages, but validate live membership on every request.
+// Cache is private to the Prisma client/database, bounded to 20,000 rows for 30s.
+const homeRanks = new WeakMap<PrismaClient, Map<string, { expiresAt: number; rows: FeedRow[] }>>();
+function rankCache(db: PrismaClient) {
+  let cache = homeRanks.get(db);
+  if (!cache) { cache = new Map(); homeRanks.set(db, cache); }
+  for (const [key, entry] of cache) if (entry.expiresAt <= Date.now()) cache.delete(key);
+  return cache;
+}
+
 
 export function feedScope(query: ProductQuery) {
   return createHash('sha256').update(JSON.stringify({
-    feed: query.feed, category: query.category ?? null, q: query.q ?? null,
+    priceBasis: 'kg-or-unit-v2', feed: query.feed, category: query.category ?? null, q: query.q ?? null,
     marketPoint: query.marketPoint ?? null, ids: query.ids?.toSorted((a, b) => a - b) ?? null,
     sort: query.sort,
     tag: query.tag ?? null,
@@ -90,7 +100,8 @@ export async function productFeed(db: PrismaClient, query: ProductQuery) {
       const text = '%' + query.q.replace(/[\\%_]/g, '\\$&') + '%';
       filters.push(Prisma.sql`(p.name ILIKE ${text} OR p.description ILIKE ${text})`);
     }
-    const pool = Prisma.sql`SELECT p.id, p.name, p.price, p.sort, p."createdAt", p."marketPointId",
+    const pool = Prisma.sql`SELECT p.id, p.name, ${['price_asc', 'price_desc'].includes(query.sort)
+      ? Prisma.sql`p."normalizedPrice"::double precision` : Prisma.sql`p.price`} AS price, p.sort, p."createdAt", p."marketPointId",
       c.id AS "categoryId", c.sort AS "categorySort"
       FROM "Product" p JOIN "Category" c ON c.id = p."categoryId"
       LEFT JOIN "MarketPoint" m ON m.id = p."marketPointId"
@@ -121,7 +132,24 @@ export async function productFeed(db: PrismaClient, query: ProductQuery) {
           md5(${seed} || ':point:' || coalesce("marketPointId", 0)::text), shuffle, id))::int AS position FROM categories
       )` : Prisma.sql`WITH ranked AS (${pool})`;
     const order = keys(query);
-    const rows = await tx.$queryRaw<FeedRow[]>(Prisma.sql`${source}
+    const total = counts[0]?.total ?? 0;
+    const cache = query.feed === 'home' && total <= 10_000 ? rankCache(db) : undefined;
+    const cacheKey = JSON.stringify([feedScope(query), ceiling, seed, revision]);
+    let ranks = cache?.get(cacheKey)?.rows;
+    if (cache && !ranks) {
+      ranks = await tx.$queryRaw<FeedRow[]>(Prisma.sql`${source}
+        SELECT id, name, price, sort, "createdAt", "categoryId", "categorySort", position
+        FROM ranked ORDER BY position LIMIT 10000`);
+      // Bound both entry count and total rows; a cold page still works when evicted.
+      while (cache.size >= 8 || [...cache.values()].reduce((sum, entry) => sum + entry.rows.length, 0) + ranks.length > 20_000) {
+        const oldest = cache.keys().next().value;
+        if (oldest === undefined) break;
+        cache.delete(oldest);
+      }
+      cache.set(cacheKey, { rows: ranks, expiresAt: Date.now() + 30_000 });
+    }
+    const rows = ranks ? ranks.slice(cursor?.tail.position ?? 0, (cursor?.tail.position ?? 0) + query.limit + 1)
+      : await tx.$queryRaw<FeedRow[]>(Prisma.sql`${source}
         SELECT id, name, price, sort, "createdAt", "categoryId", "categorySort"
           ${query.feed === 'home' ? Prisma.sql`, position` : Prisma.empty}
         FROM ranked WHERE ${after(order, cursor?.tail)}
@@ -135,7 +163,6 @@ export async function productFeed(db: PrismaClient, query: ProductQuery) {
       version: 1, scope: feedScope(query), ceiling, seed, revision,
       tail: { ...tail, createdAt: tail.createdAt.toISOString() },
     } satisfies Cursor)).toString('base64url') : null;
-    const total = counts[0]?.total ?? 0;
     return { items: page.flatMap(row => { const product = products.get(row.id); return product ? [product] : []; }),
       total, nextCursor, seed, page: 1, limit: query.limit, pages: Math.ceil(total / query.limit) };
   }, { isolationLevel: 'RepeatableRead' });

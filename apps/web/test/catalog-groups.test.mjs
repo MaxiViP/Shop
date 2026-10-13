@@ -22,7 +22,7 @@ const homeCode = executable((await readFile(new URL('../app/pages/index.vue', im
 test('sorting preserves the existing Russian labels, values and Lucide icons', () => {
   const options = new Function(sortCode + '\nreturn productSortOptions;')();
   assert.deepEqual(options.map(option => [option.value, option.label]), [
-    ['recommended', 'Рекомендуемые'], ['price_asc', 'Сначала дешевле'], ['price_desc', 'Сначала дороже'],
+    ['recommended', 'Рекомендуемые'], ['price_asc', 'Дешевле за кг/ед.'], ['price_desc', 'Дороже за кг/ед.'],
     ['newest', 'Новинки'], ['name', 'По названию'],
   ]);
   assert.ok(options.every(option => option.icon.startsWith('i-lucide-')));

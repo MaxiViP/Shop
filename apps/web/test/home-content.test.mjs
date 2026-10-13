@@ -65,18 +65,18 @@ test('the carousel renders and switches each slide title, description, image and
     return renderToString(app);
   }
   const first = await render();
-  assert.match(first, /<h1[^>]*>\s*Рынок рядом\s*<\/h1>/);
+  assert.match(first, /<h2[^>]*>\s*Рынок рядом\s*<\/h2>/);
   assert.match(first, /src="\/images\/hero\/hero-0\.webp"/);
   assert.match(first, /href="\/catalog"[^>]*>\s*В каталог/);
   scope.changeSlide(1);
   const second = await render();
-  assert.match(second, /<h1[^>]*>\s*Доставка по Москве\s*<\/h1>/);
+  assert.match(second, /<h2[^>]*>\s*Доставка по Москве\s*<\/h2>/);
   assert.match(second, /src="\/images\/hero\/hero-2\.webp"/);
   assert.match(second, /href="\/delivery"[^>]*>\s*Условия доставки/);
   assert.doesNotMatch(second, /href="\/catalog"/);
   slides.value[1] = { ...slides.value[1], title: 'Изменено в админке', text: 'Новое описание', to: '/cart' };
   const edited = await render();
-  assert.match(edited, /<h1[^>]*>\s*Изменено в админке\s*<\/h1>/);
+  assert.match(edited, /<h2[^>]*>\s*Изменено в админке\s*<\/h2>/);
   assert.match(edited, /href="\/cart"/);
   assert.equal(slides.value[0].title, 'Рынок рядом');
 
@@ -127,7 +127,7 @@ test('the carousel renders and switches each slide title, description, image and
     const current = slides.value.find(slide => slide.id === content.props['data-slide-id']);
     const children = descendants(content);
     const text = element => element?.text + (element?.children.map(text).join('') ?? '');
-    assert.equal(text(children.find(element => element.tag === 'h1')).trim(), current.title);
+    assert.equal(text(children.find(element => element.tag === 'h2')).trim(), current.title);
     assert.equal(text(children.find(element => element.props.class === 'hero__text')).trim(), current.text);
     assert.equal(image?.props.src, current.image ?? undefined, 'image and content must belong to the same slide during transitions');
     assert.equal(children.find(element => element.tag === 'a')?.props.href, current.to ?? undefined);

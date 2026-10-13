@@ -134,8 +134,8 @@ describe('ProductService list', () => {
 
   it.each([
     ['recommended', [{ sort: 'asc' }, { name: 'asc' }, { id: 'asc' }]],
-    ['price_asc', [{ price: 'asc' }, { name: 'asc' }, { id: 'asc' }]],
-    ['price_desc', [{ price: 'desc' }, { name: 'asc' }, { id: 'asc' }]],
+    ['price_asc', [{ normalizedPrice: 'asc' }, { name: 'asc' }, { id: 'asc' }]],
+    ['price_desc', [{ normalizedPrice: 'desc' }, { name: 'asc' }, { id: 'asc' }]],
     ['newest', [{ createdAt: 'desc' }, { name: 'asc' }, { id: 'asc' }]],
     ['name', [{ name: 'asc' }, { id: 'asc' }]],
   ] as const)('applies %s sorting', async (sort, orderBy) => {

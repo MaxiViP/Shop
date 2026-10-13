@@ -1066,6 +1066,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         const p = await db.product.create({
           data: {
             ...f.product,
+            normalizedPrice: undefined,
             id: undefined,
             slug: randomUUID(),
             name: 'Длинное название '.repeat(30),

@@ -94,8 +94,8 @@ export class ProductService {
   }
 
   private orderBy(sort: ProductSort): Prisma.ProductOrderByWithRelationInput[] {
-    if (sort === 'price_asc') return [{ price: 'asc' }, { name: 'asc' }, { id: 'asc' }];
-    if (sort === 'price_desc') return [{ price: 'desc' }, { name: 'asc' }, { id: 'asc' }];
+    if (sort === 'price_asc') return [{ normalizedPrice: 'asc' }, { name: 'asc' }, { id: 'asc' }];
+    if (sort === 'price_desc') return [{ normalizedPrice: 'desc' }, { name: 'asc' }, { id: 'asc' }];
     if (sort === 'newest') return [{ createdAt: 'desc' }, { name: 'asc' }, { id: 'asc' }];
     if (sort === 'name') return [{ name: 'asc' }, { id: 'asc' }];
 
