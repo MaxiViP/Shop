@@ -1,0 +1,90 @@
+--- card-images.smoke.mjs
++++ card-images-review.mjs
+@@ -9,7 +9,7 @@
+ import { tmpdir } from 'node:os';
+ import { join } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+-import { openBrowser } from './browser.mjs';
++const { openBrowser } = await import(process.env.IMAGE_TEST_BROWSER_HELPER);
+ 
+ const artifacts = process.env.IMAGE_TEST_ARTIFACT_DIR ?? await mkdtemp(join(tmpdir(), 'korzina-card-images-'));
+ const categories = [{ id: 1, slug: 'fruits', name: 'Фрукты' }, { id: 2, slug: 'empty', name: 'Пустая' },
+@@ -62,7 +62,7 @@
+           : url.searchParams.get('sort') === 'name' ? a.name.localeCompare(b.name, 'ru') : a.price - b.price) || a.id - b.id);
+     const offset = cursor?.offset ?? 0, limit = Number(url.searchParams.get('limit') ?? 24);
+     body = { items: items.slice(offset, offset + limit).map(item => url.searchParams.get('tag') === 'hit' ? { ...item, isHit: true } : item), total: items.length, seed, page: 1, limit, pages: Math.ceil(items.length / limit),
+-      nextCursor: offset + limit < items.length ? Buffer.from(JSON.stringify({ offset: offset + limit, seed })).toString('base64url') : null };
++      nextCursor: process.env.REVIEW_FIXED_PAGE==='1' ? null : offset + limit < items.length ? Buffer.from(JSON.stringify({ offset: offset + limit, seed })).toString('base64url') : null };
+   } else if (url.pathname === '/api/orders/quote') {
+     const chunks=[];for await(const chunk of req)chunks.push(chunk);
+     const input=JSON.parse(Buffer.concat(chunks).toString());
+@@ -93,10 +93,10 @@
+  await wait(async()=>{requested=await (await fetch('/__image-requests')).json();return requested.every(url=>performance.getEntriesByName(location.origin+url).length>0);},'initial image responses');
+  await sleep(100);
+  const resources=performance.getEntriesByType('resource').filter(entry=>entry.initiatorType==='img'&&entry.name.includes('?fixture='));
+- const initial={hydrationMs,lcp:window.audit.lcp,cls:window.audit.cls,visible:visible().length,requested:requested.length,completed:resources.length,imageBytes:resources.reduce((sum,entry)=>sum+entry.transferSize,0),firstScreenImageMs:Math.max(...visible().map(image=>window.audit.imageLoads[image.currentSrc]??0)),eager:images().filter(image=>image.loading==='eager').length,resources:resources.map(entry=>({url:entry.name,bytes:entry.transferSize,end:entry.responseEnd,duration:entry.duration}))};
++ const initial={pageTransferBytes:performance.getEntriesByType('resource').reduce((n,e)=>n+e.transferSize,0)+(performance.getEntriesByType('navigation')[0]?.transferSize??0),hydrationMs,lcp:window.audit.lcp,cls:window.audit.cls,visible:visible().length,requested:requested.length,completed:resources.length,imageBytes:resources.reduce((sum,entry)=>sum+entry.transferSize,0),firstScreenImageMs:Math.max(...visible().map(image=>window.audit.imageLoads[image.currentSrc]??0)),eager:images().filter(image=>image.loading==='eager').length,resources:resources.map(entry=>({url:entry.name,bytes:entry.transferSize,end:entry.responseEnd,duration:entry.duration}))};
+  check(initial.cls<0.1,'first-screen CLS');
+  for(const image of images()){const box=image.parentElement.getBoundingClientRect();check(Math.abs(box.width-box.height)<1,'square photo area');check(getComputedStyle(image).objectFit==='contain','photo object-fit');}
+- window.imageInitialDone=true;await wait(()=>window.imageScrollReady,'normal browser cache for scrolling');
++ audit.phase='pagination';window.imageInitialDone=true;await wait(()=>window.imageScrollReady,'normal browser cache for scrolling');
+  if(window.imageExpectedEager!==null){
+   check(window.imageSsrBudget.eager===window.imageExpectedEager,'SSR eager image budget');
+   check(window.imageSsrBudget.lazy===24-window.imageExpectedEager,'SSR native lazy image budget');
+@@ -113,7 +113,7 @@
+  check(count()===240,'pagination lost products');
+  window.scrollTo(0,0);await sleep(300);await wait(()=>document.querySelectorAll('.card').length<120,'virtualization did not bound DOM');
+  }
+- const appearance=[];
++ audit.phase='jumps';const appearance=[];
+  for(const fraction of [0.15,0.8,0.4,0,0.95,0.25]){
+   const at=performance.now();window.scrollTo(0,(document.documentElement.scrollHeight-innerHeight)*fraction);
+   await sleep(100);
+@@ -126,25 +126,25 @@
+   window.catalogResize=390;await wait(()=>window.catalogResize===null,'mobile resize');await wait(ready,'mobile photos after resize');
+  }
+  window.scrollTo(0,0);await sleep(300);
+- const frames=[];let prev=performance.now();const end=prev+2000;
++ audit.phase='frames';const frames=[];let prev=performance.now();const end=prev+2000;
+  await new Promise(resolve=>{const frame=now=>{frames.push(now-prev);prev=now;window.scrollBy(0,window.imageMeasureOnly?12:80);if(now<end)requestAnimationFrame(frame);else resolve()};requestAnimationFrame(frame)});
+  window.scrollTo(0,0);await sleep(200);
+  let searchMs=null;
+  if(!window.imageMeasureOnly){
+- const input=innerWidth<768?document.querySelector('.bottom-search input'):document.querySelector('.catalog__search input');
++ audit.phase='search';const input=innerWidth<768?document.querySelector('.bottom-search input'):document.querySelector('.catalog__search input');
+  const started=performance.now();input.value='001';input.dispatchEvent(new Event('input',{bubbles:true}));
+  await wait(()=>location.search.includes('q=001')&&count()===1,'search');await wait(ready,'searched image');await wait(()=>window.audit.photoObservers===0,'image observer cleanup after search');searchMs=performance.now()-started;
+- input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));await wait(()=>!location.search.includes('q=')&&count()>=24,'clear search');await wait(ready,'clear search photos');
+- document.querySelector('.product-sort__toggle').click();await wait(()=>document.querySelector('[role="menu"]'),'sort menu');[...document.querySelectorAll('[role="menuitemradio"]')].find(button=>button.textContent.includes('По названию')).click();await wait(()=>location.search.includes('sort=name')&&count()>=24,'image sorting');await wait(ready,'sorted images');
+- const nuxt=document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$nuxt;await nuxt.$router.replace({query:{tag:'hit'}});await wait(()=>document.querySelector('.catalog__selection')&&count()>=24,'hit filter');await wait(ready,'filtered photos');check(document.querySelectorAll('.card__ribbon--hit').length===document.querySelectorAll('.card').length,'hit filter cards');document.querySelector('.catalog__selection button').click();await wait(()=>!location.search.includes('tag=')&&count()>=24,'clear filter');await wait(ready,'clear filter photos');
+- const category=document.querySelector('.categories a[href*="/catalog/fruits"]');check(category,'category link');category.click();await wait(()=>location.pathname==='/catalog/fruits'&&count()>=24,'category change');await wait(ready,'category photos');
+- history.back();await wait(()=>location.pathname==='/catalog'&&count()>=24,'category back');await wait(ready,'category back photos');
++ audit.phase='clear-search';input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));await wait(()=>!location.search.includes('q=')&&count()>=24,'clear search');await wait(ready,'clear search photos');
++ audit.phase='sort';document.querySelector('.product-sort__toggle').click();await wait(()=>document.querySelector('[role="menu"]'),'sort menu');[...document.querySelectorAll('[role="menuitemradio"]')].find(button=>button.textContent.includes('По названию')).click();await wait(()=>location.search.includes('sort=name')&&count()>=24,'image sorting');await wait(ready,'sorted images');
++ audit.phase='filter';const nuxt=document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$nuxt;await nuxt.$router.replace({query:{tag:'hit'}});await wait(()=>document.querySelector('.catalog__selection')&&count()>=24,'hit filter');await wait(ready,'filtered photos');check(document.querySelectorAll('.card__ribbon--hit').length===document.querySelectorAll('.card').length,'hit filter cards');document.querySelector('.catalog__selection button').click();await wait(()=>!location.search.includes('tag=')&&count()>=24,'clear filter');await wait(ready,'clear filter photos');
++ audit.phase='category';const category=document.querySelector('.categories a[href*="/catalog/fruits"]');check(category,'category link');category.click();await wait(()=>location.pathname==='/catalog/fruits'&&count()>=24,'category change');await wait(ready,'category photos');
++ audit.phase='back';history.back();await wait(()=>location.pathname==='/catalog'&&count()>=24,'category back');await wait(ready,'category back photos');
+  }
+  check(document.documentElement.scrollWidth<=document.documentElement.clientWidth,'final horizontal overflow');
+  check(!window.catalogErrors.some(error=>/hydration|mismatch/i.test(error)), 'final hydration error');
+  if(window.imageExpectedEager!==null)check(window.audit.srcStates.every(state=>['eager','lazy'].includes(state.loading)&&(state.loading==='eager'||state.decoding==='async')),'CSR loading/decoding must be set before src');
+  const allImages=performance.getEntriesByType('resource').filter(entry=>entry.initiatorType==='img'&&entry.name.includes('?fixture='));
+- window.catalogResult={pass:true,width:innerWidth,initial,finalCls:window.audit.cls,totalImageBytes:allImages.reduce((sum,entry)=>sum+entry.transferSize,0),uniqueImagesRequested:new Set(allImages.map(entry=>entry.name)).size,appearanceMs:appearance,searchMs,frames:{count:frames.length,p95:frames.toSorted((a,b)=>a-b)[Math.floor(frames.length*.95)],over50:frames.filter(value=>value>50).length},hydrationErrors:window.catalogErrors.filter(error=>/hydration|mismatch/i.test(error))};
++ window.catalogResult={pass:true,pageTransferBytes:performance.getEntriesByType('resource').reduce((n,e)=>n+e.transferSize,0)+(performance.getEntriesByType('navigation')[0]?.transferSize??0),ssrBudget:window.imageSsrBudget,shifts:audit.shifts,lcpNode:audit.lcpNode,width:innerWidth,initial,finalCls:window.audit.cls,totalImageBytes:allImages.reduce((sum,entry)=>sum+entry.transferSize,0),uniqueImagesRequested:new Set(allImages.map(entry=>entry.name)).size,appearanceMs:appearance,searchMs,frames:{count:frames.length,p95:frames.toSorted((a,b)=>a-b)[Math.floor(frames.length*.95)],over50:frames.filter(value=>value>50).length},hydrationErrors:window.catalogErrors.filter(error=>/hydration|mismatch/i.test(error))};
+ }catch(error){window.catalogResult={pass:false,error:String(error)}}`;
+ 
+ let child, proxy, base, log = '', browser;
+@@ -182,11 +182,11 @@
+       }
+       res.setHeader('Content-Type', response.headers.get('content-type') ?? 'application/octet-stream');
+       if (response.headers.get('content-type')?.includes('text/html')) {
+-        let html = await response.text();
++        let html = await response.text(); if(process.env.REVIEW_PRIORITY==='single'){let seen=false;html=html.replace(/fetchpriority="high"/g,()=>{if(!seen){seen=true;return 'fetchpriority="high"'}return 'fetchpriority="auto"'});}
+         const imageTags = [...html.matchAll(/<img\b[^>]*\?fixture=[^>]*>/g)].map(match => match[0]);
+         const imageSsrBudget = { eager: imageTags.filter(tag => tag.includes('loading="eager"')).length, lazy: imageTags.filter(tag => tag.includes('loading="lazy"')).length, high: imageTags.filter(tag => tag.includes('fetchpriority="high"')).length };
+         const ids = [...new Set([...html.matchAll(/href="\/product\/fixture-(\d+)"/g)].map(match => Number(match[1])))];
+-        html = html.replace('<head>', `<head><script>window.catalogFixtureApi=${JSON.stringify(`http://127.0.0.1:${api.address().port}/api`)};window.catalogExpected=${fixtureCount};window.catalogInitialIds=${JSON.stringify(ids)};window.imageSsrBudget=${JSON.stringify(imageSsrBudget)};window.imageMeasureOnly=${JSON.stringify(process.env.IMAGE_TEST_MEASURE_ONLY==='1')};window.imageExpectedEager=${JSON.stringify(process.env.IMAGE_EXPECT_EAGER === 'baseline' ? null : Number(process.env.IMAGE_EXPECT_EAGER ?? 4))};performance.setResourceTimingBufferSize(5000);window.audit={lcp:0,cls:0,longTasks:[],imageLoads:{},photoObservers:0,srcStates:[]};const originalSrc=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');Object.defineProperty(HTMLImageElement.prototype,'src',{...originalSrc,set(value){if(String(value).includes('fixture='))audit.srcStates.push({loading:this.loading,decoding:this.decoding});originalSrc.set.call(this,value);}});const NativeObserver=window.IntersectionObserver;window.IntersectionObserver=class extends NativeObserver{constructor(callback,options){super(callback,options);this.photo=false;this.active=false;}observe(element){if(element instanceof HTMLImageElement&&!this.active){this.photo=true;this.active=true;audit.photoObservers++;}super.observe(element);}disconnect(){if(this.photo&&this.active){this.active=false;audit.photoObservers--;}super.disconnect();}};document.addEventListener('load',event=>{if(event.target instanceof HTMLImageElement)audit.imageLoads[event.target.currentSrc]=performance.now()},true);new PerformanceObserver(l=>{for(const e of l.getEntries())audit.lcp=e.startTime}).observe({type:'largest-contentful-paint',buffered:true});new PerformanceObserver(l=>{for(const e of l.getEntries())if(!e.hadRecentInput)audit.cls+=e.value}).observe({type:'layout-shift',buffered:true});new PerformanceObserver(l=>{for(const e of l.getEntries())audit.longTasks.push({ms:e.duration,at:e.startTime})}).observe({type:'longtask',buffered:true});window.catalogErrors=[];addEventListener('error',event=>catalogErrors.push(event.message));const warn=console.warn;console.warn=(...args)=>{catalogErrors.push(args.join(' '));warn(...args)}</script><script type="module" src="/__driver"></script>`);
++        html = html.replace('<head>', `<head><script>window.reviewAdaptive=${JSON.stringify(process.env.REVIEW_ADAPTIVE==='1')};window.reviewPriority=${JSON.stringify(process.env.REVIEW_PRIORITY==='single')};window.reviewMargin=${JSON.stringify(process.env.REVIEW_MARGIN ? Number(process.env.REVIEW_MARGIN):null)};window.catalogFixtureApi=${JSON.stringify(`http://127.0.0.1:${api.address().port}/api`)};window.catalogExpected=${fixtureCount};window.catalogInitialIds=${JSON.stringify(ids)};window.imageSsrBudget=${JSON.stringify(imageSsrBudget)};window.imageMeasureOnly=${JSON.stringify(process.env.IMAGE_TEST_MEASURE_ONLY==='1')};window.imageExpectedEager=${JSON.stringify(process.env.IMAGE_EXPECT_EAGER === 'baseline' ? null : Number(process.env.IMAGE_EXPECT_EAGER ?? 4))};performance.setResourceTimingBufferSize(5000);window.audit={phase:"initial",shifts:[],lcp:0,cls:0,longTasks:[],imageLoads:{},photoObservers:0,srcStates:[]};const originalSrc=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');Object.defineProperty(HTMLImageElement.prototype,'src',{...originalSrc,set(value){if(String(value).includes('fixture='))audit.srcStates.push({loading:this.loading,decoding:this.decoding});if(window.reviewPriority&&String(value).includes('fixture='))this.fetchPriority=new URL(value,location.href).searchParams.get('fixture')==='0'?'high':'auto';originalSrc.set.call(this,value);}});const reviewObservers=new Map();let reviewLastY=0,reviewLastAt=performance.now(),reviewFrame=0;addEventListener('scroll',()=>{if(!window.reviewAdaptive||reviewFrame)return;reviewFrame=requestAnimationFrame(()=>{reviewFrame=0;const now=performance.now(),dy=scrollY-reviewLastY,speed=Math.abs(dy)/Math.max(1,now-reviewLastAt);reviewLastAt=now;reviewLastY=scrollY;const margin=Math.max(1250,Math.min(3000,innerHeight+speed*1500));for(const [observer,element] of reviewObservers){const box=element.getBoundingClientRect();if(dy>=0?box.top<innerHeight+margin&&box.bottom>0:box.bottom>-margin&&box.top<innerHeight)observer.callback([{isIntersecting:true,target:element}],observer)}})}, {passive:true});const NativeObserver=window.IntersectionObserver;window.IntersectionObserver=class extends NativeObserver{constructor(callback,options){super(callback, options?.rootMargin==='3000px 0px'&&(window.reviewMargin||window.reviewAdaptive)?{...options,rootMargin:(window.reviewAdaptive?Math.max(1250,Math.min(3000,innerHeight*2)):window.reviewMargin)+'px 0px'}:options);this.photo=false;this.active=false;this.callback=callback;this.preload=options?.rootMargin==='3000px 0px';}observe(element){if(element instanceof HTMLImageElement&&!this.active){this.photo=true;this.active=true;audit.photoObservers++;if(window.reviewAdaptive&&this.preload)reviewObservers.set(this,element);}super.observe(element);}disconnect(){if(this.photo&&this.active){this.active=false;audit.photoObservers--;}reviewObservers.delete(this);super.disconnect();}};document.addEventListener('load',event=>{if(event.target instanceof HTMLImageElement)audit.imageLoads[event.target.currentSrc]=performance.now()},true);new PerformanceObserver(l=>{for(const e of l.getEntries()) {audit.lcp=e.startTime;audit.lcpNode=e.element?.outerHTML?.slice(0,300)}}).observe({type:'largest-contentful-paint',buffered:true});new PerformanceObserver(l=>{for(const e of l.getEntries())if(!e.hadRecentInput){audit.cls+=e.value;audit.shifts.push({at:e.startTime,value:e.value,phase:audit.phase,sources:e.sources.map(s=>({node:s.node?.className,before:s.previousRect.toJSON(),after:s.currentRect.toJSON()}))})}}).observe({type:'layout-shift',buffered:true});new PerformanceObserver(l=>{for(const e of l.getEntries())audit.longTasks.push({ms:e.duration,at:e.startTime})}).observe({type:'longtask',buffered:true});window.catalogErrors=[];addEventListener('error',event=>catalogErrors.push(event.message));const warn=console.warn;console.warn=(...args)=>{catalogErrors.push(args.join(' '));warn(...args)}</script><script type="module" src="/__driver"></script>`);
+         res.end(html);
+       } else res.end(Buffer.from(await response.arrayBuffer()));
+     } catch (error) { res.statusCode = 500; res.end(String(error)); }

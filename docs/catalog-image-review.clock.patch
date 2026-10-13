@@ -1,0 +1,18 @@
+--- card-images.smoke.mjs
++++ card-images-review.mjs
+@@ -88,12 +88,12 @@
+  check(!window.catalogErrors.some(error=>/hydration|mismatch/i.test(error)), 'hydration error');
+  check(document.documentElement.scrollWidth<=document.documentElement.clientWidth,'horizontal overflow');
+  await wait(ready, 'first screen photos');
+- await sleep(1000);
++ await sleep(Math.max(0,6000-performance.now()));
+  let requested=[];
+- await wait(async()=>{requested=await (await fetch('/__image-requests')).json();return requested.every(url=>performance.getEntriesByName(location.origin+url).length>0);},'initial image responses');
++ requested=[];
+  await sleep(100);
+  const resources=performance.getEntriesByType('resource').filter(entry=>entry.initiatorType==='img'&&entry.name.includes('?fixture='));
+- const initial={pageTransferBytes:performance.getEntriesByType('resource').reduce((n,e)=>n+e.transferSize,0)+(performance.getEntriesByType('navigation')[0]?.transferSize??0),hydrationMs,lcp:window.audit.lcp,cls:window.audit.cls,visible:visible().length,requested:requested.length,completed:resources.length,imageBytes:resources.reduce((sum,entry)=>sum+entry.transferSize,0),firstScreenImageMs:Math.max(...visible().map(image=>window.audit.imageLoads[image.currentSrc]??0)),eager:images().filter(image=>image.loading==='eager').length,resources:resources.map(entry=>({url:entry.name,bytes:entry.transferSize,end:entry.responseEnd,duration:entry.duration}))};
++ const initial={snapshotAt:performance.now(),pageTransferBytes:performance.getEntriesByType('resource').reduce((n,e)=>n+e.transferSize,0)+(performance.getEntriesByType('navigation')[0]?.transferSize??0),hydrationMs,lcp:window.audit.lcp,cls:window.audit.cls,visible:visible().length,requested:requested.length,completed:resources.length,imageBytes:resources.reduce((sum,entry)=>sum+entry.transferSize,0),firstScreenImageMs:Math.max(...visible().map(image=>window.audit.imageLoads[image.currentSrc]??0)),eager:images().filter(image=>image.loading==='eager').length,resources:resources.map(entry=>({url:entry.name,bytes:entry.transferSize,end:entry.responseEnd,duration:entry.duration}))};
+  check(initial.cls<0.1,'first-screen CLS');
+  for(const image of images()){const box=image.parentElement.getBoundingClientRect();check(Math.abs(box.width-box.height)<1,'square photo area');check(getComputedStyle(image).objectFit==='contain','photo object-fit');}
+  audit.phase='pagination';window.imageInitialDone=true;await wait(()=>window.imageScrollReady,'normal browser cache for scrolling');
