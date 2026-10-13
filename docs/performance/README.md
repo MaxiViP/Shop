@@ -27,7 +27,7 @@
 
 Lighthouse **13.5.0**, Chromium **154.0.8037.57**, Node 24.19.0, pnpm 11.25.0. Production-сборки Nuxt/Nitro, loopback HTTP, отдельный Chromium. Fixture API в памяти: 24 товара, уникальные URL одной WebP 324254 байта, два слайда; по 150 мс задержки на API-запрос. Никакого запуска Nest/Prisma/БД. Искусственно тяжёлые карточки позволяют видеть конкуренцию запросов; их нельзя приравнивать к production-каталогу.
 
-Lighthouse использовал стандартную **симуляцию**: mobile 412×823, DPR 1,75, CPU ×4, RTT 150 мс / 1638,4 Кбит/с; desktop — `--preset=desktop`. Точные настройки и значения находятся в [lighthouse-summary.json](lighthouse-summary.json). По одному Lighthouse-прогону на профиль и сборку: это сравнение, а не статистическое доказательство или полевая p75. Полные JSON/HTML-отчёты переданы отдельным архивом в чате.
+Lighthouse использовал стандартную **симуляцию**: mobile 412×823, DPR 1,75, CPU ×4, RTT 150 мс / 1638,4 Кбит/с; desktop — `--preset=desktop`. Точные настройки и значения находятся в [lighthouse-summary.json](lighthouse-summary.json). По одному Lighthouse-прогону на профиль и сборку: это сравнение, а не статистическое доказательство или полевая p75. [Полные JSON/HTML-отчёты, screenshots и сырые данные](reports.zip) включают manifest с SHA-256 и ссылкой на Draft PR #6.
 
 | Lighthouse | Mobile до | Mobile после | Desktop до | Desktop после |
 | --- | ---: | ---: | ---: | ---: |
