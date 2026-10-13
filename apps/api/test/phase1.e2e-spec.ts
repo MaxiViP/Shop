@@ -1621,7 +1621,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
         .actualTotal,
     ).toBe(0);
     await call(seller).post(finish).expect(409);
-    await db.orderItem.create({
+    const changedPack = await db.orderItem.create({
       data: {
         orderId: order.id,
         productName: 'Упаковка',
@@ -1639,6 +1639,11 @@ describe.skipIf(!process.env.DATABASE_URL)('Phase 1 HTTP / PostgreSQL', () => {
     await call(seller).post(finish).expect(409);
     const missingIssue = await issueFor(order.id);
     await decision(order, missingIssue, 'REMOVE_ITEM').expect(201);
+    await call(seller).post(finish).expect(409);
+    await call(seller).patch(`/staff/orders/${order.id}/items/${changedPack.id}`, { status: 'PENDING' }).expect(200);
+    await call(seller).patch(`/staff/orders/${order.id}/items/${changedPack.id}`, { status: 'PICKED', actualQty: 2 }).expect(200);
+    const packIssue = (await db.orderIssue.findUniqueOrThrow({ where: { orderItemId: changedPack.id } }));
+    await decision(order, packIssue, 'ACCEPT_ACTUAL').expect(201);
     await call(seller).post(finish).expect(201);
     expect(
       (

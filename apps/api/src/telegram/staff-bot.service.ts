@@ -1,3 +1,4 @@
+import { variableWeight } from '../product/sale.js';
 import { HttpException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { z } from 'zod';
 import { DbService } from '../db/db.service.js';
@@ -223,6 +224,11 @@ export class StaffBotService {
       if (order.status !== 'ASSEMBLING' || !item || item.status !== 'PENDING' ||
         (action === 'w' ? item.unit !== 'GRAM' : item.unit === 'GRAM'))
         return 'Позиция изменилась. Обновите заказ.';
+      if (variableWeight(item)) {
+        const view = itemView(order, item, this.telegram.staffOrderUrl(orderId));
+        await this.render(chatId, messageId, view.text, view.keyboard);
+        return 'Взвесьте каждый экземпляр на сайте';
+      }
       const started = await this.flows.start(identity.id, chatId, messageId, orderId, item.id,
         'ITEM', 'qty');
       return started ? 'Введите количество' : 'Запрос не привязан. /resume — продолжить ввод.';
@@ -272,7 +278,7 @@ export class StaffBotService {
     } else if (action === 'v') {
       const item = order.items.find(value => value.id === parsed?.arg);
       if (!item) return 'Позиция не найдена';
-      const view = itemView(order, item);
+      const view = itemView(order, item, this.telegram.staffOrderUrl(orderId));
       await this.render(chatId, messageId, view.text, view.keyboard);
       return 'Позиция обновлена';
     } else if (action === 'xl') {

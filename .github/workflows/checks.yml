@@ -1,0 +1,43 @@
+name: Checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18.6-bookworm
+        env:
+          POSTGRES_DB: korzina_e2e_unicode
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d korzina_e2e_unicode"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql://postgres@127.0.0.1:5432/korzina_e2e_unicode
+      BADGES_TEST_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/postgres
+      OTP_DELIVERY_MODE: DEV
+      TEST_PHONE_AUTH_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare test schema and ephemeral authentication
+        run: |
+          node --input-type=module -e "import {appendFileSync} from 'node:fs'; import {randomBytes} from 'node:crypto'; appendFileSync(process.env.GITHUB_ENV, 'AUTH_SECRET='+randomBytes(48).toString('hex')+'\n')"
+          pnpm --filter api exec prisma generate --config prisma7.config.ts
+          pnpm --filter api exec prisma migrate deploy --config prisma7.config.ts
+      - run: pnpm check
+      - run: pnpm --filter api test:e2e
+      - run: pnpm --filter api exec node test/admin.smoke.mjs
+      - run: node apps/web/test/seo.smoke.mjs

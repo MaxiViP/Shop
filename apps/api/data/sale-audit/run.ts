@@ -4,6 +4,13 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../../src/db/gen/client.js';
 import { readPlan, applyPlan } from './apply.js';
 const args = process.argv.slice(2);
+const planIndex = args.indexOf('--plan');
+let planFile: string | undefined;
+if (planIndex !== -1) {
+  planFile = args[planIndex + 1];
+  if (!planFile || planFile.startsWith('--')) throw new Error('--plan requires a reviewed local plan path');
+  args.splice(planIndex, 2);
+}
 if (
   args.some((arg) => !['--dry-run', '--apply-local'].includes(arg)) ||
   (args.includes('--dry-run') && args.includes('--apply-local'))
@@ -22,8 +29,8 @@ const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: url }),
 });
 try {
-  const result = await applyPlan(db, await readPlan(), apply);
-  const file = new URL(
+  const result = await applyPlan(db, await readPlan(planFile), apply);
+  const file = planFile ? `${planFile}.${apply ? 'apply' : 'dry-run'}.json` : new URL(
     `../../../../docs/catalog-sale-audit/${apply ? 'apply' : 'dry-run'}.json`,
     import.meta.url,
   );

@@ -28,7 +28,8 @@
     "catalog:sale-check": "node data/sale-audit/check.mjs",
     "bagrationovsky:import": "tsx data/bagrationovsky/run.ts",
     "bagrationovsky:drafts": "tsx data/bagrationovsky/db-run.ts",
-    "seed:seasons": "tsx prisma/seed-seasons.ts"
+    "seed:seasons": "tsx prisma/seed-seasons.ts",
+    "catalog:sale-plan": "tsx data/sale-audit/prepare.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

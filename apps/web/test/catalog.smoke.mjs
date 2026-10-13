@@ -164,7 +164,7 @@ try {
     await wait(()=>document.querySelector('.product-sort__toggle').getAttribute('aria-expanded')==='false','outside close');
     if(selectedSort) {
       clickSort(); await wait(()=>document.querySelector('[role="menu"]'),'choose open');
-      const label={price_asc:'Сначала дешевле',price_desc:'Сначала дороже',name:'По названию',newest:'Новинки'}[selectedSort];
+      const label={price_asc:'Дешевле за кг/ед.',price_desc:'Дороже за кг/ед.',name:'По названию',newest:'Новинки'}[selectedSort];
       [...document.querySelectorAll('[role="menuitemradio"]')].find(button=>button.textContent.includes(label)).click();
       await wait(()=>location.search.includes(selectedSort) && document.querySelector('.product-sort__toggle').getAttribute('aria-expanded')==='false' && ids().length>=24,'sort selection');
       const descending=['price_desc','newest'].includes(selectedSort);

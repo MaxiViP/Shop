@@ -12,6 +12,7 @@ export const researchReview = z.strictObject({
 export const researchReviewPatch = z.strictObject({
   status: z.enum(['PENDING', 'VERIFIED', 'REJECTED']).optional(),
   notes: z.string().trim().max(2000).nullable().optional(),
+  expectedUpdatedAt: z.iso.datetime().optional(),
 }).refine((value) => value.status !== undefined || value.notes !== undefined, {
   message: 'Не указаны изменения',
 });

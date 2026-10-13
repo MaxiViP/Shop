@@ -535,7 +535,7 @@ try {
   assert.ok(settingsHtml.includes('Максимальная сумма дополнительных услуг'));
   assert.ok(settingsHtml.includes('Получение заказа'));
   const publicSettings = (await api('/shop/settings', 'GET', undefined, 200, '')).data;
-  assert.deepEqual(Object.keys(publicSettings).sort(), ['deliveryEnabled', 'minDeliverySubtotal', 'pickupEnabled']);
+  assert.deepEqual(Object.keys(publicSettings).sort(), ['deliveryEnabled', 'freeDeliveryEnabled', 'freeDeliveryThreshold', 'minDeliverySubtotal', 'pickupEnabled']);
   console.log('PASS business settings SSR, staff limits and minimal public settings response');
   await api(`/staff/orders/${phaseOrder.id}/cancel`, 'POST', { reason: 'Smoke internal reason' }, 201);
   const cancellation = await db.orderCancellation.findFirstOrThrow({ where: { orderId: phaseOrder.id } });

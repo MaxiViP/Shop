@@ -148,6 +148,8 @@ model Product {
 
   // Original seller price in kopecks; service markup is calculated on the backend.
   price                Int
+  // Customer price per kilogram for GRAM prices, otherwise per one sale unit.
+  normalizedPrice      Decimal            @default(dbgenerated()) @db.Decimal(30, 12)
   priceStatus          ProductPriceStatus @default(ESTIMATED)
   settlementMode       SettlementMode     @default(UNSET)
   basePrice            Int?
@@ -206,6 +208,7 @@ model Product {
   @@index([active, hitMode, isHit])
   @@index([seasonTemplateId])
   @@index([seasonalMode, active])
+  @@index([normalizedPrice, name, id])
 }
 
 model ProductImage {

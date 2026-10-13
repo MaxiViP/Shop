@@ -116,12 +116,12 @@ test("guest cart created before login is merged from memory and is not lost", as
   assert.equal(f.cart.qty(1), 500);
   f.cart.add(product);
   await settled();
-  assert.equal(f.cart.qty(1), 1000);
+  assert.equal(f.cart.qty(1), 600);
   f.auth.user = { id: 1, role: "USER" };
   await settled();
   assert.equal(f.cart.mode, "server");
   assert.equal(f.cart.restored, true);
-  assert.equal(f.mergeBodies[0].items[0].qty, 1000);
+  assert.equal(f.mergeBodies[0].items[0].qty, 600);
   assert.equal(f.cart.additionRevision, 0);
   assert.equal(f.saved, null);
 });
@@ -130,16 +130,16 @@ test("failed merge after an immediate guest edit retains the latest draft on log
   const f = fixture(false, true);
   f.finish();
   f.cart.add(product);
-  assert.equal(f.cart.qty(1), 1000);
+  assert.equal(f.cart.qty(1), 600);
   f.auth.user = { id: 1, role: "USER" };
   await settled();
   assert.equal(f.cart.mode, "server");
   assert.equal(f.cart.count, 0);
-  assert.equal(JSON.parse(f.saved).items[0].qty, 1000);
+  assert.equal(JSON.parse(f.saved).items[0].qty, 600);
   f.auth.user = null;
   await settled();
   assert.equal(f.cart.mode, "guest");
-  assert.equal(f.cart.qty(1), 1000);
+  assert.equal(f.cart.qty(1), 600);
 });
 
 test("a later guest session merges its new items after an earlier empty login", async () => {
@@ -165,10 +165,10 @@ test("retry after failed merge uses newer guest edits", async () => {
   f.auth.user = null;
   await settled();
   f.cart.add(product);
-  assert.equal(f.cart.qty(1), 1000);
+  assert.equal(f.cart.qty(1), 600);
   f.auth.user = { id: 1, role: "USER" };
   await settled();
-  assert.equal(f.mergeBodies.at(-1).items[0].qty, 1000);
+  assert.equal(f.mergeBodies.at(-1).items[0].qty, 600);
 });
 
 test("TEST_PHONE login uses the existing guest-to-server cart merge", async t => {

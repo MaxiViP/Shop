@@ -35,9 +35,9 @@
               {{ activeSlide.eyebrow }}
             </p>
 
-            <h1 class="hero__title">
+            <h2 class="hero__title">
               {{ activeSlide.title }}
-            </h1>
+            </h2>
 
             <p class="hero__text">
               {{ activeSlide.text }}

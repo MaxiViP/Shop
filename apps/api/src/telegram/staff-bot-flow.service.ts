@@ -1,3 +1,4 @@
+import { variableWeight } from '../product/sale.js';
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import type { StaffTelegramSession } from '../db/gen/client.js';
@@ -104,6 +105,7 @@ export class StaffBotFlowService {
       const item = order.items.find(value => value.id === session.itemId);
       if (!item || order.status !== 'ASSEMBLING' || item.status !== 'PENDING')
         throw new ConflictException('STALE_ITEM');
+      if (variableWeight(item)) throw new ConflictException('Взвесьте каждый экземпляр в заказе на сайте.');
       const committed = await this.commit(session, () => this.staff.item(session.orderId, item.id,
         { status: 'PICKED', actualQty }, actor.userId, actor));
       return committed ? { orderId: session.orderId, dashboardMessageId: session.dashboardMessageId } : null;

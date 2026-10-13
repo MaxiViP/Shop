@@ -73,7 +73,7 @@ type ProductSource = {
   name: string; supplierKey: string; category: string; milkType: string | null;
   sourceUrl: string; referencePrice: PriceReference | null;
 };
-type Draft<S> = { key: string; source: S; review: Review };
+type Draft<S> = { key: string; updatedAt: string; source: S; review: Review };
 type StoreDraft = Draft<StoreSource>;
 type ProductDraft = Draft<ProductSource> & { sale: Record<string, unknown> };
 type Data = { datasetId: string; stores: StoreDraft[]; products: ProductDraft[] };
@@ -100,11 +100,12 @@ async function save(kind: 'stores' | 'products', item: StoreDraft | ProductDraft
   try {
     await api(`/admin/research-drafts/${kind}/${encodeURIComponent(item.key)}`, {
       method: 'PATCH',
-      body: { status, notes: notes[item.key] ?? item.review.notes },
+      body: { status, notes: notes[item.key] ?? item.review.notes, expectedUpdatedAt: item.updatedAt },
     });
     await refresh();
     toast.add({ title: 'Проверка сохранена', color: 'success' });
   } catch (value) {
+    await refresh();
     toast.add({ title: apiError(value), color: 'error' });
   } finally {
     saving.value = null;
