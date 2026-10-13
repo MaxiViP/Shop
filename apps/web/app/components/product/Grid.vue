@@ -7,6 +7,7 @@
         :key="product.id"
         :product="product"
         :compact="compact"
+        :eager="start + index === 0"
         :data-product-index="start + index"
       />
       <div v-if="bottom" class="grid__spacer" :style="{ height: `${bottom}px` }" aria-hidden="true" />

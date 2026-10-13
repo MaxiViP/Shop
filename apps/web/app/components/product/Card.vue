@@ -4,6 +4,8 @@
       <NuxtLink :to="`/product/${product.slug}`" class="card__img">
         <img
           v-if="product.images[0]"
+          :loading="eager ? 'eager' : 'lazy'"
+          decoding="async"
           :src="asset(product.images[0].url)"
           :alt="product.images[0].alt || product.name"
         >
@@ -108,9 +110,10 @@ import { qtyText } from "~/utils/qty";
 import { money } from "~/utils/money";
 import { variableWeight } from '~/utils/sale';
 
-const { product } = defineProps<{
+const { product, eager = false } = defineProps<{
   product: ProductListItem;
   compact?: boolean;
+  eager?: boolean;
 }>();
 
 const cart = useCartStore();
