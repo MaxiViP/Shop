@@ -493,6 +493,17 @@ try {
   const checkoutCart = (await api('/cart/change', 'POST', {
     revision: initialCart.revision, kind: 'set', productId: product.id, qty: 1000,
   }, 201, userCookie)).data;
+  // Staff assembly smoke is unrelated to opening-hour scheduling. Ensure the
+  // disposable test calendar permits an ASAP checkout at any Moscow clock time.
+  const { moscowDay, addDays } = await import('../dist/admin/shop-hours.js');
+  const smokeDay = moscowDay(new Date());
+  for (const day of [smokeDay, addDays(smokeDay, 1)]) {
+    const date = new Date(`${day}T00:00:00.000Z`);
+    const hours = { closed: false, openMinutes: 0, closeMinutes: 1440 };
+    await db.shopHoursException.upsert({
+      where: { date }, update: hours, create: { date, ...hours },
+    });
+  }
   const phaseOrder = (await api('/cart/checkout', 'POST', {
     revision: checkoutCart.revision, checkoutRequestId: randomUUID(), type: 'PICKUP',
     customerName: 'Phase smoke', customerPhone: shopper.data.phone,
