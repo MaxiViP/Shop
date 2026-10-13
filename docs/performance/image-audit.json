@@ -1,0 +1,1595 @@
+{
+  "conditions": "Repository import pack, 12 largest files; WebP quality 85; no production samples; proposals only, originals untouched. Visual acceptance and DPR tests still required.",
+  "count": 146,
+  "totalBytes": 23028456,
+  "originals": [
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/bakery/bakery-baguette.webp",
+      "bytes": 97050,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/bakery/bakery-ciabatta.webp",
+      "bytes": 193076,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/bakery/bakery-classic-croissant.webp",
+      "bytes": 169414,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/bakery/bakery-lavash.webp",
+      "bytes": 149324,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/bakery/bakery-meat-pie.webp",
+      "bytes": 180308,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/bakery/bakery-rye-bread.webp",
+      "bytes": 309978,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 8296
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 32166
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 83588
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/bakery/bakery-sourdough-wheat-bread.webp",
+      "bytes": 337230,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 9990
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 36294
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 90796
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/bakery/bakery-wheat-loaf.webp",
+      "bytes": 168052,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/borisovskie-syry/borisovskie-syry-aged-cheese.webp",
+      "bytes": 198442,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/borisovskie-syry/borisovskie-syry-brie-200-250g.webp",
+      "bytes": 63242,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/borisovskie-syry/borisovskie-syry-camembert-200-250g.webp",
+      "bytes": 99768,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/borisovskie-syry/borisovskie-syry-classic-semi-hard.webp",
+      "bytes": 113888,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/borisovskie-syry/borisovskie-syry-goat-semi-hard.webp",
+      "bytes": 89398,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/borisovskie-syry/borisovskie-syry-halloumi-300-350g.webp",
+      "bytes": 77688,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/borisovskie-syry/borisovskie-syry-herb-cheese.webp",
+      "bytes": 129280,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/borisovskie-syry/borisovskie-syry-sheep-semi-hard.webp",
+      "bytes": 111726,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/chinese-tea/chinese-tea-da-hong-pao-100g.webp",
+      "bytes": 238716,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/chinese-tea/chinese-tea-gaba-oolong-100g.webp",
+      "bytes": 255198,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 8956
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 31016
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 73406
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/chinese-tea/chinese-tea-jasmine-green-tea-100g.webp",
+      "bytes": 221932,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/chinese-tea/chinese-tea-long-jing-100g.webp",
+      "bytes": 214152,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/chinese-tea/chinese-tea-sheng-puer-100g.webp",
+      "bytes": 225814,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/chinese-tea/chinese-tea-shu-puer-100g.webp",
+      "bytes": 224550,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/chinese-tea/chinese-tea-tie-guan-yin-100g.webp",
+      "bytes": 252814,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 9262
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 31694
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 75132
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/domashnie-solenya/domashnie-solenya-kimchi.webp",
+      "bytes": 239918,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/domashnie-solenya/domashnie-solenya-pickled-garlic.webp",
+      "bytes": 126380,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/domashnie-solenya/domashnie-solenya-pickled-mushrooms.webp",
+      "bytes": 188714,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/domashnie-solenya/domashnie-solenya-salted-cucumbers.webp",
+      "bytes": 221562,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/domashnie-solenya/domashnie-solenya-salted-tomatoes.webp",
+      "bytes": 184860,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/domashnie-solenya/domashnie-solenya-sauerkraut.webp",
+      "bytes": 153778,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/domashnie-solenya/domashnie-solenya-spicy-cabbage.webp",
+      "bytes": 220472,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/fermerskie-kolbasy/fermerskie-kolbasy-beef-sausage.webp",
+      "bytes": 193760,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/fermerskie-kolbasy/fermerskie-kolbasy-blood-sausage.webp",
+      "bytes": 171892,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/fermerskie-kolbasy/fermerskie-kolbasy-chicken-sausage.webp",
+      "bytes": 118802,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/fermerskie-kolbasy/fermerskie-kolbasy-homemade-kupaty.webp",
+      "bytes": 151800,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/fermerskie-kolbasy/fermerskie-kolbasy-lamb-sausage.webp",
+      "bytes": 139340,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/fermerskie-kolbasy/fermerskie-kolbasy-liver-sausage.webp",
+      "bytes": 135568,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/fermerskie-kolbasy/fermerskie-kolbasy-pork-sausage.webp",
+      "bytes": 133228,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/fermerskie-kolbasy/fermerskie-kolbasy-turkey-sausage.webp",
+      "bytes": 160082,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-chilled-dorado.webp",
+      "bytes": 130412,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-chilled-seabass.webp",
+      "bytes": 107202,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-chilled-trout.webp",
+      "bytes": 124270,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-cod-fillet.webp",
+      "bytes": 87516,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-frozen-mackerel.webp",
+      "bytes": 122246,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-halibut.webp",
+      "bytes": 181968,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-hot-smoked-mackerel.webp",
+      "bytes": 99228,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-live-carp.webp",
+      "bytes": 131200,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-mussels.webp",
+      "bytes": 203028,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-red-caviar-200g.webp",
+      "bytes": 114892,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-salmon-fillet.webp",
+      "bytes": 138006,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-salmon-steak.webp",
+      "bytes": 204664,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-salted-herring.webp",
+      "bytes": 149952,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-shrimp-70-90.webp",
+      "bytes": 220974,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/goldfish/goldfish-squid.webp",
+      "bytes": 160250,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/halal-meat/halal-meat-beef-liver.webp",
+      "bytes": 158496,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/halal-meat/halal-meat-beef-ribs.webp",
+      "bytes": 192804,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/halal-meat/halal-meat-beef-shoulder.webp",
+      "bytes": 219136,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/halal-meat/halal-meat-halal-chicken.webp",
+      "bytes": 131486,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/halal-meat/halal-meat-halal-ground-beef.webp",
+      "bytes": 229940,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/halal-meat/halal-meat-halal-turkey-fillet.webp",
+      "bytes": 136912,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/halal-meat/halal-meat-lamb-leg.webp",
+      "bytes": 155002,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/halal-meat/halal-meat-lamb-ribs.webp",
+      "bytes": 187358,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/halal-meat/halal-meat-lamb-shoulder.webp",
+      "bytes": 193796,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/kondifud/kondifud-chocolate-candies-500g.webp",
+      "bytes": 153810,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/kondifud/kondifud-gingerbread-500g.webp",
+      "bytes": 237416,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/kondifud/kondifud-halva-500g.webp",
+      "bytes": 187060,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/kondifud/kondifud-marmalade-500g.webp",
+      "bytes": 283714,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 8016
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 29658
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 76174
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/kondifud/kondifud-oat-biscuits-500g.webp",
+      "bytes": 240560,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 7818
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 27842
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 66782
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/kondifud/kondifud-wafers-500g.webp",
+      "bytes": 176192,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/kondifud/kondifud-zephyr-500g.webp",
+      "bytes": 58400,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasnitskiy-ryad/myasnitskiy-ryad-bacon.webp",
+      "bytes": 163638,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasnitskiy-ryad/myasnitskiy-ryad-cervelat.webp",
+      "bytes": 190926,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasnitskiy-ryad/myasnitskiy-ryad-doctors-sausage.webp",
+      "bytes": 94542,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasnitskiy-ryad/myasnitskiy-ryad-ham.webp",
+      "bytes": 128322,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasnitskiy-ryad/myasnitskiy-ryad-hunting-sausages.webp",
+      "bytes": 172054,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasnitskiy-ryad/myasnitskiy-ryad-krakow-sausage.webp",
+      "bytes": 194924,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasnitskiy-ryad/myasnitskiy-ryad-milk-sausages.webp",
+      "bytes": 84052,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasnitskiy-ryad/myasnitskiy-ryad-roast-pork.webp",
+      "bytes": 217638,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-beef-liver.webp",
+      "bytes": 163636,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-beef-shoulder.webp",
+      "bytes": 208164,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-beef-tenderloin.webp",
+      "bytes": 162634,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-beef-tongue.webp",
+      "bytes": 169288,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-chicken-fillet.webp",
+      "bytes": 119504,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-chicken-thigh.webp",
+      "bytes": 122790,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-ground-beef.webp",
+      "bytes": 222292,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-pork-neck.webp",
+      "bytes": 190902,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-pork-ribs.webp",
+      "bytes": 159374,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-pork-tenderloin.webp",
+      "bytes": 110226,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-rabbit.webp",
+      "bytes": 134762,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-turkey-fillet.webp",
+      "bytes": 140120,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/myasoed/myasoed-turkey-thigh.webp",
+      "bytes": 203282,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oktyabrskoe-moloko/oktyabrskoe-moloko-baked-milk-1l.webp",
+      "bytes": 24320,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oktyabrskoe-moloko/oktyabrskoe-moloko-butter-825-180g.webp",
+      "bytes": 79848,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oktyabrskoe-moloko/oktyabrskoe-moloko-cottage-cheese-9-500g.webp",
+      "bytes": 149006,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oktyabrskoe-moloko/oktyabrskoe-moloko-cream-10-500ml.webp",
+      "bytes": 23562,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oktyabrskoe-moloko/oktyabrskoe-moloko-cream-33-500ml.webp",
+      "bytes": 24730,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oktyabrskoe-moloko/oktyabrskoe-moloko-kefir-1l.webp",
+      "bytes": 21912,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oktyabrskoe-moloko/oktyabrskoe-moloko-milk-32-1l.webp",
+      "bytes": 22110,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oktyabrskoe-moloko/oktyabrskoe-moloko-ryazhenka-1l.webp",
+      "bytes": 25288,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oktyabrskoe-moloko/oktyabrskoe-moloko-sour-cream-20-350g.webp",
+      "bytes": 66390,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oriental-sweets-nuts/oriental-sweets-nuts-almonds.webp",
+      "bytes": 200758,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oriental-sweets-nuts/oriental-sweets-nuts-baklava.webp",
+      "bytes": 208326,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oriental-sweets-nuts/oriental-sweets-nuts-cashews.webp",
+      "bytes": 108666,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oriental-sweets-nuts/oriental-sweets-nuts-churchkhela.webp",
+      "bytes": 72488,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oriental-sweets-nuts/oriental-sweets-nuts-dates.webp",
+      "bytes": 259784,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 8956
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 30818
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 74168
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oriental-sweets-nuts/oriental-sweets-nuts-dried-apricots.webp",
+      "bytes": 197756,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oriental-sweets-nuts/oriental-sweets-nuts-pistachios.webp",
+      "bytes": 152900,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oriental-sweets-nuts/oriental-sweets-nuts-raisins.webp",
+      "bytes": 221098,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oriental-sweets-nuts/oriental-sweets-nuts-walnuts.webp",
+      "bytes": 196288,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/paseka-ryshkovyh/paseka-ryshkovyh-acacia-honey-500g.webp",
+      "bytes": 93496,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/paseka-ryshkovyh/paseka-ryshkovyh-buckwheat-honey-500g.webp",
+      "bytes": 116550,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/paseka-ryshkovyh/paseka-ryshkovyh-honeycomb-500g.webp",
+      "bytes": 225008,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/paseka-ryshkovyh/paseka-ryshkovyh-linden-honey-500g.webp",
+      "bytes": 99770,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/paseka-ryshkovyh/paseka-ryshkovyh-meadow-honey-500g.webp",
+      "bytes": 107006,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/paseka-ryshkovyh/paseka-ryshkovyh-propolis-honey-500g.webp",
+      "bytes": 167996,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-assam-100g.webp",
+      "bytes": 251092,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 9482
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 33092
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 76316
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-earl-grey-100g.webp",
+      "bytes": 233238,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-fruit-tea-100g.webp",
+      "bytes": 271462,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 10270
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 33428
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 77948
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-herbal-blend-100g.webp",
+      "bytes": 280892,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 10802
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 36898
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 83882
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-jasmine-green-tea-100g.webp",
+      "bytes": 247168,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 9140
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 31382
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 73214
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-matcha-50g.webp",
+      "bytes": 252856,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 7212
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 26918
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 68810
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-puer-100g.webp",
+      "bytes": 229304,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/romanovskoe-osetrovoe-hozyaystvo/romanovskoe-osetrovoe-hozyaystvo-black-caviar-premium-100g.webp",
+      "bytes": 140784,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/romanovskoe-osetrovoe-hozyaystvo/romanovskoe-osetrovoe-hozyaystvo-black-caviar-premium-250g.webp",
+      "bytes": 132244,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/romanovskoe-osetrovoe-hozyaystvo/romanovskoe-osetrovoe-hozyaystvo-black-caviar-premium-30g.webp",
+      "bytes": 127746,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/romanovskoe-osetrovoe-hozyaystvo/romanovskoe-osetrovoe-hozyaystvo-black-caviar-standard-100g.webp",
+      "bytes": 128852,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/romanovskoe-osetrovoe-hozyaystvo/romanovskoe-osetrovoe-hozyaystvo-black-caviar-standard-250g.webp",
+      "bytes": 133594,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/romanovskoe-osetrovoe-hozyaystvo/romanovskoe-osetrovoe-hozyaystvo-black-caviar-standard-30g.webp",
+      "bytes": 98814,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/romanovskoe-osetrovoe-hozyaystvo/romanovskoe-osetrovoe-hozyaystvo-black-caviar-standard-50g.webp",
+      "bytes": 125592,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/romanovskoe-osetrovoe-hozyaystvo/romanovskoe-osetrovoe-hozyaystvo-chilled-sterlet.webp",
+      "bytes": 95416,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/romanovskoe-osetrovoe-hozyaystvo/romanovskoe-osetrovoe-hozyaystvo-chilled-sturgeon.webp",
+      "bytes": 100958,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/romanovskoe-osetrovoe-hozyaystvo/romanovskoe-osetrovoe-hozyaystvo-hot-smoked-sturgeon.webp",
+      "bytes": 155906,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/tea-coffee/tea-coffee-brazil-arabica-250g.webp",
+      "bytes": 137804,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/tea-coffee/tea-coffee-classic-black-tea-100g.webp",
+      "bytes": 126454,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/tea-coffee/tea-coffee-classic-green-tea-100g.webp",
+      "bytes": 132708,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/tea-coffee/tea-coffee-espresso-blend-250g.webp",
+      "bytes": 128414,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/tea-coffee/tea-coffee-ethiopia-coffee-250g.webp",
+      "bytes": 124654,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/tea-coffee/tea-coffee-ground-coffee-250g.webp",
+      "bytes": 128114,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/tea-coffee/tea-coffee-herbal-tea-100g.webp",
+      "bytes": 127654,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/vkusnaya-stall/vkusnaya-stall-beef-cutlets-500g.webp",
+      "bytes": 188504,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/vkusnaya-stall/vkusnaya-stall-cabbage-rolls-500g.webp",
+      "bytes": 100164,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/vkusnaya-stall/vkusnaya-stall-homemade-dumplings-500g.webp",
+      "bytes": 119798,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/vkusnaya-stall/vkusnaya-stall-homemade-mince-500g.webp",
+      "bytes": 179144,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/vkusnaya-stall/vkusnaya-stall-kupaty-500g.webp",
+      "bytes": 133996,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/vkusnaya-stall/vkusnaya-stall-meat-pancakes-500g.webp",
+      "bytes": 146458,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/vkusnaya-stall/vkusnaya-stall-stuffed-peppers-500g.webp",
+      "bytes": 124646,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/vkusnaya-stall/vkusnaya-stall-turkey-cutlets-500g.webp",
+      "bytes": 126814,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp"
+    }
+  ],
+  "samples": [
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/bakery/bakery-sourdough-wheat-bread.webp",
+      "bytes": 337230,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 9990
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 36294
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 90796
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/bakery/bakery-rye-bread.webp",
+      "bytes": 309978,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 8296
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 32166
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 83588
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/kondifud/kondifud-marmalade-500g.webp",
+      "bytes": 283714,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 8016
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 29658
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 76174
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-herbal-blend-100g.webp",
+      "bytes": 280892,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 10802
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 36898
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 83882
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-fruit-tea-100g.webp",
+      "bytes": 271462,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 10270
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 33428
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 77948
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/oriental-sweets-nuts/oriental-sweets-nuts-dates.webp",
+      "bytes": 259784,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 8956
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 30818
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 74168
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/chinese-tea/chinese-tea-gaba-oolong-100g.webp",
+      "bytes": 255198,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 8956
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 31016
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 73406
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-matcha-50g.webp",
+      "bytes": 252856,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 7212
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 26918
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 68810
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/chinese-tea/chinese-tea-tie-guan-yin-100g.webp",
+      "bytes": 252814,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 9262
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 31694
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 75132
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-assam-100g.webp",
+      "bytes": 251092,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 9482
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 33092
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 76316
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/pyem-chay/pyem-chay-jasmine-green-tea-100g.webp",
+      "bytes": 247168,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 9140
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 31382
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 73214
+        }
+      ]
+    },
+    {
+      "path": "apps/api/data/product-photos/2026-10-07/kondifud/kondifud-oat-biscuits-500g.webp",
+      "bytes": 240560,
+      "width": 1024,
+      "height": 1024,
+      "format": "webp",
+      "proposed": [
+        {
+          "width": 192,
+          "height": 192,
+          "format": "webp",
+          "bytes": 7818
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "format": "webp",
+          "bytes": 27842
+        },
+        {
+          "width": 640,
+          "height": 640,
+          "format": "webp",
+          "bytes": 66782
+        }
+      ]
+    }
+  ]
+}

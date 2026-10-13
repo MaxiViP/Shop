@@ -46,7 +46,7 @@ test('the carousel renders and switches each slide title, description, image and
       position: 'center', eyebrow: 'Доставка', buttonLabel: 'Условия доставки', to: '/delivery' },
   ]);
   const context = { ref, computed, watch: () => {}, onMounted: () => {}, onBeforeUnmount: () => {},
-    useHomeSlides: async () => ({ slides }), useAsset: () => value => value, heroDuration,
+    defineProps: () => ({ get slides() { return slides.value; } }), useAsset: () => value => value, heroDuration,
     setTimeout: () => 1, clearTimeout: () => {} };
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
   const scope = await new AsyncFunction(...Object.keys(context), code + `

@@ -1,0 +1,54 @@
+{
+  "html": {
+    "connection": "keep-alive",
+    "content-length": "167385",
+    "content-type": "text/html;charset=utf-8",
+    "date": "Tue, 13 Oct 2026 19:09:56 GMT",
+    "keep-alive": "timeout=5",
+    "x-powered-by": "Nuxt"
+  },
+  "identity": {
+    "cache-control": "public, max-age=31536000, immutable",
+    "connection": "keep-alive",
+    "content-length": "200489",
+    "content-type": "text/css; charset=utf-8",
+    "date": "Tue, 13 Oct 2026 19:09:56 GMT",
+    "etag": "\"30f29-ZbPSrDjzLKJV+sUIacBw5vl94cY\"",
+    "keep-alive": "timeout=5",
+    "last-modified": "Tue, 13 Oct 2026 19:03:54 GMT",
+    "vary": "Accept-Encoding"
+  },
+  "gzip": {
+    "cache-control": "public, max-age=31536000, immutable",
+    "connection": "keep-alive",
+    "content-encoding": "gzip",
+    "content-length": "26632",
+    "content-type": "text/css; charset=utf-8",
+    "date": "Tue, 13 Oct 2026 19:09:56 GMT",
+    "etag": "\"6808-im5I/QNlb0fGVLENVeHsaYVipwQ\"",
+    "keep-alive": "timeout=5",
+    "last-modified": "Tue, 13 Oct 2026 19:03:55 GMT",
+    "vary": "Accept-Encoding"
+  },
+  "br": {
+    "cache-control": "public, max-age=31536000, immutable",
+    "connection": "keep-alive",
+    "content-encoding": "br",
+    "content-length": "21246",
+    "content-type": "text/css; charset=utf-8",
+    "date": "Tue, 13 Oct 2026 19:09:56 GMT",
+    "etag": "\"52fe-YhA7bnutdMFIMLKYDOkLfdj1m6E\"",
+    "keep-alive": "timeout=5",
+    "last-modified": "Tue, 13 Oct 2026 19:03:55 GMT",
+    "vary": "Accept-Encoding"
+  },
+  "image": {
+    "connection": "keep-alive",
+    "content-length": "324254",
+    "content-type": "image/webp",
+    "date": "Tue, 13 Oct 2026 19:09:56 GMT",
+    "etag": "\"4f29e-JNElLV3J+nHuG+aaeMBjGSL4BgE\"",
+    "keep-alive": "timeout=5",
+    "last-modified": "Tue, 13 Oct 2026 19:03:54 GMT"
+  }
+}

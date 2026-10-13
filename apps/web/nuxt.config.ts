@@ -8,6 +8,15 @@ export default defineNuxtConfig({
 
   modules: ["@nuxt/ui", "@pinia/nuxt", "@nuxt/eslint"],
 
+  experimental: {
+    defaults: {
+      nuxtLink: {
+        // Keep route prefetch available without downloading every visible card's destination.
+        prefetchOn: { visibility: false, interaction: true },
+      },
+    },
+  },
+
   app: {
     head: {
       htmlAttrs: { lang: "ru-RU" },
@@ -41,6 +50,11 @@ export default defineNuxtConfig({
   },
 
   css: ["~/assets/css/main.css"],
+
+  nitro: {
+    // Nitro negotiates precompressed static files; HTML and API responses are unaffected.
+    compressPublicAssets: true,
+  },
 
   colorMode: {
     preference: "system",

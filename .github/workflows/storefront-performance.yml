@@ -1,0 +1,38 @@
+name: Storefront performance regressions
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/storefront-performance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storefront:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web build
+      - name: Local SSR, compression, images, themes, navigation and guest cart
+        env:
+          CATALOG_BROWSER_PATH: /usr/bin/google-chrome
+          PERF_RUNS: '1'
+          PERF_EXPECT_PARALLEL: '1'
+          PERF_EXPECT_COMPRESSED: '1'
+          PERF_ARTIFACT_DIR: ${{ runner.temp }}/storefront-performance
+        run: node apps/web/test/storefront-performance.smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: storefront-performance
+          path: ${{ runner.temp }}/storefront-performance
