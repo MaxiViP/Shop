@@ -29,7 +29,7 @@
       <div v-if="groups.length" ref="groupList" class="catalog__groups">
         <section v-for="group in groups" :key="group.key" class="catalog__group" :data-category="group.key">
           <h2 class="catalog__group-title">{{ group.label }}</h2>
-          <ProductGrid :items="group.items" :windowed="items.length > 120" />
+          <ProductGrid :items="group.items" :windowed="items.length > 120" :eager-images="group.key === groups[0]?.key" />
         </section>
       </div>
       <ProductGrid v-else-if="items.length" :items="items" :windowed="items.length > 120" />

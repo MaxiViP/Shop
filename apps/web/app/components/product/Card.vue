@@ -4,6 +4,10 @@
       <NuxtLink :to="`/product/${product.slug}`" class="card__img">
         <img
           v-if="product.images[0]"
+          ref="image"
+          :fetchpriority="eagerImage ? 'high' : 'auto'"
+          :loading="eagerImage || nearImage ? 'eager' : 'lazy'"
+          :decoding="eagerImage ? 'auto' : 'async'"
           :src="asset(product.images[0].url)"
           :alt="product.images[0].alt || product.name"
         >
@@ -108,14 +112,39 @@ import { qtyText } from "~/utils/qty";
 import { money } from "~/utils/money";
 import { variableWeight } from '~/utils/sale';
 
-const { product } = defineProps<{
+const { product, eagerImage = false } = defineProps<{
   product: ProductListItem;
   compact?: boolean;
+  eagerImage?: boolean;
 }>();
 
 const cart = useCartStore();
 const actions = useCartActions();
 const asset = useAsset();
+const image = ref<HTMLImageElement | null>(null);
+const nearImage = ref(false);
+let imageObserver: IntersectionObserver | undefined;
+
+function observeImage() {
+  imageObserver?.disconnect();
+  imageObserver = undefined;
+  const element = image.value;
+  if (!element || eagerImage || typeof IntersectionObserver === 'undefined') return;
+  // Allow 1.5 seconds for transfer/decode at a fast 2000 px/s scroll.
+  const observer = new IntersectionObserver(entries => {
+    if (image.value !== element || !entries.some(entry => entry.isIntersecting)) return;
+    nearImage.value = true;
+    observer.disconnect();
+  }, { rootMargin: '3000px 0px' });
+  imageObserver = observer;
+  observer.observe(element);
+}
+watch(image, observeImage, { flush: 'post' });
+watch(() => product.images[0]?.url, () => {
+  nearImage.value = false;
+  observeImage();
+}, { flush: 'post' });
+onBeforeUnmount(() => imageObserver?.disconnect());
 const seasonEnded = ref(false);
 const seasonal = computed(() => product.isSeasonal && !seasonEnded.value);
 let seasonTimer: ReturnType<typeof setTimeout> | undefined;

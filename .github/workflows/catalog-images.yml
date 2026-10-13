@@ -1,0 +1,51 @@
+name: Catalog images
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/catalog-images.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web typecheck
+      - run: pnpm --filter web lint
+      - name: Catalog and shared card regressions
+        run: >-
+          node --test apps/web/test/catalog-groups.test.mjs
+          apps/web/test/gallery-search.test.mjs
+          apps/web/test/favorites-layout.test.mjs
+          apps/web/test/product-cart.test.mjs
+          apps/web/test/cart-items.test.mjs
+          apps/web/test/market-products.test.mjs
+          apps/web/test/mobile-header.test.mjs
+          apps/web/test/header-layout.test.mjs
+      - run: pnpm --filter web build
+      - name: Built SSR, images, search and virtual scroll on four widths
+        env:
+          CATALOG_BROWSER_PATH: /usr/bin/google-chrome
+          IMAGE_EXPECT_EAGER: '4'
+          IMAGE_TEST_RUNS: '1'
+          IMAGE_TEST_ARTIFACT_DIR: ${{ runner.temp }}/catalog-images
+        run: |
+          mkdir -p "$IMAGE_TEST_ARTIFACT_DIR"
+          node apps/web/test/card-images.smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-images
+          path: ${{ runner.temp }}/catalog-images
