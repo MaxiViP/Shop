@@ -26,3 +26,7 @@ uploads/
 /product-photo-source/
 /product-photo-slugs.json
 /product-photo-slugs-copy.json
+
+# Atomic local release pointer; deployed artifacts live outside the checkout.
+/current
+/.current-next
