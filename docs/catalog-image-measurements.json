@@ -1,0 +1,1230 @@
+{
+  "baselineCommit": "0486f0a363397a2c7e65c7cfa07ae16e4874bf30",
+  "conditions": {
+    "browser": "Chromium 154.0.8037.57",
+    "height": 950,
+    "mobileCpuRate": 4,
+    "desktopCpuRate": 1,
+    "network": "localhost, unthrottled",
+    "cache": "cleared before each trial; disabled until initial snapshot, then normal browser cache",
+    "trialsPerWidth": 3,
+    "syntheticPhotoBytes": 324254,
+    "products": 240,
+    "categories": 109,
+    "uniquePhotoUrlsPerTrial": true
+  },
+  "trials": {
+    "before": [
+      {
+        "width": 320,
+        "initial": {
+          "hydrationMs": 2835,
+          "lcp": 1220,
+          "cls": 0,
+          "visible": 4,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 1073.5,
+          "eager": 0
+        },
+        "frames": {
+          "count": 119,
+          "p95": 16.800000000000182,
+          "over50": 0
+        },
+        "appearanceMs": [
+          101.59999999776483,
+          105.60000000149012,
+          151.30000000074506,
+          255.59999999776483,
+          293.6000000014901,
+          711
+        ]
+      },
+      {
+        "width": 320,
+        "initial": {
+          "hydrationMs": 2502.800000000745,
+          "lcp": 1048,
+          "cls": 0,
+          "visible": 4,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 639.1999999992549,
+          "eager": 0
+        },
+        "frames": {
+          "count": 120,
+          "p95": 16.800000000000182,
+          "over50": 0
+        },
+        "appearanceMs": [
+          100.80000000074506,
+          101.80000000074506,
+          216.80000000074506,
+          167.80000000074506,
+          262.5999999977648,
+          705
+        ]
+      },
+      {
+        "width": 320,
+        "initial": {
+          "hydrationMs": 2564.400000002235,
+          "lcp": 836,
+          "cls": 0,
+          "visible": 4,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 887.1000000014901,
+          "eager": 0
+        },
+        "frames": {
+          "count": 119,
+          "p95": 16.799999999999272,
+          "over50": 0
+        },
+        "appearanceMs": [
+          102.89999999850988,
+          102.30000000074506,
+          185.89999999850988,
+          155.90000000223517,
+          283.80000000074506,
+          662.5
+        ]
+      },
+      {
+        "width": 390,
+        "initial": {
+          "hydrationMs": 2578.599999997765,
+          "lcp": 1008,
+          "cls": 0,
+          "visible": 4,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 601.1999999992549,
+          "eager": 0
+        },
+        "frames": {
+          "count": 118,
+          "p95": 16.800000000000182,
+          "over50": 0
+        },
+        "appearanceMs": [
+          103.69999999925494,
+          102.89999999850988,
+          189.20000000298023,
+          151.19999999925494,
+          278.0999999977648,
+          737.4000000022352
+        ]
+      },
+      {
+        "width": 390,
+        "initial": {
+          "hydrationMs": 2569.60000000149,
+          "lcp": 1088,
+          "cls": 0,
+          "visible": 4,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 599.5,
+          "eager": 0
+        },
+        "frames": {
+          "count": 119,
+          "p95": 16.800000000000182,
+          "over50": 0
+        },
+        "appearanceMs": [
+          102.5,
+          102.80000000074506,
+          205.69999999925494,
+          155.09999999776483,
+          300.6000000014901,
+          823.1999999992549
+        ]
+      },
+      {
+        "width": 390,
+        "initial": {
+          "hydrationMs": 2648.800000000745,
+          "lcp": 892,
+          "cls": 0,
+          "visible": 4,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 790.1000000014901,
+          "eager": 0
+        },
+        "frames": {
+          "count": 121,
+          "p95": 16.700000000000728,
+          "over50": 0
+        },
+        "appearanceMs": [
+          104.30000000074506,
+          103.90000000223517,
+          102.80000000074506,
+          102.59999999776483,
+          218.60000000149012,
+          756.6999999992549
+        ]
+      },
+      {
+        "width": 768,
+        "initial": {
+          "hydrationMs": 828,
+          "lcp": 732,
+          "cls": 0,
+          "visible": 8,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 433.80000000074506,
+          "eager": 0
+        },
+        "frames": {
+          "count": 120,
+          "p95": 16.800000000000182,
+          "over50": 0
+        },
+        "appearanceMs": [
+          101.29999999701977,
+          160.70000000298023,
+          195.5,
+          285.5999999977648,
+          316.9000000022352,
+          101.29999999701977
+        ]
+      },
+      {
+        "width": 768,
+        "initial": {
+          "hydrationMs": 958.4000000022352,
+          "lcp": 824,
+          "cls": 0,
+          "visible": 8,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 504.9000000022352,
+          "eager": 0
+        },
+        "frames": {
+          "count": 121,
+          "p95": 16.800000000000182,
+          "over50": 0
+        },
+        "appearanceMs": [
+          101,
+          190,
+          220.89999999850988,
+          256.69999999925494,
+          277.1000000014901,
+          101.89999999850988
+        ]
+      },
+      {
+        "width": 768,
+        "initial": {
+          "hydrationMs": 997.7000000029802,
+          "lcp": 800,
+          "cls": 0,
+          "visible": 8,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 495.6000000014901,
+          "eager": 0
+        },
+        "frames": {
+          "count": 122,
+          "p95": 16.700000000000728,
+          "over50": 0
+        },
+        "appearanceMs": [
+          100.90000000223517,
+          320.5,
+          247.09999999776483,
+          304.6000000014901,
+          479.3999999985099,
+          103.30000000074506
+        ]
+      },
+      {
+        "width": 1440,
+        "initial": {
+          "hydrationMs": 907.8999999985099,
+          "lcp": 928,
+          "cls": 0,
+          "visible": 12,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 421.8999999985099,
+          "eager": 0
+        },
+        "frames": {
+          "count": 121,
+          "p95": 16.700000000000273,
+          "over50": 0
+        },
+        "appearanceMs": [
+          101,
+          365.9000000022352,
+          184.89999999850988,
+          108.5,
+          101.69999999925494,
+          100.90000000223517
+        ]
+      },
+      {
+        "width": 1440,
+        "initial": {
+          "hydrationMs": 933.8999999985099,
+          "lcp": 876,
+          "cls": 0,
+          "visible": 12,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 455.69999999925494,
+          "eager": 0
+        },
+        "frames": {
+          "count": 113,
+          "p95": 33.30000000000018,
+          "over50": 0
+        },
+        "appearanceMs": [
+          100.90000000223517,
+          270,
+          233.80000000074506,
+          284.3999999985099,
+          215.60000000149012,
+          273.8999999985099
+        ]
+      },
+      {
+        "width": 1440,
+        "initial": {
+          "hydrationMs": 933.6000000014901,
+          "lcp": 988,
+          "cls": 0,
+          "visible": 12,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 476.1000000014901,
+          "eager": 0
+        },
+        "frames": {
+          "count": 122,
+          "p95": 16.700000000000728,
+          "over50": 0
+        },
+        "appearanceMs": [
+          101.10000000149012,
+          227.60000000149012,
+          267.69999999925494,
+          181.80000000074506,
+          206.29999999701977,
+          600.7000000029802
+        ]
+      }
+    ],
+    "after": [
+      {
+        "width": 320,
+        "initial": {
+          "hydrationMs": 3284.199999999255,
+          "lcp": 1116,
+          "cls": 0,
+          "visible": 4,
+          "requested": 20,
+          "completed": 20,
+          "imageBytes": 6491080,
+          "firstScreenImageMs": 1095.199999999255,
+          "eager": 20
+        },
+        "frames": {
+          "count": 120,
+          "p95": 16.800000000000182,
+          "over50": 0
+        },
+        "appearanceMs": [
+          115.30000000074506,
+          108.60000000149012,
+          111.39999999850988,
+          105.5,
+          312.30000000074506,
+          897.8000000007451
+        ]
+      },
+      {
+        "width": 320,
+        "initial": {
+          "hydrationMs": 2424.60000000149,
+          "lcp": 864,
+          "cls": 0,
+          "visible": 4,
+          "requested": 20,
+          "completed": 20,
+          "imageBytes": 6491080,
+          "firstScreenImageMs": 737.1000000014901,
+          "eager": 20
+        },
+        "frames": {
+          "count": 121,
+          "p95": 16.799999999999272,
+          "over50": 0
+        },
+        "appearanceMs": [
+          110.30000000074506,
+          125.19999999925494,
+          105,
+          116.69999999925494,
+          264.5,
+          644
+        ]
+      },
+      {
+        "width": 320,
+        "initial": {
+          "hydrationMs": 2504.800000000745,
+          "lcp": 984,
+          "cls": 0,
+          "visible": 4,
+          "requested": 20,
+          "completed": 20,
+          "imageBytes": 6491080,
+          "firstScreenImageMs": 850.3000000007451,
+          "eager": 20
+        },
+        "frames": {
+          "count": 120,
+          "p95": 16.799999999999272,
+          "over50": 0
+        },
+        "appearanceMs": [
+          105.5,
+          136.5,
+          103.19999999925494,
+          103.40000000223517,
+          263.19999999925494,
+          657.1999999992549
+        ]
+      },
+      {
+        "width": 390,
+        "initial": {
+          "hydrationMs": 2247.099999997765,
+          "lcp": 576,
+          "cls": 0,
+          "visible": 4,
+          "requested": 18,
+          "completed": 18,
+          "imageBytes": 5841972,
+          "firstScreenImageMs": 706.5999999977648,
+          "eager": 18
+        },
+        "frames": {
+          "count": 116,
+          "p95": 16.800000000000182,
+          "over50": 0
+        },
+        "appearanceMs": [
+          108.30000000074506,
+          123.5,
+          102.39999999850988,
+          102.20000000298023,
+          253.59999999776483,
+          661.5
+        ]
+      },
+      {
+        "width": 390,
+        "initial": {
+          "hydrationMs": 2643.7999999970198,
+          "lcp": 1044,
+          "cls": 0,
+          "visible": 4,
+          "requested": 18,
+          "completed": 18,
+          "imageBytes": 5841972,
+          "firstScreenImageMs": 922.8999999985099,
+          "eager": 18
+        },
+        "frames": {
+          "count": 119,
+          "p95": 16.700000000000728,
+          "over50": 0
+        },
+        "appearanceMs": [
+          121,
+          123.80000000074506,
+          103.59999999776483,
+          100.80000000074506,
+          294.19999999925494,
+          658
+        ]
+      },
+      {
+        "width": 390,
+        "initial": {
+          "hydrationMs": 2756.300000000745,
+          "lcp": 936,
+          "cls": 0,
+          "visible": 4,
+          "requested": 18,
+          "completed": 18,
+          "imageBytes": 5841972,
+          "firstScreenImageMs": 819.6999999992549,
+          "eager": 18
+        },
+        "frames": {
+          "count": 118,
+          "p95": 16.800000000000182,
+          "over50": 0
+        },
+        "appearanceMs": [
+          109.10000000149012,
+          120,
+          103.59999999776483,
+          101.90000000223517,
+          293.69999999925494,
+          813.0999999977648
+        ]
+      },
+      {
+        "width": 768,
+        "initial": {
+          "hydrationMs": 894.1999999992549,
+          "lcp": 620,
+          "cls": 0,
+          "visible": 8,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 422.29999999701977,
+          "eager": 24
+        },
+        "frames": {
+          "count": 120,
+          "p95": 16.800000000000182,
+          "over50": 0
+        },
+        "appearanceMs": [
+          100.89999999850988,
+          228,
+          101,
+          100.80000000074506,
+          183.19999999925494,
+          106.5
+        ]
+      },
+      {
+        "width": 768,
+        "initial": {
+          "hydrationMs": 805.4000000022352,
+          "lcp": 652,
+          "cls": 0,
+          "visible": 8,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 448.30000000074506,
+          "eager": 24
+        },
+        "frames": {
+          "count": 122,
+          "p95": 16.700000000000273,
+          "over50": 0
+        },
+        "appearanceMs": [
+          101.19999999925494,
+          230.5,
+          125.80000000074506,
+          108.90000000223517,
+          182.19999999925494,
+          258
+        ]
+      },
+      {
+        "width": 768,
+        "initial": {
+          "hydrationMs": 880.1999999992549,
+          "lcp": 640,
+          "cls": 0,
+          "visible": 8,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 438.80000000074506,
+          "eager": 24
+        },
+        "frames": {
+          "count": 122,
+          "p95": 16.700000000000728,
+          "over50": 0
+        },
+        "appearanceMs": [
+          101.10000000149012,
+          223.5,
+          152.89999999850988,
+          101.20000000298023,
+          158.59999999776483,
+          200.80000000074506
+        ]
+      },
+      {
+        "width": 1440,
+        "initial": {
+          "hydrationMs": 1003.6000000014901,
+          "lcp": 700,
+          "cls": 0,
+          "visible": 12,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 510.6000000014901,
+          "eager": 24
+        },
+        "frames": {
+          "count": 122,
+          "p95": 16.700000000000728,
+          "over50": 0
+        },
+        "appearanceMs": [
+          101.10000000149012,
+          178.39999999850988,
+          233.20000000298023,
+          148.79999999701977,
+          203,
+          217.90000000223517
+        ]
+      },
+      {
+        "width": 1440,
+        "initial": {
+          "hydrationMs": 876,
+          "lcp": 728,
+          "cls": 0,
+          "visible": 12,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 463.1000000014901,
+          "eager": 24
+        },
+        "frames": {
+          "count": 122,
+          "p95": 16.799999999999272,
+          "over50": 0
+        },
+        "appearanceMs": [
+          101.09999999776483,
+          194,
+          125.30000000074506,
+          100.80000000074506,
+          157.60000000149012,
+          276.8999999985099
+        ]
+      },
+      {
+        "width": 1440,
+        "initial": {
+          "hydrationMs": 1017.3999999985099,
+          "lcp": 680,
+          "cls": 0,
+          "visible": 12,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 541.1999999992549,
+          "eager": 24
+        },
+        "frames": {
+          "count": 122,
+          "p95": 16.700000000000728,
+          "over50": 0
+        },
+        "appearanceMs": [
+          101.40000000223517,
+          228,
+          102.5,
+          100.80000000074506,
+          178.19999999925494,
+          295.30000000074506
+        ]
+      }
+    ]
+  },
+  "summary": [
+    {
+      "width": 320,
+      "before": {
+        "requested": 24,
+        "imageBytes": 7789296,
+        "lcp": 1048,
+        "firstScreenImageMs": 887.1,
+        "visible": 4,
+        "cls": 0,
+        "frameP95Ms": 16.8
+      },
+      "after": {
+        "requested": 20,
+        "imageBytes": 6491080,
+        "lcp": 984,
+        "firstScreenImageMs": 850.3,
+        "visible": 4,
+        "cls": 0,
+        "frameP95Ms": 16.8
+      }
+    },
+    {
+      "width": 390,
+      "before": {
+        "requested": 24,
+        "imageBytes": 7789296,
+        "lcp": 1008,
+        "firstScreenImageMs": 601.2,
+        "visible": 4,
+        "cls": 0,
+        "frameP95Ms": 16.8
+      },
+      "after": {
+        "requested": 18,
+        "imageBytes": 5841972,
+        "lcp": 936,
+        "firstScreenImageMs": 819.7,
+        "visible": 4,
+        "cls": 0,
+        "frameP95Ms": 16.8
+      }
+    },
+    {
+      "width": 768,
+      "before": {
+        "requested": 24,
+        "imageBytes": 7789296,
+        "lcp": 800,
+        "firstScreenImageMs": 495.6,
+        "visible": 8,
+        "cls": 0,
+        "frameP95Ms": 16.8
+      },
+      "after": {
+        "requested": 24,
+        "imageBytes": 7789296,
+        "lcp": 640,
+        "firstScreenImageMs": 438.8,
+        "visible": 8,
+        "cls": 0,
+        "frameP95Ms": 16.7
+      }
+    },
+    {
+      "width": 1440,
+      "before": {
+        "requested": 24,
+        "imageBytes": 7789296,
+        "lcp": 928,
+        "firstScreenImageMs": 455.7,
+        "visible": 12,
+        "cls": 0,
+        "frameP95Ms": 16.7
+      },
+      "after": {
+        "requested": 24,
+        "imageBytes": 7789296,
+        "lcp": 700,
+        "firstScreenImageMs": 510.6,
+        "visible": 12,
+        "cls": 0,
+        "frameP95Ms": 16.7
+      }
+    }
+  ],
+  "fullScenario": {
+    "before": [
+      {
+        "pass": true,
+        "width": 320,
+        "initial": {
+          "hydrationMs": 2876.7000000029802,
+          "lcp": 1344,
+          "cls": 0,
+          "visible": 4,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 1239.6000000014901,
+          "eager": 0
+        },
+        "finalCls": 0.1960916308864266,
+        "totalImageBytes": 68156340,
+        "uniqueImagesRequested": 210,
+        "appearanceMs": [
+          475.6000000014901,
+          451.19999999925494,
+          552.1999999992549,
+          447.80000000074506,
+          569.1999999992549,
+          440.69999999925494
+        ],
+        "searchMs": 499.6000000014901,
+        "frames": {
+          "count": 67,
+          "p95": 66.69999999999891,
+          "over50": 7
+        },
+        "hydrationErrors": []
+      },
+      {
+        "pass": true,
+        "width": 390,
+        "initial": {
+          "hydrationMs": 2589.60000000149,
+          "lcp": 940,
+          "cls": 0,
+          "visible": 4,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 819.2000000029802,
+          "eager": 0
+        },
+        "finalCls": 0.20201687445064456,
+        "totalImageBytes": 65559908,
+        "uniqueImagesRequested": 202,
+        "appearanceMs": [
+          424.19999999925494,
+          586,
+          661.5,
+          372.69999999925494,
+          358.30000000074506,
+          334.5
+        ],
+        "searchMs": 480.5,
+        "frames": {
+          "count": 73,
+          "p95": 66.69999999999891,
+          "over50": 9
+        },
+        "hydrationErrors": []
+      },
+      {
+        "pass": true,
+        "width": 768,
+        "initial": {
+          "hydrationMs": 970.2000000029802,
+          "lcp": 800,
+          "cls": 0,
+          "visible": 8,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 494.6000000014901,
+          "eager": 0
+        },
+        "finalCls": 0.7293113556852922,
+        "totalImageBytes": 58419720,
+        "uniqueImagesRequested": 180,
+        "appearanceMs": [
+          113,
+          488.5,
+          218.60000000149012,
+          100.5,
+          444.29999999701977,
+          217.10000000149012
+        ],
+        "searchMs": 388.30000000074506,
+        "frames": {
+          "count": 113,
+          "p95": 33.30000000000018,
+          "over50": 1
+        },
+        "hydrationErrors": []
+      },
+      {
+        "pass": true,
+        "width": 1440,
+        "initial": {
+          "hydrationMs": 931.1999999992549,
+          "lcp": 940,
+          "cls": 0,
+          "visible": 12,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 500.3999999985099,
+          "eager": 0
+        },
+        "finalCls": 0.05895297176459154,
+        "totalImageBytes": 70103664,
+        "uniqueImagesRequested": 216,
+        "appearanceMs": [
+          191,
+          761.5999999977648,
+          354.9000000022352,
+          620.7000000029802,
+          306.79999999701977,
+          367
+        ],
+        "searchMs": 400.30000000074506,
+        "frames": {
+          "count": 104,
+          "p95": 33.399999999999636,
+          "over50": 1
+        },
+        "hydrationErrors": []
+      }
+    ],
+    "after": [
+      {
+        "pass": true,
+        "width": 320,
+        "initial": {
+          "hydrationMs": 3222.199999999255,
+          "lcp": 1396,
+          "cls": 0,
+          "visible": 4,
+          "requested": 20,
+          "completed": 20,
+          "imageBytes": 6491080,
+          "firstScreenImageMs": 1250.8999999985099,
+          "eager": 20
+        },
+        "finalCls": 0.21821147853185596,
+        "totalImageBytes": 53226856,
+        "uniqueImagesRequested": 164,
+        "appearanceMs": [
+          429.6000000014901,
+          558.3999999985099,
+          537.1000000014901,
+          320.30000000074506,
+          494.30000000074506,
+          544.7999999970198
+        ],
+        "searchMs": 485,
+        "frames": {
+          "count": 77,
+          "p95": 66.70000000000073,
+          "over50": 12
+        },
+        "hydrationErrors": []
+      },
+      {
+        "pass": true,
+        "width": 390,
+        "initial": {
+          "hydrationMs": 3066.800000000745,
+          "lcp": 908,
+          "cls": 0,
+          "visible": 4,
+          "requested": 18,
+          "completed": 18,
+          "imageBytes": 5841972,
+          "firstScreenImageMs": 907.6999999992549,
+          "eager": 18
+        },
+        "finalCls": 0.07179586443572876,
+        "totalImageBytes": 52577748,
+        "uniqueImagesRequested": 162,
+        "appearanceMs": [
+          439,
+          374.69999999925494,
+          591.1000000014901,
+          311.79999999701977,
+          445.9000000022352,
+          545.5
+        ],
+        "searchMs": 560.6999999992549,
+        "frames": {
+          "count": 81,
+          "p95": 66.69999999999891,
+          "over50": 7
+        },
+        "hydrationErrors": []
+      },
+      {
+        "pass": true,
+        "width": 768,
+        "initial": {
+          "hydrationMs": 947.8999999985099,
+          "lcp": 688,
+          "cls": 0,
+          "visible": 8,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 479.0999999977648,
+          "eager": 24
+        },
+        "finalCls": 0.3418230106352061,
+        "totalImageBytes": 66209016,
+        "uniqueImagesRequested": 204,
+        "appearanceMs": [
+          146.89999999850988,
+          360.30000000074506,
+          208.89999999850988,
+          136.70000000298023,
+          122.59999999776483,
+          210.10000000149012
+        ],
+        "searchMs": 389,
+        "frames": {
+          "count": 110,
+          "p95": 33.30000000000018,
+          "over50": 1
+        },
+        "hydrationErrors": []
+      },
+      {
+        "pass": true,
+        "width": 1440,
+        "initial": {
+          "hydrationMs": 1023.1000000014901,
+          "lcp": 708,
+          "cls": 0,
+          "visible": 12,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 514.4000000022352,
+          "eager": 24
+        },
+        "finalCls": 0.718324685328279,
+        "totalImageBytes": 77892960,
+        "uniqueImagesRequested": 240,
+        "appearanceMs": [
+          211.5,
+          268.1000000014901,
+          278.29999999701977,
+          188,
+          119.80000000074506,
+          221.30000000074506
+        ],
+        "searchMs": 396.69999999925494,
+        "frames": {
+          "count": 110,
+          "p95": 33.30000000000018,
+          "over50": 0
+        },
+        "hydrationErrors": []
+      }
+    ]
+  },
+  "network": {
+    "before": [
+      {
+        "pass": true,
+        "width": 390,
+        "initial": {
+          "hydrationMs": 4651.300000000745,
+          "lcp": 3156,
+          "cls": 0,
+          "visible": 4,
+          "requested": 18,
+          "completed": 18,
+          "imageBytes": 5841972,
+          "firstScreenImageMs": 3111.900000002235,
+          "eager": 0
+        },
+        "finalCls": 0,
+        "totalImageBytes": 9736620,
+        "uniqueImagesRequested": 30,
+        "appearanceMs": [
+          107.30000000074506,
+          1282.3999999985099,
+          109.10000000149012,
+          217.60000000149012,
+          209.09999999776483,
+          134
+        ],
+        "searchMs": null,
+        "frames": {
+          "count": 118,
+          "p95": 16.799999999999272,
+          "over50": 0
+        },
+        "hydrationErrors": []
+      },
+      {
+        "pass": true,
+        "width": 390,
+        "initial": {
+          "hydrationMs": 4357.10000000149,
+          "lcp": 2856,
+          "cls": 0,
+          "visible": 4,
+          "requested": 24,
+          "completed": 24,
+          "imageBytes": 7789296,
+          "firstScreenImageMs": 2892.199999999255,
+          "eager": 0
+        },
+        "finalCls": 0,
+        "totalImageBytes": 9736620,
+        "uniqueImagesRequested": 30,
+        "appearanceMs": [
+          104.89999999850988,
+          110.09999999776483,
+          159.30000000074506,
+          234.60000000149012,
+          266,
+          727.0999999977648
+        ],
+        "searchMs": null,
+        "frames": {
+          "count": 114,
+          "p95": 33.29999999999927,
+          "over50": 0
+        },
+        "hydrationErrors": []
+      },
+      {
+        "pass": true,
+        "width": 390,
+        "initial": {
+          "hydrationMs": 4663.699999999255,
+          "lcp": 2860,
+          "cls": 0,
+          "visible": 4,
+          "requested": 18,
+          "completed": 18,
+          "imageBytes": 5841972,
+          "firstScreenImageMs": 2898.7999999970198,
+          "eager": 0
+        },
+        "finalCls": 0,
+        "totalImageBytes": 9736620,
+        "uniqueImagesRequested": 30,
+        "appearanceMs": [
+          118.39999999850988,
+          1167.199999999255,
+          103.40000000223517,
+          195.39999999850988,
+          248.19999999925494,
+          910.1000000014901
+        ],
+        "searchMs": null,
+        "frames": {
+          "count": 114,
+          "p95": 33.29999999999927,
+          "over50": 0
+        },
+        "hydrationErrors": []
+      }
+    ],
+    "after": [
+      {
+        "pass": true,
+        "width": 390,
+        "initial": {
+          "hydrationMs": 4803.5,
+          "lcp": 3052,
+          "cls": 0,
+          "visible": 4,
+          "requested": 16,
+          "completed": 16,
+          "imageBytes": 5192864,
+          "firstScreenImageMs": 3034.10000000149,
+          "eager": 18
+        },
+        "finalCls": 0,
+        "totalImageBytes": 8438404,
+        "uniqueImagesRequested": 26,
+        "appearanceMs": [
+          104.89999999850988,
+          1595.199999999255,
+          121.40000000223517,
+          122.89999999850988,
+          310.80000000074506,
+          860
+        ],
+        "searchMs": null,
+        "frames": {
+          "count": 117,
+          "p95": 16.799999999999272,
+          "over50": 0
+        },
+        "hydrationErrors": []
+      },
+      {
+        "pass": true,
+        "width": 390,
+        "initial": {
+          "hydrationMs": 4743.099999997765,
+          "lcp": 2912,
+          "cls": 0,
+          "visible": 4,
+          "requested": 16,
+          "completed": 16,
+          "imageBytes": 5192864,
+          "firstScreenImageMs": 2960.199999999255,
+          "eager": 18
+        },
+        "finalCls": 0,
+        "totalImageBytes": 8438404,
+        "uniqueImagesRequested": 26,
+        "appearanceMs": [
+          103.89999999850988,
+          1563.4000000022352,
+          105.09999999776483,
+          110.80000000074506,
+          243.89999999850988,
+          691
+        ],
+        "searchMs": null,
+        "frames": {
+          "count": 117,
+          "p95": 16.799999999999272,
+          "over50": 0
+        },
+        "hydrationErrors": []
+      },
+      {
+        "pass": true,
+        "width": 390,
+        "initial": {
+          "hydrationMs": 4525.699999999255,
+          "lcp": 2876,
+          "cls": 0,
+          "visible": 4,
+          "requested": 16,
+          "completed": 16,
+          "imageBytes": 5192864,
+          "firstScreenImageMs": 2912.60000000149,
+          "eager": 18
+        },
+        "finalCls": 0,
+        "totalImageBytes": 8438404,
+        "uniqueImagesRequested": 26,
+        "appearanceMs": [
+          109.69999999925494,
+          1592.199999999255,
+          105.60000000149012,
+          117.69999999925494,
+          310.3999999985099,
+          722.5
+        ],
+        "searchMs": null,
+        "frames": {
+          "count": 113,
+          "p95": 33.19999999999891,
+          "over50": 1
+        },
+        "hydrationErrors": []
+      }
+    ]
+  }
+}
