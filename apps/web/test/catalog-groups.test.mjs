@@ -42,6 +42,7 @@ async function fixture(t, initial = response([product(1)], 'cursor-1'), category
     useRoute: () => route,
     useRouter: () => ({ replace: async target => { history.push(target); route.query = target.query; } }),
     site: { title: 'Local test', description: 'Local test' }, storeSchema: () => ({}), usePageSeo() {}, useJsonLd() {},
+    useHomeSlides: async () => ({ slides: ref([]) }),
     useProductSearch: () => ({ search: ref(queryText(route.query.q)), q: computed(() => queryText(route.query.q)),
       submitSearch() {}, clearSearch() { route.query.q = ''; } }),
     useApi: async (path, options) => {

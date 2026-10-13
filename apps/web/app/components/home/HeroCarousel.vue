@@ -24,6 +24,8 @@
           <img
             v-if="activeSlide.image"
             class="hero__image"
+            loading="eager"
+            :fetchpriority="activeIndex === 0 ? 'high' : 'auto'"
             :src="asset(activeSlide.image)"
             :style="{ objectPosition: activeSlide.position ?? 'center' }"
             alt=""
@@ -151,7 +153,9 @@
 
 <script setup lang="ts">
 import { heroDuration } from '~/utils/home-slides';
-const { slides: heroSlides } = await useHomeSlides();
+import type { PublicHomeSlide } from '~/types/home-slide';
+const props = defineProps<{ slides: PublicHomeSlide[] }>();
+const heroSlides = computed(() => props.slides);
 const asset = useAsset();
 const activeIndex = ref(0);
 const compact = ref(false);

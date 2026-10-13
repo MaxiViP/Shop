@@ -2,7 +2,7 @@
   <div class="home" :data-loaded-count="items.length">
     <UContainer>
       <h1 class="sr-only">{{ site.title }}</h1>
-      <HomeHeroCarousel />
+      <HomeHeroCarousel :slides="slides" />
 
       <section class="home__section home__section--categories">
         <CategoryList v-model:sort="sort" :items="categories" :query="sortQuery" active="" />
@@ -44,13 +44,15 @@ usePageSeo({ title: site.title, description: site.description });
 useJsonLd(storeSchema());
 
 
-const { data: categories } = await useApi<Category[]>("/categories", {
+const categoriesRequest = useApi<Category[]>("/categories", {
   default: () => [],
 });
-
 const { sort, sortQuery } = useProductSort();
-const { items, status, error, stale, hasMore, loadingMore, loadMore, retry } =
-  await useProductFeed(() => ({ feed: sort.value === 'recommended' ? 'home' : 'catalog', sort: sort.value, limit: 24 }), 'home-products');
+// Register composable lifecycle hooks before awaiting; these requests are independent.
+const feedRequest = useProductFeed(() => ({ feed: sort.value === 'recommended' ? 'home' : 'catalog', sort: sort.value, limit: 24 }), 'home-products');
+const slidesRequest = useHomeSlides();
+const [{ data: categories }, { items, status, error, stale, hasMore, loadingMore, loadMore, retry }, { slides }] =
+  await Promise.all([categoriesRequest, feedRequest, slidesRequest]);
 </script>
 
 <style scoped>

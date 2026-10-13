@@ -1,0 +1,6743 @@
+{
+  "conditions": {
+    "chromium": "Chrome/154.0.8037.57",
+    "height": 950,
+    "dpr": 1,
+    "mobileCpu": 4,
+    "desktopCpu": 1,
+    "networkMbps": 10,
+    "latencyMs": 60,
+    "apiDelayMs": 150,
+    "cache": "disabled",
+    "fixtureImages": "24 unique URLs of hero-0.webp; not production products",
+    "lighthouse": false
+  },
+  "results": [
+    {
+      "width": 390,
+      "run": 0,
+      "lcp": [
+        {
+          "time": 1112,
+          "size": 13514,
+          "url": "",
+          "tag": "H2",
+          "class": "hero__title"
+        },
+        {
+          "time": 2856,
+          "size": 173247,
+          "url": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "tag": "IMG",
+          "class": "hero__image"
+        }
+      ],
+      "longTasks": [
+        {
+          "start": 624,
+          "duration": 61
+        },
+        {
+          "start": 1301.1999999999534,
+          "duration": 82
+        },
+        {
+          "start": 2994.1999999999534,
+          "duration": 251
+        },
+        {
+          "start": 4564.299999999814,
+          "duration": 1841
+        }
+      ],
+      "shifts": [],
+      "errors": [],
+      "ttfb": 535.8999999999069,
+      "htmlTransfer": 167685,
+      "paints": [
+        {
+          "name": "first-paint",
+          "time": 1112
+        },
+        {
+          "name": "first-contentful-paint",
+          "time": 1112
+        }
+      ],
+      "resources": [
+        {
+          "name": "/_nuxt/entry.DzZT0QzL.css",
+          "type": "link",
+          "start": 636.7999999998137,
+          "end": 733.3999999999069,
+          "bytes": 21546,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useOrdersAction.CMWJG85q.css",
+          "type": "link",
+          "start": 638.0999999998603,
+          "end": 704,
+          "bytes": 1131,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Modal.XIODt1Av.css",
+          "type": "link",
+          "start": 638.1999999999534,
+          "end": 704.6999999999534,
+          "bytes": 850,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useProductFeed.BaVf0tkk.css",
+          "type": "link",
+          "start": 638.2999999998137,
+          "end": 705.7999999998137,
+          "bytes": 1445,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Grid.BM1vfULo.css",
+          "type": "link",
+          "start": 640,
+          "end": 712.5,
+          "bytes": 1936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useCartActions.C_Y_NL0x.css",
+          "type": "link",
+          "start": 640.2999999998137,
+          "end": 766.6999999999534,
+          "bytes": 703,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/quick-add.C4I1Mz6G.css",
+          "type": "link",
+          "start": 640.2999999998137,
+          "end": 770,
+          "bytes": 723,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuaAhl3A.js",
+          "type": "script",
+          "start": 642.2999999998137,
+          "end": 856.1999999999534,
+          "bytes": 51216,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/zLBtP6df.js",
+          "type": "script",
+          "start": 642.7999999998137,
+          "end": 842.2999999998137,
+          "bytes": 32848,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/COA7nQZw.js",
+          "type": "script",
+          "start": 644,
+          "end": 814.3999999999069,
+          "bytes": 11592,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CXClSD3a.js",
+          "type": "script",
+          "start": 644.7999999998137,
+          "end": 807.5,
+          "bytes": 3865,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CRsLeT2o.js",
+          "type": "script",
+          "start": 645,
+          "end": 833.6999999999534,
+          "bytes": 2910,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BJeMIpuk.js",
+          "type": "script",
+          "start": 645.7999999998137,
+          "end": 836,
+          "bytes": 1084,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BscU42CY.js",
+          "type": "script",
+          "start": 646.2999999998137,
+          "end": 880.7999999998137,
+          "bytes": 2903,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CoYVKC8K.js",
+          "type": "script",
+          "start": 646.3999999999069,
+          "end": 884.5999999998603,
+          "bytes": 2894,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/857vTVNo.js",
+          "type": "script",
+          "start": 648.6999999999534,
+          "end": 917.3999999999069,
+          "bytes": 19634,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DK3Fl9T5.js",
+          "type": "script",
+          "start": 648.8999999999069,
+          "end": 898,
+          "bytes": 458,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cvqt9sgi.js",
+          "type": "script",
+          "start": 648.8999999999069,
+          "end": 907.0999999998603,
+          "bytes": 1900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bhd2PIjy.js",
+          "type": "script",
+          "start": 649.0999999998603,
+          "end": 920.2999999998137,
+          "bytes": 1580,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cb3_537z.js",
+          "type": "script",
+          "start": 649.1999999999534,
+          "end": 945.1999999999534,
+          "bytes": 1886,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/UVFVH_-e.js",
+          "type": "script",
+          "start": 651.0999999998603,
+          "end": 948.5,
+          "bytes": 1109,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DJYMH_Or.js",
+          "type": "script",
+          "start": 651.7999999998137,
+          "end": 978.1999999999534,
+          "bytes": 17637,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNAtDzs8.js",
+          "type": "script",
+          "start": 652,
+          "end": 972.7999999998137,
+          "bytes": 1930,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNzOYlFV.js",
+          "type": "script",
+          "start": 653.2999999998137,
+          "end": 981.7999999998137,
+          "bytes": 553,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BQAqwd5L.js",
+          "type": "script",
+          "start": 653.5,
+          "end": 983.8999999999069,
+          "bytes": 751,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dx6VABMT.js",
+          "type": "script",
+          "start": 653.5999999998603,
+          "end": 1009.5999999998603,
+          "bytes": 713,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/dSexlDv0.js",
+          "type": "script",
+          "start": 654.5,
+          "end": 1023,
+          "bytes": 13475,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dw7TlioZ.js",
+          "type": "script",
+          "start": 654.5999999998603,
+          "end": 1044,
+          "bytes": 10397,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bzhg0zB3.js",
+          "type": "script",
+          "start": 654.5999999998603,
+          "end": 1052.3999999999069,
+          "bytes": 3956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYiMwFzY.js",
+          "type": "script",
+          "start": 654.6999999999534,
+          "end": 1054.0999999998603,
+          "bytes": 5870,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DuJBk2qx.js",
+          "type": "script",
+          "start": 656,
+          "end": 1057.0999999998603,
+          "bytes": 6444,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bqh7BY-B.js",
+          "type": "script",
+          "start": 656.0999999998603,
+          "end": 1080.2999999998137,
+          "bytes": 9310,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DHxozrjJ.js",
+          "type": "script",
+          "start": 656.8999999999069,
+          "end": 1086.1999999999534,
+          "bytes": 909,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CGczucIr.js",
+          "type": "script",
+          "start": 657,
+          "end": 1109.0999999998603,
+          "bytes": 1203,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYFeCxw6.js",
+          "type": "script",
+          "start": 657.7999999998137,
+          "end": 1116.8999999999069,
+          "bytes": 964,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuDb21E0.js",
+          "type": "script",
+          "start": 657.8999999999069,
+          "end": 1117.2999999998137,
+          "bytes": 900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CeswIvFt.js",
+          "type": "script",
+          "start": 658,
+          "end": 1122.1999999999534,
+          "bytes": 2688,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BDNMzG2s.js",
+          "type": "script",
+          "start": 658,
+          "end": 1142.6999999999534,
+          "bytes": 384,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjOg2WYv.js",
+          "type": "script",
+          "start": 658,
+          "end": 1148.3999999999069,
+          "bytes": 936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DUEHS9AB.js",
+          "type": "script",
+          "start": 659.2999999998137,
+          "end": 1171.2999999998137,
+          "bytes": 905,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CurW4yxJ.js",
+          "type": "script",
+          "start": 660.2999999998137,
+          "end": 1179.3999999999069,
+          "bytes": 677,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D4LasIBR.js",
+          "type": "script",
+          "start": 660.5,
+          "end": 1182.7999999998137,
+          "bytes": 1698,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DoIMwJBJ.js",
+          "type": "script",
+          "start": 661.0999999998603,
+          "end": 1188.2999999998137,
+          "bytes": 3715,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CPDEuV3k.js",
+          "type": "script",
+          "start": 661.7999999998137,
+          "end": 1206.0999999998603,
+          "bytes": 1708,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bw322dsO.js",
+          "type": "script",
+          "start": 661.8999999999069,
+          "end": 1210.5999999998603,
+          "bytes": 818,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CJRSue2U.js",
+          "type": "script",
+          "start": 662,
+          "end": 1233.7999999998137,
+          "bytes": 1150,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BpLtfxPs.js",
+          "type": "script",
+          "start": 662.0999999998603,
+          "end": 1244.5999999998603,
+          "bytes": 1856,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/RRIFP4r-.js",
+          "type": "script",
+          "start": 662.0999999998603,
+          "end": 1248.2999999998137,
+          "bytes": 519,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZde30w7.js",
+          "type": "script",
+          "start": 662.2999999998137,
+          "end": 1250.0999999998603,
+          "bytes": 1290,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZUuq803.js",
+          "type": "script",
+          "start": 662.2999999998137,
+          "end": 1270.0999999998603,
+          "bytes": 1069,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cw4QW307.js",
+          "type": "script",
+          "start": 664.6999999999534,
+          "end": 1275.7999999998137,
+          "bytes": 3902,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dr1bmWcY.js",
+          "type": "script",
+          "start": 664.6999999999534,
+          "end": 1295.8999999999069,
+          "bytes": 473,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjbclgEE.js",
+          "type": "script",
+          "start": 664.7999999998137,
+          "end": 1311.5,
+          "bytes": 5589,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D8oPthcO.js",
+          "type": "script",
+          "start": 664.8999999999069,
+          "end": 1310.0999999998603,
+          "bytes": 956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BkJCUGO_.js",
+          "type": "script",
+          "start": 666.0999999998603,
+          "end": 1315.0999999998603,
+          "bytes": 3567,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dc8SAn_K.js",
+          "type": "script",
+          "start": 666.1999999999534,
+          "end": 1333.5999999998603,
+          "bytes": 994,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CYEEgt4S.js",
+          "type": "script",
+          "start": 666.1999999999534,
+          "end": 1339.5,
+          "bytes": 1185,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D79ei5Eb.js",
+          "type": "script",
+          "start": 682.0999999998603,
+          "end": 1359.8999999999069,
+          "bytes": 1529,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D3r534dx.js",
+          "type": "script",
+          "start": 683.3999999999069,
+          "end": 1372.5999999998603,
+          "bytes": 1442,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/6l-HMTzd.js",
+          "type": "script",
+          "start": 683.5999999998603,
+          "end": 1374.0999999998603,
+          "bytes": 366,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/C9P4s-rC.js",
+          "type": "link",
+          "start": 684.8999999999069,
+          "end": 7811.699999999953,
+          "bytes": 774,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dzn-VpRn.js",
+          "type": "link",
+          "start": 685.1999999999534,
+          "end": 7821.59999999986,
+          "bytes": 1465,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D-qFLbeb.js",
+          "type": "link",
+          "start": 685.1999999999534,
+          "end": 7849.59999999986,
+          "bytes": 1761,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/C8tw7zzd.js",
+          "type": "link",
+          "start": 685.5999999998603,
+          "end": 7883.399999999907,
+          "bytes": 1620,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp",
+          "type": "img",
+          "start": 703.1999999999534,
+          "end": 2802.899999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=0",
+          "type": "img",
+          "start": 703.3999999999069,
+          "end": 2912,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=1",
+          "type": "img",
+          "start": 703.5,
+          "end": 2903.0999999998603,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=2",
+          "type": "img",
+          "start": 703.5,
+          "end": 2931.1999999999534,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=3",
+          "type": "img",
+          "start": 703.5999999998603,
+          "end": 2940.2999999998137,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=4",
+          "type": "img",
+          "start": 703.5999999998603,
+          "end": 2941,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=5",
+          "type": "img",
+          "start": 703.6999999999534,
+          "end": 4379.299999999814,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=6",
+          "type": "img",
+          "start": 703.6999999999534,
+          "end": 4503.399999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=7",
+          "type": "img",
+          "start": 703.7999999998137,
+          "end": 4500.59999999986,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=8",
+          "type": "img",
+          "start": 703.7999999998137,
+          "end": 4519.5,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=9",
+          "type": "img",
+          "start": 703.8999999999069,
+          "end": 4525.199999999953,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=10",
+          "type": "img",
+          "start": 703.8999999999069,
+          "end": 4526.199999999953,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=11",
+          "type": "img",
+          "start": 704,
+          "end": 5916,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=12",
+          "type": "img",
+          "start": 704,
+          "end": 6121.899999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=13",
+          "type": "img",
+          "start": 704,
+          "end": 6131.5,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=14",
+          "type": "img",
+          "start": 704.1999999999534,
+          "end": 6139.799999999814,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=15",
+          "type": "img",
+          "start": 704.1999999999534,
+          "end": 6137,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=16",
+          "type": "img",
+          "start": 704.1999999999534,
+          "end": 6129.799999999814,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=17",
+          "type": "img",
+          "start": 704.2999999998137,
+          "end": 7307,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=18",
+          "type": "img",
+          "start": 704.2999999998137,
+          "end": 7709.09999999986,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=19",
+          "type": "img",
+          "start": 704.3999999999069,
+          "end": 7740.09999999986,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=20",
+          "type": "img",
+          "start": 704.3999999999069,
+          "end": 7742.799999999814,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=21",
+          "type": "img",
+          "start": 704.5,
+          "end": 7746.199999999953,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=22",
+          "type": "img",
+          "start": 724.0999999998603,
+          "end": 7749.59999999986,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=23",
+          "type": "img",
+          "start": 724.0999999998603,
+          "end": 8022.5,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/pages.pPcDZuSs.css",
+          "type": "link",
+          "start": 1375.7999999998137,
+          "end": 2891.1999999999534,
+          "bytes": 1595,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/default.DW0f1h6j.css",
+          "type": "link",
+          "start": 3231,
+          "end": 4480,
+          "bytes": 2983,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/orders/unread",
+          "type": "fetch",
+          "start": 6191.699999999953,
+          "end": 6378.899999999907,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "/img/logo/empty-cutout.webp",
+          "type": "image",
+          "start": 6401.699999999953,
+          "end": 7878.5,
+          "bytes": 29392,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/img/logo/full-cutout.webp",
+          "type": "image",
+          "start": 6405,
+          "end": 7917.199999999953,
+          "bytes": 50822,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/notifications?limit=2",
+          "type": "fetch",
+          "start": 6503.199999999953,
+          "end": 6689.799999999814,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "/_nuxt/builds/meta/f5911158-1289-40bc-a3b8-bb16b2694852.json",
+          "type": "fetch",
+          "start": 7517.59999999986,
+          "end": 7780.199999999953,
+          "bytes": 388,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/favicons/cart-empty-32.png",
+          "type": "other",
+          "start": 8086.399999999907,
+          "end": 8180.699999999953,
+          "bytes": 1593,
+          "protocol": "http/1.1"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 12.25,
+            "y": 85,
+            "width": 365.5,
+            "height": 474.25,
+            "top": 85,
+            "right": 377.75,
+            "bottom": 559.25,
+            "left": 12.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=0",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 719.53125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 719.53125,
+            "right": 191,
+            "bottom": 897.28125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=1",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 719.53125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 719.53125,
+            "right": 376.75,
+            "bottom": 897.28125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=2",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 1084.9375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1084.9375,
+            "right": 191,
+            "bottom": 1262.6875,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=3",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 1084.9375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1084.9375,
+            "right": 376.75,
+            "bottom": 1262.6875,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=4",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 1450.34375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1450.34375,
+            "right": 191,
+            "bottom": 1628.09375,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=5",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 1450.34375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1450.34375,
+            "right": 376.75,
+            "bottom": 1628.09375,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=6",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 1815.75,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1815.75,
+            "right": 191,
+            "bottom": 1993.5,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=7",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 1815.75,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1815.75,
+            "right": 376.75,
+            "bottom": 1993.5,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=8",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 2181.15625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2181.15625,
+            "right": 191,
+            "bottom": 2358.90625,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=9",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 2181.15625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2181.15625,
+            "right": 376.75,
+            "bottom": 2358.90625,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=10",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 2546.5625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2546.5625,
+            "right": 191,
+            "bottom": 2724.3125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=11",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 2546.5625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2546.5625,
+            "right": 376.75,
+            "bottom": 2724.3125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=12",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 2911.96875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2911.96875,
+            "right": 191,
+            "bottom": 3089.71875,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=13",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 2911.96875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2911.96875,
+            "right": 376.75,
+            "bottom": 3089.71875,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=14",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 3277.375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3277.375,
+            "right": 191,
+            "bottom": 3455.125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=15",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 3277.375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3277.375,
+            "right": 376.75,
+            "bottom": 3455.125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=16",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 3642.78125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3642.78125,
+            "right": 191,
+            "bottom": 3820.53125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=17",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 3642.78125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3642.78125,
+            "right": 376.75,
+            "bottom": 3820.53125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=18",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 4008.1875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4008.1875,
+            "right": 191,
+            "bottom": 4185.9375,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=19",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 4008.1875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4008.1875,
+            "right": 376.75,
+            "bottom": 4185.9375,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=20",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 4373.59375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4373.59375,
+            "right": 191,
+            "bottom": 4551.34375,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=21",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 4373.59375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4373.59375,
+            "right": 376.75,
+            "bottom": 4551.34375,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=22",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 4739,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4739,
+            "right": 191,
+            "bottom": 4916.75,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=23",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 4739,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4739,
+            "right": 376.75,
+            "bottom": 4916.75,
+            "left": 199
+          }
+        }
+      ],
+      "api": [
+        {
+          "path": "/api/auth/me",
+          "start": 1582.754939,
+          "browser": false,
+          "end": 1744.125673
+        },
+        {
+          "path": "/api/categories",
+          "start": 1783.99261,
+          "browser": false,
+          "end": 1943.403891
+        },
+        {
+          "path": "/api/products",
+          "start": 1784.163672,
+          "browser": false,
+          "end": 1943.785363
+        },
+        {
+          "path": "/api/home/slides",
+          "start": 1784.233625,
+          "browser": false,
+          "end": 1943.999639
+        },
+        {
+          "path": "/api/orders/unread",
+          "start": 7753.932482,
+          "browser": true,
+          "end": 7904.633182
+        },
+        {
+          "path": "/api/notifications",
+          "start": 8066.717133,
+          "browser": true,
+          "end": 8242.031711
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "run": 1,
+      "lcp": [
+        {
+          "time": 932,
+          "size": 13514,
+          "url": "",
+          "tag": "H2",
+          "class": "hero__title"
+        },
+        {
+          "time": 2700,
+          "size": 173247,
+          "url": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "tag": "IMG",
+          "class": "hero__image"
+        }
+      ],
+      "longTasks": [
+        {
+          "start": 1044.1999999999534,
+          "duration": 105
+        },
+        {
+          "start": 1238.3000000000466,
+          "duration": 126
+        },
+        {
+          "start": 2760.8000000000466,
+          "duration": 1195
+        }
+      ],
+      "shifts": [],
+      "errors": [],
+      "ttfb": 408.30000000004657,
+      "htmlTransfer": 167685,
+      "paints": [
+        {
+          "name": "first-paint",
+          "time": 932
+        },
+        {
+          "name": "first-contentful-paint",
+          "time": 932
+        }
+      ],
+      "resources": [
+        {
+          "name": "/_nuxt/entry.DzZT0QzL.css",
+          "type": "link",
+          "start": 477.30000000004657,
+          "end": 577.6000000000931,
+          "bytes": 21546,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useOrdersAction.CMWJG85q.css",
+          "type": "link",
+          "start": 478.60000000009313,
+          "end": 554.8999999999069,
+          "bytes": 1131,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Modal.XIODt1Av.css",
+          "type": "link",
+          "start": 478.69999999995343,
+          "end": 555,
+          "bytes": 850,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useProductFeed.BaVf0tkk.css",
+          "type": "link",
+          "start": 478.80000000004657,
+          "end": 555.5,
+          "bytes": 1445,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Grid.BM1vfULo.css",
+          "type": "link",
+          "start": 478.80000000004657,
+          "end": 561,
+          "bytes": 1936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useCartActions.C_Y_NL0x.css",
+          "type": "link",
+          "start": 479.89999999990687,
+          "end": 616.8999999999069,
+          "bytes": 703,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/quick-add.C4I1Mz6G.css",
+          "type": "link",
+          "start": 479.89999999990687,
+          "end": 619.6000000000931,
+          "bytes": 723,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuaAhl3A.js",
+          "type": "script",
+          "start": 496.89999999990687,
+          "end": 703.6000000000931,
+          "bytes": 51216,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/zLBtP6df.js",
+          "type": "script",
+          "start": 497.80000000004657,
+          "end": 687.8000000000466,
+          "bytes": 32848,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/COA7nQZw.js",
+          "type": "script",
+          "start": 498.69999999995343,
+          "end": 654,
+          "bytes": 11592,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CXClSD3a.js",
+          "type": "script",
+          "start": 498.89999999990687,
+          "end": 651,
+          "bytes": 3865,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CRsLeT2o.js",
+          "type": "script",
+          "start": 498.89999999990687,
+          "end": 685.6000000000931,
+          "bytes": 2910,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BJeMIpuk.js",
+          "type": "script",
+          "start": 499,
+          "end": 683.6999999999534,
+          "bytes": 1084,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BscU42CY.js",
+          "type": "script",
+          "start": 499.10000000009313,
+          "end": 717.3999999999069,
+          "bytes": 2903,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CoYVKC8K.js",
+          "type": "script",
+          "start": 500.5,
+          "end": 720,
+          "bytes": 2894,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/857vTVNo.js",
+          "type": "script",
+          "start": 500.60000000009313,
+          "end": 765.3000000000466,
+          "bytes": 19634,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DK3Fl9T5.js",
+          "type": "script",
+          "start": 501.69999999995343,
+          "end": 750.3000000000466,
+          "bytes": 458,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cvqt9sgi.js",
+          "type": "script",
+          "start": 501.80000000004657,
+          "end": 753.3000000000466,
+          "bytes": 1900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bhd2PIjy.js",
+          "type": "script",
+          "start": 501.89999999990687,
+          "end": 769.6999999999534,
+          "bytes": 1580,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cb3_537z.js",
+          "type": "script",
+          "start": 503.10000000009313,
+          "end": 783.3999999999069,
+          "bytes": 1886,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/UVFVH_-e.js",
+          "type": "script",
+          "start": 503.30000000004657,
+          "end": 783.1000000000931,
+          "bytes": 1109,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DJYMH_Or.js",
+          "type": "script",
+          "start": 503.30000000004657,
+          "end": 831.3000000000466,
+          "bytes": 17637,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNAtDzs8.js",
+          "type": "script",
+          "start": 503.5,
+          "end": 820.3000000000466,
+          "bytes": 1930,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNzOYlFV.js",
+          "type": "script",
+          "start": 503.5,
+          "end": 827.3000000000466,
+          "bytes": 553,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BQAqwd5L.js",
+          "type": "script",
+          "start": 503.60000000009313,
+          "end": 833.1000000000931,
+          "bytes": 751,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dx6VABMT.js",
+          "type": "script",
+          "start": 505.60000000009313,
+          "end": 848.6000000000931,
+          "bytes": 713,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/dSexlDv0.js",
+          "type": "script",
+          "start": 506.10000000009313,
+          "end": 860.5,
+          "bytes": 13475,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dw7TlioZ.js",
+          "type": "script",
+          "start": 506.80000000004657,
+          "end": 891.8999999999069,
+          "bytes": 10397,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bzhg0zB3.js",
+          "type": "script",
+          "start": 506.80000000004657,
+          "end": 896.8000000000466,
+          "bytes": 3956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYiMwFzY.js",
+          "type": "script",
+          "start": 506.89999999990687,
+          "end": 902.3000000000466,
+          "bytes": 5870,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DuJBk2qx.js",
+          "type": "script",
+          "start": 507,
+          "end": 904.5,
+          "bytes": 6444,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bqh7BY-B.js",
+          "type": "script",
+          "start": 507.10000000009313,
+          "end": 921.8000000000466,
+          "bytes": 9310,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DHxozrjJ.js",
+          "type": "script",
+          "start": 508.89999999990687,
+          "end": 926.1000000000931,
+          "bytes": 909,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CGczucIr.js",
+          "type": "script",
+          "start": 509,
+          "end": 956,
+          "bytes": 1203,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYFeCxw6.js",
+          "type": "script",
+          "start": 509,
+          "end": 961.6000000000931,
+          "bytes": 964,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuDb21E0.js",
+          "type": "script",
+          "start": 510.10000000009313,
+          "end": 965,
+          "bytes": 900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CeswIvFt.js",
+          "type": "script",
+          "start": 510.19999999995343,
+          "end": 968,
+          "bytes": 2688,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BDNMzG2s.js",
+          "type": "script",
+          "start": 510.30000000004657,
+          "end": 983.8000000000466,
+          "bytes": 384,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjOg2WYv.js",
+          "type": "script",
+          "start": 511.80000000004657,
+          "end": 989.3000000000466,
+          "bytes": 936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DUEHS9AB.js",
+          "type": "script",
+          "start": 511.89999999990687,
+          "end": 1019.3999999999069,
+          "bytes": 905,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CurW4yxJ.js",
+          "type": "script",
+          "start": 511.89999999990687,
+          "end": 1025.1999999999534,
+          "bytes": 677,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D4LasIBR.js",
+          "type": "script",
+          "start": 512.1000000000931,
+          "end": 1029,
+          "bytes": 1698,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DoIMwJBJ.js",
+          "type": "script",
+          "start": 512.1000000000931,
+          "end": 1033.6999999999534,
+          "bytes": 3715,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CPDEuV3k.js",
+          "type": "script",
+          "start": 512.1999999999534,
+          "end": 1047.6999999999534,
+          "bytes": 1708,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bw322dsO.js",
+          "type": "script",
+          "start": 512.1999999999534,
+          "end": 1052.8999999999069,
+          "bytes": 818,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CJRSue2U.js",
+          "type": "script",
+          "start": 512.3999999999069,
+          "end": 1084.3000000000466,
+          "bytes": 1150,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BpLtfxPs.js",
+          "type": "script",
+          "start": 512.5,
+          "end": 1088.8000000000466,
+          "bytes": 1856,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/RRIFP4r-.js",
+          "type": "script",
+          "start": 512.5,
+          "end": 1092.3999999999069,
+          "bytes": 519,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZde30w7.js",
+          "type": "script",
+          "start": 512.5,
+          "end": 1099.5,
+          "bytes": 1290,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZUuq803.js",
+          "type": "script",
+          "start": 512.6000000000931,
+          "end": 1110,
+          "bytes": 1069,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cw4QW307.js",
+          "type": "script",
+          "start": 512.6999999999534,
+          "end": 1117.8999999999069,
+          "bytes": 3902,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dr1bmWcY.js",
+          "type": "script",
+          "start": 515.5,
+          "end": 1146.3000000000466,
+          "bytes": 473,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D8oPthcO.js",
+          "type": "script",
+          "start": 515.6999999999534,
+          "end": 1155.1000000000931,
+          "bytes": 956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjbclgEE.js",
+          "type": "script",
+          "start": 515.6999999999534,
+          "end": 1159.1000000000931,
+          "bytes": 5589,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BkJCUGO_.js",
+          "type": "script",
+          "start": 516.6000000000931,
+          "end": 1164.3000000000466,
+          "bytes": 3567,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dc8SAn_K.js",
+          "type": "script",
+          "start": 516.6000000000931,
+          "end": 1172.1999999999534,
+          "bytes": 994,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CYEEgt4S.js",
+          "type": "script",
+          "start": 516.8000000000466,
+          "end": 1182.1000000000931,
+          "bytes": 1185,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D79ei5Eb.js",
+          "type": "script",
+          "start": 516.8000000000466,
+          "end": 1219.8000000000466,
+          "bytes": 1529,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D3r534dx.js",
+          "type": "script",
+          "start": 516.8999999999069,
+          "end": 1222.6000000000931,
+          "bytes": 1442,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/6l-HMTzd.js",
+          "type": "script",
+          "start": 517,
+          "end": 1227.3000000000466,
+          "bytes": 366,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp",
+          "type": "img",
+          "start": 525.8000000000466,
+          "end": 2674.399999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=0",
+          "type": "img",
+          "start": 525.8999999999069,
+          "end": 2784.6999999999534,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=1",
+          "type": "img",
+          "start": 526.6999999999534,
+          "end": 2723,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=2",
+          "type": "img",
+          "start": 526.8000000000466,
+          "end": 2798.5,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=3",
+          "type": "img",
+          "start": 527.3000000000466,
+          "end": 2802,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=4",
+          "type": "img",
+          "start": 535.3000000000466,
+          "end": 2804.8000000000466,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=5",
+          "type": "img",
+          "start": 535.6999999999534,
+          "end": 4206.199999999953,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=6",
+          "type": "img",
+          "start": 535.6999999999534,
+          "end": 4282.300000000047,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=7",
+          "type": "img",
+          "start": 535.8999999999069,
+          "end": 4365.5,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=8",
+          "type": "img",
+          "start": 536.8000000000466,
+          "end": 4391.699999999953,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=9",
+          "type": "img",
+          "start": 536.8000000000466,
+          "end": 4396.300000000047,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=10",
+          "type": "img",
+          "start": 536.8000000000466,
+          "end": 4398.899999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=11",
+          "type": "img",
+          "start": 536.8000000000466,
+          "end": 5727.600000000093,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=12",
+          "type": "img",
+          "start": 536.8999999999069,
+          "end": 5798.199999999953,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=13",
+          "type": "img",
+          "start": 536.8999999999069,
+          "end": 5913.600000000093,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=14",
+          "type": "img",
+          "start": 536.8999999999069,
+          "end": 5959.5,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=15",
+          "type": "img",
+          "start": 536.8999999999069,
+          "end": 5966.199999999953,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=16",
+          "type": "img",
+          "start": 537.8000000000466,
+          "end": 5967.899999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/pages.pPcDZuSs.css",
+          "type": "link",
+          "start": 1141.3999999999069,
+          "end": 1211.3000000000466,
+          "bytes": 1595,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/default.DW0f1h6j.css",
+          "type": "link",
+          "start": 1352.5,
+          "end": 2753.1999999999534,
+          "bytes": 2983,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/orders/unread",
+          "type": "fetch",
+          "start": 3790.399999999907,
+          "end": 3951,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/notifications?limit=2",
+          "type": "fetch",
+          "start": 4078.600000000093,
+          "end": 4237.800000000047,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "/_nuxt/builds/meta/f5911158-1289-40bc-a3b8-bb16b2694852.json",
+          "type": "fetch",
+          "start": 5096.600000000093,
+          "end": 5795.100000000093,
+          "bytes": 388,
+          "protocol": "http/1.1"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 12.25,
+            "y": 85,
+            "width": 365.5,
+            "height": 474.25,
+            "top": 85,
+            "right": 377.75,
+            "bottom": 559.25,
+            "left": 12.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=0",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 719.53125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 719.53125,
+            "right": 191,
+            "bottom": 897.28125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=1",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 719.53125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 719.53125,
+            "right": 376.75,
+            "bottom": 897.28125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=2",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 1084.9375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1084.9375,
+            "right": 191,
+            "bottom": 1262.6875,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=3",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 1084.9375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1084.9375,
+            "right": 376.75,
+            "bottom": 1262.6875,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=4",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 1450.34375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1450.34375,
+            "right": 191,
+            "bottom": 1628.09375,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=5",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 1450.34375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1450.34375,
+            "right": 376.75,
+            "bottom": 1628.09375,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=6",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 1815.75,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1815.75,
+            "right": 191,
+            "bottom": 1993.5,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=7",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 1815.75,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1815.75,
+            "right": 376.75,
+            "bottom": 1993.5,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=8",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 2181.15625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2181.15625,
+            "right": 191,
+            "bottom": 2358.90625,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=9",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 2181.15625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2181.15625,
+            "right": 376.75,
+            "bottom": 2358.90625,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=10",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 2546.5625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2546.5625,
+            "right": 191,
+            "bottom": 2724.3125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=11",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 2546.5625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2546.5625,
+            "right": 376.75,
+            "bottom": 2724.3125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=12",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 2911.96875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2911.96875,
+            "right": 191,
+            "bottom": 3089.71875,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=13",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 2911.96875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2911.96875,
+            "right": 376.75,
+            "bottom": 3089.71875,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=14",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 3277.375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3277.375,
+            "right": 191,
+            "bottom": 3455.125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=15",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 3277.375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3277.375,
+            "right": 376.75,
+            "bottom": 3455.125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=16",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 3642.78125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3642.78125,
+            "right": 191,
+            "bottom": 3820.53125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=17",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 3642.78125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3642.78125,
+            "right": 376.75,
+            "bottom": 3820.53125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=18",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 4008.1875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4008.1875,
+            "right": 191,
+            "bottom": 4185.9375,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=19",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 4008.1875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4008.1875,
+            "right": 376.75,
+            "bottom": 4185.9375,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=20",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 4373.59375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4373.59375,
+            "right": 191,
+            "bottom": 4551.34375,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=21",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 4373.59375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4373.59375,
+            "right": 376.75,
+            "bottom": 4551.34375,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=22",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 4739,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4739,
+            "right": 191,
+            "bottom": 4916.75,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 199,
+            "y": 4739,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4739,
+            "right": 376.75,
+            "bottom": 4916.75,
+            "left": 199
+          }
+        }
+      ],
+      "api": [
+        {
+          "path": "/api/auth/me",
+          "start": 15373.045957,
+          "browser": false,
+          "end": 15523.441333
+        },
+        {
+          "path": "/api/categories",
+          "start": 15557.704326,
+          "browser": false,
+          "end": 15707.336258
+        },
+        {
+          "path": "/api/products",
+          "start": 15557.934245,
+          "browser": false,
+          "end": 15708.903447
+        },
+        {
+          "path": "/api/home/slides",
+          "start": 15557.988976,
+          "browser": false,
+          "end": 15709.059266
+        },
+        {
+          "path": "/api/orders/unread",
+          "start": 19142.389851,
+          "browser": true,
+          "end": 19292.926906
+        },
+        {
+          "path": "/api/notifications",
+          "start": 19430.743938,
+          "browser": true,
+          "end": 19580.875079
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "run": 2,
+      "lcp": [
+        {
+          "time": 1036,
+          "size": 13514,
+          "url": "",
+          "tag": "H2",
+          "class": "hero__title"
+        },
+        {
+          "time": 2836,
+          "size": 173247,
+          "url": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "tag": "IMG",
+          "class": "hero__image"
+        }
+      ],
+      "longTasks": [
+        {
+          "start": 1202.8000000000466,
+          "duration": 90
+        },
+        {
+          "start": 1406.1000000000931,
+          "duration": 124
+        },
+        {
+          "start": 2909.9000000001397,
+          "duration": 1304
+        },
+        {
+          "start": 4235.40000000014,
+          "duration": 54
+        }
+      ],
+      "shifts": [],
+      "errors": [],
+      "ttfb": 468.79999999981374,
+      "htmlTransfer": 167685,
+      "paints": [
+        {
+          "name": "first-paint",
+          "time": 1036
+        },
+        {
+          "name": "first-contentful-paint",
+          "time": 1036
+        }
+      ],
+      "resources": [
+        {
+          "name": "/_nuxt/entry.DzZT0QzL.css",
+          "type": "link",
+          "start": 544.8000000000466,
+          "end": 650.1999999999534,
+          "bytes": 21546,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useOrdersAction.CMWJG85q.css",
+          "type": "link",
+          "start": 547,
+          "end": 628.1000000000931,
+          "bytes": 1131,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Modal.XIODt1Av.css",
+          "type": "link",
+          "start": 548.6999999999534,
+          "end": 634,
+          "bytes": 850,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useProductFeed.BaVf0tkk.css",
+          "type": "link",
+          "start": 550,
+          "end": 634.5,
+          "bytes": 1445,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Grid.BM1vfULo.css",
+          "type": "link",
+          "start": 551.6000000000931,
+          "end": 636.9000000001397,
+          "bytes": 1936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useCartActions.C_Y_NL0x.css",
+          "type": "link",
+          "start": 551.8000000000466,
+          "end": 688.4000000001397,
+          "bytes": 703,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/quick-add.C4I1Mz6G.css",
+          "type": "link",
+          "start": 553.3000000000466,
+          "end": 689.9000000001397,
+          "bytes": 723,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuaAhl3A.js",
+          "type": "other",
+          "start": 554.1999999999534,
+          "end": 785.6000000000931,
+          "bytes": 51216,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/zLBtP6df.js",
+          "type": "other",
+          "start": 554.8000000000466,
+          "end": 766,
+          "bytes": 32848,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/COA7nQZw.js",
+          "type": "other",
+          "start": 554.9000000001397,
+          "end": 729.5,
+          "bytes": 11592,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CXClSD3a.js",
+          "type": "other",
+          "start": 555,
+          "end": 724.5,
+          "bytes": 3865,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BJeMIpuk.js",
+          "type": "other",
+          "start": 555.1999999999534,
+          "end": 754.1999999999534,
+          "bytes": 1084,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CRsLeT2o.js",
+          "type": "other",
+          "start": 555.1999999999534,
+          "end": 758,
+          "bytes": 2910,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BscU42CY.js",
+          "type": "other",
+          "start": 555.3000000000466,
+          "end": 788.5,
+          "bytes": 2903,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CoYVKC8K.js",
+          "type": "other",
+          "start": 555.3000000000466,
+          "end": 794.3000000000466,
+          "bytes": 2894,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/857vTVNo.js",
+          "type": "other",
+          "start": 555.3000000000466,
+          "end": 837.1999999999534,
+          "bytes": 19634,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DK3Fl9T5.js",
+          "type": "other",
+          "start": 555.4000000001397,
+          "end": 821.6999999999534,
+          "bytes": 458,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cvqt9sgi.js",
+          "type": "other",
+          "start": 555.4000000001397,
+          "end": 831.3000000000466,
+          "bytes": 1900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bhd2PIjy.js",
+          "type": "other",
+          "start": 561.6000000000931,
+          "end": 848.8000000000466,
+          "bytes": 1580,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cb3_537z.js",
+          "type": "other",
+          "start": 563,
+          "end": 853.8000000000466,
+          "bytes": 1886,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/UVFVH_-e.js",
+          "type": "other",
+          "start": 564.1000000000931,
+          "end": 857.9000000001397,
+          "bytes": 1109,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DJYMH_Or.js",
+          "type": "other",
+          "start": 565.3000000000466,
+          "end": 906.1000000000931,
+          "bytes": 17637,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNAtDzs8.js",
+          "type": "other",
+          "start": 566.5,
+          "end": 895.5,
+          "bytes": 1930,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNzOYlFV.js",
+          "type": "other",
+          "start": 567.6000000000931,
+          "end": 904.9000000001397,
+          "bytes": 553,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BQAqwd5L.js",
+          "type": "other",
+          "start": 568.1000000000931,
+          "end": 911.3000000000466,
+          "bytes": 751,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dx6VABMT.js",
+          "type": "other",
+          "start": 568.1000000000931,
+          "end": 916.1999999999534,
+          "bytes": 713,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/dSexlDv0.js",
+          "type": "other",
+          "start": 568.1000000000931,
+          "end": 932.6999999999534,
+          "bytes": 13475,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dw7TlioZ.js",
+          "type": "other",
+          "start": 568.1000000000931,
+          "end": 965.1000000000931,
+          "bytes": 10397,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bzhg0zB3.js",
+          "type": "other",
+          "start": 569.9000000001397,
+          "end": 973.8000000000466,
+          "bytes": 3956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYiMwFzY.js",
+          "type": "other",
+          "start": 570,
+          "end": 978.3000000000466,
+          "bytes": 5870,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DuJBk2qx.js",
+          "type": "other",
+          "start": 570.1000000000931,
+          "end": 985.5,
+          "bytes": 6444,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bqh7BY-B.js",
+          "type": "other",
+          "start": 570.1000000000931,
+          "end": 993,
+          "bytes": 9310,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DHxozrjJ.js",
+          "type": "other",
+          "start": 570.1999999999534,
+          "end": 996.4000000001397,
+          "bytes": 909,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CGczucIr.js",
+          "type": "other",
+          "start": 570.1999999999534,
+          "end": 1027.8000000000466,
+          "bytes": 1203,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYFeCxw6.js",
+          "type": "other",
+          "start": 570.1999999999534,
+          "end": 1036.6000000000931,
+          "bytes": 964,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuDb21E0.js",
+          "type": "other",
+          "start": 570.3000000000466,
+          "end": 1042.6999999999534,
+          "bytes": 900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CeswIvFt.js",
+          "type": "other",
+          "start": 570.3000000000466,
+          "end": 1050.1000000000931,
+          "bytes": 2688,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BDNMzG2s.js",
+          "type": "other",
+          "start": 570.3000000000466,
+          "end": 1055.1000000000931,
+          "bytes": 384,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjOg2WYv.js",
+          "type": "other",
+          "start": 570.4000000001397,
+          "end": 1058.6000000000931,
+          "bytes": 936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DUEHS9AB.js",
+          "type": "other",
+          "start": 570.4000000001397,
+          "end": 1093.1000000000931,
+          "bytes": 905,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CurW4yxJ.js",
+          "type": "other",
+          "start": 570.4000000001397,
+          "end": 1102.1000000000931,
+          "bytes": 677,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D4LasIBR.js",
+          "type": "other",
+          "start": 570.4000000001397,
+          "end": 1107.3000000000466,
+          "bytes": 1698,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DoIMwJBJ.js",
+          "type": "other",
+          "start": 570.4000000001397,
+          "end": 1116.6999999999534,
+          "bytes": 3715,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CPDEuV3k.js",
+          "type": "other",
+          "start": 570.4000000001397,
+          "end": 1119.5,
+          "bytes": 1708,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bw322dsO.js",
+          "type": "other",
+          "start": 570.5,
+          "end": 1121.5,
+          "bytes": 818,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CJRSue2U.js",
+          "type": "other",
+          "start": 570.5,
+          "end": 1155.3000000000466,
+          "bytes": 1150,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BpLtfxPs.js",
+          "type": "other",
+          "start": 570.5,
+          "end": 1167.8000000000466,
+          "bytes": 1856,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/RRIFP4r-.js",
+          "type": "other",
+          "start": 570.5,
+          "end": 1171.3000000000466,
+          "bytes": 519,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZde30w7.js",
+          "type": "other",
+          "start": 570.6000000000931,
+          "end": 1180.5,
+          "bytes": 1290,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZUuq803.js",
+          "type": "other",
+          "start": 570.6000000000931,
+          "end": 1183,
+          "bytes": 1069,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cw4QW307.js",
+          "type": "other",
+          "start": 570.6000000000931,
+          "end": 1185.8000000000466,
+          "bytes": 3902,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dr1bmWcY.js",
+          "type": "other",
+          "start": 570.6000000000931,
+          "end": 1219.6000000000931,
+          "bytes": 473,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjbclgEE.js",
+          "type": "other",
+          "start": 570.6000000000931,
+          "end": 1236.3000000000466,
+          "bytes": 5589,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D8oPthcO.js",
+          "type": "other",
+          "start": 570.6999999999534,
+          "end": 1234.5,
+          "bytes": 956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BkJCUGO_.js",
+          "type": "other",
+          "start": 570.6999999999534,
+          "end": 1247.6000000000931,
+          "bytes": 3567,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dc8SAn_K.js",
+          "type": "other",
+          "start": 570.8000000000466,
+          "end": 1246,
+          "bytes": 994,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CYEEgt4S.js",
+          "type": "other",
+          "start": 570.8000000000466,
+          "end": 1248.4000000001397,
+          "bytes": 1185,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D79ei5Eb.js",
+          "type": "other",
+          "start": 570.9000000001397,
+          "end": 1283.4000000001397,
+          "bytes": 1529,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D3r534dx.js",
+          "type": "other",
+          "start": 571,
+          "end": 1297.1999999999534,
+          "bytes": 1442,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/6l-HMTzd.js",
+          "type": "other",
+          "start": 571.1000000000931,
+          "end": 1297.6000000000931,
+          "bytes": 366,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp",
+          "type": "img",
+          "start": 571.1999999999534,
+          "end": 2802.6999999999534,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=0",
+          "type": "img",
+          "start": 657.8000000000466,
+          "end": 2812.600000000093,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=1",
+          "type": "img",
+          "start": 658.5,
+          "end": 2806.8000000000466,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=2",
+          "type": "img",
+          "start": 658.6999999999534,
+          "end": 2848.6999999999534,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=3",
+          "type": "img",
+          "start": 659.4000000001397,
+          "end": 2853.8000000000466,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=4",
+          "type": "img",
+          "start": 659.5,
+          "end": 2883.100000000093,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=5",
+          "type": "img",
+          "start": 659.9000000001397,
+          "end": 4342,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=6",
+          "type": "img",
+          "start": 659.9000000001397,
+          "end": 4356.40000000014,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=7",
+          "type": "img",
+          "start": 659.9000000001397,
+          "end": 4424.699999999953,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=8",
+          "type": "img",
+          "start": 660,
+          "end": 4434.800000000047,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=9",
+          "type": "img",
+          "start": 660,
+          "end": 4454.90000000014,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=10",
+          "type": "img",
+          "start": 660,
+          "end": 4461.300000000047,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=11",
+          "type": "img",
+          "start": 660.6999999999534,
+          "end": 5873.600000000093,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=12",
+          "type": "img",
+          "start": 660.6999999999534,
+          "end": 5891.300000000047,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=13",
+          "type": "img",
+          "start": 660.6999999999534,
+          "end": 5989.699999999953,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=14",
+          "type": "img",
+          "start": 660.8000000000466,
+          "end": 6001.100000000093,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=15",
+          "type": "img",
+          "start": 660.8000000000466,
+          "end": 6019.40000000014,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=16",
+          "type": "img",
+          "start": 661.5,
+          "end": 6026.90000000014,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/pages.pPcDZuSs.css",
+          "type": "link",
+          "start": 1289.5,
+          "end": 1372.6000000000931,
+          "bytes": 1595,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/default.DW0f1h6j.css",
+          "type": "link",
+          "start": 1518.8000000000466,
+          "end": 2874.100000000093,
+          "bytes": 2983,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/orders/unread",
+          "type": "fetch",
+          "start": 4016.6999999999534,
+          "end": 4181.800000000047,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/notifications?limit=2",
+          "type": "fetch",
+          "start": 4371.5,
+          "end": 4532.199999999953,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "/_nuxt/builds/meta/f5911158-1289-40bc-a3b8-bb16b2694852.json",
+          "type": "fetch",
+          "start": 5449.100000000093,
+          "end": 5941.40000000014,
+          "bytes": 388,
+          "protocol": "http/1.1"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 12.25,
+            "y": 85,
+            "width": 365.5,
+            "height": 474.25,
+            "top": 85,
+            "right": 377.75,
+            "bottom": 559.25,
+            "left": 12.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=0",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 719.53125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 719.53125,
+            "right": 191,
+            "bottom": 897.28125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=1",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 719.53125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 719.53125,
+            "right": 376.75,
+            "bottom": 897.28125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=2",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 1084.9375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1084.9375,
+            "right": 191,
+            "bottom": 1262.6875,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=3",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 1084.9375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1084.9375,
+            "right": 376.75,
+            "bottom": 1262.6875,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=4",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 1450.34375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1450.34375,
+            "right": 191,
+            "bottom": 1628.09375,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=5",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 1450.34375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1450.34375,
+            "right": 376.75,
+            "bottom": 1628.09375,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=6",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 1815.75,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1815.75,
+            "right": 191,
+            "bottom": 1993.5,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=7",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 1815.75,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 1815.75,
+            "right": 376.75,
+            "bottom": 1993.5,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=8",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 2181.15625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2181.15625,
+            "right": 191,
+            "bottom": 2358.90625,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=9",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 2181.15625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2181.15625,
+            "right": 376.75,
+            "bottom": 2358.90625,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=10",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 2546.5625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2546.5625,
+            "right": 191,
+            "bottom": 2724.3125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=11",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 2546.5625,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2546.5625,
+            "right": 376.75,
+            "bottom": 2724.3125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=12",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 2911.96875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2911.96875,
+            "right": 191,
+            "bottom": 3089.71875,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=13",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 2911.96875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 2911.96875,
+            "right": 376.75,
+            "bottom": 3089.71875,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=14",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 3277.375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3277.375,
+            "right": 191,
+            "bottom": 3455.125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=15",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 3277.375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3277.375,
+            "right": 376.75,
+            "bottom": 3455.125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=16",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 3642.78125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3642.78125,
+            "right": 191,
+            "bottom": 3820.53125,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=17",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 3642.78125,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 3642.78125,
+            "right": 376.75,
+            "bottom": 3820.53125,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=18",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 4008.1875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4008.1875,
+            "right": 191,
+            "bottom": 4185.9375,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=19",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 4008.1875,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4008.1875,
+            "right": 376.75,
+            "bottom": 4185.9375,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=20",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 4373.59375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4373.59375,
+            "right": 191,
+            "bottom": 4551.34375,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=21",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 199,
+            "y": 4373.59375,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4373.59375,
+            "right": 376.75,
+            "bottom": 4551.34375,
+            "left": 199
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=22",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 13.25,
+            "y": 4739,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4739,
+            "right": 191,
+            "bottom": 4916.75,
+            "left": 13.25
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 199,
+            "y": 4739,
+            "width": 177.75,
+            "height": 177.75,
+            "top": 4739,
+            "right": 376.75,
+            "bottom": 4916.75,
+            "left": 199
+          }
+        }
+      ],
+      "api": [
+        {
+          "path": "/api/auth/me",
+          "start": 22726.82405,
+          "browser": false,
+          "end": 22876.307856
+        },
+        {
+          "path": "/api/categories",
+          "start": 22943.666038,
+          "browser": false,
+          "end": 23094.038768
+        },
+        {
+          "path": "/api/products",
+          "start": 22943.752355,
+          "browser": false,
+          "end": 23094.562369
+        },
+        {
+          "path": "/api/home/slides",
+          "start": 22943.778484,
+          "browser": false,
+          "end": 23094.744488
+        },
+        {
+          "path": "/api/orders/unread",
+          "start": 26732.527036,
+          "browser": true,
+          "end": 26884.844247
+        },
+        {
+          "path": "/api/notifications",
+          "start": 27087.252329,
+          "browser": true,
+          "end": 27237.062636
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "run": 0,
+      "lcp": [
+        {
+          "time": 736,
+          "size": 39804,
+          "url": "",
+          "tag": "P",
+          "class": "home__feature-text"
+        },
+        {
+          "time": 2752,
+          "size": 704681,
+          "url": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "tag": "IMG",
+          "class": "hero__image"
+        }
+      ],
+      "longTasks": [
+        {
+          "start": 2815.600000000093,
+          "duration": 240
+        }
+      ],
+      "shifts": [],
+      "errors": [],
+      "ttfb": 422.39999999990687,
+      "htmlTransfer": 167685,
+      "paints": [
+        {
+          "name": "first-paint",
+          "time": 736
+        },
+        {
+          "name": "first-contentful-paint",
+          "time": 736
+        }
+      ],
+      "resources": [
+        {
+          "name": "/_nuxt/entry.DzZT0QzL.css",
+          "type": "link",
+          "start": 463.5,
+          "end": 570.1000000000931,
+          "bytes": 21546,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useOrdersAction.CMWJG85q.css",
+          "type": "link",
+          "start": 463.80000000004657,
+          "end": 532.1000000000931,
+          "bytes": 1131,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Modal.XIODt1Av.css",
+          "type": "link",
+          "start": 463.80000000004657,
+          "end": 533.7000000001863,
+          "bytes": 850,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useProductFeed.BaVf0tkk.css",
+          "type": "link",
+          "start": 463.9000000001397,
+          "end": 533.8000000000466,
+          "bytes": 1445,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Grid.BM1vfULo.css",
+          "type": "link",
+          "start": 463.9000000001397,
+          "end": 538.5,
+          "bytes": 1936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useCartActions.C_Y_NL0x.css",
+          "type": "link",
+          "start": 463.9000000001397,
+          "end": 594.1000000000931,
+          "bytes": 703,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/quick-add.C4I1Mz6G.css",
+          "type": "link",
+          "start": 464,
+          "end": 596.1000000000931,
+          "bytes": 723,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuaAhl3A.js",
+          "type": "script",
+          "start": 472.4000000001397,
+          "end": 681.9000000001397,
+          "bytes": 51216,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CXClSD3a.js",
+          "type": "script",
+          "start": 472.5,
+          "end": 661.6000000000931,
+          "bytes": 3865,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/COA7nQZw.js",
+          "type": "script",
+          "start": 472.5,
+          "end": 664.8000000000466,
+          "bytes": 11592,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/zLBtP6df.js",
+          "type": "script",
+          "start": 472.5,
+          "end": 667.4000000001397,
+          "bytes": 32848,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BJeMIpuk.js",
+          "type": "script",
+          "start": 472.60000000009313,
+          "end": 663.5,
+          "bytes": 1084,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CRsLeT2o.js",
+          "type": "script",
+          "start": 472.60000000009313,
+          "end": 667,
+          "bytes": 2910,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BscU42CY.js",
+          "type": "script",
+          "start": 472.60000000009313,
+          "end": 726.5,
+          "bytes": 2903,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CoYVKC8K.js",
+          "type": "script",
+          "start": 472.70000000018626,
+          "end": 729.7000000001863,
+          "bytes": 2894,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DK3Fl9T5.js",
+          "type": "script",
+          "start": 472.80000000004657,
+          "end": 729.8000000000466,
+          "bytes": 458,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cvqt9sgi.js",
+          "type": "script",
+          "start": 472.80000000004657,
+          "end": 733.5,
+          "bytes": 1900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/857vTVNo.js",
+          "type": "script",
+          "start": 472.80000000004657,
+          "end": 749.9000000001397,
+          "bytes": 19634,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bhd2PIjy.js",
+          "type": "script",
+          "start": 474.30000000004657,
+          "end": 746.8000000000466,
+          "bytes": 1580,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cb3_537z.js",
+          "type": "script",
+          "start": 474.5,
+          "end": 790.8000000000466,
+          "bytes": 1886,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/UVFVH_-e.js",
+          "type": "script",
+          "start": 474.60000000009313,
+          "end": 793.2000000001863,
+          "bytes": 1109,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DJYMH_Or.js",
+          "type": "script",
+          "start": 475.10000000009313,
+          "end": 808.8000000000466,
+          "bytes": 17637,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNAtDzs8.js",
+          "type": "script",
+          "start": 475.5,
+          "end": 799.5,
+          "bytes": 1930,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNzOYlFV.js",
+          "type": "script",
+          "start": 475.9000000001397,
+          "end": 811,
+          "bytes": 553,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BQAqwd5L.js",
+          "type": "script",
+          "start": 476.30000000004657,
+          "end": 812.1000000000931,
+          "bytes": 751,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dx6VABMT.js",
+          "type": "script",
+          "start": 476.80000000004657,
+          "end": 855.1000000000931,
+          "bytes": 713,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/dSexlDv0.js",
+          "type": "script",
+          "start": 477,
+          "end": 888.6000000000931,
+          "bytes": 13475,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dw7TlioZ.js",
+          "type": "script",
+          "start": 477.20000000018626,
+          "end": 880.5,
+          "bytes": 10397,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bzhg0zB3.js",
+          "type": "script",
+          "start": 477.5,
+          "end": 883.7000000001863,
+          "bytes": 3956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYiMwFzY.js",
+          "type": "script",
+          "start": 477.60000000009313,
+          "end": 890.3000000000466,
+          "bytes": 5870,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DuJBk2qx.js",
+          "type": "script",
+          "start": 477.70000000018626,
+          "end": 892.4000000001397,
+          "bytes": 6444,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bqh7BY-B.js",
+          "type": "script",
+          "start": 478,
+          "end": 924.8000000000466,
+          "bytes": 9310,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DHxozrjJ.js",
+          "type": "script",
+          "start": 478.10000000009313,
+          "end": 946.5,
+          "bytes": 909,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CGczucIr.js",
+          "type": "script",
+          "start": 478.4000000001397,
+          "end": 950.6000000000931,
+          "bytes": 1203,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYFeCxw6.js",
+          "type": "script",
+          "start": 478.60000000009313,
+          "end": 953.3000000000466,
+          "bytes": 964,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuDb21E0.js",
+          "type": "script",
+          "start": 478.80000000004657,
+          "end": 954.8000000000466,
+          "bytes": 900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CeswIvFt.js",
+          "type": "script",
+          "start": 478.9000000001397,
+          "end": 988.2000000001863,
+          "bytes": 2688,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BDNMzG2s.js",
+          "type": "script",
+          "start": 479,
+          "end": 1007.6000000000931,
+          "bytes": 384,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjOg2WYv.js",
+          "type": "script",
+          "start": 479.10000000009313,
+          "end": 1007.9000000001397,
+          "bytes": 936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DUEHS9AB.js",
+          "type": "script",
+          "start": 479.10000000009313,
+          "end": 1012.7000000001863,
+          "bytes": 905,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CurW4yxJ.js",
+          "type": "script",
+          "start": 479.10000000009313,
+          "end": 1015.5,
+          "bytes": 677,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D4LasIBR.js",
+          "type": "script",
+          "start": 479.10000000009313,
+          "end": 1017,
+          "bytes": 1698,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DoIMwJBJ.js",
+          "type": "script",
+          "start": 479.30000000004657,
+          "end": 1052.8000000000466,
+          "bytes": 3715,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bw322dsO.js",
+          "type": "script",
+          "start": 479.4000000001397,
+          "end": 1072.6000000000931,
+          "bytes": 818,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CPDEuV3k.js",
+          "type": "script",
+          "start": 479.4000000001397,
+          "end": 1072.3000000000466,
+          "bytes": 1708,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CJRSue2U.js",
+          "type": "script",
+          "start": 479.4000000001397,
+          "end": 1075.5,
+          "bytes": 1150,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/RRIFP4r-.js",
+          "type": "script",
+          "start": 479.5,
+          "end": 1079.5,
+          "bytes": 519,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BpLtfxPs.js",
+          "type": "script",
+          "start": 479.5,
+          "end": 1079.6000000000931,
+          "bytes": 1856,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZde30w7.js",
+          "type": "script",
+          "start": 479.5,
+          "end": 1117.3000000000466,
+          "bytes": 1290,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZUuq803.js",
+          "type": "script",
+          "start": 480.70000000018626,
+          "end": 1135.3000000000466,
+          "bytes": 1069,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dr1bmWcY.js",
+          "type": "script",
+          "start": 480.80000000004657,
+          "end": 1137.9000000001397,
+          "bytes": 473,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cw4QW307.js",
+          "type": "script",
+          "start": 480.80000000004657,
+          "end": 1140.4000000001397,
+          "bytes": 3902,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjbclgEE.js",
+          "type": "script",
+          "start": 480.9000000001397,
+          "end": 1146.8000000000466,
+          "bytes": 5589,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D8oPthcO.js",
+          "type": "script",
+          "start": 481,
+          "end": 1141.9000000001397,
+          "bytes": 956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BkJCUGO_.js",
+          "type": "script",
+          "start": 481,
+          "end": 1182.5,
+          "bytes": 3567,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dc8SAn_K.js",
+          "type": "script",
+          "start": 481,
+          "end": 1198.6000000000931,
+          "bytes": 994,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CYEEgt4S.js",
+          "type": "script",
+          "start": 481,
+          "end": 1200.9000000001397,
+          "bytes": 1185,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D79ei5Eb.js",
+          "type": "script",
+          "start": 482.30000000004657,
+          "end": 1204,
+          "bytes": 1529,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D3r534dx.js",
+          "type": "script",
+          "start": 482.4000000001397,
+          "end": 1206.6000000000931,
+          "bytes": 1442,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/6l-HMTzd.js",
+          "type": "script",
+          "start": 482.5,
+          "end": 1210.2000000001863,
+          "bytes": 366,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp",
+          "type": "img",
+          "start": 487.20000000018626,
+          "end": 2723.2000000001863,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=0",
+          "type": "img",
+          "start": 492.70000000018626,
+          "end": 2806.100000000093,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=1",
+          "type": "img",
+          "start": 495.5,
+          "end": 2799.600000000093,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=2",
+          "type": "img",
+          "start": 498.4000000001397,
+          "end": 2810,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=3",
+          "type": "img",
+          "start": 501.10000000009313,
+          "end": 2811.7000000001863,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=4",
+          "type": "img",
+          "start": 502.5,
+          "end": 4398.90000000014,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=5",
+          "type": "img",
+          "start": 505.10000000009313,
+          "end": 2808.4000000001397,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=6",
+          "type": "img",
+          "start": 507.9000000001397,
+          "end": 4416.100000000093,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=7",
+          "type": "img",
+          "start": 510.4000000001397,
+          "end": 4421.300000000047,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=8",
+          "type": "img",
+          "start": 513.1000000000931,
+          "end": 4423.200000000186,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=9",
+          "type": "img",
+          "start": 515.2000000001863,
+          "end": 4425.90000000014,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=10",
+          "type": "img",
+          "start": 517.6000000000931,
+          "end": 4426.600000000093,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/pages.pPcDZuSs.css",
+          "type": "link",
+          "start": 876.1000000000931,
+          "end": 943.7000000001863,
+          "bytes": 1595,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/default.DW0f1h6j.css",
+          "type": "link",
+          "start": 1235.5,
+          "end": 2804.2000000001863,
+          "bytes": 2983,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/orders/unread",
+          "type": "fetch",
+          "start": 3025.9000000001397,
+          "end": 3187.5,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/notifications?limit=2",
+          "type": "fetch",
+          "start": 3072.600000000093,
+          "end": 3231.8000000000466,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "/_nuxt/builds/meta/f5911158-1289-40bc-a3b8-bb16b2694852.json",
+          "type": "fetch",
+          "start": 4074.100000000093,
+          "end": 4464.100000000093,
+          "bytes": 388,
+          "protocol": "http/1.1"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 100.265625,
+            "y": 113.5,
+            "width": 1224.46875,
+            "height": 576,
+            "top": 113.5,
+            "right": 1324.734375,
+            "bottom": 689.5,
+            "left": 100.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=0",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 101.265625,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 293.34375,
+            "bottom": 1080.90625,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=1",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 307.34375,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 499.421875,
+            "bottom": 1080.90625,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=2",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 513.421875,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 705.5,
+            "bottom": 1080.90625,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=3",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 719.5,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 911.578125,
+            "bottom": 1080.90625,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=4",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 925.578125,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 1117.65625,
+            "bottom": 1080.90625,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=5",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 1131.65625,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 1323.734375,
+            "bottom": 1080.90625,
+            "left": 1131.65625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=6",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 101.265625,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 293.34375,
+            "bottom": 1478.578125,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=7",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 307.34375,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 499.421875,
+            "bottom": 1478.578125,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=8",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 513.421875,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 705.5,
+            "bottom": 1478.578125,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=9",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 719.5,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 911.578125,
+            "bottom": 1478.578125,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=10",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 925.578125,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 1117.65625,
+            "bottom": 1478.578125,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=11",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 1131.65625,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 1323.734375,
+            "bottom": 1478.578125,
+            "left": 1131.65625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=12",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 101.265625,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 293.34375,
+            "bottom": 1876.25,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=13",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 307.34375,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 499.421875,
+            "bottom": 1876.25,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=14",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 513.421875,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 705.5,
+            "bottom": 1876.25,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=15",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 719.5,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 911.578125,
+            "bottom": 1876.25,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=16",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 925.578125,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 1117.65625,
+            "bottom": 1876.25,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 1131.65625,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 1323.734375,
+            "bottom": 1876.25,
+            "left": 1131.65625
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 101.265625,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 293.34375,
+            "bottom": 2273.921875,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 307.34375,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 499.421875,
+            "bottom": 2273.921875,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 513.421875,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 705.5,
+            "bottom": 2273.921875,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 719.5,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 911.578125,
+            "bottom": 2273.921875,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 925.578125,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 1117.65625,
+            "bottom": 2273.921875,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 1131.65625,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 1323.734375,
+            "bottom": 2273.921875,
+            "left": 1131.65625
+          }
+        }
+      ],
+      "api": [
+        {
+          "path": "/api/auth/me",
+          "start": 30444.595691,
+          "browser": false,
+          "end": 30595.515767
+        },
+        {
+          "path": "/api/categories",
+          "start": 30618.785504,
+          "browser": false,
+          "end": 30768.629728
+        },
+        {
+          "path": "/api/products",
+          "start": 30619.169931,
+          "browser": false,
+          "end": 30769.517508
+        },
+        {
+          "path": "/api/home/slides",
+          "start": 30619.308205,
+          "browser": false,
+          "end": 30769.710422
+        },
+        {
+          "path": "/api/orders/unread",
+          "start": 33443.929595,
+          "browser": true,
+          "end": 33594.752195
+        },
+        {
+          "path": "/api/notifications",
+          "start": 33489.406047,
+          "browser": true,
+          "end": 33639.054282
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "run": 1,
+      "lcp": [
+        {
+          "time": 708,
+          "size": 39804,
+          "url": "",
+          "tag": "P",
+          "class": "home__feature-text"
+        },
+        {
+          "time": 2772,
+          "size": 704681,
+          "url": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "tag": "IMG",
+          "class": "hero__image"
+        }
+      ],
+      "longTasks": [
+        {
+          "start": 2807.1999999999534,
+          "duration": 250
+        }
+      ],
+      "shifts": [],
+      "errors": [],
+      "ttfb": 401.4000000001397,
+      "htmlTransfer": 167685,
+      "paints": [
+        {
+          "name": "first-paint",
+          "time": 708
+        },
+        {
+          "name": "first-contentful-paint",
+          "time": 708
+        }
+      ],
+      "resources": [
+        {
+          "name": "/_nuxt/entry.DzZT0QzL.css",
+          "type": "link",
+          "start": 440.69999999995343,
+          "end": 545.6000000000931,
+          "bytes": 21546,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useOrdersAction.CMWJG85q.css",
+          "type": "link",
+          "start": 440.89999999990687,
+          "end": 505.89999999990687,
+          "bytes": 1131,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Modal.XIODt1Av.css",
+          "type": "link",
+          "start": 441,
+          "end": 507.69999999995343,
+          "bytes": 850,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useProductFeed.BaVf0tkk.css",
+          "type": "link",
+          "start": 441,
+          "end": 510.30000000004657,
+          "bytes": 1445,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Grid.BM1vfULo.css",
+          "type": "link",
+          "start": 441.10000000009313,
+          "end": 514.1000000000931,
+          "bytes": 1936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useCartActions.C_Y_NL0x.css",
+          "type": "link",
+          "start": 442,
+          "end": 568.3999999999069,
+          "bytes": 703,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/quick-add.C4I1Mz6G.css",
+          "type": "link",
+          "start": 442.19999999995343,
+          "end": 570.8000000000466,
+          "bytes": 723,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuaAhl3A.js",
+          "type": "script",
+          "start": 449.30000000004657,
+          "end": 658.6000000000931,
+          "bytes": 51216,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/zLBtP6df.js",
+          "type": "script",
+          "start": 449.39999999990687,
+          "end": 645.8000000000466,
+          "bytes": 32848,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/COA7nQZw.js",
+          "type": "script",
+          "start": 449.5,
+          "end": 638.6000000000931,
+          "bytes": 11592,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CXClSD3a.js",
+          "type": "script",
+          "start": 449.60000000009313,
+          "end": 641.3999999999069,
+          "bytes": 3865,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CRsLeT2o.js",
+          "type": "script",
+          "start": 449.60000000009313,
+          "end": 643.6000000000931,
+          "bytes": 2910,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BJeMIpuk.js",
+          "type": "script",
+          "start": 449.89999999990687,
+          "end": 638.3000000000466,
+          "bytes": 1084,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BscU42CY.js",
+          "type": "script",
+          "start": 450,
+          "end": 704.5,
+          "bytes": 2903,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CoYVKC8K.js",
+          "type": "script",
+          "start": 450,
+          "end": 704.8000000000466,
+          "bytes": 2894,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/857vTVNo.js",
+          "type": "script",
+          "start": 450.10000000009313,
+          "end": 727.1000000000931,
+          "bytes": 19634,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DK3Fl9T5.js",
+          "type": "script",
+          "start": 450.19999999995343,
+          "end": 707.3000000000466,
+          "bytes": 458,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cvqt9sgi.js",
+          "type": "script",
+          "start": 450.30000000004657,
+          "end": 712.3999999999069,
+          "bytes": 1900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bhd2PIjy.js",
+          "type": "script",
+          "start": 451.69999999995343,
+          "end": 725.3000000000466,
+          "bytes": 1580,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cb3_537z.js",
+          "type": "script",
+          "start": 451.80000000004657,
+          "end": 770.3999999999069,
+          "bytes": 1886,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/UVFVH_-e.js",
+          "type": "script",
+          "start": 451.89999999990687,
+          "end": 768.3999999999069,
+          "bytes": 1109,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DJYMH_Or.js",
+          "type": "script",
+          "start": 452,
+          "end": 786.1999999999534,
+          "bytes": 17637,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNAtDzs8.js",
+          "type": "script",
+          "start": 452.10000000009313,
+          "end": 777.3999999999069,
+          "bytes": 1930,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNzOYlFV.js",
+          "type": "script",
+          "start": 452.19999999995343,
+          "end": 787.8999999999069,
+          "bytes": 553,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BQAqwd5L.js",
+          "type": "script",
+          "start": 452.30000000004657,
+          "end": 789.6000000000931,
+          "bytes": 751,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dx6VABMT.js",
+          "type": "script",
+          "start": 452.39999999990687,
+          "end": 831.3000000000466,
+          "bytes": 713,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/dSexlDv0.js",
+          "type": "script",
+          "start": 452.5,
+          "end": 846.6000000000931,
+          "bytes": 13475,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dw7TlioZ.js",
+          "type": "script",
+          "start": 452.5,
+          "end": 860.6999999999534,
+          "bytes": 10397,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bzhg0zB3.js",
+          "type": "script",
+          "start": 452.60000000009313,
+          "end": 857.3999999999069,
+          "bytes": 3956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYiMwFzY.js",
+          "type": "script",
+          "start": 452.60000000009313,
+          "end": 863.6999999999534,
+          "bytes": 5870,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DuJBk2qx.js",
+          "type": "script",
+          "start": 452.69999999995343,
+          "end": 865.1999999999534,
+          "bytes": 6444,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bqh7BY-B.js",
+          "type": "script",
+          "start": 452.69999999995343,
+          "end": 902.8000000000466,
+          "bytes": 9310,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DHxozrjJ.js",
+          "type": "script",
+          "start": 452.80000000004657,
+          "end": 910.8999999999069,
+          "bytes": 909,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CGczucIr.js",
+          "type": "script",
+          "start": 452.89999999990687,
+          "end": 924.3000000000466,
+          "bytes": 1203,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYFeCxw6.js",
+          "type": "script",
+          "start": 452.89999999990687,
+          "end": 925.6000000000931,
+          "bytes": 964,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuDb21E0.js",
+          "type": "script",
+          "start": 452.89999999990687,
+          "end": 927.8999999999069,
+          "bytes": 900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CeswIvFt.js",
+          "type": "script",
+          "start": 452.89999999990687,
+          "end": 966.8000000000466,
+          "bytes": 2688,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BDNMzG2s.js",
+          "type": "script",
+          "start": 460.80000000004657,
+          "end": 972.8999999999069,
+          "bytes": 384,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjOg2WYv.js",
+          "type": "script",
+          "start": 460.89999999990687,
+          "end": 982.8000000000466,
+          "bytes": 936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DUEHS9AB.js",
+          "type": "script",
+          "start": 461,
+          "end": 986.6999999999534,
+          "bytes": 905,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CurW4yxJ.js",
+          "type": "script",
+          "start": 461.10000000009313,
+          "end": 988.3000000000466,
+          "bytes": 677,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D4LasIBR.js",
+          "type": "script",
+          "start": 461.10000000009313,
+          "end": 992,
+          "bytes": 1698,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DoIMwJBJ.js",
+          "type": "script",
+          "start": 461.10000000009313,
+          "end": 1034.3000000000466,
+          "bytes": 3715,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CPDEuV3k.js",
+          "type": "script",
+          "start": 461.30000000004657,
+          "end": 1037.1000000000931,
+          "bytes": 1708,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bw322dsO.js",
+          "type": "script",
+          "start": 461.39999999990687,
+          "end": 1044.8000000000466,
+          "bytes": 818,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CJRSue2U.js",
+          "type": "script",
+          "start": 461.5,
+          "end": 1049.3000000000466,
+          "bytes": 1150,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BpLtfxPs.js",
+          "type": "script",
+          "start": 461.60000000009313,
+          "end": 1053.3999999999069,
+          "bytes": 1856,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/RRIFP4r-.js",
+          "type": "script",
+          "start": 461.69999999995343,
+          "end": 1055.3999999999069,
+          "bytes": 519,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZde30w7.js",
+          "type": "script",
+          "start": 461.80000000004657,
+          "end": 1097.3000000000466,
+          "bytes": 1290,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZUuq803.js",
+          "type": "script",
+          "start": 461.89999999990687,
+          "end": 1099.3999999999069,
+          "bytes": 1069,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cw4QW307.js",
+          "type": "script",
+          "start": 462.69999999995343,
+          "end": 1108.8000000000466,
+          "bytes": 3902,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dr1bmWcY.js",
+          "type": "script",
+          "start": 462.80000000004657,
+          "end": 1113.3000000000466,
+          "bytes": 473,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjbclgEE.js",
+          "type": "script",
+          "start": 463,
+          "end": 1122.8999999999069,
+          "bytes": 5589,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D8oPthcO.js",
+          "type": "script",
+          "start": 463.10000000009313,
+          "end": 1119.3000000000466,
+          "bytes": 956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BkJCUGO_.js",
+          "type": "script",
+          "start": 463.19999999995343,
+          "end": 1163.3000000000466,
+          "bytes": 3567,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dc8SAn_K.js",
+          "type": "script",
+          "start": 463.39999999990687,
+          "end": 1161.3000000000466,
+          "bytes": 994,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CYEEgt4S.js",
+          "type": "script",
+          "start": 463.39999999990687,
+          "end": 1173.6999999999534,
+          "bytes": 1185,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D79ei5Eb.js",
+          "type": "script",
+          "start": 468.39999999990687,
+          "end": 1177.6999999999534,
+          "bytes": 1529,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D3r534dx.js",
+          "type": "script",
+          "start": 468.60000000009313,
+          "end": 1181.6999999999534,
+          "bytes": 1442,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/6l-HMTzd.js",
+          "type": "script",
+          "start": 468.80000000004657,
+          "end": 1186.3999999999069,
+          "bytes": 366,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp",
+          "type": "img",
+          "start": 471.5,
+          "end": 2741.600000000093,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=0",
+          "type": "img",
+          "start": 471.5,
+          "end": 2773.899999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=1",
+          "type": "img",
+          "start": 473.80000000004657,
+          "end": 2753.6999999999534,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=2",
+          "type": "img",
+          "start": 475.69999999995343,
+          "end": 2783.1999999999534,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=3",
+          "type": "img",
+          "start": 478.30000000004657,
+          "end": 2785,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=4",
+          "type": "img",
+          "start": 480.89999999990687,
+          "end": 4267.5,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=5",
+          "type": "img",
+          "start": 482.60000000009313,
+          "end": 2780.399999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=6",
+          "type": "img",
+          "start": 485.19999999995343,
+          "end": 4359.300000000047,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=7",
+          "type": "img",
+          "start": 487.89999999990687,
+          "end": 4371.300000000047,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=8",
+          "type": "img",
+          "start": 490.60000000009313,
+          "end": 4376,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=9",
+          "type": "img",
+          "start": 492.10000000009313,
+          "end": 4377.5,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=10",
+          "type": "img",
+          "start": 494.80000000004657,
+          "end": 4382.5,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/pages.pPcDZuSs.css",
+          "type": "link",
+          "start": 849.3000000000466,
+          "end": 921.1000000000931,
+          "bytes": 1595,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/default.DW0f1h6j.css",
+          "type": "link",
+          "start": 1213.5,
+          "end": 2806,
+          "bytes": 2983,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/orders/unread",
+          "type": "fetch",
+          "start": 3019.6999999999534,
+          "end": 3179.5,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/notifications?limit=2",
+          "type": "fetch",
+          "start": 3082.399999999907,
+          "end": 3243.399999999907,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "/_nuxt/builds/meta/f5911158-1289-40bc-a3b8-bb16b2694852.json",
+          "type": "fetch",
+          "start": 4083.5,
+          "end": 4334.899999999907,
+          "bytes": 388,
+          "protocol": "http/1.1"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 100.265625,
+            "y": 113.5,
+            "width": 1224.46875,
+            "height": 576,
+            "top": 113.5,
+            "right": 1324.734375,
+            "bottom": 689.5,
+            "left": 100.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=0",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 101.265625,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 293.34375,
+            "bottom": 1080.90625,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=1",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 307.34375,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 499.421875,
+            "bottom": 1080.90625,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=2",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 513.421875,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 705.5,
+            "bottom": 1080.90625,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=3",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 719.5,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 911.578125,
+            "bottom": 1080.90625,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=4",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 925.578125,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 1117.65625,
+            "bottom": 1080.90625,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=5",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 1131.65625,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 1323.734375,
+            "bottom": 1080.90625,
+            "left": 1131.65625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=6",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 101.265625,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 293.34375,
+            "bottom": 1478.578125,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=7",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 307.34375,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 499.421875,
+            "bottom": 1478.578125,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=8",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 513.421875,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 705.5,
+            "bottom": 1478.578125,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=9",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 719.5,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 911.578125,
+            "bottom": 1478.578125,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=10",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 925.578125,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 1117.65625,
+            "bottom": 1478.578125,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=11",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 1131.65625,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 1323.734375,
+            "bottom": 1478.578125,
+            "left": 1131.65625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=12",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 101.265625,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 293.34375,
+            "bottom": 1876.25,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=13",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 307.34375,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 499.421875,
+            "bottom": 1876.25,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=14",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 513.421875,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 705.5,
+            "bottom": 1876.25,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=15",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 719.5,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 911.578125,
+            "bottom": 1876.25,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=16",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 925.578125,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 1117.65625,
+            "bottom": 1876.25,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 1131.65625,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 1323.734375,
+            "bottom": 1876.25,
+            "left": 1131.65625
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 101.265625,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 293.34375,
+            "bottom": 2273.921875,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 307.34375,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 499.421875,
+            "bottom": 2273.921875,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 513.421875,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 705.5,
+            "bottom": 2273.921875,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 719.5,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 911.578125,
+            "bottom": 2273.921875,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 925.578125,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 1117.65625,
+            "bottom": 2273.921875,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 1131.65625,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 1323.734375,
+            "bottom": 2273.921875,
+            "left": 1131.65625
+          }
+        }
+      ],
+      "api": [
+        {
+          "path": "/api/auth/me",
+          "start": 38874.969236,
+          "browser": false,
+          "end": 39025.318447
+        },
+        {
+          "path": "/api/categories",
+          "start": 39054.089357,
+          "browser": false,
+          "end": 39204.693537
+        },
+        {
+          "path": "/api/products",
+          "start": 39054.197636,
+          "browser": false,
+          "end": 39204.983134
+        },
+        {
+          "path": "/api/home/slides",
+          "start": 39054.237715,
+          "browser": false,
+          "end": 39205.097693
+        },
+        {
+          "path": "/api/orders/unread",
+          "start": 41881.614243,
+          "browser": true,
+          "end": 42031.991924
+        },
+        {
+          "path": "/api/notifications",
+          "start": 41944.165754,
+          "browser": true,
+          "end": 42094.753195
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "run": 2,
+      "lcp": [
+        {
+          "time": 772,
+          "size": 39804,
+          "url": "",
+          "tag": "P",
+          "class": "home__feature-text"
+        },
+        {
+          "time": 2808,
+          "size": 704681,
+          "url": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "tag": "IMG",
+          "class": "hero__image"
+        }
+      ],
+      "longTasks": [
+        {
+          "start": 2842.1999999999534,
+          "duration": 281
+        }
+      ],
+      "shifts": [],
+      "errors": [],
+      "ttfb": 449,
+      "htmlTransfer": 167685,
+      "paints": [
+        {
+          "name": "first-paint",
+          "time": 772
+        },
+        {
+          "name": "first-contentful-paint",
+          "time": 772
+        }
+      ],
+      "resources": [
+        {
+          "name": "/_nuxt/entry.DzZT0QzL.css",
+          "type": "link",
+          "start": 489.79999999981374,
+          "end": 594.6999999999534,
+          "bytes": 21546,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useOrdersAction.CMWJG85q.css",
+          "type": "link",
+          "start": 490.19999999995343,
+          "end": 557,
+          "bytes": 1131,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Modal.XIODt1Av.css",
+          "type": "link",
+          "start": 490.29999999981374,
+          "end": 557.1999999999534,
+          "bytes": 850,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useProductFeed.BaVf0tkk.css",
+          "type": "link",
+          "start": 490.39999999990687,
+          "end": 558.7999999998137,
+          "bytes": 1445,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Grid.BM1vfULo.css",
+          "type": "link",
+          "start": 490.39999999990687,
+          "end": 563.8999999999069,
+          "bytes": 1936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/useCartActions.C_Y_NL0x.css",
+          "type": "link",
+          "start": 490.39999999990687,
+          "end": 619.7999999998137,
+          "bytes": 703,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/quick-add.C4I1Mz6G.css",
+          "type": "link",
+          "start": 490.5999999998603,
+          "end": 622.6999999999534,
+          "bytes": 723,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuaAhl3A.js",
+          "type": "script",
+          "start": 497.69999999995343,
+          "end": 706.8999999999069,
+          "bytes": 51216,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/zLBtP6df.js",
+          "type": "script",
+          "start": 497.79999999981374,
+          "end": 692.7999999998137,
+          "bytes": 32848,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/COA7nQZw.js",
+          "type": "script",
+          "start": 497.89999999990687,
+          "end": 689.3999999999069,
+          "bytes": 11592,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CXClSD3a.js",
+          "type": "script",
+          "start": 498.0999999998603,
+          "end": 687.2999999998137,
+          "bytes": 3865,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CRsLeT2o.js",
+          "type": "script",
+          "start": 498.0999999998603,
+          "end": 692.5999999998603,
+          "bytes": 2910,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BJeMIpuk.js",
+          "type": "script",
+          "start": 498.19999999995343,
+          "end": 692.2999999998137,
+          "bytes": 1084,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BscU42CY.js",
+          "type": "script",
+          "start": 498.29999999981374,
+          "end": 752.8999999999069,
+          "bytes": 2903,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CoYVKC8K.js",
+          "type": "script",
+          "start": 498.39999999990687,
+          "end": 755.2999999998137,
+          "bytes": 2894,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/857vTVNo.js",
+          "type": "script",
+          "start": 498.5,
+          "end": 777.0999999998603,
+          "bytes": 19634,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DK3Fl9T5.js",
+          "type": "script",
+          "start": 498.69999999995343,
+          "end": 757.0999999998603,
+          "bytes": 458,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cvqt9sgi.js",
+          "type": "script",
+          "start": 498.69999999995343,
+          "end": 760,
+          "bytes": 1900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bhd2PIjy.js",
+          "type": "script",
+          "start": 499.0999999998603,
+          "end": 771.5,
+          "bytes": 1580,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cb3_537z.js",
+          "type": "script",
+          "start": 499.0999999998603,
+          "end": 817.5999999998603,
+          "bytes": 1886,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/UVFVH_-e.js",
+          "type": "script",
+          "start": 499.19999999995343,
+          "end": 817.0999999998603,
+          "bytes": 1109,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DJYMH_Or.js",
+          "type": "script",
+          "start": 499.29999999981374,
+          "end": 837.3999999999069,
+          "bytes": 17637,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNAtDzs8.js",
+          "type": "script",
+          "start": 499.39999999990687,
+          "end": 823.0999999998603,
+          "bytes": 1930,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DNzOYlFV.js",
+          "type": "script",
+          "start": 499.5,
+          "end": 833.0999999998603,
+          "bytes": 553,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BQAqwd5L.js",
+          "type": "script",
+          "start": 499.69999999995343,
+          "end": 840.7999999998137,
+          "bytes": 751,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dx6VABMT.js",
+          "type": "script",
+          "start": 499.69999999995343,
+          "end": 879.2999999998137,
+          "bytes": 713,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/dSexlDv0.js",
+          "type": "script",
+          "start": 499.79999999981374,
+          "end": 899.6999999999534,
+          "bytes": 13475,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dw7TlioZ.js",
+          "type": "script",
+          "start": 499.79999999981374,
+          "end": 903.5,
+          "bytes": 10397,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bzhg0zB3.js",
+          "type": "script",
+          "start": 499.89999999990687,
+          "end": 906.5,
+          "bytes": 3956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYiMwFzY.js",
+          "type": "script",
+          "start": 500,
+          "end": 911.0999999998603,
+          "bytes": 5870,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DuJBk2qx.js",
+          "type": "script",
+          "start": 500,
+          "end": 913.7999999998137,
+          "bytes": 6444,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bqh7BY-B.js",
+          "type": "script",
+          "start": 500.0999999998603,
+          "end": 949.5999999998603,
+          "bytes": 9310,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DHxozrjJ.js",
+          "type": "script",
+          "start": 500.19999999995343,
+          "end": 963.3999999999069,
+          "bytes": 909,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CGczucIr.js",
+          "type": "script",
+          "start": 500.29999999981374,
+          "end": 975.0999999998603,
+          "bytes": 1203,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DYFeCxw6.js",
+          "type": "script",
+          "start": 500.39999999990687,
+          "end": 977,
+          "bytes": 964,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BuDb21E0.js",
+          "type": "script",
+          "start": 500.5,
+          "end": 977.5,
+          "bytes": 900,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CeswIvFt.js",
+          "type": "script",
+          "start": 500.5999999998603,
+          "end": 1014.8999999999069,
+          "bytes": 2688,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BDNMzG2s.js",
+          "type": "script",
+          "start": 501.0999999998603,
+          "end": 1027,
+          "bytes": 384,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjOg2WYv.js",
+          "type": "script",
+          "start": 501.19999999995343,
+          "end": 1031.8999999999069,
+          "bytes": 936,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DUEHS9AB.js",
+          "type": "script",
+          "start": 501.19999999995343,
+          "end": 1037.5999999998603,
+          "bytes": 905,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CurW4yxJ.js",
+          "type": "script",
+          "start": 501.19999999995343,
+          "end": 1040.5999999998603,
+          "bytes": 677,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D4LasIBR.js",
+          "type": "script",
+          "start": 501.29999999981374,
+          "end": 1043,
+          "bytes": 1698,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DoIMwJBJ.js",
+          "type": "script",
+          "start": 501.29999999981374,
+          "end": 1079.8999999999069,
+          "bytes": 3715,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CPDEuV3k.js",
+          "type": "script",
+          "start": 501.39999999990687,
+          "end": 1091.0999999998603,
+          "bytes": 1708,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Bw322dsO.js",
+          "type": "script",
+          "start": 501.5,
+          "end": 1095.3999999999069,
+          "bytes": 818,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CJRSue2U.js",
+          "type": "script",
+          "start": 501.5999999998603,
+          "end": 1100.2999999998137,
+          "bytes": 1150,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BpLtfxPs.js",
+          "type": "script",
+          "start": 501.69999999995343,
+          "end": 1104.2999999998137,
+          "bytes": 1856,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/RRIFP4r-.js",
+          "type": "script",
+          "start": 501.69999999995343,
+          "end": 1106.5,
+          "bytes": 519,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZde30w7.js",
+          "type": "script",
+          "start": 501.79999999981374,
+          "end": 1142.1999999999534,
+          "bytes": 1290,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CZUuq803.js",
+          "type": "script",
+          "start": 501.89999999990687,
+          "end": 1154,
+          "bytes": 1069,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Cw4QW307.js",
+          "type": "script",
+          "start": 502.5,
+          "end": 1160.5999999998603,
+          "bytes": 3902,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dr1bmWcY.js",
+          "type": "script",
+          "start": 502.5999999998603,
+          "end": 1163.5,
+          "bytes": 473,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/DjbclgEE.js",
+          "type": "script",
+          "start": 502.69999999995343,
+          "end": 1174,
+          "bytes": 5589,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D8oPthcO.js",
+          "type": "script",
+          "start": 502.79999999981374,
+          "end": 1172,
+          "bytes": 956,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/BkJCUGO_.js",
+          "type": "script",
+          "start": 502.89999999990687,
+          "end": 1209.0999999998603,
+          "bytes": 3567,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/Dc8SAn_K.js",
+          "type": "script",
+          "start": 502.89999999990687,
+          "end": 1217.8999999999069,
+          "bytes": 994,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/CYEEgt4S.js",
+          "type": "script",
+          "start": 503.19999999995343,
+          "end": 1223.2999999998137,
+          "bytes": 1185,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D79ei5Eb.js",
+          "type": "script",
+          "start": 503.39999999990687,
+          "end": 1226.7999999998137,
+          "bytes": 1529,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/D3r534dx.js",
+          "type": "script",
+          "start": 503.5,
+          "end": 1236.0999999998603,
+          "bytes": 1442,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/6l-HMTzd.js",
+          "type": "script",
+          "start": 503.69999999995343,
+          "end": 1236.2999999998137,
+          "bytes": 366,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp",
+          "type": "img",
+          "start": 510.5,
+          "end": 2775.2999999998137,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=0",
+          "type": "img",
+          "start": 519.5,
+          "end": 2829.2999999998137,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=1",
+          "type": "img",
+          "start": 521.1999999999534,
+          "end": 2822.0999999998603,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=2",
+          "type": "img",
+          "start": 524.0999999998603,
+          "end": 2834.6999999999534,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=3",
+          "type": "img",
+          "start": 526.5999999998603,
+          "end": 4359.199999999953,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=4",
+          "type": "img",
+          "start": 528.0999999998603,
+          "end": 2810.899999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=5",
+          "type": "img",
+          "start": 530.7999999998137,
+          "end": 2832.1999999999534,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=6",
+          "type": "img",
+          "start": 533.1999999999534,
+          "end": 4410.399999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=7",
+          "type": "img",
+          "start": 535.8999999999069,
+          "end": 4432.399999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=8",
+          "type": "img",
+          "start": 537.6999999999534,
+          "end": 4435.5,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=9",
+          "type": "img",
+          "start": 540.1999999999534,
+          "end": 4438.899999999907,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/images/hero/hero-0.webp?product=10",
+          "type": "img",
+          "start": 542.8999999999069,
+          "end": 4440.699999999953,
+          "bytes": 324554,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/pages.pPcDZuSs.css",
+          "type": "link",
+          "start": 899.5,
+          "end": 967.5999999998603,
+          "bytes": 1595,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "/_nuxt/default.DW0f1h6j.css",
+          "type": "link",
+          "start": 1260.3999999999069,
+          "end": 2840.7999999998137,
+          "bytes": 2983,
+          "protocol": "http/1.1"
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/orders/unread",
+          "type": "fetch",
+          "start": 3089.399999999907,
+          "end": 3248.5,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "http://127.0.0.1:42325/api/notifications?limit=2",
+          "type": "fetch",
+          "start": 3144.1999999999534,
+          "end": 3304.899999999907,
+          "bytes": 0,
+          "protocol": ""
+        },
+        {
+          "name": "/_nuxt/builds/meta/f5911158-1289-40bc-a3b8-bb16b2694852.json",
+          "type": "fetch",
+          "start": 4196.199999999953,
+          "end": 4425.5,
+          "bytes": 388,
+          "protocol": "http/1.1"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 100.265625,
+            "y": 113.5,
+            "width": 1224.46875,
+            "height": 576,
+            "top": 113.5,
+            "right": 1324.734375,
+            "bottom": 689.5,
+            "left": 100.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=0",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 101.265625,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 293.34375,
+            "bottom": 1080.90625,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=1",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 307.34375,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 499.421875,
+            "bottom": 1080.90625,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=2",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 513.421875,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 705.5,
+            "bottom": 1080.90625,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=3",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 719.5,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 911.578125,
+            "bottom": 1080.90625,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=4",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 925.578125,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 1117.65625,
+            "bottom": 1080.90625,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=5",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 1131.65625,
+            "y": 888.828125,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 888.828125,
+            "right": 1323.734375,
+            "bottom": 1080.90625,
+            "left": 1131.65625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=6",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 101.265625,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 293.34375,
+            "bottom": 1478.578125,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=7",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 307.34375,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 499.421875,
+            "bottom": 1478.578125,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=8",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 513.421875,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 705.5,
+            "bottom": 1478.578125,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=9",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 719.5,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 911.578125,
+            "bottom": 1478.578125,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=10",
+          "complete": true,
+          "width": 1672,
+          "box": {
+            "x": 925.578125,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 1117.65625,
+            "bottom": 1478.578125,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=11",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 1131.65625,
+            "y": 1286.5,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1286.5,
+            "right": 1323.734375,
+            "bottom": 1478.578125,
+            "left": 1131.65625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=12",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 101.265625,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 293.34375,
+            "bottom": 1876.25,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=13",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 307.34375,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 499.421875,
+            "bottom": 1876.25,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=14",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 513.421875,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 705.5,
+            "bottom": 1876.25,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=15",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 719.5,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 911.578125,
+            "bottom": 1876.25,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "http://127.0.0.1:45979/images/hero/hero-0.webp?product=16",
+          "complete": false,
+          "width": 1672,
+          "box": {
+            "x": 925.578125,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 1117.65625,
+            "bottom": 1876.25,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 1131.65625,
+            "y": 1684.171875,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 1684.171875,
+            "right": 1323.734375,
+            "bottom": 1876.25,
+            "left": 1131.65625
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 101.265625,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 293.34375,
+            "bottom": 2273.921875,
+            "left": 101.265625
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 307.34375,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 499.421875,
+            "bottom": 2273.921875,
+            "left": 307.34375
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 513.421875,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 705.5,
+            "bottom": 2273.921875,
+            "left": 513.421875
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 719.5,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 911.578125,
+            "bottom": 2273.921875,
+            "left": 719.5
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 925.578125,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 1117.65625,
+            "bottom": 2273.921875,
+            "left": 925.578125
+          }
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0,
+          "box": {
+            "x": 1131.65625,
+            "y": 2081.84375,
+            "width": 192.078125,
+            "height": 192.078125,
+            "top": 2081.84375,
+            "right": 1323.734375,
+            "bottom": 2273.921875,
+            "left": 1131.65625
+          }
+        }
+      ],
+      "api": [
+        {
+          "path": "/api/auth/me",
+          "start": 45545.196621,
+          "browser": false,
+          "end": 45695.574163
+        },
+        {
+          "path": "/api/categories",
+          "start": 45714.929931,
+          "browser": false,
+          "end": 45865.436954
+        },
+        {
+          "path": "/api/products",
+          "start": 45722.048149,
+          "browser": false,
+          "end": 45872.989201
+        },
+        {
+          "path": "/api/home/slides",
+          "start": 45722.117571,
+          "browser": false,
+          "end": 45873.288232
+        },
+        {
+          "path": "/api/orders/unread",
+          "start": 48598.655302,
+          "browser": true,
+          "end": 48748.771859
+        },
+        {
+          "path": "/api/notifications",
+          "start": 48653.292522,
+          "browser": true,
+          "end": 48803.598308
+        }
+      ]
+    }
+  ]
+}

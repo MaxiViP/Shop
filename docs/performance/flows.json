@@ -1,0 +1,18 @@
+[
+  {
+    "width": 390,
+    "theme": true,
+    "interactionPrefetch": true,
+    "navigation": true,
+    "visibleImages": true,
+    "guestCart": true
+  },
+  {
+    "width": 1440,
+    "theme": true,
+    "interactionPrefetch": true,
+    "navigation": true,
+    "visibleImages": true,
+    "guestCart": true
+  }
+]
