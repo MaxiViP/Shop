@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
 
-export async function startWeb(apiBase) {
+export async function startWeb(apiBase, environment = process.env) {
   assert.equal(new URL(apiBase).hostname, '127.0.0.1');
   const preload = `import { Server } from 'node:http';const listen=Server.prototype.listen;
     Server.prototype.listen=function(options,...args){return listen.call(this,{...options,host:'127.0.0.1',port:0},...args)};
@@ -14,14 +14,14 @@ export async function startWeb(apiBase) {
     if(!['127.0.0.1','localhost'].includes(url.hostname))throw new Error('External fetch disabled by smoke');return realFetch(input,init)};`;
   const child = spawn(process.execPath, ['--import', 'data:text/javascript,' + encodeURIComponent(preload), '.output/server/index.mjs'], {
     cwd: fileURLToPath(new URL('../', import.meta.url)), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, NUXT_PUBLIC_API_BASE: apiBase, NITRO_HOST: '127.0.0.1', NITRO_PORT: '0' },
+    env: { ...environment, NUXT_PUBLIC_API_BASE: apiBase, NITRO_HOST: '127.0.0.1', NITRO_PORT: '0' },
   });
   let log = '', base;
   child.stdout.on('data', chunk => { log += chunk; base = /Listening on (http:\/\/[^\s]+)/.exec(log)?.[1]; });
   child.stderr.on('data', chunk => { log += chunk; });
   for (let attempt = 0; attempt < 150 && !base; attempt++) await new Promise(resolve => setTimeout(resolve, 100));
   assert.ok(base, 'Nitro startup: ' + log.slice(-1000));
-  return { base, async close() { if (child.exitCode === null) { const closed = once(child, 'exit'); child.stdin.end(); await closed; } } };
+  return { base, get log() { return log; }, async close() { if (child.exitCode === null) { const closed = once(child, 'exit'); child.stdin.end(); await closed; } } };
 }
 
 // Shared local Chromium test connection. Never attaches to the user's browser/profile.
