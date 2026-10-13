@@ -58,7 +58,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Manual hits and market presets / iso
   }
   beforeAll(async () => {
     const url = new URL(process.env.DATABASE_URL!);
-    if (!['127.0.0.1', 'localhost'].includes(url.hostname) || url.pathname !== '/korzina_e2e_unicode')
+    if (!['127.0.0.1', 'localhost'].includes(url.hostname) || !/^\/korzina_(?:e2e|audit)[a-z0-9_]*$/.test(url.pathname))
       throw new Error('Only the explicitly isolated test database is allowed; never local shop');
     connection = new pg.Client({ connectionString: process.env.DATABASE_URL }); await connection.connect();
     await connection.query(`CREATE SCHEMA "${schema}"`); created = true;
@@ -98,7 +98,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Manual hits and market presets / iso
   });
 
   it('adds AUTO to existing products without changing previous values or template links', async () => {
-    expect(legacyAfterMigration).toEqual({ ...legacyBefore, hitMode: 'AUTO' });
+    expect(legacyAfterMigration).toEqual({ ...legacyBefore, hitMode: 'AUTO', saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null, normalizedPrice: Math.floor((Number(legacyBefore.price) * 110 + 50) / 100) });
     expect((await db.product.findUniqueOrThrow({ where: { id: legacyId } })).seasonTemplateId).toBe(legacyTemplateId);
   });
   it.each(['missing', 'USER', 'SELLER'])('protects both badge mutations and preset filling from %s', async role => {

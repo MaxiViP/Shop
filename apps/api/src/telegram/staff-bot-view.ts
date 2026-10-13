@@ -1,3 +1,4 @@
+import { variableWeight, priceUnit } from '../product/sale.js';
 import { formatAddress } from '../common/address.js';
 import type { StaffService } from '../staff/staff.service.js';
 import { clean, money, quantity, staffData } from './staff-bot.js';
@@ -19,7 +20,7 @@ const itemStatusText = { PENDING: 'в сборке', PICKED: 'собран', MIS
 
 export function canQuickConfirm(order: OrderView, item: OrderView['items'][number]): boolean {
   return order.status === 'ASSEMBLING' && item.status === 'PENDING' &&
-    (item.unit === 'PIECE' || item.unit === 'PACK' || item.unit === 'BUNCH') &&
+    (item.unit === 'PIECE' || item.unit === 'PACK' || item.unit === 'BUNCH') && !variableWeight(item) &&
     !order.issues.some(issue => issue.orderItemId === item.id || issue.replacementItemId === item.id);
 }
 
@@ -93,10 +94,10 @@ export function dashboard(order: OrderView, url?: string): { text: string; keybo
 export function itemPage(order: OrderView, offset: number): { text: string; keyboard: Keyboard } {
   const page = order.items.slice(offset, offset + 8);
   const rows: Button[][] = page.map(item => {
-    const state = item.status === 'PENDING' && item.unit === 'GRAM' ? 'нужен вес' : itemStatusText[item.status];
+    const state = item.status === 'PENDING' && (item.unit === 'GRAM' || variableWeight(item)) ? 'нужен вес' : itemStatusText[item.status];
     const row: Button[] = [{
       text: (item.status === 'PICKED' ? '✅ ' : item.status === 'MISSING' ? '❌ ' :
-        item.unit === 'GRAM' ? '⚖️ ' : '⬜ ') + clean(item.productName, 28) +
+        item.unit === 'GRAM' || variableWeight(item) ? '⚖️ ' : '⬜ ') + clean(item.productName, 28) +
         ' — ' + quantity(item.qty, item.unit) + ' · ' + state,
       callback_data: staffData(order.id, 'v', item.id),
     }];
@@ -118,12 +119,12 @@ export function itemPage(order: OrderView, offset: number): { text: string; keyb
   };
 }
 
-export function itemView(order: OrderView, item: OrderView['items'][number]):
+export function itemView(order: OrderView, item: OrderView['items'][number], url?: string):
   { text: string; keyboard: Keyboard } {
   const lines = [
     'Заказ #' + order.id + ' · ' + clean(item.productName, 120),
     'Заказ: ' + quantity(item.qty, item.unit),
-    'Цена: ' + money(item.price) + ' / ' + quantity(item.priceQty, item.unit),
+    'Цена: ' + money(item.price) + ' / ' + quantity(item.priceQty, priceUnit(item)),
     ...(item.actualPrice != null && item.actualPrice !== item.price ?
       ['Фактическая цена: ' + money(item.actualPrice)] : []),
     'Запрошено: ' + money(item.total),
@@ -131,17 +132,22 @@ export function itemView(order: OrderView, item: OrderView['items'][number]):
       item.status === 'MISSING' ? '❌ Нет в наличии' : 'В сборке'),
   ];
   if (item.actualQty !== null) lines.push('Факт: ' + quantity(item.actualQty, item.unit));
+  if (variableWeight(item)) {
+    lines.push('Взвесьте каждый экземпляр на сайте. Оплата по фактическому весу.');
+    if (item.actualWeightGrams != null) lines.push('Общий вес: ' + quantity(item.actualWeightGrams, 'GRAM'));
+  }
   if (item.actualTotal !== null) lines.push('Сумма: ' + money(item.actualTotal));
   const rows: Button[][] = [];
   if (order.status === 'ASSEMBLING') {
     if (item.status === 'PENDING') {
       if (canQuickConfirm(order, item))
         rows.push([{ text: '✅ По заказу', callback_data: staffData(order.id, 'a', item.id) }]);
-      rows.push([{ text: item.unit === 'GRAM' ? '⚖️ Ввести вес' : '✏️ Изменить количество',
+      if (!variableWeight(item)) rows.push([{ text: item.unit === 'GRAM' ? '⚖️ Ввести вес' : '✏️ Изменить количество',
         callback_data: staffData(order.id, item.unit === 'GRAM' ? 'w' : 'q', item.id) }]);
       rows.push([{ text: '❌ Нет в наличии', callback_data: staffData(order.id, 'm', item.id) }]);
     } else rows.push([{ text: '↩️ Вернуть в сборку', callback_data: staffData(order.id, 'r', item.id) }]);
   }
+  if (variableWeight(item) && url) rows.push([{ text: '⚖️ Взвесить на сайте', url }]);
   rows.push([{ text: '⬅️ К позициям', callback_data: staffData(order.id, 'i', 0) }]);
   return { text: lines.join('\n'), keyboard: { inline_keyboard: rows } };
 }

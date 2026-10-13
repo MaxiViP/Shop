@@ -1,3 +1,4 @@
+import { orderableProductWhere } from '../product/select.js';
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -94,7 +95,7 @@ export class CartService {
           });
         else {
           const product = await db.product.findFirst({
-            where: { id: productId, active: true },
+            where: { ...orderableProductWhere, id: productId },
           });
           if (!product) throw new NotFoundException('Товар больше недоступен');
           const old = cart.items.find((item) => item.productId === productId);
@@ -170,7 +171,7 @@ export class CartService {
         const ids = additions.map((item) => item.productId).sort((a, b) => a - b);
         await db.$queryRaw`SELECT id FROM "Product" WHERE id = ANY(${ids}::int[]) ORDER BY id FOR SHARE`;
         const products = await db.product.findMany({
-          where: { id: { in: ids }, active: true },
+          where: { ...orderableProductWhere, id: { in: ids } },
           select: { id: true, min: true, step: true, unit: true, priceUnit: true },
         });
         for (const item of additions) {

@@ -40,3 +40,21 @@ describe('Badge selections in cursor feeds', () => {
     expect(cursor?.tail.id).toBe(24);
   });
 });
+
+it('reuses bounded home ranks but rejects a cursor after live membership changes', async () => {
+  const rows = Array.from({ length: 25 }, (_, i) => ({ id: i + 1, name: 'Apple', price: 100,
+    sort: 0, createdAt: new Date('2026-10-10T00:00:00Z'), categoryId: 1, categorySort: 0, position: i + 1 }));
+  const raw = vi.fn<(sql: Prisma.Sql) => Promise<unknown>>()
+    .mockResolvedValueOnce([{ total: 25, revision: 'a'.repeat(32) }]).mockResolvedValueOnce(rows)
+    .mockResolvedValueOnce([{ total: 25, revision: 'a'.repeat(32) }])
+    .mockResolvedValueOnce([{ total: 24, revision: 'b'.repeat(32) }]);
+  const tx = { $queryRaw: raw, product: { aggregate: async () => ({ _max: { id: 25 } }),
+    findMany: async (options: { where: { id: { in: number[] } } }) => rows.filter(row => options.where.id.in.includes(row.id)).map(row => ({ ...row, marketPoint: null })) } };
+  const db = { $transaction: (run: (client: typeof tx) => Promise<unknown>) => run(tx) } as unknown as PrismaClient;
+  const query = productQuerySchema.parse({ feed: 'home', limit: 24 });
+  const first = await productFeed(db, query);
+  const second = await productFeed(db, { ...query, cursor: first.nextCursor! });
+  expect(second.items.map(item => item.id)).toEqual([25]);
+  expect(raw).toHaveBeenCalledTimes(3);
+  await expect(productFeed(db, { ...query, cursor: first.nextCursor! })).rejects.toThrow('Каталог обновился');
+});

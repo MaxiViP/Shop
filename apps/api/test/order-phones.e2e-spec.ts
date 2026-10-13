@@ -47,6 +47,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Order phone HTTP PostgreSQL', () => 
     const target = new URL(process.env.DATABASE_URL!);
     if (!['localhost', '127.0.0.1', '[::1]'].includes(target.hostname))
       throw new Error('Local test database required');
+    vi.stubEnv('OTP_DELIVERY_MODE', 'DEV');
     vi.stubEnv('AUTH_SECRET', randomBytes(32).toString('hex'));
     await connection.connect();
     if (!/^order_phone_test_[a-f0-9]{32}$/.test(schema)) throw new Error('Unsafe test schema');

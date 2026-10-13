@@ -9,6 +9,8 @@
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter api test && pnpm --filter telegram-gateway test && node --test apps/web/test/*.test.mjs",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
   }
 }

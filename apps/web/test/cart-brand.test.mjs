@@ -62,7 +62,7 @@ test("guest basket is empty until restore; real additions restart the animation"
   assert.equal(scene.sceneKey.value, 1);
   assert.equal(await actions.add(product), true);
   await nextTick();
-  assert.equal(cart.qty(1), 1000);
+  assert.equal(cart.qty(1), 600);
   assert.equal(scene.sceneKey.value, 2);
   assert.equal(await actions.add({ ...product, id: 2 }), true);
   await nextTick();
@@ -111,13 +111,13 @@ test("server add animates only after the authoritative snapshot confirms an incr
   assert.equal(await actions.add(product), true);
   await nextTick();
   assert.equal(scene.sceneKey.value, 1);
-  assert.equal(cart.qty(1), 1000);
+  assert.equal(cart.qty(1), 600);
   fail = true;
   assert.equal(await actions.add(product), false);
   await nextTick();
   assert.equal(scene.sceneKey.value, 1);
   fail = false;
-  assert.equal(await actions.put(product, 700), true);
+  assert.equal(await actions.put(product, 500), true);
   await nextTick();
   assert.equal(scene.sceneKey.value, 1);
   assert.equal(await actions.put(product, 1300), true);

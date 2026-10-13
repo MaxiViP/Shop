@@ -1,6 +1,7 @@
 <template>
   <div class="home" :data-loaded-count="items.length">
     <UContainer>
+      <h1 class="sr-only">{{ site.title }}</h1>
       <HomeHeroCarousel />
 
       <section class="home__section home__section--categories">

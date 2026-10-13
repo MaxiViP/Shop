@@ -54,3 +54,5 @@ export const productListSelect = {
     orderBy: [{ sort: 'asc' }, { id: 'asc' }],
   },
 } satisfies Prisma.ProductSelect;
+
+export const orderableProductWhere = { active: true, category: { active: true } } satisfies Prisma.ProductWhereInput;

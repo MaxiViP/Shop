@@ -1,3 +1,4 @@
+import { orderableProductWhere } from '../product/select.js';
 import {
   BadRequestException,
   ConflictException,
@@ -59,7 +60,7 @@ export class OrderService {
   async quote(data: QuoteInput, db: Prisma.TransactionClient = this.db, userId: number | null = null) {
     const quantities = cartQuantities(data.items);
     const products = await db.product.findMany({
-      where: { id: { in: [...quantities.keys()] }, active: true },
+      where: { ...orderableProductWhere, id: { in: [...quantities.keys()] } },
       select: cartProductSelect,
     });
     const quote = cartQuote(quantities, products, data.items);
@@ -161,6 +162,7 @@ export class OrderService {
     const productIds = [...new Set(data.items.map(item => item.productId))].sort((a, b) => a - b);
     for (const id of productIds)
       await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${id} FOR SHARE`;
+    await db.$queryRaw`SELECT id FROM "Category" WHERE id IN (SELECT "categoryId" FROM "Product" WHERE id = ANY(${productIds}::int[])) ORDER BY id FOR SHARE`;
     const quote = await this.quote(data, db, userId);
     const settlement = await db.product.findMany({
       where: { id: { in: productIds } },

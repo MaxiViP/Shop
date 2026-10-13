@@ -16,6 +16,7 @@ describe('Auth method HTTP', () => {
   let app: INestApplication<Server>;
   let findUser: ReturnType<typeof vi.fn>;
   beforeEach(async () => {
+    vi.stubEnv('OTP_DELIVERY_MODE', 'DEV');
     vi.stubEnv('AUTH_SECRET', randomBytes(32).toString('hex'));
     vi.stubEnv('ADMIN_PHONE', '+79990000001');
     vi.stubEnv('ADMIN_PASSWORD', randomBytes(32).toString('hex'));

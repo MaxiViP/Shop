@@ -173,11 +173,11 @@ try {
     }
     if (path.startsWith('/catalog')) {
       assert.match(h1[0][0], /<h1[^>]*class="[^"]*\bsr-only\b[^"]*"/, path + ' accessible heading');
-      assert.ok(!body.includes('class="catalog__head"'), path + ' duplicate heading');
+      assert.equal((body.match(/class="catalog__total"/g) ?? []).length, 1, path + ' one result count');
       const breadcrumbs = body.indexOf('aria-label="Хлебные крошки"');
       assert.ok(breadcrumbs >= 0 && breadcrumbs < categoryNav, path + ' navigation order');
       assert.ok(body.includes('aria-label="Поиск продуктов"'), path + ' search');
-      assert.ok(body.includes('aria-label="Сортировка товаров"'), path + ' sorting');
+      assert.ok(body.includes('aria-label="Сортировка"'), path + ' sorting');
     }
     assert.ok(blocks.length, path + ' JSON-LD');
     const entities = blocks.flatMap(value => Array.isArray(value) ? value : value['@graph'] || [value]);
@@ -210,14 +210,14 @@ try {
   assert.match(sitemapResponse.headers.get('content-type'), /application\/xml/);
   assert.ok(xml.includes(site + '/product/' + product.slug));
   assert.ok(xml.includes(site + '/catalog/' + category.slug));
-  assert.equal([...xml.matchAll(/<loc>/g)].length, 3 + snapshot.categories.length + snapshot.products.length);
+  assert.equal([...xml.matchAll(/<loc>/g)].length, 4 + snapshot.categories.length + snapshot.products.length);
   assert.ok(!xml.includes('/cart'));
   await writeFile(join(artifactDir, 'sitemap.xml'), xml);
   const robots = await readResponse('/robots.txt');
   assert.ok(robots.includes('Sitemap: ' + site + '/sitemap.xml'));
   assert.ok(!/Disallow:\s*\/\s*$/m.test(robots));
   await writeFile(join(artifactDir, 'results.json'), JSON.stringify(results, null, 2));
-  console.log(JSON.stringify({ result: 'PASS', pages: results, sitemapUrls: 3 + snapshot.categories.length + snapshot.products.length, artifacts: artifactDir }, null, 2));
+  console.log(JSON.stringify({ result: 'PASS', pages: results, sitemapUrls: 4 + snapshot.categories.length + snapshot.products.length, artifacts: artifactDir }, null, 2));
 
 } finally {
   try {
