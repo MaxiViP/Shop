@@ -184,10 +184,13 @@ pnpm.cmd --filter api images:production:fixture --batch-size 1
 ```
 
 Первая команда проверяет read-only dry-run на пяти копиях. Вторая при достаточном
-headroom делает fixture apply одного фото и explicit resume, сверяет originals,
-READY/variant inodes/mtimes; workspace оставляет для диагностики. При нехватке
-диска она обязана вернуть DISK_LIMIT, не уменьшать reserve и не менять TMPDIR
-ради обхода. Это не команда production backfill.
+headroom делает fixture apply одного фото, отдельно утверждённый repeat и explicit
+resume, сверяет originals, READY/variant hashes/inodes/mtimes; workspace оставляет
+для диагностики. При нехватке диска она обязана вернуть DISK_LIMIT. Нельзя уменьшать
+reserve, подменять statfs или выдавать существующие production roots за temp sandbox.
+Можно выбрать другой настоящий локальный temp-том только для дочернего fixture-процесса:
+factory по-прежнему проверяет ancestors до mkdtemp и выдаёт capability лишь новому
+workspace. Это не команда production backfill.
 
 Production CLI intentional apply refusal проверяется автоматическим тестом только
 с fixture paths. Команд с live `/var/lib/korzinamarket` roots в этом документе нет.
@@ -195,7 +198,7 @@ Production CLI intentional apply refusal проверяется автомати
 
 ## Локальная проверка
 
-Финальные локальные результаты на Windows, Node 24:
+Результаты реализации `7187b5f` на Windows, Node 24 (до дополнительной native-проверки ниже):
 
 | Проверка | Результат |
 | --- | --- |
@@ -205,7 +208,7 @@ Production CLI intentional apply refusal проверяется автомати
 | Root `pnpm typecheck`, `pnpm lint`, `pnpm build` | API, web и telegram-gateway прошли. API typecheck/lint повторены после финальной правки harness. Build приложений не является упаковкой отдельного Linux runner artifact. |
 | Workflow и docs | Prettier YAML check с сохранением существующего single-quote стиля; локальные Markdown links/UTF-8 и `git diff --check` прошли. |
 | Standalone harness dry-run, batch 5 | Passed, 5 eligible, zero pipeline/tree changes, 5 originals verified. |
-| Standalone harness apply, batch 1 | Ожидаемый `DISK_LIMIT` до создания run state; native capacity guard не обходился. |
+| Standalone harness apply, batch 1, TEMP на C: | Ожидаемый `DISK_LIMIT` до создания run state; native capacity guard не обходился. |
 
 Machine-readable unit reports находятся локально в ignored
 `work/product-image-production-unit.json` (совместный прогон) и
@@ -227,3 +230,106 @@ skip на Windows; они не выдаются за пройденные. Check
 не меняются. Локальные unit/typecheck/lint/build не выполняют Prisma migrations
 или production backfill. Новые изменения предназначены для одного локального
 implementation commit без push.
+
+## Завершение native fixture validation 5Б-1, 2026-10-15
+
+**Настоящий fixture apply прошёл на локальном F: (NTFS), без statfs mocks и изменения
+admission/publisher/production gate.** Изменены только assertions/отчёт тестового
+`harness.ts` и этот документ. Существующий тестовый CLI и production runner не менялись.
+
+### TEMP и причина DISK_LIMIT
+
+Обычные TEMP/TMP/TMPDIR указывают на `C:\Users\batti\AppData\Local\Temp`.
+Native `statfs` показал размер тома 254 420 037 632 bytes, доступно около
+24 098 156 544 bytes (9,47%). Минимальный резерв составляет 25 442 003 763 bytes.
+Для batch 1 дополнительно учитываются 79 953 920 bytes: `(1 + 1) × 6 MiB` outputs/staging,
+64 MiB journal и 256 KiB scope. Требуется 25 521 957 683 bytes; отказ DISK_LIMIT корректен.
+Файлы, кеши или данные для освобождения места не удалялись.
+
+F: — штатный fixed NTFS volume, canonical realpath `F:\`, без symlink/junction у root.
+Размер 983 152 193 536 bytes; перед apply доступно 331 087 949 824 bytes (33,67%).
+Требование admission: 98 315 219 353 bytes резерва плюс 79 953 920 bytes роста,
+всего 98 395 173 273 bytes. Guard выполнен на реальных значениях обоих writable roots.
+После всей проверки доступно 331 087 859 712 bytes; это снимки FS, а не точное
+accounting всех параллельных операций Windows.
+
+TEMP/TMP/TMPDIR заданы как `F:\` только в env дочернего fixture-процесса, без изменения
+системного/пользовательского env. Вызван прежний `createFixture()` без path/adopt аргументов.
+Он создал `F:\korzina-image-production-fixture-DnoKCN`, проверил реальные root identities
+и выдал прежнюю private WeakMap capability. Нового override или обхода factory нет.
+Workspace сохранён для диагностики. Запуск из корня репозитория можно воспроизвести
+только на заранее проверенном локальном томе с достаточным native headroom:
+
+```powershell
+node --input-type=module -e "
+import { spawnSync } from 'node:child_process';
+const result = spawnSync(process.execPath,
+  ['--import', 'tsx', 'data/product-image-production/harness.ts', '--batch-size', '1'],
+  { cwd: 'apps/api', stdio: 'inherit', windowsHide: true, timeout: 120000,
+    env: { SystemRoot: process.env.SystemRoot, PATH: process.env.PATH,
+      TEMP: 'F:/', TMP: 'F:/', TMPDIR: 'F:/',
+      NODE_ENV: 'test', TSX_DISABLE_CACHE: '1' } });
+process.exitCode = result.status ?? 1;
+"
+```
+
+Это команда только fixture harness с фиксированными repository photographs.
+Она не принимает существующие storage roots и не разрешает production apply.
+120 s timeout оболочки не является whole-process-tree sandbox acceptance.
+
+### Результаты без mocks
+
+| Сценарий | Фактический результат |
+| --- | --- |
+| Dry-run, одно фото | 1 eligible; полное дерево sandbox до/после одинаково, записей pipeline 0. |
+| Apply, одно фото | 1 READY, три настоящих WebP 192/384/640; использован supervised child, peak RSS 107 642 880 bytes, CPU 656 ms. |
+| Повтор того же run ID без resume | RESUME_REQUIRED, полное дерево без изменений. |
+| Repeat с новым approval/run ID | 1 UNCHANGED; scope/artifact/profile/roots/inventory/entries совпадают, изменён только run ID; worker usage 0. |
+| Explicit resume повторной партии | 1 UNCHANGED; проверены фактические source/READY/outputs, worker usage 0. |
+| Сохранение outputs | После repeat/resume READY и variants имеют прежние SHA-256, sizes, dev/inodes, mtimeNs, uid/gid/mode/nlink, включая directory inodes/mtimes. |
+| Production CLI с действительным fixture approval | Exit 1, SANDBOX_UNVERIFIED; NODE_ENV=production и IMAGE_SANDBOX_VERIFIED=true не открывают gate; stdout пуст, полное дерево sandbox без изменений. |
+
+`ImageStorage.readReady()` успешно выполнил native source/variant SHA-256, sizes и decode
+verification. Существующий publisher выполнил exclusive staging, file fsync/readback,
+native hard-link publication и READY rename. Repeat/resume не перезаписали корректные
+файлы. Отдельную коллизию hard-link EEXIST этот smoke не создавал.
+
+| Файл | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Fixture original, WebP 1024×1024 | 124646 | `901c0ab1dbdaef3af4bc61d594dc9d52dbe7746ffcebd44e3dae984f1fa3763d` |
+| 192×192 | 5812 | `1754965f3beba145d87b4557c052087ade8cea92f893bf936cded6ac79e1342d` |
+| 384×384 | 15898 | `d39afe3b6d1e78c9b0d7fec46a9c0bc89b932401ab8b7284a5ffcfdf67810238` |
+| 640×640 | 32166 | `896bfe812f732d453bd4f29486039f02d062881eef58aa11168c93810da2fa11` |
+
+Fixture original и исходное repository photo совпали с baseline по SHA-256, bytes,
+dev/inode, mtimeNs, uid/gid, mode и nlink. Копия имеет отдельный dev/inode; каждый output
+также имеет отдельный inode от originals и nlink=1. Хеш runtime artifact до/после одинаков.
+
+Внешняя read-only проверка namespace F: обнаружила только один новый fixture workspace.
+У 43 доступных существующих root entries метаданные не изменились; ещё один системный
+entry (`pagefile.sys`) не разрешает lstat (EPERM). Его содержимое/метаданные не проверялись
+и не изменялись тестом. Это проверка root namespace, repository photo и runtime artifact,
+а не рекурсивный аудит всего диска. Pipeline writes ограничены новым sandbox; отдельные
+диагностические отчёты записаны в ignored `work/`. Пользовательские файлы не удалялись.
+
+Полный JSON с manifest/native statfs/boundary observations сохранён локально в ignored
+`work/native-image-fixture-report.json`, воспроизводимый локальный orchestration script —
+`work/native-image-fixture.mjs`. Дополнительно прошли 4 выбранных regression tests:
+отказ junction temp base до записи, unconditional gate, настоящий CLI и ограничения
+прежнего тестового CLI. Остальные 78 cases этого suite не выбирались; это не Linux skips
+и не новый полный прогон 256 тестов. Отчёт — `work/native-image-fixture-guards.json`.
+API typecheck, lint и build повторно прошли; `git diff --check` пройден перед коммитом.
+
+### Что остаётся Linux-only и для 5Б-2
+
+Windows statfs вернул files/ffree=0: проверка inode headroom здесь недоступна.
+Native O_NOFOLLOW, POSIX owner/mode 0600/0700 enforcement, directory fsync и 13 явно
+Linux-only cases исходных suites этой проверкой не закрыты. Нужны проверки на отдельном
+Linux filesystem, в том числе hard-link no-clobber EEXIST и mount boundaries, symlink
+и permissions cases, directory fsync error propagation, реальные inode limits.
+
+Whole-process-tree cgroup limits/OOM, verified RO mounts originals, deploy fence,
+SIGKILL/reboot recovery и provenance unknown-owner locks остаются blockers 5Б-2.
+Этот smoke не проверяет power loss; ext4 nobarrier не получает durability guarantees.
+Linux CI/5Б-2 не запускались. **Production apply по-прежнему безусловно заблокирован
+через SANDBOX_UNVERIFIED; production не изменён.**
