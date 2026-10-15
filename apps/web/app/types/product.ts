@@ -6,6 +6,17 @@ export type ProductSort =
 
 export type ProductPriceStatus = 'ESTIMATED' | 'SOURCE' | 'AUDITED';
 
+export interface ProductImage {
+  url: string;
+  alt: string | null;
+  width?: number;
+  height?: number;
+  variants?: {
+    version: 'v1';
+    webp: { url: string; width: number; height: number }[];
+  };
+}
+
 export interface ProductListItem extends Sale {
   id: number;
   name: string;
@@ -34,10 +45,7 @@ export interface ProductListItem extends Sale {
     slug: string;
   };
 
-  images: {
-    url: string;
-    alt: string | null;
-  }[];
+  images: ProductImage[];
 }
 
 export interface Product extends ProductListItem {

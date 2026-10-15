@@ -12,6 +12,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/db/gen/client.js';
 import type { DbService } from '../src/db/db.service.js';
 import { ProductCtrl } from '../src/product/product.ctrl.js';
+import { ImageRegistry } from '../src/product/image-registry.js';
 import { ProductService } from '../src/product/product.service.js';
 import { CategoryCtrl } from '../src/category/category.ctrl.js';
 import { CategoryService } from '../src/category/category.service.js';
@@ -82,6 +83,7 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
       controllers: [ProductCtrl, CategoryCtrl, FavoriteCtrl, CartCtrl, OrderCtrl, AdminProductsCtrl],
       providers: [
         { provide: ProductService, useValue: new ProductService(database) },
+        { provide: ImageRegistry, useValue: new ImageRegistry({ enabled: false }) },
         { provide: CategoryService, useValue: new CategoryService(database) },
         { provide: FavoriteService, useValue: new FavoriteService(database) },
         { provide: OrderService, useValue: orders },

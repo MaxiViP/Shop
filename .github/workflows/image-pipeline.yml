@@ -1,0 +1,108 @@
+name: Image pipeline Linux
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/image-pipeline.yml'
+      - 'apps/api/**'
+      - 'apps/web/**'
+      - 'docs/performance/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-pipeline-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      NODE_ENV: test
+      DOTENV_CONFIG_PATH: /dev/null
+      TSX_DISABLE_CACHE: '1'
+      NUXT_TELEMETRY_DISABLED: '1'
+      PRODUCT_IMAGE_VARIANTS_ENABLED: 'false'
+      NUXT_PUBLIC_PRODUCT_IMAGE_VARIANTS: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 11.24.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Isolate all fixture and encoder temporary files
+        shell: bash
+        run: |
+          fixture_temp=$(mktemp -d "$RUNNER_TEMP/image-pipeline.XXXXXX")
+          chmod 700 "$fixture_temp"
+          printf 'TMPDIR=%s\nTMP=%s\nTEMP=%s\n' "$fixture_temp" "$fixture_temp" "$fixture_temp" >> "$GITHUB_ENV"
+          printf 'IMAGE_CI_REPORT=%s/image-pipeline-vitest.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          node -e "if(process.platform!=='linux'||process.getuid()===0)process.exit(1)"
+      - name: Install locked dependencies
+        timeout-minutes: 5
+        run: pnpm install --frozen-lockfile
+      - name: Generate Prisma types without connecting to a database
+        env:
+          # Only configuration parsing needs this URL. No DB service or migrations.
+          DATABASE_URL: postgresql://image_ci:image_ci@127.0.0.1:1/image_ci?connect_timeout=1
+        run: pnpm --filter api exec prisma generate --config prisma7.config.ts
+      - name: Typecheck and lint
+        run: |
+          pnpm typecheck
+          pnpm lint
+      - name: Native image pipeline and business compatibility tests
+        id: images
+        timeout-minutes: 5
+        run: >-
+          pnpm --filter api exec vitest run src/product src/favorite
+          src/admin/privacy.spec.ts src/admin/images.spec.ts src/order/cart-quote.spec.ts
+          data/product-image-variants/backfill.spec.ts test/product-images.spec.ts
+          --no-file-parallelism --reporter=default --reporter=json
+          --outputFile="$IMAGE_CI_REPORT"
+      - name: Require executed Linux tests with zero skips
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const report = JSON.parse(readFileSync(process.env.IMAGE_CI_REPORT, 'utf8'));
+          assert.equal(process.platform, 'linux');
+          assert.ok(report.numTotalTests > 0);
+          assert.equal(report.numFailedTests, 0);
+          assert.equal(report.numPendingTests, 0, 'Linux checks must not be skipped');
+          assert.equal(report.numTodoTests, 0);
+          assert.equal(report.numPassedTests, report.numTotalTests);
+          const native = report.testResults.flatMap(file => file.assertionResults)
+            .filter(test => test.fullName.includes('Linux:'));
+          assert.ok(native.length >= 13, 'Expected native no-follow, symlink, mode and fsync checks');
+          assert.ok(native.every(test => test.status === 'passed'));
+          console.log(`${report.numPassedTests} tests passed, ${native.length} Linux-native checks, zero skips`);
+          NODE
+      - name: Frontend unit regressions
+        run: node --test apps/web/test/*.test.mjs
+      - name: Production builds with feature flags off
+        run: |
+          pnpm --filter api build
+          pnpm --filter web build
+      - name: Upload image test report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-pipeline-linux-${{ github.run_id }}
+          path: ${{ runner.temp }}/image-pipeline-vitest.json
+          if-no-files-found: warn
+          retention-days: 7

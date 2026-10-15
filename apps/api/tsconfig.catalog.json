@@ -7,6 +7,9 @@
     "data/catalog-import/**/*.ts",
     "data/bagrationovsky/**/*.ts",
     "data/sale-audit/**/*.ts",
+    "data/product-image-variants/**/*.ts",
+    "src/product/image-*.spec.ts",
+    "test/product-images.spec.ts",
     "test/catalog-import.e2e-spec.ts",
     "test/bagrationovsky*.ts",
     "test/sale-models.e2e-spec.ts"

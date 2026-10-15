@@ -1,11 +1,7 @@
 import { computed, ref, watch } from "vue";
+import type { ProductImage } from '../types/product';
 
-interface GalleryImage {
-  url: string;
-  alt: string | null;
-}
-
-export function useProductGallery(images: () => readonly GalleryImage[]) {
+export function useProductGallery(images: () => readonly ProductImage[]) {
   const selected = ref(0);
   const current = computed(
     () => images()[selected.value] ?? images()[0] ?? null,

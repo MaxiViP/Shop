@@ -1,16 +1,16 @@
 import { watch } from "vue";
-import { defineNuxtPlugin } from "#app";
+import { defineNuxtPlugin, onNuxtReady } from "#app";
 import { useAuthStore } from "~/stores/auth";
 import { useFavoritesStore } from "~/stores/favorites";
 
 const key = "favorites";
 
-export default defineNuxtPlugin((nuxtApp) => {
+export default defineNuxtPlugin(() => {
   const auth = useAuthStore();
   const favorites = useFavoritesStore();
   const toast = useToast();
 
-  nuxtApp.hook("app:mounted", () => {
+  onNuxtReady(() => {
     try {
       const data = localStorage.getItem(key);
       favorites.restoreGuest(data ? JSON.parse(data) : []);
