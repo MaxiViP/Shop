@@ -58,7 +58,7 @@ export class ImageStorageError extends Error {
   }
 }
 
-interface Snapshot {
+export interface Snapshot {
   buffer: Buffer;
   sha256: string;
   stat: BigIntStats;
@@ -66,7 +66,12 @@ interface Snapshot {
 export interface ImageStorageOptions {
   publicRoot: string;
   stateRoot: string;
+  sourceRoot?: string;
 }
+export type ImageSourceVersion = Pick<
+  ImageManifest['source'],
+  'bytes' | 'sha256' | 'fingerprint'
+>;
 export interface ImageStorageResult {
   status: 'READY' | 'UNCHANGED';
   manifest: ImageManifest;
@@ -74,21 +79,21 @@ export interface ImageStorageResult {
 }
 export type ImageEncoder = (source: Buffer) => Promise<ImageVariants>;
 
-const hash = (buffer: Buffer) =>
+export const hash = (buffer: Buffer) =>
   createHash('sha256').update(buffer).digest('hex');
-const hasCode = (error: unknown, code: string) =>
+export const hasCode = (error: unknown, code: string) =>
   typeof error === 'object' &&
   error !== null &&
   'code' in error &&
   error.code === code;
-const sameFile = (a: BigIntStats, b: BigIntStats) =>
+export const sameFile = (a: BigIntStats, b: BigIntStats) =>
   a.dev === b.dev && a.ino === b.ino;
 const sameSnapshot = (a: Snapshot, b: Snapshot) =>
   sameFile(a.stat, b.stat) &&
   a.stat.size === b.stat.size &&
   a.stat.mtimeNs === b.stat.mtimeNs &&
   a.sha256 === b.sha256;
-const contains = (root: string, path: string) => {
+export const contains = (root: string, path: string) => {
   const fromRoot = relative(root, path);
   return (
     !isAbsolute(fromRoot) &&
@@ -106,7 +111,7 @@ async function guarded<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
-async function optionalStat(path: string) {
+export async function optionalStat(path: string) {
   try {
     return await lstat(path, { bigint: true });
   } catch (error) {
@@ -115,7 +120,7 @@ async function optionalStat(path: string) {
   }
 }
 
-async function syncDirectory(path: string) {
+export async function syncDirectory(path: string) {
   // Node has no supported directory fsync/O_NOFOLLOW equivalent on Windows.
   // Do not fake it or silently ignore Linux fsync errors.
   if (process.platform === 'win32') return;
@@ -130,7 +135,7 @@ async function syncDirectory(path: string) {
   }
 }
 
-async function directory(
+export async function directory(
   path: string,
   create = false,
   mode = 0o700,
@@ -156,14 +161,14 @@ async function directory(
   return lstat(path, { bigint: true });
 }
 
-function child(root: string, parts: string[]) {
+export function child(root: string, parts: string[]) {
   const path = join(root, ...parts);
   if (path === root || !contains(root, path))
     throw new ImageStorageError('INVALID_PATH');
   return path;
 }
 
-async function readBounded(
+export async function readBounded(
   root: string,
   parts: string[],
   max: number,
@@ -227,7 +232,7 @@ async function readBounded(
   }
 }
 
-async function writePrivate(path: string, data: Buffer) {
+export async function writePrivate(path: string, data: Buffer) {
   await directory(dirname(path));
   const handle = await open(
     path,
@@ -290,6 +295,47 @@ function idFrom(url: string) {
   }
 }
 
+export function imageRoot(path: string): string {
+  if (
+    typeof path !== 'string' ||
+    !isAbsolute(path) ||
+    path.includes('\0') ||
+    path.split(/[\\/]/).some((part) => part === '..' || part === '.') ||
+    resolve(path) === parse(path).root ||
+    (process.platform === 'win32' &&
+      (!/^[A-Za-z]:[\\/]/.test(path) ||
+        /[:<>"|?*]/.test(path.slice(3)) ||
+        path.split(/[\\/]/).some((part) => /[. ]$/.test(part))))
+  )
+    throw new ImageStorageError('INVALID_PATH');
+  return resolve(path);
+}
+
+export function sourceVersion(file: Snapshot): ImageSourceVersion {
+  return {
+    bytes: file.buffer.length,
+    sha256: file.sha256,
+    fingerprint: {
+      mtimeNs: file.stat.mtimeNs.toString(),
+      dev: file.stat.dev.toString(),
+      ino: file.stat.ino.toString(),
+    },
+  };
+}
+
+export function sameSource(
+  a: ImageSourceVersion | null,
+  b: ImageSourceVersion | null,
+) {
+  return a === null || b === null
+    ? a === b
+    : a.bytes === b.bytes &&
+        a.sha256 === b.sha256 &&
+        a.fingerprint.dev === b.fingerprint.dev &&
+        a.fingerprint.ino === b.fingerprint.ino &&
+        a.fingerprint.mtimeNs === b.fingerprint.mtimeNs;
+}
+
 /**
  * Standalone storage, with explicit, pre-provisioned roots and no API wiring.
  * Roots/ancestors must have trusted owners and no untrusted concurrent writers.
@@ -298,39 +344,35 @@ function idFrom(url: string) {
  */
 export class ImageStorage {
   private constructor(
-    private readonly roots: ImageStorageOptions,
+    private readonly roots: Required<ImageStorageOptions>,
     private readonly publicIdentity: BigIntStats,
     private readonly stateIdentity: BigIntStats,
+    private readonly sourceIdentity: BigIntStats,
   ) {}
 
   static async open(options: ImageStorageOptions): Promise<ImageStorage> {
     return guarded(async () => {
       if (!['linux', 'win32'].includes(process.platform))
         throw new ImageStorageError('UNSUPPORTED_FS');
-      for (const path of [options.publicRoot, options.stateRoot])
-        if (
-          typeof path !== 'string' ||
-          !isAbsolute(path) ||
-          path.includes('\0') ||
-          path.split(/[\\/]/).some((part) => part === '..' || part === '.') ||
-          resolve(path) === parse(path).root ||
-          (process.platform === 'win32' &&
-            (!/^[A-Za-z]:[\\/]/.test(path) ||
-              /[:<>"|?*]/.test(path.slice(3)) ||
-              path.split(/[\\/]/).some((part) => /[. ]$/.test(part))))
-        )
-          throw new ImageStorageError('INVALID_PATH');
       const roots = {
-        publicRoot: resolve(options.publicRoot),
-        stateRoot: resolve(options.stateRoot),
+        publicRoot: imageRoot(options.publicRoot),
+        stateRoot: imageRoot(options.stateRoot),
+        sourceRoot: imageRoot(options.sourceRoot ?? options.publicRoot),
       };
       if (
         contains(roots.publicRoot, roots.stateRoot) ||
-        contains(roots.stateRoot, roots.publicRoot)
+        contains(roots.stateRoot, roots.publicRoot) ||
+        (options.sourceRoot !== undefined &&
+          [roots.publicRoot, roots.stateRoot].some(
+            (root) =>
+              contains(root, roots.sourceRoot) ||
+              contains(roots.sourceRoot, root),
+          ))
       )
         throw new ImageStorageError('INVALID_PATH');
       const publicIdentity = await directory(roots.publicRoot);
       const stateIdentity = await directory(roots.stateRoot);
+      const sourceIdentity = await directory(roots.sourceRoot);
       if (publicIdentity.dev !== stateIdentity.dev)
         throw new ImageStorageError('UNSUPPORTED_FS');
       // POSIX privacy is enforceable here. Windows requires provisioned ACLs.
@@ -340,7 +382,12 @@ export class ImageStorage {
           stateIdentity.uid !== BigInt(process.getuid!()))
       )
         throw new ImageStorageError('INVALID_PATH');
-      return new ImageStorage(roots, publicIdentity, stateIdentity);
+      return new ImageStorage(
+        roots,
+        publicIdentity,
+        stateIdentity,
+        sourceIdentity,
+      );
     });
   }
 
@@ -349,6 +396,7 @@ export class ImageStorage {
     if (
       !sameFile(await directory(this.roots.publicRoot), this.publicIdentity) ||
       !sameFile(state, this.stateIdentity) ||
+      !sameFile(await directory(this.roots.sourceRoot), this.sourceIdentity) ||
       (process.platform === 'linux' &&
         ((state.mode & 0o077n) !== 0n || state.uid !== this.stateIdentity.uid))
     )
@@ -371,7 +419,7 @@ export class ImageStorage {
   private async source(url: string) {
     const id = idFrom(url);
     const file = await readBounded(
-      this.roots.publicRoot,
+      this.roots.sourceRoot,
       [`${id}.webp`],
       5 * 1024 * 1024,
     );
@@ -418,7 +466,7 @@ export class ImageStorage {
     let actual: Snapshot | null;
     try {
       actual = await readBounded(
-        this.roots.publicRoot,
+        this.roots.sourceRoot,
         [`${idFrom(url)}.webp`],
         5 * 1024 * 1024,
       );
@@ -507,6 +555,28 @@ export class ImageStorage {
         }
       }
       return manifest;
+    });
+  }
+
+  async version(url: string): Promise<ImageSourceVersion | null> {
+    return guarded(async () => {
+      await this.checkRoots();
+      const file = await readBounded(
+        this.roots.sourceRoot,
+        [`${idFrom(url)}.webp`],
+        5 * 1024 * 1024,
+      );
+      return file ? sourceVersion(file) : null;
+    });
+  }
+
+  async inspect(url: string) {
+    return guarded(async () => {
+      await this.checkRoots();
+      const current = await this.source(url);
+      const manifest = await this.ready(url, current.source);
+      await this.checkSource(url, current.file);
+      return { source: current.source, manifest };
     });
   }
 
@@ -647,6 +717,7 @@ export class ImageStorage {
   async save(
     url: string,
     encode: ImageEncoder = generateImageVariants,
+    expected?: ImageSourceVersion,
   ): Promise<ImageStorageResult> {
     return guarded(async () => {
       const id = idFrom(url);
@@ -654,6 +725,8 @@ export class ImageStorage {
       const lock = await this.acquireLock(id);
       try {
         const current = await this.source(url);
+        if (expected && !sameSource(current.source, expected))
+          throw new ImageStorageError('SOURCE_CHANGED');
         const ready = await this.ready(url, current.source);
         if (ready) {
           await this.checkSource(url, current.file);

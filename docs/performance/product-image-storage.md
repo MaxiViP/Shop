@@ -1,7 +1,8 @@
 # Product image storage — stage 2A
 
-Standalone filesystem support for the stage 1 generator. No upload, API, database,
-frontend, worker or backfill integration is enabled.
+Standalone filesystem support for the stage 1 generator, also used by the
+[offline stage 2B CLI](product-image-backfill.md). No upload, API, database,
+frontend or background worker integration is enabled.
 
 ## Contract
 
@@ -13,6 +14,18 @@ external URLs, query strings, encoded separators, traversal and alternate stream
 are rejected. Roots and every directory component are checked with `lstat`; the
 complete directory is checked with `realpath`. Root inode/device identity is
 checked again during operations. Symlinks and Windows junctions are rejected.
+
+Stage 2B adds an optional explicit `sourceRoot`. When provided, source, public
+variant and private state roots must all be disjoint; sources are read exclusively
+from `sourceRoot`, without copying/linking originals into `publicRoot`. With the
+option omitted, the stage 2A two-root contract remains supported. Only state and
+public variant roots need to share a device for hard-link publication.
+
+`version(url)` returns a bounded read-only source checksum/fingerprint snapshot.
+`inspect(url)` performs full source/ready validation without generation or writes.
+`save(url, encoder, expectedVersion)` checks a frozen backfill source version
+under the existing source lock before encoding/publication. The original writer,
+repair URLs and no-clobber protocol are reused.
 
 `save(sourceUrl, encoder?)` processes one source under an exclusive per-source
 writer lock. The optional encoder accepts a bounded source buffer and returns the
@@ -100,7 +113,7 @@ the future supervisor/operator workflow; PID or elapsed time alone is insufficie
 - Portable Node path checks are not a capability sandbox against a hostile process
   concurrently swapping parent directories. Deny untrusted writers to roots and
   ancestors; do not treat `lstat` checks as an `openat2`/Windows reparse-point API.
-- No total RSS limit, hard job deadline, free-space admission, retry journal,
+- The storage layer itself has no total RSS limit, hard job deadline, free-space admission, retry journal,
   inventory/limit/resume CLI or automatic stale-lock recovery is implemented here.
   These are required around this storage layer for a bounded backfill. Filesystem
   correctness tests do not certify resilience to actual power loss.

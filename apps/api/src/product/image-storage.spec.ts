@@ -130,6 +130,69 @@ function assertTestRoot(target: string) {
 }
 
 describe('product image storage', () => {
+  it('refuses a source version changed since the frozen backfill snapshot', async () => {
+    const expected = (await storage.version(url))!;
+    await writeFile(
+      originalPath,
+      await sharp({
+        create: { width: 32, height: 32, channels: 3, background: 'red' },
+      })
+        .webp()
+        .toBuffer(),
+    );
+    originalState = await fileState(originalPath);
+    const encode = vi.fn(generateImageVariants);
+    await expect(storage.save(url, encode, expected)).rejects.toMatchObject({
+      code: 'SOURCE_CHANGED',
+    });
+    expect(encode).not.toHaveBeenCalled();
+    expect(link).not.toHaveBeenCalled();
+    expect(await storage.readReady(url)).toBeNull();
+  });
+
+  it('supports disjoint source, variants and state roots without copying originals', async () => {
+    const variantsRoot = join(root, 'variants');
+    await mkdir(variantsRoot, { mode: 0o700 });
+    const separate = await ImageStorage.open({
+      sourceRoot: publicRoot,
+      publicRoot: variantsRoot,
+      stateRoot,
+    });
+    const result = await separate.save(url);
+    expect(await separate.readReady(url)).toEqual(result.manifest);
+    expect(await readdir(publicRoot)).toEqual([`${id}.webp`]);
+    await expect(stat(join(variantsRoot, `${id}.webp`))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+    for (const candidate of result.manifest.candidates)
+      await sharp(
+        await readFile(
+          join(
+            variantsRoot,
+            ...candidate.url.slice('/uploads/products/'.length).split('/'),
+          ),
+        ),
+      ).stats();
+  });
+
+  it.each(['same', 'nested', 'state'] as const)(
+    'rejects an explicit source root overlapping %s',
+    async (kind) => {
+      await expect(
+        ImageStorage.open({
+          publicRoot,
+          stateRoot,
+          sourceRoot:
+            kind === 'same'
+              ? publicRoot
+              : kind === 'nested'
+                ? join(publicRoot, 'sources')
+                : stateRoot,
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_PATH' });
+    },
+  );
+
   it('opens and checks an absent ready set without creating files or directories', async () => {
     expect(await readdir(stateRoot)).toEqual([]);
     expect(await storage.readReady(url)).toBeNull();
