@@ -8,7 +8,7 @@
 ## Результаты ревью
 
 Новых подтверждённых дефектов runtime поверх `157b987` не выявлено. Изменения
-этого ревью ограничены Linux workflow, дополнительными POSIX-тестами и этим
+этого ревью ограничены CI, дополнительными POSIX/регрессионными тестами и этим
 документом. Измерительный assertion `57 !== 48` разобран в
 [отчёте A/B](product-image-performance.md#причина-57--48): это область подсчёта
 теста, не дубли товарных HTTP-загрузок.
@@ -28,6 +28,13 @@
 с mocked DB; это не подтверждение PostgreSQL E2E. Обычная legacy static-раздача
 оригиналов сохранена: доверенные owners/ACL и отсутствие посторонних writers
 в roots/ancestors остаются обязательной предпосылкой всего pipeline.
+
+Первый Linux CI выявил ошибку fault injection: поиск любого сегмента `/work/`
+захватывал `/home/runner/work/` и внедрял ENOSPC до staging, при создании run lock.
+Аналогичный storage-тест мог пройти, не достигнув encoder. Оба предиката привязаны
+к точному `stateRoot/work/`; добавлены варианты с `work` в родительском пути и
+проверка вызова encoder. Регрессии воспроизвели обе ошибки на Windows до исправления.
+Это ошибки тестов, а не подтверждённая ошибка публикации файлов.
 
 ## Влияние registry на ответ API
 
@@ -67,6 +74,19 @@ unit-тесты и production builds с выключенными флагами.
 как CI artifact на семь дней. Результат конкретного Linux запуска фиксируется
 в отдельном Draft PR; наличие workflow само по себе не означает успешный CI.
 
+Общие `Checks`/`Checkout E2E` теперь пропускают Draft PR на уровне job, до создания
+контейнеров. Их события включают `ready_for_review`, поэтому обычные DB/browser
+gates автоматически запускаются при завершении draft; push в main сохранён.
+Это изменение находится только в новой implementation-ветке, исходники PR #5–7
+не редактировались.
+
+Первоначальная попытка отменить общие workflows через API оказалась поздней:
+`Checks` успел применить миграции к одноразовой CI-БД, после чего оба workflow
+были отменены и контейнеры удалены. Браузерные тесты не стартовали, production
+не затронут. Это отклонение от ограничения задачи; job-level draft guard устраняет
+зависимость от скорости отмены на следующих push. Отдельный image workflow
+не выполнял миграций и не подключался к БД.
+
 Добавлены четыре Linux-only случая в `image-storage.spec.ts`:
 
 - Подмена обычного файла на symlink после `lstat`: ожидается настоящий kernel
@@ -80,12 +100,19 @@ unit-тесты и production builds с выключенными флагами.
 partial publication и recovery проверки также входят в job. Linux платформу и
 POSIX flags не подменяют. CI на одном ephemeral mount не сертифицирует другой FS.
 
-Локально на Windows: общий typecheck и lint прошли; backend scope из workflow —
+Первичная локальная проверка на Windows: общий typecheck и lint прошли;
+backend scope из workflow —
 436 passed, 13 Linux-only skipped (20 файлов); frontend unit — 399/399.
 API и gateway build прошли. Frontend Nitro build внутри sandbox встретил известный
 `EPERM: readlink C:\Users\batti`; повтор только frontend build с обычным доступом
 к workspace прошёл, подтверждён exit code 0 дочернего Node-процесса. Новый workflow
 прошёл actionlint 1.7.12; `git diff --check` также пройден.
+
+После исправления fault injection обе изменённые suites повторно прошли на
+Windows: 95 passed, 8 Linux-only skipped (103 случая). API typecheck/lint и
+actionlint всех трёх изменённых workflows прошли. Первый Linux run дал
+448 passed/1 failed; его результат сохранён в PR, а исправленный head требует
+нового полного image CI с нулём пропусков.
 
 ## TBT главной: факты и гипотезы
 

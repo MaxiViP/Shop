@@ -615,29 +615,41 @@ describe('offline image backfill', () => {
     expect(peakEncoders).toBe(2);
   });
 
-  it('stops scheduling after a system write error without deleting any file to free space', async () => {
-    await sources(3);
-    vi.mocked(open).mockImplementation(async (path, flags, mode) => {
-      if (
-        String(path).includes(sep + 'work' + sep) &&
-        typeof flags === 'number' &&
-        flags & constants.O_CREAT
-      )
-        throw Object.assign(new Error('Disk full'), { code: 'ENOSPC' });
-      return native.open(path, flags, mode);
-    });
-    const report = await backfill(options, { encode: fastEncode });
-    expect(report).toMatchObject({
-      stopped: true,
-      processed: 1,
-      errorCode: 'IO',
-    });
-    expect(
-      (await readdir(options.variantsRoot, { recursive: true })).some((path) =>
-        path.endsWith('.webp'),
-      ),
-    ).toBe(false);
-  });
+  it.each(['direct', 'work ancestor'] as const)(
+    'stops scheduling after a system write error with %s roots without deleting files',
+    async (location) => {
+      if (location === 'work ancestor') {
+        const parent = join(root, 'work');
+        await mkdir(parent, { mode: 0o700 });
+        const stateRoot = join(parent, 'state');
+        await native.rename(options.stateRoot, stateRoot);
+        options.stateRoot = stateRoot;
+      }
+      await sources(3);
+      vi.mocked(open).mockImplementation(async (path, flags, mode) => {
+        if (
+          String(path).startsWith(join(options.stateRoot, 'work') + sep) &&
+          typeof flags === 'number' &&
+          flags & constants.O_CREAT
+        )
+          throw Object.assign(new Error('Disk full'), { code: 'ENOSPC' });
+        return native.open(path, flags, mode);
+      });
+      const encode = vi.fn(fastEncode);
+      const report = await backfill(options, { encode });
+      expect(encode).toHaveBeenCalledOnce();
+      expect(report).toMatchObject({
+        stopped: true,
+        processed: 1,
+        errorCode: 'IO',
+      });
+      expect(
+        (await readdir(options.variantsRoot, { recursive: true })).some(
+          (path) => path.endsWith('.webp'),
+        ),
+      ).toBe(false);
+    },
+  );
 
   it('refuses disk admission before creating run state', async () => {
     await sources(1);

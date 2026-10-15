@@ -462,25 +462,38 @@ describe('product image storage', () => {
     expect(await storage.readReady(url)).toBeNull();
   });
 
-  it('a failed private write keeps the original intact and publishes no manifest', async () => {
-    vi.mocked(open).mockImplementation(async (path, flags, mode) => {
-      if (
-        String(path).includes(sep + 'work' + sep) &&
-        typeof flags === 'number' &&
-        flags & constants.O_CREAT
-      )
-        throw Object.assign(new Error('ENOSPC /private/secret-contents'), {
-          code: 'ENOSPC',
-        });
-      return native.open(path, flags, mode);
-    });
-    await expect(storage.save(url)).rejects.toMatchObject({
-      code: 'IO',
-      message: 'Product image storage operation failed',
-    });
-    expect(await storage.readReady(url)).toBeNull();
-    expect(await readdir(join(stateRoot, 'locks'))).toEqual([]);
-  });
+  it.each(['direct', 'work ancestor'] as const)(
+    'a failed private write with %s roots keeps the original intact and publishes no manifest',
+    async (location) => {
+      if (location === 'work ancestor') {
+        const parent = join(root, 'work');
+        await mkdir(parent, { mode: 0o700 });
+        const nested = join(parent, 'state');
+        await native.rename(stateRoot, nested);
+        stateRoot = nested;
+        storage = await ImageStorage.open({ publicRoot, stateRoot });
+      }
+      const encode = vi.fn(async () => cloneGenerated());
+      vi.mocked(open).mockImplementation(async (path, flags, mode) => {
+        if (
+          String(path).startsWith(join(stateRoot, 'work') + sep) &&
+          typeof flags === 'number' &&
+          flags & constants.O_CREAT
+        )
+          throw Object.assign(new Error('ENOSPC /private/secret-contents'), {
+            code: 'ENOSPC',
+          });
+        return native.open(path, flags, mode);
+      });
+      await expect(storage.save(url, encode)).rejects.toMatchObject({
+        code: 'IO',
+        message: 'Product image storage operation failed',
+      });
+      expect(encode).toHaveBeenCalledOnce();
+      expect(await storage.readReady(url)).toBeNull();
+      expect(await readdir(join(stateRoot, 'locks'))).toEqual([]);
+    },
+  );
 
   it('interruption before manifest publication preserves outputs and recovers without rewriting them', async () => {
     vi.mocked(rename).mockRejectedValueOnce(
