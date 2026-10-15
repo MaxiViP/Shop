@@ -1,0 +1,93 @@
+[Unit]
+Description=KorzinaMarket image sandbox inspection %i (apply disabled)
+Documentation=file:/opt/image-runner/README.md
+After=local-fs.target
+RequiresMountsFor=/var/lib/korzinamarket-image-runner/rootfs /var/lib/korzinamarket/uploads
+# Failed instances must remain loaded; the manually started pin target also holds a reference.
+CollectMode=inactive
+
+[Service]
+Type=exec
+# Only the small, immutable supervisor runs as root. Its fixed Node child drops to shop.
+User=root
+Group=root
+RootDirectory=/var/lib/korzinamarket-image-runner/rootfs
+WorkingDirectory=/artifact/apps/api
+ExecStart=/usr/bin/python3 -I /opt/image-runner/launcher.py %i
+Environment=PATH=/usr/bin:/bin LANG=C.UTF-8 TSX_DISABLE_CACHE=1
+UnsetEnvironment=DATABASE_URL AUTH_SECRET ADMIN_PHONE ADMIN_PASSWORD TELEGRAM_BOT_TOKEN NODE_OPTIONS NODE_PATH PYTHONPATH PYTHONHOME LD_PRELOAD LD_LIBRARY_PATH
+UMask=0077
+Restart=no
+TimeoutStartSec=15
+RuntimeMaxSec=600
+RuntimeRandomizedExtraSec=0
+TimeoutStopSec=30
+KillMode=control-group
+KillSignal=SIGTERM
+SendSIGKILL=yes
+FinalKillSignal=SIGKILL
+OOMPolicy=kill
+MemoryAccounting=yes
+MemoryHigh=512M
+MemoryMax=768M
+MemorySwapMax=0
+CPUAccounting=yes
+CPUQuota=50%
+CPUQuotaPeriodSec=100ms
+TasksAccounting=yes
+TasksMax=64
+LimitNOFILE=256
+LimitCORE=0
+IOAccounting=yes
+IOWeight=10
+Delegate=no
+NotifyAccess=main
+FileDescriptorStoreMax=1
+FileDescriptorStorePreserve=yes
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=100
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_READ_SEARCH CAP_KILL
+AmbientCapabilities=
+PrivateMounts=yes
+# Mandatory v257+ feature: prevents /proc/<API-pid>/root aliases with the same shop UID.
+PrivatePIDs=yes
+PrivateNetwork=yes
+PrivateDevices=yes
+PrivateIPC=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=~@mount @reboot @swap @module @raw-io @clock @debug
+MountAPIVFS=yes
+TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=64M,mode=1777 /run:rw,nosuid,nodev,noexec,size=8M,mode=0755
+# One common mount is essential: separate state/variants bind mounts can cause EXDEV.
+BindPaths=/var/lib/korzinamarket/uploads:/storage
+BindReadOnlyPaths=/var/lib/korzinamarket/uploads/products:/storage/products
+InaccessiblePaths=/storage/chat
+BindReadOnlyPaths=/var/lib/korzinamarket-image-runner/requests/%i/request.json:/input/request.json
+BindReadOnlyPaths=/var/lib/korzinamarket-image-runner/requests/%i/inventory.jsonl:/input/inventory.jsonl
+BindReadOnlyPaths=/var/lib/korzinamarket-image-runner/requests/%i/approval.json:/input/approval.json
+BindReadOnlyPaths=/run/lock/korzinamarket-deploy.lock:/control/deploy.lock
+# Only the root supervisor can reach this socket; it is never inherited by Node.
+BindReadOnlyPaths=/run/systemd/private:/run/systemd/private
+BindReadOnlyPaths=/etc/systemd/system/shop-image-runner@.service:/control/runner.service
+BindReadOnlyPaths=/etc/systemd/system/shop-image-runner-pin@.target:/control/pin.target
+ReadWritePaths=/storage
+
+# Deliberately no [Install], timer, automatic restart or production apply command.

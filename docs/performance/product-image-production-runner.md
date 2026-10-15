@@ -333,3 +333,8 @@ SIGKILL/reboot recovery и provenance unknown-owner locks остаются block
 Этот smoke не проверяет power loss; ext4 nobarrier не получает durability guarantees.
 Linux CI/5Б-2 не запускались. **Production apply по-прежнему безусловно заблокирован
 через SANDBOX_UNVERIFIED; production не изменён.**
+
+Следующий отдельно согласованный этап 5Б-2А: [Linux sandbox preparation](product-image-production-sandbox.md).
+Он добавляет inspection-only launcher/templates и native fixture tests, сохраняя
+этот production gate. Результаты 5Б-1 выше остаются историческими; systemd acceptance
+нельзя считать выполненным по успешному Windows fixture apply.

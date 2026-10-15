@@ -1,0 +1,6 @@
+FROM python:3.13-slim-trixie@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f
+# Disposable validation tools only; this is NOT a production rootfs or deploy artifact.
+RUN apt-get update && apt-get install --no-install-recommends -y systemd python3 util-linux \
+    && apt-get clean
+ENV PYTHONDONTWRITEBYTECODE=1
+CMD ["python", "-B", "-m", "unittest", "discover", "-s", "/fixture-repo/deploy/image-runner", "-p", "test_*.py", "-v"]

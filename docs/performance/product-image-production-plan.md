@@ -9,6 +9,10 @@ Prisma, БД и production storage не изменяются; команды н�
 [контракте локального runner/harness](product-image-production-runner.md).
 Исходные gates этого плана сохраняются; production apply остаётся заблокированным.
 
+Локальная подготовка Linux isolation в этапе 5Б-2А описана в
+[sandbox contract](product-image-production-sandbox.md). Templates не установлены;
+Linux systemd acceptance и все production approvals остаются обязательными.
+
 ## 1. Исходные данные и границы проверки
 
 Изучены корневой [AGENTS.md](../../AGENTS.md),
