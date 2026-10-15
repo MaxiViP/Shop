@@ -1,8 +1,9 @@
 # Product image storage — stage 2A
 
-Standalone filesystem support for the stage 1 generator, also used by the
-[offline stage 2B CLI](product-image-backfill.md). No upload, API, database,
-frontend or background worker integration is enabled.
+Filesystem support for the stage 1 generator, also used by the
+[offline stage 2B CLI](product-image-backfill.md) and the opt-in
+[read-only stage 3A API](product-image-api.md). Upload, database, frontend and
+background worker integration remain outside these stages.
 
 ## Contract
 

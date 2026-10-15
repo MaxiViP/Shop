@@ -6,18 +6,13 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { uploadRoot } from './admin/images.service.js';
 import { allowedOrigin } from './auth/admin.config.js';
 import { configureProxy } from './auth/proxy.js';
+import { ImageRegistry } from './product/image-registry.js';
+import { configureProductImageHttp } from './product/image-static.js';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   configureProxy(app);
-  app.useStaticAssets(uploadRoot, {
-    prefix: '/uploads/products/',
-    dotfiles: 'deny',
-    index: false,
-    setHeaders: (res) => {
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-    },
-  });
+  configureProductImageHttp(app, app.get(ImageRegistry), uploadRoot);
 
   app.use(cookieParser());
 

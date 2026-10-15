@@ -24,6 +24,7 @@ import { AdminProductsService } from '../src/admin/products.service.js';
 import { ImagesService } from '../src/admin/images.service.js';
 import { productUploadRoot } from '../src/common/image.js';
 import { ProductCtrl } from '../src/product/product.ctrl.js';
+import { ImageRegistry } from '../src/product/image-registry.js';
 import { ProductService } from '../src/product/product.service.js';
 import { OrderCtrl } from '../src/order/order.ctrl.js';
 import { OrderService } from '../src/order/order.service.js';
@@ -82,6 +83,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Home content, migration and checkout
     const module = await Test.createTestingModule({
       controllers: [AdminSlidesCtrl, PublicSlidesCtrl, SettingsCtrl, PublicSettingsCtrl, AdminProductsCtrl, ProductCtrl, OrderCtrl, SeasonsCtrl, HitsCtrl],
       providers: [SlidesService, SettingsService, AdminProductsService, ImagesService, ProductService, OrderService, AdminGuard, SeasonsService, HitsService,
+        { provide: ImageRegistry, useValue: new ImageRegistry({ enabled: false }) },
         { provide: DbService, useValue: db }, { provide: TelegramService, useValue: { notifyNewOrder: vi.fn() } },
         { provide: AuthService, useValue: { me: async (token: string) => ['USER', 'SELLER', 'ADMIN'].includes(token)
           ? { id: actor.id, role: token, phone: actor.phone } : null } }],
