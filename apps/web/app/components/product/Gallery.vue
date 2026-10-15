@@ -1,14 +1,16 @@
 <template>
   <div class="gallery" :class="{ 'gallery--multiple': hasThumbnails }">
     <div class="gallery__viewport">
-      <img
-        v-if="current"
-        :src="asset(current.url)"
-        :alt="current.alt || name"
+      <ProductImage
+        :image="current"
+        :alt="current?.alt || name"
+        context="original"
+        :identity="name + ':' + selected"
         class="gallery__image"
         decoding="async"
       >
-      <span v-else class="gallery__empty">Фото скоро</span>
+        <span class="gallery__empty">Фото скоро</span>
+      </ProductImage>
     </div>
     <div
       v-if="hasThumbnails"
@@ -25,23 +27,25 @@
         :aria-current="selected === index ? 'true' : undefined"
         @click="select(index)"
       >
-        <img
-          :src="asset(image.url)"
+        <ProductImage
+          :image="image"
           :alt="image.alt || name"
+          context="thumbnail"
+          :identity="name"
           loading="lazy"
           decoding="async"
-        >
+        ><span class="gallery__empty" aria-hidden="true">Фото</span></ProductImage>
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import type { ProductImage } from '~/types/product';
 const props = defineProps<{
-  images: { url: string; alt: string | null }[];
+  images: ProductImage[];
   name: string;
 }>();
-const asset = useAsset();
 const { selected, current, hasThumbnails, select } = useProductGallery(
   () => props.images,
 );

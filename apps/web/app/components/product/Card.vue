@@ -2,12 +2,14 @@
   <article class="card" :class="{ 'card--added': action.added, 'card--compact': compact }">
     <div class="card__media" :class="{ 'card__media--badged': seasonal || product.isHit }">
       <NuxtLink :to="`/product/${product.slug}`" class="card__img">
-        <img
-          v-if="product.images[0]"
-          :src="asset(product.images[0].url)"
-          :alt="product.images[0].alt || product.name"
+        <ProductImage
+          :image="product.images[0]"
+          :alt="product.images[0]?.alt || product.name"
+          :context="compact ? 'compact' : 'card'"
+          :identity="product.id"
         >
-        <span v-else> Фото скоро </span>
+          <span> Фото скоро </span>
+        </ProductImage>
       </NuxtLink>
 
       <span
@@ -115,7 +117,6 @@ const { product } = defineProps<{
 
 const cart = useCartStore();
 const actions = useCartActions();
-const asset = useAsset();
 const seasonEnded = ref(false);
 const seasonal = computed(() => product.isSeasonal && !seasonEnded.value);
 let seasonTimer: ReturnType<typeof setTimeout> | undefined;

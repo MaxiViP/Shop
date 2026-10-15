@@ -16,6 +16,9 @@ import { nextCartQty, previousCartQty, previewTotal, validCartQty } from '../app
 import { priceStatusItems } from '../app/utils/price-status.ts';
 import { moscowInput, pickupDate } from '../app/utils/pickup.ts';
 import { useProductGallery } from '../app/composables/useProductGallery.ts';
+import { imageComposable } from './fixtures/product-image-view.mjs';
+
+const useProductImage = await imageComposable();
 
 const nodeRequire = createRequire(import.meta.url);
 const source = file => readFile(new URL(`../app/${file}`, import.meta.url), 'utf8');
@@ -43,7 +46,7 @@ async function component(file) {
   }).outputText;
   const module = { exports: {} };
   const context = { require: id => modules[id] ?? nodeRequire(id), exports: module.exports, module,
-    computed, ref, watch, onMounted, onBeforeUnmount, useProductGallery, useRoute: () => ({ params: { slug: product.slug } }),
+    computed, ref, watch, onMounted, onBeforeUnmount, useProductGallery, useProductImage, useRoute: () => ({ params: { slug: product.slug } }),
     useGridWindow: () => ({ start: ref(0), end: ref(120), top: ref(0), bottom: ref(0) }),
     useCartActions: () => ({ add: async () => true, subtract: async () => true }),
     useAsset: () => value => value, useHeaderNotice: () => ({ show() {} }),
@@ -59,6 +62,7 @@ const Card = await component('components/product/Card.vue');
 const Grid = await component('components/product/Grid.vue');
 const Detail = await component('pages/product/[slug].vue');
 const Gallery = await component('components/product/Gallery.vue');
+const Image = await component('components/product/Image.vue');
 const wrapper = defineComponent({ setup: (_, { slots }) => () => h('div', slots.default?.()) });
 const link = defineComponent({ props: ['to'], setup: (props, { slots }) => () => h('a', { href: props.to }, slots.default?.()) });
 async function render(Component, props = {}) {
@@ -68,6 +72,7 @@ async function render(Component, props = {}) {
   app.component('ProductPrice', Price);
   app.component('ProductCard', Card);
   app.component('ProductGallery', Gallery);
+  app.component('ProductImage', Image);
   for (const name of ['UButton', 'UContainer', 'UAlert', 'UIcon', 'ProductFavorite', 'ProductQty', 'AppBreadcrumbs', 'AppBackButton'])
     app.component(name, wrapper);
   return renderToString(app);

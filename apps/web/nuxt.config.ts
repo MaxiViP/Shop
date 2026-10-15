@@ -55,6 +55,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBase: "http://127.0.0.1:4001/api",
+      productImageVariants: false,
       siteUrl: "https://korzinamarket.ru",
       telegramCustomerBotUrl: "",
       pickupName: "ТЦ «Багратионовский»",
