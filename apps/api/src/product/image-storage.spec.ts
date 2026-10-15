@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import {
+  chmod,
   link,
   mkdir,
   mkdtemp,
@@ -728,6 +729,102 @@ describe('product image storage', () => {
     });
     expect(encode).not.toHaveBeenCalled();
   });
+
+  it.skipIf(process.platform !== 'linux')(
+    'Linux: O_NOFOLLOW rejects a file swapped to a symlink after lstat',
+    async () => {
+      const kept = join(outside, 'kept-source.webp');
+      const target = join(outside, 'private-file');
+      await writeFile(target, 'outside contents', { flag: 'wx' });
+      const before = await fileState(target);
+      let nativeError: unknown;
+      let swapped = false;
+      vi.mocked(open).mockImplementationOnce(async (path, flags, mode) => {
+        expect(path).toBe(originalPath);
+        await native.rename(originalPath, kept);
+        swapped = true;
+        await native.symlink(target, originalPath, 'file');
+        try {
+          return await native.open(path, flags, mode);
+        } catch (error) {
+          nativeError = error;
+          throw error;
+        }
+      });
+      try {
+        await expect(storage.version(url)).rejects.toMatchObject({
+          code: 'IO',
+        });
+        expect(nativeError).toMatchObject({ code: 'ELOOP' });
+        expect(await fileState(target)).toEqual(before);
+      } finally {
+        if (swapped) {
+          await native.unlink(originalPath);
+          await native.rename(kept, originalPath);
+        }
+      }
+    },
+  );
+
+  it.skipIf(process.platform !== 'linux').each([0o755, 0o770])(
+    'Linux: refuses private-root permissions %s before writing',
+    async (mode) => {
+      await chmod(stateRoot, mode);
+      try {
+        await expect(
+          ImageStorage.open({ publicRoot, stateRoot }),
+        ).rejects.toMatchObject({ code: 'INVALID_PATH' });
+        const encode = vi.fn(generateImageVariants);
+        await expect(storage.save(url, encode)).rejects.toMatchObject({
+          code: 'INVALID_PATH',
+        });
+        expect(encode).not.toHaveBeenCalled();
+        expect(await readdir(stateRoot)).toEqual([]);
+        expect(await readdir(publicRoot)).toEqual([`${id}.webp`]);
+      } finally {
+        await chmod(stateRoot, 0o700);
+      }
+    },
+  );
+
+  it.skipIf(process.platform !== 'linux')(
+    'Linux: propagates directory fsync failure after a hard link and recovers without clobber',
+    async () => {
+      const published = outputPath(imageVariantUrl(id, hash(source), 192));
+      let injected = false;
+      vi.mocked(open).mockImplementation(async (path, flags, mode) => {
+        const handle = await native.open(path, flags, mode);
+        if (
+          !injected &&
+          path === dirname(published) &&
+          typeof flags === 'number' &&
+          (flags & constants.O_DIRECTORY) !== 0
+        ) {
+          injected = true;
+          vi.spyOn(handle, 'sync').mockRejectedValueOnce(
+            Object.assign(new Error('Directory fsync failed'), { code: 'EIO' }),
+          );
+        }
+        return handle;
+      });
+      await expect(
+        storage.save(url, async () => cloneGenerated()),
+      ).rejects.toMatchObject({
+        code: 'IO',
+      });
+      expect(injected).toBe(true);
+      expect((await stat(published)).nlink).toBe(2);
+      expect(await storage.readReady(url)).toBeNull();
+      await expect(stat(readyPath())).rejects.toMatchObject({ code: 'ENOENT' });
+      expect(await readdir(join(stateRoot, 'locks'))).toEqual([]);
+      const before = await fileState(published);
+      vi.mocked(open).mockImplementation(native.open);
+      const result = await storage.save(url, async () => cloneGenerated());
+      expect(result.status).toBe('READY');
+      expect(await fileState(published)).toEqual(before);
+      expect(await storage.readReady(url)).toEqual(result.manifest);
+    },
+  );
 
   it.skipIf(process.platform !== 'linux')(
     'Linux: uses actual O_NOFOLLOW and fsync directories with private POSIX modes',
