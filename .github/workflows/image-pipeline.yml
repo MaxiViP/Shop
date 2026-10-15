@@ -70,7 +70,8 @@ jobs:
         run: >-
           pnpm --filter api exec vitest run src/product src/favorite
           src/admin/privacy.spec.ts src/admin/images.spec.ts src/order/cart-quote.spec.ts
-          data/product-image-variants/backfill.spec.ts test/product-images.spec.ts
+          data/product-image-variants/backfill.spec.ts data/product-image-production/runner.spec.ts
+          test/product-images.spec.ts
           --no-file-parallelism --reporter=default --reporter=json
           --outputFile="$IMAGE_CI_REPORT"
       - name: Require executed Linux tests with zero skips
@@ -88,7 +89,7 @@ jobs:
           assert.equal(report.numPassedTests, report.numTotalTests);
           const native = report.testResults.flatMap(file => file.assertionResults)
             .filter(test => test.fullName.includes('Linux:'));
-          assert.ok(native.length >= 13, 'Expected native no-follow, symlink, mode and fsync checks');
+          assert.ok(native.length >= 18, 'Expected storage and production-runner native Linux checks');
           assert.ok(native.every(test => test.status === 'passed'));
           console.log(`${report.numPassedTests} tests passed, ${native.length} Linux-native checks, zero skips`);
           NODE
