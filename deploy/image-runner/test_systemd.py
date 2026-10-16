@@ -602,9 +602,16 @@ class LifecyclePolicyTests(unittest.TestCase):
             [case.id() for case in acceptance.select_suite("namespace-positive")],
             ["test_namespace.NamespaceTests.test_actual_template_namespace"],
         )
+        self.assertEqual(acceptance.select_suite("security").countTestCases(), 3)
         with self.assertRaisesRegex(ValueError, "unknown fixture scope"):
             acceptance.select_suite("untrusted")
-        for scope in ("full", "child-oom", "lifecycle", "namespace-positive"):
+        for scope in (
+            "full",
+            "child-oom",
+            "lifecycle",
+            "namespace-positive",
+            "security",
+        ):
             with (
                 self.subTest(scope=scope),
                 patch.object(

@@ -18,7 +18,13 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def main(scope: str = "full") -> int:
-    if scope not in ("full", "child-oom", "lifecycle", "namespace-positive"):
+    if scope not in (
+        "full",
+        "child-oom",
+        "lifecycle",
+        "namespace-positive",
+        "security",
+    ):
         raise ValueError("unknown fixture scope")
     name = "image-acceptance-" + uuid.uuid4().hex
     output = REPO / "work" / name
@@ -116,6 +122,7 @@ def main(scope: str = "full") -> int:
             )
             sources = [
                 "deploy/image-runner",
+                "deploy/shop-api.service",
                 "deploy/shop-image-runner@.service",
                 "deploy/shop-image-runner-pin@.target",
                 "apps/api/data/product-image-production/environment.ts",
@@ -241,11 +248,10 @@ def main(scope: str = "full") -> int:
 if __name__ == "__main__":
     if len(sys.argv) > 2 or (
         len(sys.argv) == 2
-        and sys.argv[1] not in ("--child-oom", "--lifecycle", "--namespace-positive")
+        and sys.argv[1]
+        not in ("--child-oom", "--lifecycle", "--namespace-positive", "--security")
     ):
-        sys.exit(
-            "Only fixed child-oom/lifecycle/namespace-positive selectors are accepted"
-        )
+        sys.exit("Only fixed fixture selectors are accepted")
     try:
         sys.exit(main(sys.argv[1][2:] if len(sys.argv) == 2 else "full"))
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:

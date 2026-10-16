@@ -1,0 +1,8 @@
+# Review candidate only. Never installed as a production drop-in.
+# Acceptance maps these directives exclusively to new disposable fixture paths.
+# Requires pre-existing roots and separate approval before a production API change.
+[Service]
+PrivatePIDs=yes
+ReadOnlyPaths=/var/lib/korzinamarket/uploads/product-variants
+ReadOnlyPaths=/var/lib/korzinamarket/uploads/.product-image-state
+InaccessiblePaths=/var/lib/korzinamarket-image-runner

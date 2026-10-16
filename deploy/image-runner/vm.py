@@ -60,7 +60,13 @@ def prepare() -> None:
 
 
 def run(scope: str = "full") -> int:
-    if scope not in ("full", "child-oom", "lifecycle", "namespace-positive"):
+    if scope not in (
+        "full",
+        "child-oom",
+        "lifecycle",
+        "namespace-positive",
+        "security",
+    ):
         raise ValueError("unknown fixture scope")
     if (ROOT / "fixture-vm-v1").read_text() != "disposable image acceptance only\n":
         raise RuntimeError("not an owned fixture volume")
@@ -72,6 +78,8 @@ def run(scope: str = "full") -> int:
     files = []
     source_hashes: dict[str, str] = {}
     selected = sorted((SOURCE / "deploy/image-runner").glob("*.py")) + [
+        SOURCE / "deploy/image-runner/api-isolation.conf.example",
+        SOURCE / "deploy/shop-api.service",
         SOURCE / "deploy/shop-image-runner@.service",
         SOURCE / "deploy/shop-image-runner-pin@.target",
         SOURCE / "apps/api/data/product-image-production/environment.ts",
@@ -226,7 +234,12 @@ if __name__ == "__main__":
             and (
                 sys.argv[1] != "run"
                 or sys.argv[2]
-                not in ("--child-oom", "--lifecycle", "--namespace-positive")
+                not in (
+                    "--child-oom",
+                    "--lifecycle",
+                    "--namespace-positive",
+                    "--security",
+                )
             )
         )
     ):

@@ -12,7 +12,13 @@ import preflight
 
 
 def select_suite(scope: str) -> unittest.TestSuite:
-    if scope not in ("full", "child-oom", "lifecycle", "namespace-positive"):
+    if scope not in (
+        "full",
+        "child-oom",
+        "lifecycle",
+        "namespace-positive",
+        "security",
+    ):
         raise ValueError("unknown fixture scope")
     import test_systemd
 
@@ -20,7 +26,13 @@ def select_suite(scope: str) -> unittest.TestSuite:
     names = unittest.defaultTestLoader.getTestCaseNames(test_systemd.SystemdTests)
     if child not in names:
         raise ValueError("missing child OOM acceptance case")
-    if scope == "namespace-positive":
+    if scope == "security":
+        import test_security
+
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(
+            test_security.SecurityTests
+        )
+    elif scope == "namespace-positive":
         import test_namespace
 
         suite = unittest.TestSuite(
@@ -49,13 +61,21 @@ def select_suite(scope: str) -> unittest.TestSuite:
                 pending.append(case)
             elif case.id() == child_id:
                 child_count += 1
-    if child_count != (0 if scope in ("lifecycle", "namespace-positive") else 1):
+    if child_count != (
+        0 if scope in ("lifecycle", "namespace-positive", "security") else 1
+    ):
         raise ValueError("incorrect child OOM fixture selection")
     return suite
 
 
 def main(scope: str = "full") -> int:
-    if scope not in ("full", "child-oom", "lifecycle", "namespace-positive"):
+    if scope not in (
+        "full",
+        "child-oom",
+        "lifecycle",
+        "namespace-positive",
+        "security",
+    ):
         raise ValueError("unknown fixture scope")
     # vm.py creates this marker only in its fresh NoCloud guest. It authorizes
     # privileged fixture tests; actual kernel/manager proof is still mandatory.
@@ -139,11 +159,10 @@ def main(scope: str = "full") -> int:
 if __name__ == "__main__":
     if len(sys.argv) > 2 or (
         len(sys.argv) == 2
-        and sys.argv[1] not in ("--child-oom", "--lifecycle", "--namespace-positive")
+        and sys.argv[1]
+        not in ("--child-oom", "--lifecycle", "--namespace-positive", "--security")
     ):
-        sys.exit(
-            "Only fixed child-oom/lifecycle/namespace-positive selectors are accepted"
-        )
+        sys.exit("Only fixed fixture selectors are accepted")
     try:
         sys.exit(main(sys.argv[1][2:] if len(sys.argv) == 2 else "full"))
     except (
