@@ -1,10 +1,10 @@
 import 'dotenv/config';
-import { Injectable } from '@nestjs/common';
+import { Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './gen/client.js';
 
 @Injectable()
-export class DbService extends PrismaClient {
+export class DbService extends PrismaClient implements OnModuleDestroy {
   constructor() {
     const url = process.env.DATABASE_URL;
 
@@ -13,5 +13,9 @@ export class DbService extends PrismaClient {
     super({
       adapter: new PrismaPg({ connectionString: url }),
     });
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.$disconnect();
   }
 }
