@@ -1,6 +1,7 @@
 """Local Docker -> bounded networkless disposable QEMU VM. No host root actions.
 
-Works on Windows Docker Desktop and disposable Linux CI. No CLI overrides, remote
+Works on Windows Docker Desktop and disposable Linux CI. Only fixed test selectors;
+no arbitrary CLI overrides, remote
 Docker contexts, auth config, privileged container, host cgroups or KVM devices.
 """
 

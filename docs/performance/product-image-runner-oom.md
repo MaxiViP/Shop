@@ -191,3 +191,83 @@ libvips artifact, actual shop identities/ACL и API RO/proc/ptrace boundary,
 target persistent storage/durability/budgets, reboot/D-state/manual recovery,
 independent CI и operational approvals не принимаются synthetic fixtures.
 Нет push/merge/deploy/backfill, изменений VPS, production, БД, originals или flags.
+
+## Подтверждение manager telemetry и удержания fence
+
+Локальный `5e6ca5a` сохранил проверенные выше fixture changes. Следующий точечный
+run `image-acceptance-85dbe5f2ff7d47999baca2c67ce9b596` проверил оставленные
+дополнения manager/fence telemetry: **1 PASSED, 0 FAILED, 0 NOT VERIFIED**,
+0 errors/skips. Он начат только после завершения lifecycle VM и экспорта её logs.
+Ни остальные десять lifecycle cases, ни прежние 49 успешных tests не повторялись.
+Предыдущий раздел о параллельном сеансе описывает границу первого коммита;
+дополнения теперь имеют отдельное native evidence.
+
+PID 1/systemd 259.5-0ubuntu3.4, kernel 7.0.0-34-generic, cgroup v2,
+controllers/namespaces и pinned Ubuntu image подтверждены повторным preflight.
+Все 16 source SHA-256 совпали с текущими файлами; Python snapshot сохранён
+в `work/image-oom-20261016/manager-source/`. Production templates, launcher,
+deploy.sh, ImageStorage и SANDBOX_UNVERIFIED gate остались byte-for-byte прежними.
+
+| Параметр | Actual systemd manager | Actual service cgroup |
+| --- | --- | --- |
+| High | MemoryHigh=536870912 | memory.high=536870912 |
+| Max | MemoryMax=805306368 | memory.max=805306368 |
+| Swap | MemorySwapMax=0 | memory.swap.max=0 |
+| OOM | OOMPolicy=kill | memory.oom.group=1 |
+
+Условие успеха дополнено проверкой этих manager properties. Во время каждого
+poll проверяются FDSTORE=1 и FENCE_BUSY; каждый running OOM_SAMPLE сохраняет оба
+факта. Пустая выборка tests или отсутствие child OOM case теперь дают отказ.
+
+Получены десять samples с memory.current/peak/events.local/pressure, pids.current,
+cpu.stat и процессами. До нагрузки: current=12292096, peak=12300288 bytes,
+pids.current=2. Последний живой service sample: current=peak=785162240 bytes,
+pids.current=17; local high=2057, max/oom/oom_kill/oom_group_kill=0.
+PSI: some avg10=85.44, full avg10=67.23; total some=32263389,
+full=23193994 microseconds. Максимум pids.current среди samples — 30, при лимите 64.
+Это периодические снимки, а не точная фиксация каждого промежуточного пика.
+
+Service затем удалён manager после настоящего OOM. Уникальный родительский slice
+сохранил **hierarchical** memory.events delta: high=2261, max=344, oom=6,
+oom_kill=3, oom_group_kill=1. Его собственные memory.events.local остались нулевыми:
+нагрузка выполнялась только в дочернем service, не в slice. Финальные local
+counters удалённого service недоступны; они не подменяются counters родителя.
+Положительные max/oom/kill events этого изолированного subtree и kernel journal
+подтверждают memcg OOM. Journal: Result=oom-kill, 52.146 s wall time,
+service memory peak 768 MiB. Сохранённый peak slice — 805318656 bytes.
+
+После OOM slice current=176128 bytes, pids.current=0, populated=0; service cgroup
+удалена, оба исходных pidfd exited, MainPID=0 и NRestarts=0. Pin active,
+FDSTORE=1, fence BUSY до explicit fixture cleanup. После проверки quiescence,
+того же device/inode/nlink и bytes только известный fixture CleanUnit дал
+FDSTORE=0 и FREE_AFTER_EXPLICIT_CLEAN. Production fence не открывался.
+
+Runner: 1 test за 73.204 s. VM штатно выключилась; wrapper exit 0, serial экспортирован,
+удалена только новая volume. Serial: 134821 bytes,
+SHA-256 `9ed4ce4b719c9d12ed37914c0bed5991edee18500ef90744c489eb6c7382f1aa`.
+`work/image-oom-20261016/manager-verification.json` содержит report, все samples,
+manager/kernel limits, journal и fence evidence. Проверены неизменность всех
+263 прежних evidence files, шести protected files, 11 сохранённых source files
+и AST прежней fd-owner ветки payload, на которую опираются старые native tests.
+
+Последняя матрица остаётся **60 PASSED, 0 FAILED, 0 NOT VERIFIED** в synthetic scope:
+49 сохранённых cases и 11 новых, с одним дополнительным успешным child повтором
+для manager telemetry. Пять учтённых test runs содержат 61 passed execution и
+два исторических failed executions; старые failures не удалены и не объявлены
+успешными. Prepare TLS failure остаётся отдельным NOT VERIFIED infrastructure attempt.
+Это по-прежнему объединённое evidence, а не повторный full-suite запуск.
+
+**CapBnd=0xe4 у worker остаётся открытым security review**, даже когда
+CapEff/CapPrm/CapInh/CapAmb равны нулю. Нулевой bounding set не заявляется;
+никакие дополнительные capabilities, ambient capabilities или root-worker
+не добавлялись. Этот review обязателен до production acceptance.
+
+Production остаётся **NOT VERIFIED / SANDBOX_UNVERIFIED**: immutable Node/Sharp/
+libvips rootfs и exact shop UID/GID/ACL/request/approval; API RO и обратная
+same-UID proc/ptrace изоляция; target mounts, binfmt/autofs compatibility,
+native storage/durability и disk/inode/quota/retained/I/O/headroom budgets;
+power-loss durability и решение G7 для ext4 nobarrier;
+crash-point publication/journal/checkpoint, boot ownership, reboot/D-state/manual
+recovery/quarantine; Linux application regressions нового HEAD, independent CI
+и operational G2–G9 (backup/restore, no-DB rollback, inventory, HTTPS/cache/fallback,
+latency/flags и approvals). Эти требования не закрываются synthetic fixtures.

@@ -80,6 +80,8 @@ def main(scope: str = "full") -> int:
         import test_systemd
 
         names = unittest.defaultTestLoader.getTestCaseNames(test_systemd.SystemdTests)
+        if "test_child_cgroup_oom" not in names:
+            raise ValueError("missing child OOM acceptance case")
         selected = [
             name
             for name in names
@@ -87,6 +89,8 @@ def main(scope: str = "full") -> int:
         ]
         suite = unittest.TestSuite(test_systemd.SystemdTests(name) for name in selected)
     selected_count = suite.countTestCases()
+    if selected_count == 0:
+        raise ValueError("empty fixture selection")
     result = unittest.TextTestRunner(verbosity=2, failfast=True).run(suite)
     report = {
         "status": "PASSED"

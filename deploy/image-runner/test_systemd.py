@@ -232,6 +232,19 @@ CapabilityBoundingSet=
                     )
                 }
                 runner.cgroup_policy(actual)
+                manager_memory = {
+                    key: values[key]
+                    for key in ("MemoryHigh", "MemoryMax", "MemorySwapMax", "OOMPolicy")
+                }
+                self.assertEqual(
+                    manager_memory,
+                    {
+                        "MemoryHigh": "536870912",
+                        "MemoryMax": "805306368",
+                        "MemorySwapMax": "0",
+                        "OOMPolicy": "kill",
+                    },
+                )
                 pids = (group / "cgroup.procs").read_text().split()
                 self.assertGreaterEqual(
                     len(pids),
@@ -261,6 +274,7 @@ CapabilityBoundingSet=
                                 "mode": mode,
                                 "phase": "before",
                                 "group": str(group),
+                                "manager": manager_memory,
                                 "transparentHugepage": Path(
                                     "/sys/kernel/mm/transparent_hugepage/enabled"
                                 )
@@ -295,6 +309,9 @@ CapabilityBoundingSet=
                 deadline = time.monotonic() + runtime + 8
                 while time.monotonic() < deadline:
                     current = runner.show(service)
+                    self.assertEqual(current["NFileDescriptorStore"], "1")
+                    with self.assertRaisesRegex(runner.Refused, "FENCE_BUSY"):
+                        runner.acquire_fence(fence)
                     if memory and time.monotonic() - last_sample >= 5:
                         last_sample = time.monotonic()
                         print(
@@ -303,6 +320,8 @@ CapabilityBoundingSet=
                                 {
                                     "mode": mode,
                                     "phase": "running",
+                                    "fdStore": current["NFileDescriptorStore"],
+                                    "fence": "BUSY",
                                     "snapshot": memory_snapshot(group),
                                 },
                                 sort_keys=True,
@@ -356,7 +375,10 @@ CapabilityBoundingSet=
                                 "eventsBefore": memory_before,
                                 "eventsAfter": memory_after,
                                 "eventsDelta": memory_delta,
+                                "counterScope": "unique fixture slice; service-only descendants",
                                 "snapshot": memory_snapshot(group),
+                                "sliceSnapshot": memory_snapshot(slice_group),
+                                "manager": manager_memory,
                                 "quiescent": quiescent,
                                 "initialPids": pids,
                                 "pidfdsExited": len(exited),
@@ -401,6 +423,7 @@ CapabilityBoundingSet=
                             "mode": mode,
                             "action": action,
                             "limits": actual,
+                            "manager": manager_memory,
                             "result": current["Result"],
                             "quiescent": quiescent,
                             "initialPids": pids,
