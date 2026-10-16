@@ -59,7 +59,9 @@ def prepare() -> None:
     print(json.dumps({"imageSha256": IMAGE_SHA256, "prepared": True}), flush=True)
 
 
-def run() -> int:
+def run(scope: str = "full") -> int:
+    if scope not in ("full", "child-oom", "lifecycle"):
+        raise ValueError("unknown fixture scope")
     if (ROOT / "fixture-vm-v1").read_text() != "disposable image acceptance only\n":
         raise RuntimeError("not an owned fixture volume")
     if sha256(ROOT / IMAGE) != IMAGE_SHA256:
@@ -103,7 +105,12 @@ def run() -> int:
             }
         ],
         "runcmd": [
-            ["python3", "-B", "/opt/fixture-repo/deploy/image-runner/acceptance.py"]
+            [
+                "python3",
+                "-B",
+                "/opt/fixture-repo/deploy/image-runner/acceptance.py",
+                *([] if scope == "full" else ["--" + scope]),
+            ]
         ],
         "power_state": {"mode": "poweroff", "timeout": 30, "condition": True},
     }
@@ -201,6 +208,8 @@ def run() -> int:
         print(content[-16000:])
         raise RuntimeError("missing/ambiguous VM result; NOT VERIFIED")
     report = json.loads(reports[0])
+    if report.get("selection") != scope:
+        raise RuntimeError("guest fixture selection mismatch; NOT VERIFIED")
     report["ubuntuImageSha256"] = IMAGE_SHA256
     report["fixtureSourceSha256"] = source_hashes
     print(json.dumps(report, sort_keys=True), flush=True)
@@ -210,12 +219,19 @@ def run() -> int:
 if __name__ == "__main__":
     if (
         sys.platform != "linux"
-        or len(sys.argv) != 2
+        or len(sys.argv) not in (2, 3)
         or sys.argv[1] not in ("prepare", "run")
+        or (
+            len(sys.argv) == 3
+            and (
+                sys.argv[1] != "run"
+                or sys.argv[2] not in ("--child-oom", "--lifecycle")
+            )
+        )
     ):
         sys.exit("Only prepare/run inside the disposable VM tooling container")
     os.umask(0o077)
     if sys.argv[1] == "prepare":
         prepare()
     else:
-        sys.exit(run())
+        sys.exit(run(sys.argv[2][2:] if len(sys.argv) == 3 else "full"))

@@ -191,6 +191,7 @@ FDSTORE/pin/reload/reexec и NRestarts=0. Fixture fence освобождаетс
 
 Результаты ниже зафиксированы в `0d26100`. Продолжение диагностики CAP_SETUID и
 отдельные результаты исправления: [supervisor credentials](product-image-runner-credentials.md).
+Следующее продолжение после `6cee5d0`: [child OOM и lifecycle](product-image-runner-oom.md).
 
 На момент `0d26100` real-systemd прогон завершён: **FAILED**. Failfast остановил suite на
 positive namespace case; незапущенные проверки остаются **NOT VERIFIED**.

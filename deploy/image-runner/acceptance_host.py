@@ -16,7 +16,9 @@ IMAGE = "korzina-image-acceptance-tools:5b2b"
 REPO = Path(__file__).resolve().parents[2]
 
 
-def main() -> int:
+def main(scope: str = "full") -> int:
+    if scope not in ("full", "child-oom", "lifecycle"):
+        raise ValueError("unknown fixture scope")
     name = "image-acceptance-" + uuid.uuid4().hex
     output = REPO / "work" / name
     output.mkdir(parents=True, exist_ok=False)
@@ -150,6 +152,7 @@ def main() -> int:
                     "-B",
                     "/fixture-repo/deploy/image-runner/vm.py",
                     "run",
+                    *([] if scope == "full" else ["--" + scope]),
                 ],
                 1230,
                 "result.log",
@@ -235,10 +238,12 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 1:
-        sys.exit("No overrides accepted")
+    if len(sys.argv) > 2 or (
+        len(sys.argv) == 2 and sys.argv[1] not in ("--child-oom", "--lifecycle")
+    ):
+        sys.exit("Only --child-oom or --lifecycle fixture selection is accepted")
     try:
-        sys.exit(main())
+        sys.exit(main(sys.argv[1][2:] if len(sys.argv) == 2 else "full"))
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         print(json.dumps({"status": "NOT VERIFIED", "reason": str(error)}), flush=True)
         sys.exit(78)

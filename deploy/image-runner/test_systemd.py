@@ -7,7 +7,9 @@ This tests lifecycle/FDSTORE primitives, not the unprovisioned production rootfs
 
 import os
 import json
+from contextlib import ExitStack
 from pathlib import Path
+import select
 import shutil
 import signal
 import subprocess
@@ -19,6 +21,93 @@ import uuid
 
 import launcher as runner
 import preflight
+
+
+def counters(group: Path, file: str) -> dict[str, int]:
+    return {
+        key: int(value)
+        for key, value in (
+            line.split() for line in (group / file).read_text().splitlines()
+        )
+    }
+
+
+def memory_snapshot(group: Path) -> dict[str, object]:
+    if not group.is_dir():
+        return {"cgroup": "removed", "processes": {}}
+    snapshot: dict[str, object] = {}
+    for name in (
+        "memory.events",
+        "memory.events.local",
+        "memory.current",
+        "memory.peak",
+        "memory.high",
+        "memory.max",
+        "memory.swap.max",
+        "memory.oom.group",
+        "memory.pressure",
+        "memory.stat",
+        "cpu.stat",
+        "cgroup.events",
+        "cgroup.procs",
+        "pids.current",
+    ):
+        try:
+            value = (group / name).read_text().strip()
+            if name == "memory.stat":
+                value = "\n".join(
+                    line
+                    for line in value.splitlines()
+                    if line.split()[0]
+                    in (
+                        "anon",
+                        "file",
+                        "kernel",
+                        "shmem",
+                        "anon_thp",
+                        "pgfault",
+                        "pgmajfault",
+                        "pgscan_direct",
+                        "pgsteal_direct",
+                    )
+                )
+            snapshot[name] = value
+        except OSError as error:
+            snapshot[name] = str(error)
+    processes: dict[str, object] = {}
+    try:
+        pids = (group / "cgroup.procs").read_text().split()
+    except OSError:
+        pids = []
+    for pid in pids:
+        proc: dict[str, str] = {}
+        for name in ("status", "wchan", "stack"):
+            try:
+                value = (Path("/proc") / pid / name).read_text().strip()
+                if name == "status":
+                    value = "\n".join(
+                        line
+                        for line in value.splitlines()
+                        if line.split(":", 1)[0]
+                        in (
+                            "Name",
+                            "State",
+                            "Tgid",
+                            "Pid",
+                            "PPid",
+                            "NSpid",
+                            "VmSize",
+                            "VmRSS",
+                            "RssAnon",
+                            "Threads",
+                        )
+                    )
+                proc[name] = value
+            except OSError as error:
+                proc[name] = str(error)
+        processes[pid] = proc
+    snapshot["processes"] = processes
+    return snapshot
 
 
 def systemd_available() -> bool:
@@ -41,12 +130,20 @@ class SystemdTests(unittest.TestCase):
     def case(self, mode: str, action: str) -> None:
         name = "korzina-image-sandbox-fixture-" + uuid.uuid4().hex
         service, target = name + ".service", name + ".target"
+        # A unique fixture slice retains hierarchical OOM counters after systemd
+        # removes the dead service cgroup. Its limits stay unlimited.
+        memory = mode in ("parent-memory", "child-memory")
+        slice_name = name + ".slice"
         unit_root = Path("/run/systemd/system")
         service_path, target_path = unit_root / service, unit_root / target
+        slice_path = unit_root / slice_name
         # TemporaryDirectory is the only source of data paths. No shop originals or DB.
-        with tempfile.TemporaryDirectory(
-            prefix="korzina-image-systemd-", delete=False
-        ) as temporary:
+        with (
+            tempfile.TemporaryDirectory(
+                prefix="korzina-image-systemd-", delete=False
+            ) as temporary,
+            ExitStack() as descriptors,
+        ):
             root = Path(temporary).resolve()
             self.assertTrue(root.name.startswith("korzina-image-systemd-"))
             root.chmod(0o755)
@@ -95,12 +192,19 @@ PrivateNetwork=yes
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 """
+            if memory:
+                body += f"Slice={slice_name}\n"
+                with slice_path.open("x") as handle:
+                    handle.write("[Slice]\nMemoryAccounting=yes\nDelegate=no\n")
             pin = f"[Unit]\nWants={service}\nAfter={service}\nRefuseManualStop=yes\nIgnoreOnIsolate=yes\n"
             with service_path.open("x") as handle:
                 handle.write(body)
             with target_path.open("x") as handle:
                 handle.write(pin)
             group: Path | None = None
+            slice_group: Path | None = None
+            memory_before: dict[str, int] = {}
+            last_sample = 0.0
             quiescent = False
             try:
                 self.assertEqual(self.command("daemon-reload").returncode, 0)
@@ -129,18 +233,47 @@ CapabilityBoundingSet=
                 }
                 runner.cgroup_policy(actual)
                 pids = (group / "cgroup.procs").read_text().split()
-                if mode not in ("parent-memory", "child-memory"):
-                    self.assertGreaterEqual(
-                        len(pids),
-                        2 if mode == "orphan" else 3,
-                        "child/grandchild/setsid must remain contained",
-                    )
+                self.assertGreaterEqual(
+                    len(pids),
+                    2 if mode in ("orphan", "child-memory") else 3,
+                    "child/grandchild/setsid must remain contained",
+                )
+                pidfds = [os.pidfd_open(int(pid)) for pid in pids]
+                for fd in pidfds:
+                    descriptors.callback(os.close, fd)
                 self.assertEqual(values["Restart"], "no")
                 self.assertEqual(values["KillMode"], "control-group")
+                if memory:
+                    slice_group = Path("/sys/fs/cgroup") / runner.show(slice_name)[
+                        "ControlGroup"
+                    ].lstrip("/")
+                    self.assertEqual(
+                        (slice_group / "memory.high").read_text().strip(), "max"
+                    )
+                    self.assertEqual(
+                        (slice_group / "memory.max").read_text().strip(), "max"
+                    )
+                    memory_before = counters(slice_group, "memory.events")
+                    print(
+                        "OOM_SAMPLE="
+                        + json.dumps(
+                            {
+                                "mode": mode,
+                                "phase": "before",
+                                "group": str(group),
+                                "transparentHugepage": Path(
+                                    "/sys/kernel/mm/transparent_hugepage/enabled"
+                                )
+                                .read_text()
+                                .strip(),
+                                "snapshot": memory_snapshot(group),
+                            },
+                            sort_keys=True,
+                        ),
+                        flush=True,
+                    )
                 if mode in ("cpu", "tasks"):
                     self.check_pressure(mode, group, data)
-                if mode in ("parent-memory", "child-memory"):
-                    (data / "start").write_text("start", encoding="ascii")
                 self.assertEqual(values["NFileDescriptorStore"], "1")
                 with self.assertRaisesRegex(runner.Refused, "FENCE_BUSY"):
                     runner.acquire_fence(fence)
@@ -148,6 +281,8 @@ CapabilityBoundingSet=
                 # A reload cannot drop the manager's stored open file description.
                 self.assertEqual(self.command("daemon-reload").returncode, 0)
                 self.assertEqual(runner.show(service)["NFileDescriptorStore"], "1")
+                if memory:
+                    (data / "start").write_text("start", encoding="ascii")
                 if action == "stop":
                     self.assertEqual(self.command("stop", service).returncode, 0)
                 elif action == "kill":
@@ -160,6 +295,20 @@ CapabilityBoundingSet=
                 deadline = time.monotonic() + runtime + 8
                 while time.monotonic() < deadline:
                     current = runner.show(service)
+                    if memory and time.monotonic() - last_sample >= 5:
+                        last_sample = time.monotonic()
+                        print(
+                            "OOM_SAMPLE="
+                            + json.dumps(
+                                {
+                                    "mode": mode,
+                                    "phase": "running",
+                                    "snapshot": memory_snapshot(group),
+                                },
+                                sort_keys=True,
+                            ),
+                            flush=True,
+                        )
                     if current["ActiveState"] in ("failed", "inactive") and (
                         not group.exists()
                         or "populated 0" in (group / "cgroup.events").read_text()
@@ -170,8 +319,66 @@ CapabilityBoundingSet=
                 self.assertTrue(
                     quiescent, "cgroup still populated; do not release the fence"
                 )
-                if mode in ("parent-memory", "child-memory"):
+                exited = select.select(pidfds, [], [], 0)[0]
+                self.assertEqual(
+                    len(exited), len(pidfds), "fixture descendants survived"
+                )
+                memory_delta: dict[str, int] = {}
+                if memory and slice_group is not None:
+                    memory_after = counters(slice_group, "memory.events")
+                    memory_delta = {
+                        key: value - memory_before[key]
+                        for key, value in memory_after.items()
+                    }
+                    journal = subprocess.run(
+                        [
+                            "journalctl",
+                            "--boot",
+                            "--no-pager",
+                            "--output=cat",
+                            "--lines=50",
+                            "--unit",
+                            service,
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        check=True,
+                    )
+                    with self.assertRaisesRegex(runner.Refused, "FENCE_BUSY"):
+                        runner.acquire_fence(fence)
+                    print(
+                        "OOM_DIAGNOSTIC="
+                        + json.dumps(
+                            {
+                                "mode": mode,
+                                "result": current["Result"],
+                                "eventsBefore": memory_before,
+                                "eventsAfter": memory_after,
+                                "eventsDelta": memory_delta,
+                                "snapshot": memory_snapshot(group),
+                                "quiescent": quiescent,
+                                "initialPids": pids,
+                                "pidfdsExited": len(exited),
+                                "mainPid": current["MainPID"],
+                                "fdStore": runner.show(service)["NFileDescriptorStore"],
+                                "pin": runner.show(target)["ActiveState"],
+                                "restarts": current["NRestarts"],
+                                "fence": "BUSY",
+                                "fenceIdentity": [
+                                    fence.stat().st_dev,
+                                    fence.stat().st_ino,
+                                ],
+                                "journal": journal.stdout,
+                            },
+                            sort_keys=True,
+                        ),
+                        flush=True,
+                    )
                     self.assertEqual(current["Result"], "oom-kill")
+                    self.assertGreater(memory_delta["max"], 0)
+                    self.assertGreater(memory_delta["oom_kill"], 0)
+                    self.assertGreater(memory_delta["oom_group_kill"], 0)
                 if action == "timeout":
                     self.assertEqual(current["Result"], "timeout")
                 time.sleep(1)
@@ -196,8 +403,11 @@ CapabilityBoundingSet=
                             "limits": actual,
                             "result": current["Result"],
                             "quiescent": quiescent,
+                            "initialPids": pids,
+                            "pidfdsExited": len(exited),
                             "fdStore": runner.show(service)["NFileDescriptorStore"],
                             "restarts": runner.show(service)["NRestarts"],
+                            "memoryEventsDelta": memory_delta,
                         },
                         sort_keys=True,
                     ),
@@ -230,6 +440,27 @@ CapabilityBoundingSet=
                         runner.acquire_fence(fence)
                     cleaned = self.command("clean", "--what=fdstore", service)
                     self.assertEqual(cleaned.returncode, 0, cleaned.stderr)
+                    self.assertEqual(runner.show(service)["NFileDescriptorStore"], "0")
+                    released = runner.acquire_fence(fence)
+                    os.close(released)
+                    print(
+                        "FENCE_RELEASE_EVIDENCE="
+                        + json.dumps(
+                            {
+                                "mode": mode,
+                                "quiescent": quiescent,
+                                "fdStore": "0",
+                                "fence": "FREE_AFTER_EXPLICIT_CLEAN",
+                                "identity": [
+                                    current_fence.st_dev,
+                                    current_fence.st_ino,
+                                    current_fence.st_nlink,
+                                ],
+                            },
+                            sort_keys=True,
+                        ),
+                        flush=True,
+                    )
                     target_path.write_text(
                         pin.replace("RefuseManualStop=yes", "RefuseManualStop=no")
                     )
@@ -238,6 +469,9 @@ CapabilityBoundingSet=
                     self.command("reset-failed", service)
                     service_path.unlink()
                     target_path.unlink()
+                    if memory:
+                        self.assertEqual(self.command("stop", slice_name).returncode, 0)
+                        slice_path.unlink()
                     self.command("daemon-reload")
                     self.assertEqual(root.parent, Path(tempfile.gettempdir()).resolve())
                     self.assertTrue(root.name.startswith("korzina-image-systemd-"))
@@ -275,21 +509,13 @@ CapabilityBoundingSet=
         self.case("fdstore", "stop")
 
     def check_pressure(self, mode: str, group: Path, data: Path) -> None:
-        def counters(file: str) -> dict[str, int]:
-            return {
-                key: int(value)
-                for key, value in (
-                    line.split() for line in (group / file).read_text().splitlines()
-                )
-            }
-
         if mode == "cpu":
-            before = counters("cpu.stat")
+            before = counters(group, "cpu.stat")
             start = time.monotonic()
             (data / "start").write_text("start")
             time.sleep(3)
             elapsed = time.monotonic() - start
-            after = counters("cpu.stat")
+            after = counters(group, "cpu.stat")
             self.assertGreater(after["nr_throttled"], before["nr_throttled"])
             # 50% total tree, with a period's burst and scheduler tolerance.
             self.assertLess(
@@ -301,7 +527,7 @@ CapabilityBoundingSet=
             while not (data / "task-limit").exists() and time.monotonic() < deadline:
                 time.sleep(0.02)
             self.assertEqual((data / "task-limit").read_text(), "EAGAIN")
-            self.assertGreater(counters("pids.events")["max"], 0)
+            self.assertGreater(counters(group, "pids.events")["max"], 0)
             self.assertLessEqual(int((group / "pids.current").read_text()), 64)
 
     def test_cpu_quota_enforces_whole_tree(self) -> None:

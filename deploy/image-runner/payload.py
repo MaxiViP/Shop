@@ -17,16 +17,35 @@ def forever() -> None:
 
 def allocate() -> None:
     import mmap
+    import threading
 
-    # Real anonymous page faults inside a single kernel operation. Incremental
-    # user-space allocation can hit memory.high throttling until RuntimeMaxSec,
-    # which tests timeout rather than OOMPolicy. Max/high/swap limits are unchanged.
-    mmap.mmap(
+    # One allocator is synchronously throttled even inside MAP_POPULATE, before
+    # reaching memory.max. A fixed 32-thread burst faults a total of 1 GiB in the
+    # chosen parent/child process. THP advice batches faults; readv releases the
+    # Python GIL. No cgroup limits, capabilities, or runtime deadlines change.
+    memory = mmap.mmap(
         -1,
         1024**3,
-        flags=mmap.MAP_PRIVATE | mmap.MAP_ANONYMOUS | mmap.MAP_POPULATE,
+        flags=mmap.MAP_PRIVATE | mmap.MAP_ANONYMOUS,
         prot=mmap.PROT_READ | mmap.PROT_WRITE,
     )
+    memory.madvise(mmap.MADV_HUGEPAGE)
+    barrier = threading.Barrier(32)
+    zero = os.open("/dev/zero", os.O_RDONLY | os.O_CLOEXEC)
+
+    def fault(index: int) -> None:
+        barrier.wait()
+        size = 32 * 1024**2
+        with memoryview(memory)[index * size : (index + 1) * size] as part:
+            if os.readv(zero, [part]) != size:
+                raise RuntimeError("incomplete OOM fixture page faults")
+
+    threads = [threading.Thread(target=fault, args=(index,)) for index in range(32)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    os.close(zero)
     raise RuntimeError("memory.max did not kill the bounded OOM fixture")
 
 

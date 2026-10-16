@@ -11,7 +11,9 @@ import launcher as runner
 import preflight
 
 
-def main() -> int:
+def main(scope: str = "full") -> int:
+    if scope not in ("full", "child-oom", "lifecycle"):
+        raise ValueError("unknown fixture scope")
     # vm.py creates this marker only in its fresh NoCloud guest. It authorizes
     # privileged fixture tests; actual kernel/manager proof is still mandatory.
     marker = Path("/etc/image-acceptance-disposable")
@@ -70,7 +72,21 @@ def main() -> int:
         check=True,
         timeout=5,
     )
-    suite = unittest.defaultTestLoader.discover(str(Path(__file__).parent), "test_*.py")
+    if scope == "full":
+        suite = unittest.defaultTestLoader.discover(
+            str(Path(__file__).parent), "test_*.py"
+        )
+    else:
+        import test_systemd
+
+        names = unittest.defaultTestLoader.getTestCaseNames(test_systemd.SystemdTests)
+        selected = [
+            name
+            for name in names
+            if (name == "test_child_cgroup_oom") == (scope == "child-oom")
+        ]
+        suite = unittest.TestSuite(test_systemd.SystemdTests(name) for name in selected)
+    selected_count = suite.countTestCases()
     result = unittest.TextTestRunner(verbosity=2, failfast=True).run(suite)
     report = {
         "status": "PASSED"
@@ -78,6 +94,8 @@ def main() -> int:
         else "FAILED",
         "environment": environment,
         "tests": result.testsRun,
+        "selection": scope,
+        "selectedTests": selected_count,
         "failures": len(result.failures),
         "errors": len(result.errors),
         "skips": [(str(case), reason) for case, reason in result.skipped],
@@ -89,8 +107,12 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 2 or (
+        len(sys.argv) == 2 and sys.argv[1] not in ("--child-oom", "--lifecycle")
+    ):
+        sys.exit("Only --child-oom or --lifecycle fixture selection is accepted")
     try:
-        sys.exit(main())
+        sys.exit(main(sys.argv[1][2:] if len(sys.argv) == 2 else "full"))
     except (
         OSError,
         ValueError,

@@ -110,6 +110,10 @@ SHA-256 `61a3ea7c261fc7e91a6bfd19faaf54a2fbc7932edc0d1925e964043bfef271c7`.
 
 ## Оставшиеся блокеры
 
+Продолжение после `6cee5d0`: [диагностика child OOM и lifecycle](product-image-runner-oom.md).
+Исторические результаты этого отчёта сохранены; актуальные результаты продолжения
+и раздельный учёт новых/сохранённых tests находятся по ссылке.
+
 - EPERM credentials устранён в изолированных fixtures, но общий acceptance
   остаётся FAILED из-за child OOM timeout и десяти незапущенных lifecycle cases.
   Подмена ожидаемого oom-kill на timeout, ослабление memory limits и увеличение
