@@ -1,8 +1,8 @@
 """Local Docker -> bounded networkless disposable QEMU VM. No host root actions.
 
 Works on Windows Docker Desktop and disposable Linux CI. Only fixed test selectors;
-no arbitrary CLI overrides, remote
-Docker contexts, auth config, privileged container, host cgroups or KVM devices.
+no arbitrary CLI overrides, remote Docker contexts, auth config, privileged
+container, host cgroups or KVM devices.
 """
 
 import json
@@ -18,7 +18,7 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def main(scope: str = "full") -> int:
-    if scope not in ("full", "child-oom", "lifecycle"):
+    if scope not in ("full", "child-oom", "lifecycle", "namespace-positive"):
         raise ValueError("unknown fixture scope")
     name = "image-acceptance-" + uuid.uuid4().hex
     output = REPO / "work" / name
@@ -240,9 +240,12 @@ def main(scope: str = "full") -> int:
 
 if __name__ == "__main__":
     if len(sys.argv) > 2 or (
-        len(sys.argv) == 2 and sys.argv[1] not in ("--child-oom", "--lifecycle")
+        len(sys.argv) == 2
+        and sys.argv[1] not in ("--child-oom", "--lifecycle", "--namespace-positive")
     ):
-        sys.exit("Only --child-oom or --lifecycle fixture selection is accepted")
+        sys.exit(
+            "Only fixed child-oom/lifecycle/namespace-positive selectors are accepted"
+        )
     try:
         sys.exit(main(sys.argv[1][2:] if len(sys.argv) == 2 else "full"))
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:

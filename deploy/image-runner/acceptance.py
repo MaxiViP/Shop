@@ -11,8 +11,51 @@ import launcher as runner
 import preflight
 
 
+def select_suite(scope: str) -> unittest.TestSuite:
+    if scope not in ("full", "child-oom", "lifecycle", "namespace-positive"):
+        raise ValueError("unknown fixture scope")
+    import test_systemd
+
+    child = "test_child_cgroup_oom"
+    names = unittest.defaultTestLoader.getTestCaseNames(test_systemd.SystemdTests)
+    if child not in names:
+        raise ValueError("missing child OOM acceptance case")
+    if scope == "namespace-positive":
+        import test_namespace
+
+        suite = unittest.TestSuite(
+            [test_namespace.NamespaceTests("test_actual_template_namespace")]
+        )
+    elif scope == "full":
+        suite = unittest.defaultTestLoader.discover(
+            str(Path(__file__).parent), "test_*.py"
+        )
+    else:
+        suite = unittest.TestSuite(
+            test_systemd.SystemdTests(name)
+            for name in names
+            if (name == child) == (scope == "child-oom")
+        )
+    if suite.countTestCases() == 0:
+        raise ValueError("empty fixture selection")
+    # Check discovery too: a renamed/missing module must not silently turn full
+    # acceptance green without the mandatory child OOM test.
+    pending = [suite]
+    child_count = 0
+    child_id = test_systemd.SystemdTests(child).id()
+    while pending:
+        for case in pending.pop():
+            if isinstance(case, unittest.TestSuite):
+                pending.append(case)
+            elif case.id() == child_id:
+                child_count += 1
+    if child_count != (0 if scope in ("lifecycle", "namespace-positive") else 1):
+        raise ValueError("incorrect child OOM fixture selection")
+    return suite
+
+
 def main(scope: str = "full") -> int:
-    if scope not in ("full", "child-oom", "lifecycle"):
+    if scope not in ("full", "child-oom", "lifecycle", "namespace-positive"):
         raise ValueError("unknown fixture scope")
     # vm.py creates this marker only in its fresh NoCloud guest. It authorizes
     # privileged fixture tests; actual kernel/manager proof is still mandatory.
@@ -72,25 +115,8 @@ def main(scope: str = "full") -> int:
         check=True,
         timeout=5,
     )
-    if scope == "full":
-        suite = unittest.defaultTestLoader.discover(
-            str(Path(__file__).parent), "test_*.py"
-        )
-    else:
-        import test_systemd
-
-        names = unittest.defaultTestLoader.getTestCaseNames(test_systemd.SystemdTests)
-        if "test_child_cgroup_oom" not in names:
-            raise ValueError("missing child OOM acceptance case")
-        selected = [
-            name
-            for name in names
-            if (name == "test_child_cgroup_oom") == (scope == "child-oom")
-        ]
-        suite = unittest.TestSuite(test_systemd.SystemdTests(name) for name in selected)
+    suite = select_suite(scope)
     selected_count = suite.countTestCases()
-    if selected_count == 0:
-        raise ValueError("empty fixture selection")
     result = unittest.TextTestRunner(verbosity=2, failfast=True).run(suite)
     report = {
         "status": "PASSED"
@@ -112,9 +138,12 @@ def main(scope: str = "full") -> int:
 
 if __name__ == "__main__":
     if len(sys.argv) > 2 or (
-        len(sys.argv) == 2 and sys.argv[1] not in ("--child-oom", "--lifecycle")
+        len(sys.argv) == 2
+        and sys.argv[1] not in ("--child-oom", "--lifecycle", "--namespace-positive")
     ):
-        sys.exit("Only --child-oom or --lifecycle fixture selection is accepted")
+        sys.exit(
+            "Only fixed child-oom/lifecycle/namespace-positive selectors are accepted"
+        )
     try:
         sys.exit(main(sys.argv[1][2:] if len(sys.argv) == 2 else "full"))
     except (

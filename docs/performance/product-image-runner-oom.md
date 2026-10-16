@@ -6,6 +6,8 @@
 [disposable Linux acceptance](product-image-production-acceptance.md).
 **Production apply остаётся SANDBOX_UNVERIFIED.**
 
+Продолжение после `c2e3646`: [проверка harness и точечный acceptance](product-image-runner-acceptance-review.md).
+
 ## Восстановление после WebSocket
 
 До запуска проверены git/index, Windows processes, явный локальный Docker endpoint,

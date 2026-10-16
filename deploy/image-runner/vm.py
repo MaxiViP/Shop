@@ -60,7 +60,7 @@ def prepare() -> None:
 
 
 def run(scope: str = "full") -> int:
-    if scope not in ("full", "child-oom", "lifecycle"):
+    if scope not in ("full", "child-oom", "lifecycle", "namespace-positive"):
         raise ValueError("unknown fixture scope")
     if (ROOT / "fixture-vm-v1").read_text() != "disposable image acceptance only\n":
         raise RuntimeError("not an owned fixture volume")
@@ -225,7 +225,8 @@ if __name__ == "__main__":
             len(sys.argv) == 3
             and (
                 sys.argv[1] != "run"
-                or sys.argv[2] not in ("--child-oom", "--lifecycle")
+                or sys.argv[2]
+                not in ("--child-oom", "--lifecycle", "--namespace-positive")
             )
         )
     ):

@@ -32,7 +32,23 @@ def counters(group: Path, file: str) -> dict[str, int]:
     }
 
 
+def group_quiescent(group: Path, state: str) -> bool:
+    if state not in ("failed", "inactive"):
+        return False
+    try:
+        return counters(group, "cgroup.events").get("populated") == 0
+    except FileNotFoundError:
+        # systemd may remove the empty cgroup during this read. A missing events
+        # file in a still-existing directory does not authorize fence cleanup.
+        try:
+            group.stat()
+        except FileNotFoundError:
+            return True
+        return False
+
+
 def memory_snapshot(group: Path) -> dict[str, object]:
+    started = time.perf_counter_ns()
     if not group.is_dir():
         return {"cgroup": "removed", "processes": {}}
     snapshot: dict[str, object] = {}
@@ -107,6 +123,7 @@ def memory_snapshot(group: Path) -> dict[str, object]:
                 proc[name] = str(error)
         processes[pid] = proc
     snapshot["processes"] = processes
+    snapshot["durationUSec"] = (time.perf_counter_ns() - started) // 1000
     return snapshot
 
 
@@ -126,6 +143,13 @@ class SystemdTests(unittest.TestCase):
             timeout=15,
             check=False,
         )
+
+    def check_fence(self, values: dict[str, str], fence: Path) -> None:
+        self.assertEqual(values.get("NFileDescriptorStore"), "1")
+        # Failure to retain the fence is an error even on the terminal poll.
+        # Close an unexpectedly acquired probe FD before failing the assertion.
+        with self.assertRaisesRegex(runner.Refused, "^FENCE_BUSY$"):
+            os.close(runner.acquire_fence(fence))
 
     def case(self, mode: str, action: str) -> None:
         name = "korzina-image-sandbox-fixture-" + uuid.uuid4().hex
@@ -309,9 +333,7 @@ CapabilityBoundingSet=
                 deadline = time.monotonic() + runtime + 8
                 while time.monotonic() < deadline:
                     current = runner.show(service)
-                    self.assertEqual(current["NFileDescriptorStore"], "1")
-                    with self.assertRaisesRegex(runner.Refused, "FENCE_BUSY"):
-                        runner.acquire_fence(fence)
+                    self.check_fence(current, fence)
                     if memory and time.monotonic() - last_sample >= 5:
                         last_sample = time.monotonic()
                         print(
@@ -328,10 +350,7 @@ CapabilityBoundingSet=
                             ),
                             flush=True,
                         )
-                    if current["ActiveState"] in ("failed", "inactive") and (
-                        not group.exists()
-                        or "populated 0" in (group / "cgroup.events").read_text()
-                    ):
+                    if group_quiescent(group, current["ActiveState"]):
                         quiescent = True
                         break
                     time.sleep(0.05)
@@ -499,7 +518,7 @@ CapabilityBoundingSet=
                     self.assertEqual(root.parent, Path(tempfile.gettempdir()).resolve())
                     self.assertTrue(root.name.startswith("korzina-image-systemd-"))
                     shutil.rmtree(root)
-                else:
+                elif sys.exception() is None:
                     self.fail(
                         "NOT VERIFIED: retained fixture unit/fence requires disposable VM teardown"
                     )
@@ -558,6 +577,161 @@ CapabilityBoundingSet=
 
     def test_task_limit_refuses_forks(self) -> None:
         self.case("tasks", "stop")
+
+
+class LifecyclePolicyTests(unittest.TestCase):
+    """Portable regressions; never start a systemd unit or memory workload."""
+
+    def test_child_oom_selection_in_every_scope(self) -> None:
+        from unittest.mock import patch
+
+        import acceptance
+
+        loader = unittest.TestLoader()
+        replacement = patch.object(unittest, "defaultTestLoader", loader)
+        replacement.start()
+        self.addCleanup(replacement.stop)
+        child = SystemdTests("test_child_cgroup_oom")
+        other = SystemdTests("test_hung_tree_runtime_limit")
+        full = unittest.TestSuite([unittest.TestSuite([child]), other])
+        with patch.object(loader, "discover", return_value=full):
+            self.assertIs(acceptance.select_suite("full"), full)
+        self.assertEqual(list(acceptance.select_suite("child-oom")), [child])
+        self.assertEqual(acceptance.select_suite("lifecycle").countTestCases(), 10)
+        self.assertEqual(
+            [case.id() for case in acceptance.select_suite("namespace-positive")],
+            ["test_namespace.NamespaceTests.test_actual_template_namespace"],
+        )
+        with self.assertRaisesRegex(ValueError, "unknown fixture scope"):
+            acceptance.select_suite("untrusted")
+        for scope in ("full", "child-oom", "lifecycle", "namespace-positive"):
+            with (
+                self.subTest(scope=scope),
+                patch.object(
+                    loader, "getTestCaseNames", return_value=[other._testMethodName]
+                ),
+                self.assertRaisesRegex(ValueError, "missing child OOM"),
+            ):
+                acceptance.select_suite(scope)
+        for cases in ([], [other], [child, child]):
+            with (
+                self.subTest(cases=cases),
+                patch.object(
+                    loader, "discover", return_value=unittest.TestSuite(cases)
+                ),
+                self.assertRaises(ValueError),
+            ):
+                acceptance.select_suite("full")
+        with (
+            patch.object(
+                loader, "getTestCaseNames", return_value=["test_child_cgroup_oom"]
+            ),
+            self.assertRaisesRegex(ValueError, "empty fixture selection"),
+        ):
+            acceptance.select_suite("lifecycle")
+
+    def test_cgroup_exit_race_is_quiescent_only_after_removal(self) -> None:
+        from unittest.mock import patch
+
+        group = Path("/synthetic-cgroup")
+        for state in ("active", "deactivating", "failed", "inactive"):
+            for populated in (0, 1):
+                with (
+                    self.subTest(state=state, populated=populated),
+                    patch.object(
+                        Path,
+                        "read_text",
+                        return_value=f"populated {populated}\nfrozen 0\n",
+                    ),
+                ):
+                    self.assertEqual(
+                        group_quiescent(group, state),
+                        state in ("failed", "inactive") and populated == 0,
+                    )
+        for exists in (True, False):
+            with (
+                self.subTest(exists=exists),
+                patch.object(Path, "read_text", side_effect=FileNotFoundError),
+                patch.object(
+                    Path, "stat", side_effect=None if exists else FileNotFoundError
+                ),
+            ):
+                self.assertEqual(group_quiescent(group, "failed"), not exists)
+        with patch.object(Path, "read_text", return_value="frozen 0\n"):
+            self.assertFalse(group_quiescent(group, "inactive"))
+        with (
+            patch.object(Path, "read_text", side_effect=PermissionError),
+            self.assertRaises(PermissionError),
+        ):
+            group_quiescent(group, "failed")
+
+        with (
+            patch.object(Path, "read_text", side_effect=FileNotFoundError),
+            patch.object(Path, "stat", side_effect=PermissionError),
+            self.assertRaises(PermissionError),
+        ):
+            group_quiescent(group, "failed")
+
+    def test_fence_loss_fails_even_on_terminal_poll(self) -> None:
+        from unittest.mock import patch
+
+        probe = SystemdTests("test_child_cgroup_oom")
+        fence = Path("/synthetic-fence")
+        for state in ("active", "deactivating", "failed", "inactive"):
+            values = {"ActiveState": state, "NFileDescriptorStore": "1"}
+            with (
+                self.subTest(state=state),
+                patch.object(
+                    runner, "acquire_fence", side_effect=runner.Refused("FENCE_BUSY")
+                ),
+            ):
+                probe.check_fence(values, fence)
+            with self.subTest(state=state, store=0), self.assertRaises(AssertionError):
+                probe.check_fence({**values, "NFileDescriptorStore": "0"}, fence)
+            with (
+                self.subTest(state=state, free=True),
+                patch.object(runner, "acquire_fence", return_value=42),
+                patch.object(os, "close") as close,
+                self.assertRaises(AssertionError),
+            ):
+                try:
+                    probe.check_fence(values, fence)
+                finally:
+                    close.assert_called_once_with(42)
+        with (
+            patch.object(
+                runner, "acquire_fence", side_effect=runner.Refused("FENCE_CHANGED")
+            ),
+            self.assertRaises(AssertionError),
+        ):
+            probe.check_fence({"NFileDescriptorStore": "1"}, fence)
+
+    def test_memory_snapshot_uses_bounded_reads_without_subprocesses(self) -> None:
+        from unittest.mock import patch
+
+        reads: list[str] = []
+
+        def read(path: Path) -> str:
+            reads.append(path.name)
+            return "1\n2\n3\n" if path.name == "cgroup.procs" else "anon 0\n"
+
+        with (
+            patch.object(Path, "is_dir", return_value=True),
+            patch.object(Path, "read_text", autospec=True, side_effect=read),
+            patch.object(
+                subprocess, "run", side_effect=AssertionError("unexpected subprocess")
+            ),
+        ):
+            snapshot = memory_snapshot(Path("/synthetic-cgroup"))
+        self.assertEqual(
+            snapshot["processes"],
+            {
+                pid: {"status": "", "wchan": "anon 0", "stack": "anon 0"}
+                for pid in ("1", "2", "3")
+            },
+        )
+        self.assertEqual(len(reads), 24)
+        self.assertGreaterEqual(snapshot["durationUSec"], 0)
 
 
 if __name__ == "__main__":

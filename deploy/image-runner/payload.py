@@ -20,9 +20,10 @@ def allocate() -> None:
     import threading
 
     # One allocator is synchronously throttled even inside MAP_POPULATE, before
-    # reaching memory.max. A fixed 32-thread burst faults a total of 1 GiB in the
-    # chosen parent/child process. THP advice batches faults; readv releases the
-    # Python GIL. No cgroup limits, capabilities, or runtime deadlines change.
+    # reaching memory.max. Keep all 32 threads faulting in synchronized 2 MiB
+    # rounds: early finishers otherwise leave too few allocators under memory.high.
+    # Total allocation stays 1 GiB; readv releases the Python GIL. No cgroup limits,
+    # capabilities, or runtime deadlines change.
     memory = mmap.mmap(
         -1,
         1024**3,
@@ -34,11 +35,13 @@ def allocate() -> None:
     zero = os.open("/dev/zero", os.O_RDONLY | os.O_CLOEXEC)
 
     def fault(index: int) -> None:
-        barrier.wait()
         size = 32 * 1024**2
-        with memoryview(memory)[index * size : (index + 1) * size] as part:
-            if os.readv(zero, [part]) != size:
-                raise RuntimeError("incomplete OOM fixture page faults")
+        chunk = 2 * 1024**2
+        for offset in range(index * size, (index + 1) * size, chunk):
+            barrier.wait()
+            with memoryview(memory)[offset : offset + chunk] as part:
+                if os.readv(zero, [part]) != chunk:
+                    raise RuntimeError("incomplete OOM fixture page faults")
 
     threads = [threading.Thread(target=fault, args=(index,)) for index in range(32)]
     for thread in threads:
