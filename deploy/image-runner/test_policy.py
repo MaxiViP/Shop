@@ -199,6 +199,52 @@ class ParserTests(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(runner.Refused):
                 runner.mount_policy(items)
 
+    def test_readonly_kernel_proc_binds_require_the_exact_source_root(self) -> None:
+        for path in (
+            "/proc/sys",
+            "/proc/sys/kernel/hostname",
+            "/proc/fs",
+            "/proc/acpi",
+        ):
+            item = runner.Mount(
+                10,
+                "0:9",
+                path[len("/proc") :],
+                path,
+                frozenset({"ro"}),
+                "proc",
+                frozenset({"rw"}),
+            )
+            runner.mount_policy(mount_fixture() + [item])
+            for root, options in (
+                ("/", {"ro"}),
+                ("/123/root", {"ro"}),
+                (item.root, {"rw"}),
+            ):
+                unsafe = runner.Mount(
+                    item.id,
+                    item.device,
+                    root,
+                    path,
+                    frozenset(options),
+                    item.kind,
+                    item.super_options,
+                )
+                with (
+                    self.subTest(path=path, root=root, options=options),
+                    self.assertRaises(runner.Refused),
+                ):
+                    runner.mount_policy(mount_fixture() + [unsafe])
+
+    def test_pid_one_with_foreign_proc_is_not_namespace_proof(self) -> None:
+        runner.pid_namespace(1, "1")
+        for pid, proc_self in ((1, "234"), (234, "1"), (1, "../1")):
+            with (
+                self.subTest(pid=pid, proc_self=proc_self),
+                self.assertRaises(runner.Refused),
+            ):
+                runner.pid_namespace(pid, proc_self)
+
     def test_separate_bind_mount_is_not_same_device_proof(self) -> None:
         items = mount_fixture() + [
             runner.Mount(
@@ -255,6 +301,7 @@ class ParserTests(unittest.TestCase):
             "TimeoutStopUSec": "30s",
             "ControlGroup": "/test",
             "PrivatePIDs": "yes",
+            "PrivateUsers": "full",
             "PrivateMounts": "yes",
             "NoNewPrivileges": "yes",
             "FileDescriptorStoreMax": "1",
@@ -277,6 +324,8 @@ class ParserTests(unittest.TestCase):
         for change in (
             {"Restart": "always"},
             {"PrivatePIDs": "no"},
+            {"PrivateUsers": "no"},
+            {"PrivateUsers": "identity"},
             {"ControlGroup": "/other"},
             {"RuntimeMaxUSec": "infinity"},
             {"DropInPaths": "/override.conf"},
@@ -309,16 +358,35 @@ class ParserTests(unittest.TestCase):
                 runner.environment_policy({"PATH", name})
 
     def test_process_caps_and_no_new_privileges_parser(self) -> None:
-        valid = "NoNewPrivs: 1\nCapEff: e4\nCapAmb: 0\nSeccomp: 2\n"
+        valid = "NoNewPrivs: 1\nCapEff: e4\nCapPrm: e4\nCapBnd: e4\nCapInh: 0\nCapAmb: 0\nSeccomp: 2\n"
         runner.process_policy(valid)
         for value in (
             valid.replace("NoNewPrivs: 1", "NoNewPrivs: 0"),
             valid.replace("CapEff: e4", "CapEff: ffffffffff"),
+            valid.replace("CapPrm: e4", "CapPrm: ffffffffff"),
+            valid.replace("CapBnd: e4", "CapBnd: ffffffffff"),
+            valid.replace("CapInh: 0", "CapInh: ffffffffff"),
+            valid.replace("CapPrm: e4\n", ""),
             valid.replace("CapAmb: 0", "CapAmb: 1"),
             valid.replace("Seccomp: 2", "Seccomp: 0"),
         ):
             with self.subTest(value=value), self.assertRaises(runner.Refused):
                 runner.process_policy(value)
+
+    def test_notification_socket_is_not_caller_selected(self) -> None:
+        for address in (
+            "",
+            "@notify",
+            "/tmp/notify",
+            "/run/systemd/notify-other",
+            "/run/systemd/notify/other",
+            "/run/host/notify-other",
+        ):
+            with (
+                self.subTest(address=address),
+                self.assertRaisesRegex(runner.Refused, "NOTIFY_UNVERIFIED"),
+            ):
+                runner.notify_store(-1, address)
 
     def test_launcher_refuses_on_windows_and_never_has_apply_mode(self) -> None:
         for extra in (("--apply",), ("--force",), (INSTANCE, "--apply")):
@@ -385,6 +453,7 @@ class UnitContractTests(unittest.TestCase):
             "OOMPolicy=kill",
             "RuntimeMaxSec=600",
             "PrivatePIDs=yes",
+            "PrivateUsers=full",
             "RootDirectory=",
             "FileDescriptorStorePreserve=yes",
         ):
@@ -392,7 +461,17 @@ class UnitContractTests(unittest.TestCase):
         self.assertNotIn("\n[Install]", service + pin)
         self.assertNotIn("EnvironmentFile=", service)
         self.assertNotIn("--apply", service)
+        self.assertNotIn(
+            "CPUAccounting=", service
+        )  # Removed in systemd 259; quota implies accounting.
         self.assertIn("RefuseManualStop=yes", pin)
+        self.assertIn("InaccessiblePaths=+/proc/sys/fs/binfmt_misc", service)
+        self.assertIn("InaccessiblePaths=+/dev/mqueue", service)
+        self.assertIn("InaccessiblePaths=+/dev/hugepages", service)
+        self.assertIn("InaccessiblePaths=+/dev/shm", service)
+        self.assertIn("InaccessiblePaths=+/dev/pts", service)
+        self.assertIn("InaccessiblePaths=+/storage/chat", service)
+        self.assertIn("ReadWritePaths=+/storage", service)
 
     def test_production_gate_unchanged(self) -> None:
         root = Path(__file__).resolve().parents[2]

@@ -193,11 +193,29 @@ def mount_policy(items: list[Mount]) -> dict[str, object]:
         require("ro" in mount_at(items, path).options, "INPUT_NOT_READONLY")
     for item in items:
         if item.kind == "proc":
+            kernel_tree = any(
+                beneath(item.path, path)
+                for path in (
+                    "/proc/sys",
+                    "/proc/irq",
+                    "/proc/bus",
+                    "/proc/fs",
+                    "/proc/acpi",
+                    "/proc/asound",
+                    "/proc/scsi",
+                )
+            ) or item.path in (
+                "/proc/sysrq-trigger",
+                "/proc/apm",
+                "/proc/mtrr",
+                "/proc/latency_stats",
+                "/proc/timer_stats",
+            )
             require(
                 (item.path == "/proc" and item.root == "/")
                 or (
-                    item.path
-                    in ("/proc/sys", "/proc/sysrq-trigger", "/proc/irq", "/proc/bus")
+                    kernel_tree
+                    and item.root == item.path[len("/proc") :]
                     and "ro" in item.options
                 ),
                 "FOREIGN_PROC_MOUNT",
@@ -282,10 +300,11 @@ def process_policy(value: str) -> None:
     fields = dict(line.split(":", 1) for line in value.splitlines() if ":" in line)
     allowed_caps = (1 << 2) | (1 << 5) | (1 << 6) | (1 << 7)
     require(fields.get("NoNewPrivs", "").strip() == "1", "PROCESS_POLICY_UNVERIFIED")
-    require(
-        int(fields.get("CapEff", "-1").strip(), 16) & ~allowed_caps == 0,
-        "PROCESS_POLICY_UNVERIFIED",
-    )
+    for key in ("CapEff", "CapPrm", "CapBnd", "CapInh"):
+        require(
+            int(fields.get(key, "-1").strip(), 16) & ~allowed_caps == 0,
+            "PROCESS_POLICY_UNVERIFIED",
+        )
     require(
         int(fields.get("CapAmb", "-1").strip(), 16) == 0, "PROCESS_POLICY_UNVERIFIED"
     )
@@ -327,6 +346,7 @@ def manager_policy(
         "TimeoutStopUSec": "30s",
         "ControlGroup": group,
         "PrivatePIDs": "yes",
+        "PrivateUsers": "full",
         "PrivateMounts": "yes",
         "NoNewPrivileges": "yes",
         "FileDescriptorStoreMax": "1",
@@ -486,7 +506,9 @@ def acquire_fence(path: Path) -> int:
 
 
 def notify_store(fd: int, address: str) -> None:
-    require(address.startswith("/run/systemd/notify"), "NOTIFY_UNVERIFIED")
+    # RootDirectory uses the manager's automatically bound /run/host socket.
+    # No caller-selected socket or prefix lookalike can acknowledge admission.
+    require(address in ("/run/systemd/notify", "/run/host/notify"), "NOTIFY_UNVERIFIED")
     with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as channel:
         channel.connect(address)
         channel.sendmsg(
@@ -533,10 +555,16 @@ def unknown_locks(root: Path, limit: int = 1000) -> int:
     return count
 
 
+def pid_namespace(pid: int, proc_self: str) -> None:
+    # PID=1 alone does not prove that /proc was mounted for this PID namespace.
+    require(pid == 1 and proc_self == "1", "PID_NAMESPACE_UNVERIFIED")
+
+
 def inspect(instance: str) -> None:
     require(sys.platform == "linux", "LINUX_REQUIRED")
     require(UUID.fullmatch(instance) is not None, "INVALID_INSTANCE")
     require(os.geteuid() == 0 and os.getpid() == 1, "PID_NAMESPACE_UNVERIFIED")
+    pid_namespace(os.getpid(), os.readlink("/proc/self"))
     signal.signal(signal.SIGTERM, stop_requested)
     process_policy(text(Path("/proc/self/status")))
     require(

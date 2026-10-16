@@ -226,10 +226,23 @@ class NativeTests(unittest.TestCase):
         one, two = Path("/fixture-mounts/one"), Path("/fixture-mounts/two")
         if not one.is_dir() or not two.is_dir():
             self.skipTest("NOT VERIFIED: two disposable bind mounts were not provided")
-        items = runner.mounts(runner.text(Path("/proc/self/mountinfo"), 1024 * 1024))
-        self.assertNotEqual(
-            runner.mount_at(items, str(one)).id, runner.mount_at(items, str(two)).id
-        )
+        # Host boot can have unrelated stacked mounts. Query the actual opened
+        # directories' kernel mount IDs without relaxing runner mount policy.
+        ids: list[str] = []
+        for path in (one, two):
+            fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                info = Path(f"/proc/self/fdinfo/{fd}").read_text()
+                ids.append(
+                    next(
+                        line.split(":", 1)[1].strip()
+                        for line in info.splitlines()
+                        if line.startswith("mnt_id:")
+                    )
+                )
+            finally:
+                os.close(fd)
+        self.assertNotEqual(ids[0], ids[1])
         with tempfile.TemporaryDirectory(prefix="korzina-image-bind-", dir=one) as name:
             folder = Path(name)
             first = folder / "staged"

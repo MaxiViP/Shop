@@ -31,7 +31,6 @@ MemoryAccounting=yes
 MemoryHigh=512M
 MemoryMax=768M
 MemorySwapMax=0
-CPUAccounting=yes
 CPUQuota=50%
 CPUQuotaPeriodSec=100ms
 TasksAccounting=yes
@@ -56,6 +55,8 @@ AmbientCapabilities=
 PrivateMounts=yes
 # Mandatory v257+ feature: prevents /proc/<API-pid>/root aliases with the same shop UID.
 PrivatePIDs=yes
+# v258+: retain user-namespace capability isolation and permit empty worker groups.
+PrivateUsers=full
 PrivateNetwork=yes
 PrivateDevices=yes
 PrivateIPC=yes
@@ -79,7 +80,14 @@ TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=64M,mode=1777 /run:rw,nosui
 # One common mount is essential: separate state/variants bind mounts can cause EXDEV.
 BindPaths=/var/lib/korzinamarket/uploads:/storage
 BindReadOnlyPaths=/var/lib/korzinamarket/uploads/products:/storage/products
-InaccessiblePaths=/storage/chat
+InaccessiblePaths=+/storage/chat
+# Host binfmt registrations are unnecessary; do not inherit stacked binfmt mounts.
+InaccessiblePaths=+/proc/sys/fs/binfmt_misc
+# Images need no host queues, huge pages, shared memory or terminal APIs.
+InaccessiblePaths=+/dev/mqueue
+InaccessiblePaths=+/dev/hugepages
+InaccessiblePaths=+/dev/shm
+InaccessiblePaths=+/dev/pts
 BindReadOnlyPaths=/var/lib/korzinamarket-image-runner/requests/%i/request.json:/input/request.json
 BindReadOnlyPaths=/var/lib/korzinamarket-image-runner/requests/%i/inventory.jsonl:/input/inventory.jsonl
 BindReadOnlyPaths=/var/lib/korzinamarket-image-runner/requests/%i/approval.json:/input/approval.json
@@ -88,6 +96,6 @@ BindReadOnlyPaths=/run/lock/korzinamarket-deploy.lock:/control/deploy.lock
 BindReadOnlyPaths=/run/systemd/private:/run/systemd/private
 BindReadOnlyPaths=/etc/systemd/system/shop-image-runner@.service:/control/runner.service
 BindReadOnlyPaths=/etc/systemd/system/shop-image-runner-pin@.target:/control/pin.target
-ReadWritePaths=/storage
+ReadWritePaths=+/storage
 
 # Deliberately no [Install], timer, automatic restart or production apply command.

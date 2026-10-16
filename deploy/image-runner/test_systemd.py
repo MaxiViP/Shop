@@ -1,4 +1,4 @@
-"""Opt-in lifecycle acceptance on a disposable systemd v257+ VM only.
+"""Opt-in lifecycle acceptance on a disposable systemd v258+ VM only.
 
 Never installs/starts the production template. All units and data are newly created
 korzina-image-sandbox-fixture-* objects. A container without systemd reports skips.
@@ -6,6 +6,7 @@ This tests lifecycle/FDSTORE primitives, not the unprovisioned production rootfs
 """
 
 import os
+import json
 from pathlib import Path
 import shutil
 import signal
@@ -17,27 +18,15 @@ import unittest
 import uuid
 
 import launcher as runner
+import preflight
 
 
 def systemd_available() -> bool:
-    if sys.platform != "linux" or os.geteuid() != 0:
-        return False
-    if Path("/proc/1/comm").read_text().strip() != "systemd":
-        return False
-    if os.environ.get("KORZINA_DISPOSABLE_SYSTEMD") != "1":
-        return False  # Operator opt-in only; never accepted as proof of containment.
-    version = subprocess.run(
-        ["systemctl", "--version"],
-        capture_output=True,
-        text=True,
-        timeout=3,
-        check=False,
-    )
-    return version.returncode == 0 and int(version.stdout.split()[1]) >= 257
+    return preflight.available()
 
 
 @unittest.skipUnless(
-    systemd_available(), "NOT VERIFIED: disposable root/systemd v257+ VM required"
+    systemd_available(), "NOT VERIFIED: disposable root/systemd v258+ VM required"
 )
 class SystemdTests(unittest.TestCase):
     def command(self, *args: str) -> subprocess.CompletedProcess[str]:
@@ -72,6 +61,8 @@ class SystemdTests(unittest.TestCase):
             for file in ("payload.py", "launcher.py"):
                 shutil.copyfile(Path(__file__).with_name(file), root / file)
                 (root / file).chmod(0o644)
+            # memory.high may throttle allocations: OOM needs its own bounded budget.
+            runtime = 60 if mode in ("parent-memory", "child-memory") else 12
             body = f"""[Unit]
 CollectMode=inactive
 [Service]
@@ -80,7 +71,7 @@ User=65534
 Group=65534
 ExecStart=/usr/bin/python3 -B {root}/payload.py lifecycle {mode} {data}
 Restart=no
-RuntimeMaxSec=5
+RuntimeMaxSec={runtime}
 RuntimeRandomizedExtraSec=0
 TimeoutStopSec=1
 KillMode=control-group
@@ -115,7 +106,7 @@ CapabilityBoundingSet=
                 self.assertEqual(self.command("daemon-reload").returncode, 0)
                 started = self.command("start", target)
                 self.assertEqual(started.returncode, 0, started.stderr)
-                deadline = time.monotonic() + 4
+                deadline = time.monotonic() + 10
                 while not (data / "ready").exists() and time.monotonic() < deadline:
                     time.sleep(0.02)
                 self.assertTrue(
@@ -140,17 +131,23 @@ CapabilityBoundingSet=
                 pids = (group / "cgroup.procs").read_text().split()
                 if mode not in ("parent-memory", "child-memory"):
                     self.assertGreaterEqual(
-                        len(pids), 3, "child/grandchild/setsid must remain contained"
+                        len(pids),
+                        2 if mode == "orphan" else 3,
+                        "child/grandchild/setsid must remain contained",
                     )
                 self.assertEqual(values["Restart"], "no")
                 self.assertEqual(values["KillMode"], "control-group")
+                if mode in ("cpu", "tasks"):
+                    self.check_pressure(mode, group, data)
                 if mode in ("parent-memory", "child-memory"):
                     (data / "start").write_text("start", encoding="ascii")
-                if mode == "fdstore":
-                    self.assertEqual(values["NFileDescriptorStore"], "1")
-                    with self.assertRaisesRegex(runner.Refused, "FENCE_BUSY"):
-                        runner.acquire_fence(fence)
-                    self.assertNotEqual(self.command("stop", target).returncode, 0)
+                self.assertEqual(values["NFileDescriptorStore"], "1")
+                with self.assertRaisesRegex(runner.Refused, "FENCE_BUSY"):
+                    runner.acquire_fence(fence)
+                self.assertNotEqual(self.command("stop", target).returncode, 0)
+                # A reload cannot drop the manager's stored open file description.
+                self.assertEqual(self.command("daemon-reload").returncode, 0)
+                self.assertEqual(runner.show(service)["NFileDescriptorStore"], "1")
                 if action == "stop":
                     self.assertEqual(self.command("stop", service).returncode, 0)
                 elif action == "kill":
@@ -160,7 +157,7 @@ CapabilityBoundingSet=
                         signal.pidfd_send_signal(pidfd, signal.SIGKILL)
                     finally:
                         os.close(pidfd)
-                deadline = time.monotonic() + 12
+                deadline = time.monotonic() + runtime + 8
                 while time.monotonic() < deadline:
                     current = runner.show(service)
                     if current["ActiveState"] in ("failed", "inactive") and (
@@ -177,13 +174,35 @@ CapabilityBoundingSet=
                     self.assertEqual(current["Result"], "oom-kill")
                 if action == "timeout":
                     self.assertEqual(current["Result"], "timeout")
-                time.sleep(0.2)
+                time.sleep(1)
                 self.assertEqual(runner.show(service)["NRestarts"], "0")
                 self.assertEqual(runner.show(service)["MainPID"], "0")
+                with self.assertRaisesRegex(runner.Refused, "FENCE_BUSY"):
+                    runner.acquire_fence(fence)
+                self.assertEqual(runner.show(target)["ActiveState"], "active")
                 if mode == "fdstore":
+                    self.assertEqual(self.command("daemon-reexec").returncode, 0)
+                    self.assertEqual(runner.show(service)["NFileDescriptorStore"], "1")
                     with self.assertRaisesRegex(runner.Refused, "FENCE_BUSY"):
                         runner.acquire_fence(fence)
-                    self.assertEqual(runner.show(target)["ActiveState"], "active")
+                if mode == "graceful":
+                    self.assertEqual(current["Result"], "success")
+                print(
+                    "LIFECYCLE_EVIDENCE="
+                    + json.dumps(
+                        {
+                            "mode": mode,
+                            "action": action,
+                            "limits": actual,
+                            "result": current["Result"],
+                            "quiescent": quiescent,
+                            "fdStore": runner.show(service)["NFileDescriptorStore"],
+                            "restarts": runner.show(service)["NRestarts"],
+                        },
+                        sort_keys=True,
+                    ),
+                    flush=True,
+                )
                 self.assertEqual(fence.stat().st_ino, fence_before.st_ino)
                 self.assertEqual(fence.read_bytes(), b"isolated systemd fixture lock")
             finally:
@@ -201,9 +220,16 @@ CapabilityBoundingSet=
                     self.assertEqual(
                         fence.read_bytes(), b"isolated systemd fixture lock"
                     )
+                    # systemd refuses CleanUnit on failed services. Reset only this
+                    # known, quiescent fixture, checking pin/store still retain it.
                     self.assertEqual(
-                        self.command("clean", "--what=fdstore", service).returncode, 0
+                        self.command("reset-failed", service).returncode, 0
                     )
+                    self.assertEqual(runner.show(service)["NFileDescriptorStore"], "1")
+                    with self.assertRaisesRegex(runner.Refused, "FENCE_BUSY"):
+                        runner.acquire_fence(fence)
+                    cleaned = self.command("clean", "--what=fdstore", service)
+                    self.assertEqual(cleaned.returncode, 0, cleaned.stderr)
                     target_path.write_text(
                         pin.replace("RefuseManualStop=yes", "RefuseManualStop=no")
                     )
@@ -224,8 +250,14 @@ CapabilityBoundingSet=
     def test_sigterm_ignoring_children_and_grandchildren(self) -> None:
         self.case("tree", "stop")
 
+    def test_sigterm_graceful_tree(self) -> None:
+        self.case("graceful", "stop")
+
     def test_sigkill_main_and_all_descendants(self) -> None:
         self.case("tree", "kill")
+
+    def test_double_fork_setsid_orphan_cannot_escape(self) -> None:
+        self.case("orphan", "kill")
 
     def test_hung_tree_runtime_limit(self) -> None:
         self.case("tree", "timeout")
@@ -242,11 +274,47 @@ CapabilityBoundingSet=
     def test_fdstore_lifetime_after_stop(self) -> None:
         self.case("fdstore", "stop")
 
+    def check_pressure(self, mode: str, group: Path, data: Path) -> None:
+        def counters(file: str) -> dict[str, int]:
+            return {
+                key: int(value)
+                for key, value in (
+                    line.split() for line in (group / file).read_text().splitlines()
+                )
+            }
+
+        if mode == "cpu":
+            before = counters("cpu.stat")
+            start = time.monotonic()
+            (data / "start").write_text("start")
+            time.sleep(3)
+            elapsed = time.monotonic() - start
+            after = counters("cpu.stat")
+            self.assertGreater(after["nr_throttled"], before["nr_throttled"])
+            # 50% total tree, with a period's burst and scheduler tolerance.
+            self.assertLess(
+                after["usage_usec"] - before["usage_usec"], elapsed * 750000 + 100000
+            )
+        else:
+            (data / "start").write_text("start")
+            deadline = time.monotonic() + 5
+            while not (data / "task-limit").exists() and time.monotonic() < deadline:
+                time.sleep(0.02)
+            self.assertEqual((data / "task-limit").read_text(), "EAGAIN")
+            self.assertGreater(counters("pids.events")["max"], 0)
+            self.assertLessEqual(int((group / "pids.current").read_text()), 64)
+
+    def test_cpu_quota_enforces_whole_tree(self) -> None:
+        self.case("cpu", "stop")
+
+    def test_task_limit_refuses_forks(self) -> None:
+        self.case("tasks", "stop")
+
 
 if __name__ == "__main__":
     if not systemd_available():
         print(
-            "NOT VERIFIED: explicit disposable systemd v257+ acceptance is unavailable"
+            "NOT VERIFIED: explicit disposable systemd v258+ acceptance is unavailable"
         )
         sys.exit(78)
     unittest.main()

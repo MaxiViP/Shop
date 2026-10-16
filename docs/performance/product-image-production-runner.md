@@ -338,3 +338,6 @@ Linux CI/5Б-2 не запускались. **Production apply по-прежне
 Он добавляет inspection-only launcher/templates и native fixture tests, сохраняя
 этот production gate. Результаты 5Б-1 выше остаются историческими; systemd acceptance
 нельзя считать выполненным по успешному Windows fixture apply.
+
+Подготовка и отдельные результаты 5Б-2Б: [disposable Linux acceptance](product-image-production-acceptance.md).
+Успех стенда не снимает unconditional production gate и не разрешает rollout.

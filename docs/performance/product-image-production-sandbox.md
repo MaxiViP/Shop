@@ -259,3 +259,9 @@ teardown VM. Production template/rootfs этим lifecycle suite полност�
 Никакие skips или зелёные parser tests не закрывают эти строки. До фактического
 подтверждения всей цепочки и отдельного review production gate остаётся прежним.
 Provisioning production, следующий этап, push/merge/deploy/backfill не выполняются.
+
+Продолжение 5Б-2Б: [disposable Linux acceptance](product-image-production-acceptance.md).
+Исторические результаты 5Б-2А выше не подменяются новыми fixture результатами;
+production gate остаётся безусловным.
+Текущий template 5Б-2Б требует systemd 258+ и `PrivateUsers=full`; указания 257+
+выше относятся к исходному этапу 5Б-2А.
