@@ -73,6 +73,7 @@ def run(scope: str = "full") -> int:
         "readiness-encode",
         "readiness-launcher",
         "readiness-stop",
+        "readiness-db",
     ):
         raise ValueError("unknown fixture scope")
     if (ROOT / "fixture-vm-v1").read_text() != "disposable image acceptance only\n":
@@ -174,6 +175,7 @@ def run(scope: str = "full") -> int:
         "readiness-encode",
         "readiness-launcher",
         "readiness-stop",
+        "readiness-db",
     ):
         artifact = Path("/artifact-input")
         summary = json.loads((artifact / "summary.json").read_text())
@@ -197,6 +199,29 @@ def run(scope: str = "full") -> int:
             ],
             timeout=90,
         )
+    if scope == "readiness-db":
+        database = Path("/db-input")
+        summary = json.loads((database / "summary.json").read_text())
+        if (
+            sha256(database / "rootfs.tar") != summary["rootfsSha256"]
+            or sha256(database / "manifest.json") != summary["manifestSha256"]
+            or (database / "rootfs.tar").stat().st_size > 512 * 1024**2
+        ):
+            raise RuntimeError("DB fixture media mismatch")
+        command(
+            [
+                "genisoimage",
+                "-quiet",
+                "-output",
+                str(ROOT / "db.iso"),
+                "-volid",
+                "DB_FIXTURE",
+                "-joliet",
+                "-rock",
+                str(database),
+            ],
+            timeout=90,
+        )
     args = [
         "qemu-system-x86_64",
         "-machine",
@@ -206,7 +231,9 @@ def run(scope: str = "full") -> int:
         "-smp",
         "2",
         "-m",
-        "2048",
+        # Keep the DB/compiler guest below the unchanged 3 GiB outer envelope.
+        # This does not change any application/runner cgroup limit.
+        "1536" if scope == "readiness-db" else "2048",
         "-display",
         "none",
         "-serial",
@@ -235,11 +262,14 @@ def run(scope: str = "full") -> int:
         "readiness-encode",
         "readiness-launcher",
         "readiness-stop",
+        "readiness-db",
     ):
         args += [
             "-drive",
             f"file={ROOT / 'artifact.iso'},if=virtio,format=raw,readonly=on",
         ]
+    if scope == "readiness-db":
+        args += ["-drive", f"file={ROOT / 'db.iso'},if=virtio,format=raw,readonly=on"]
     log = ROOT / "serial.log"
     with log.open("xb") as output:
         child = subprocess.Popen(
@@ -299,6 +329,7 @@ if __name__ == "__main__":
                     "--readiness-encode",
                     "--readiness-launcher",
                     "--readiness-stop",
+                    "--readiness-db",
                 )
             )
         )

@@ -26,3 +26,11 @@ class LauncherTests(unittest.TestCase):
 class StopTests(unittest.TestCase):
     def test_shutdown(self) -> None:
         application.run("readiness-stop")
+
+
+@unittest.skipUnless(
+    preflight.available(), "NOT VERIFIED: disposable systemd VM required"
+)
+class DatabaseTests(unittest.TestCase):
+    def test_real_pool(self) -> None:
+        application.run("readiness-db")

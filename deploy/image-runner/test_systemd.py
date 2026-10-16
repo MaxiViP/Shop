@@ -631,6 +631,10 @@ class LifecyclePolicyTests(unittest.TestCase):
             [case.id() for case in acceptance.select_suite("readiness-stop")],
             ["readiness_test.StopTests.test_shutdown"],
         )
+        self.assertEqual(
+            [case.id() for case in acceptance.select_suite("readiness-db")],
+            ["readiness_test.DatabaseTests.test_real_pool"],
+        )
         with self.assertRaisesRegex(ValueError, "unknown fixture scope"):
             acceptance.select_suite("untrusted")
         for scope in (
@@ -646,6 +650,7 @@ class LifecyclePolicyTests(unittest.TestCase):
             "readiness-encode",
             "readiness-launcher",
             "readiness-stop",
+            "readiness-db",
         ):
             with (
                 self.subTest(scope=scope),

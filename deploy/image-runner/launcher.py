@@ -21,6 +21,8 @@ import sys
 import time
 from dataclasses import dataclass
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 UUID = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\Z"
 )
@@ -35,6 +37,7 @@ FENCE = Path("/control/deploy.lock")
 MAX_MEMORY = 768 * 1024**2
 HIGH_MEMORY = 512 * 1024**2
 STOPPING = False
+MANAGER = None  # Fixed broker transport, initialized only from a root-owned request.
 
 
 def stop_requested(_signal: int, _frame: object) -> None:
@@ -77,7 +80,7 @@ def strict_json(value: str) -> dict[str, object]:
 def request(value: str, instance: str) -> dict[str, object]:
     data = strict_json(value)
     require(
-        set(data)
+        set(data) - {"managerBroker"}
         == {
             "schemaVersion",
             "kind",
@@ -114,6 +117,13 @@ def request(value: str, instance: str) -> dict[str, object]:
             isinstance(data[key], str) and SHA.fullmatch(str(data[key])) is not None,
             "INVALID_DIGEST",
         )
+    if "managerBroker" in data:
+        from broker import Denied, identity
+
+        try:
+            identity(data["managerBroker"])
+        except Denied:
+            raise Refused("INVALID_REQUEST") from None
     return data
 
 
@@ -316,6 +326,13 @@ def process_policy(value: str) -> None:
 
 def show(unit: str) -> dict[str, str]:
     require(not STOPPING, "STOP_REQUESTED")
+    if MANAGER is not None:
+        from broker import Denied
+
+        try:
+            return MANAGER.show(unit)
+        except (Denied, OSError, ValueError, KeyError):
+            raise Refused("MANAGER_UNVERIFIED") from None
     result = subprocess.run(
         ["/usr/bin/systemctl", "show", "--all", "--no-pager", unit],
         env={"PATH": "/usr/bin:/bin", "LANG": "C"},
@@ -351,7 +368,8 @@ def manager_policy(
         "TimeoutStopUSec": "30s",
         "ControlGroup": group,
         "PrivatePIDs": "yes",
-        "PrivateUsers": "full",
+        "PrivateUsers": "yes",
+        "PrivateUsersEx": "full",
         "PrivateMounts": "yes",
         "NoNewPrivileges": "yes",
         "FileDescriptorStoreMax": "1",
@@ -566,6 +584,7 @@ def pid_namespace(pid: int, proc_self: str) -> None:
 
 
 def inspect(instance: str) -> None:
+    global MANAGER
     require(sys.platform == "linux", "LINUX_REQUIRED")
     require(UUID.fullmatch(instance) is not None, "INVALID_INSTANCE")
     require(os.geteuid() == 0 and os.getpid() == 1, "PID_NAMESPACE_UNVERIFIED")
@@ -576,13 +595,6 @@ def inspect(instance: str) -> None:
         not os.environ.get("LISTEN_FDS"), "FENCE_BUSY"
     )  # Never adopt a retained fence.
     environment_policy(set(os.environ))
-    manager_socket = Path("/run/systemd/private").lstat()
-    require(
-        stat.S_ISSOCK(manager_socket.st_mode)
-        and manager_socket.st_uid == 0
-        and manager_socket.st_mode & 0o077 == 0,
-        "MANAGER_SOCKET_UNSAFE",
-    )
     for parent in (Path("/artifact"), Path("/artifact/apps/api")):
         require(
             not any(item.name.startswith(".env") for item in parent.iterdir()),
@@ -590,6 +602,26 @@ def inspect(instance: str) -> None:
         )
     regular(INPUT / "request.json", 8192, owner=0)
     data = request(text(INPUT / "request.json", 8192), instance)
+    if "managerBroker" in data:
+        from broker import Client
+
+        require(
+            stat.S_IMODE((INPUT / "request.json").stat().st_mode) == 0o600,
+            "BROKER_BINDING_UNSAFE",
+        )
+        MANAGER = Client(
+            instance,
+            data["managerBroker"],
+            hashlib.sha256((INPUT / "request.json").read_bytes()).hexdigest(),
+        )
+    else:
+        manager_socket = Path("/run/systemd/private").lstat()
+        require(
+            stat.S_ISSOCK(manager_socket.st_mode)
+            and manager_socket.st_uid == 0
+            and manager_socket.st_mode & 0o077 == 0,
+            "MANAGER_SOCKET_UNSAFE",
+        )
     for path, maximum, key in (
         (INPUT / "inventory.jsonl", 32 * 1024**2, "inventorySha256"),
         (INPUT / "approval.json", 256 * 1024, "approvalSha256"),

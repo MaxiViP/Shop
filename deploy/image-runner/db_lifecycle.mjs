@@ -88,8 +88,11 @@ if (mode === '--plan') {
   app.enableShutdownHooks(['SIGTERM', 'SIGINT']);
   db = app.get(DbService);
   try {
-    const rows = await db.$queryRawUnsafe('SELECT 1 AS ok, pg_backend_pid() AS pid');
+    const rows = await db.$queryRawUnsafe("SELECT 1 AS ok, pg_backend_pid() AS pid, current_database() AS db, current_setting('default_transaction_read_only') AS readonly, inet_server_addr() AS address");
     assert.equal(rows[0].ok, 1);
+    assert.equal(rows[0].db, 'korzina_pool_fixture');
+    assert.equal(rows[0].readonly, 'on');
+    assert.equal(rows[0].address, null);
     backend = rows[0].pid;
     console.log('DB_POOL_READY=' + JSON.stringify({ realDbService: true, realAdapter: true,
       transport: 'private Unix socket', mode, productionApply: 'SANDBOX_UNVERIFIED' }));

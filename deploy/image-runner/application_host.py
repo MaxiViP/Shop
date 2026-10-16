@@ -23,10 +23,10 @@ BASE_SHA = "8800651811af9a85465ad1d552add729947bb16488dddb4a9b5305a3d97332b2"
 def main() -> None:
     if (
         os.name != "nt"
-        or len(sys.argv) not in (3, 4)
+        or len(sys.argv) not in (3, 4, 6)
         or sys.argv[1] != "--artifact"
         or (
-            len(sys.argv) == 4
+            len(sys.argv) >= 4
             and sys.argv[3]
             not in (
                 "--api-only",
@@ -34,8 +34,11 @@ def main() -> None:
                 "--encode-only",
                 "--launcher-only",
                 "--launcher-stop",
+                "--db-only",
             )
         )
+        or (len(sys.argv) == 6 and sys.argv[3:5] != ["--db-only", "--db-artifact"])
+        or (len(sys.argv) == 4 and sys.argv[3] == "--db-only")
     ):
         raise ValueError("fixed local --artifact WORK/BUILD/artifact only")
     artifact = Path(sys.argv[2]).resolve(strict=True)
@@ -83,6 +86,29 @@ def main() -> None:
     (output / "artifact.json").write_text(
         json.dumps({"path": str(artifact), **summary}, indent=2) + "\n"
     )
+    db_artifact = None
+    if len(sys.argv) == 6:
+        db_artifact = Path(sys.argv[5]).resolve(strict=True)
+        if (
+            db_artifact.name != "artifact"
+            or db_artifact.parent.parent != REPO / "work"
+            or not db_artifact.parent.name.startswith("linux-postgres-")
+            or db_artifact.is_symlink()
+        ):
+            raise ValueError(
+                "only a local exported fixture PostgreSQL artifact is accepted"
+            )
+        db_summary = json.loads((db_artifact / "summary.json").read_text())
+        if (
+            digest(db_artifact / "rootfs.tar") != db_summary["rootfsSha256"]
+            or digest(db_artifact / "manifest.json") != db_summary["manifestSha256"]
+            or db_summary["sourceImage"]
+            != "postgres@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af"
+        ):
+            raise ValueError("PostgreSQL fixture artifact mismatch")
+        (output / "db-artifact.json").write_text(
+            json.dumps({"path": str(db_artifact), **db_summary}, indent=2) + "\n"
+        )
     print("APPLICATION_OUTPUT=" + str(output), flush=True)
     with tempfile.TemporaryDirectory(prefix="korzina-application-client-") as client:
         docker = [
@@ -198,6 +224,11 @@ print('verified RO base; new overlay/seed required')
                     "--mount",
                     f"type=bind,source={snapshot / source},target=/fixture-repo/{source},readonly",
                 ]
+            if db_artifact is not None:
+                mounts += [
+                    "--mount",
+                    f"type=bind,source={db_artifact},target=/db-input,readonly",
+                ]
             call(
                 [
                     "create",
@@ -232,6 +263,8 @@ print('verified RO base; new overlay/seed required')
                     if sys.argv[3] == "--launcher-only"
                     else "--readiness-stop"
                     if sys.argv[3] == "--launcher-stop"
+                    else "--readiness-db"
+                    if sys.argv[3] == "--db-only"
                     else "--application-worker",
                 ],
                 "create.log",

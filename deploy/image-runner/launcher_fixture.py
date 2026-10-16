@@ -1,4 +1,4 @@
-"""Actual unchanged inspector, exact manager policy, synthetic identity and paths."""
+"""Candidate broker transport, unchanged manager/security checks, synthetic paths."""
 
 import base64
 import json
@@ -10,6 +10,7 @@ import uuid
 
 import application
 import artifact
+import broker_fixture
 import launcher as runner
 from test_namespace import render
 from test_systemd import group_quiescent
@@ -59,11 +60,14 @@ def run(root: Path, manifest: dict[str, object], stop: bool) -> None:
     repo = Path(__file__).resolve().parents[2]
     template = (repo / "deploy/shop-image-runner@.service").read_text()
     pin_template = (repo / "deploy/shop-image-runner-pin@.target").read_text()
-    assert artifact.sha(repo / "deploy/image-runner/launcher.py") == next(
+    accepted_launcher = next(
         item["sha256"]
         for item in manifest["entries"]
         if item["path"] == "opt/image-runner/launcher.py"
-    ), "launcher source must match accepted artifact exactly"
+    )
+    assert (
+        artifact.sha(root / "rootfs/opt/image-runner/launcher.py") == accepted_launcher
+    )
     storage = root / "storage"
     storage.mkdir(mode=0o755)
     for name in ("products", "chat", "product-variants", ".product-image-state"):
@@ -119,6 +123,8 @@ def run(root: Path, manifest: dict[str, object], stop: bool) -> None:
     prep.write_text(nss(body, root))
     prep_pin.write_text("[Unit]\nDescription=Disposable read-only proposal only\n")
     service_name = None
+    broker_name = None
+    broker_fd = -1
     descriptors: dict[int, int] = {}
     group = None
     try:
@@ -137,6 +143,7 @@ def run(root: Path, manifest: dict[str, object], stop: bool) -> None:
         proposal = proposals[0]
         instance = proposal["runId"]
         assert runner.UUID.fullmatch(instance)
+        broker_name, broker_identity, broker_fd = broker_fixture.start(instance)
         service_name = f"shop-image-runner@{instance}.service"
         target_name = f"shop-image-runner-pin@{instance}.target"
         unit_path = Path("/etc/systemd/system/shop-image-runner@.service")
@@ -145,7 +152,11 @@ def run(root: Path, manifest: dict[str, object], stop: bool) -> None:
         body = render(template, root, unit_path, pin_path, "unused")
         body = (
             "\n".join(
-                "ExecStart=/usr/bin/python3 -I -B /run/launcher_entry.py %i"
+                (
+                    "ExecStart=/usr/bin/python3 -I -B /run/broker_fault.py %i"
+                    if stop
+                    else "ExecStart=/usr/bin/python3 -I -B /run/broker_attack.py %i"
+                )
                 if line.startswith("ExecStart=")
                 else "RuntimeMaxSec=600"
                 if line.startswith("RuntimeMaxSec=")
@@ -153,10 +164,16 @@ def run(root: Path, manifest: dict[str, object], stop: bool) -> None:
                 if line.startswith("TimeoutStopSec=")
                 else line
                 for line in body.splitlines()
+                if not line.endswith(":/run/systemd/private")
             )
             + "\n"
         )
-        body += f"BindReadOnlyPaths={Path(__file__).with_name('launcher_entry.py')}:/run/launcher_entry.py\n"
+        body += f"BindReadOnlyPaths={Path(__file__).parent}:/opt/image-runner\n"
+        body += f"BindReadOnlyPaths=/run/korzina-manager-broker/{instance}/manager.sock:/run/image-manager.sock\n"
+        if not stop:
+            body += f"BindReadOnlyPaths={Path(__file__).with_name('broker_attack.py')}:/run/broker_attack.py\n"
+        else:
+            body += f"BindReadOnlyPaths={Path(__file__).with_name('broker_fault.py')}:/run/broker_fault.py\n"
         unit_path.write_text(nss(body, root))
         pin_path.write_text(pin_template)
         approval = root / "input/approval.json"
@@ -171,10 +188,42 @@ def run(root: Path, manifest: dict[str, object], stop: bool) -> None:
             "launcherSha256": artifact.sha(repo / "deploy/image-runner/launcher.py"),
             "unitSha256": artifact.sha(unit_path),
             "pinSha256": artifact.sha(pin_path),
+            "managerBroker": broker_identity,
         }
         (root / "input/request.json").write_text(json.dumps(request) + "\n")
+        (root / "input/request.json").chmod(0o600)
+        broker_fixture.bind(instance, root / "input/request.json", unit_path, pin_path)
+        if not stop:
+            broker_fixture.outsiders(
+                instance, artifact.sha(root / "input/request.json")
+            )
         inputs = tree(root / "input")
         application.command("systemctl", "daemon-reload")
+        if not stop:
+            impostor = Path(
+                "/run/systemd/system", "image-broker-impostor-" + instance + ".service"
+            )
+            impostor.write_text(
+                "\n".join(
+                    f"ExecStart=/usr/bin/python3 -I -B /run/broker_attack.py {instance} --outsider"
+                    if line.startswith("ExecStart=")
+                    else line
+                    for line in unit_path.read_text().splitlines()
+                )
+                + "\n"
+            )
+            application.command("systemctl", "daemon-reload")
+            try:
+                application.command("systemctl", "start", impostor.name)
+                rejected = wait_done(impostor.name, 15)
+                log = application.logs(impostor.name)
+                print("BROKER_IMPOSTOR_LOG=" + log, flush=True)
+                assert (
+                    rejected["Result"] == "success"
+                    and "BROKER_WRONG_UNIT=REFUSED" in log
+                )
+            finally:
+                application.command("systemctl", "stop", impostor.name)
         application.command("systemctl", "start", target_name)
         deadline = time.monotonic() + 75
         admitted = False
@@ -242,6 +291,8 @@ def run(root: Path, manifest: dict[str, object], stop: bool) -> None:
             if stop
             else reports[-1].get("inspection") == "passed"
         ), reports
+        if stop:
+            assert "BROKER_FAULT_RESULT=" in journal
         assert child_status is not None
         fields = dict(
             line.split(":", 1) for line in child_status.splitlines() if ":" in line
@@ -259,6 +310,26 @@ def run(root: Path, manifest: dict[str, object], stop: bool) -> None:
             for key in ("CapEff", "CapPrm", "CapInh", "CapAmb")
         )
         assert fields["NoNewPrivs"].strip() == "1" and fields["Seccomp"].strip() == "2"
+        # A manual restart must refuse the retained descriptor before a new child.
+        application.command("systemctl", "start", service_name)
+        restarted = wait_done(service_name, 30)
+        assert restarted["MainPID"] == "0" and restarted["ExecMainStatus"] == "78"
+        assert restarted["NFileDescriptorStore"] == "1" and group_quiescent(
+            group, restarted["ActiveState"]
+        )
+        assert '"reason": "FENCE_BUSY"' in application.logs(service_name)
+        import subprocess
+
+        pin_stop = subprocess.run(
+            ["systemctl", "stop", target_name],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        assert (
+            pin_stop.returncode != 0
+            and runner.show(target_name)["ActiveState"] == "active"
+        )
         application.command("systemctl", "daemon-reload")
         assert runner.show(service_name)["NFileDescriptorStore"] == "1"
         try:
@@ -271,13 +342,34 @@ def run(root: Path, manifest: dict[str, object], stop: bool) -> None:
         assert tree(storage) == original and tree(root / "input") == inputs
         assert metadata(fence) == fence_before
         artifact.verify(root / "rootfs", manifest)
+        broker_log = application.logs(broker_name)
+        print("BROKER_CHECKED_LOG=" + broker_log, flush=True)
+        audits = [
+            json.loads(line.split("=", 1)[1])
+            for line in broker_log.splitlines()
+            if line.startswith("BROKER_AUDIT=")
+        ]
+        assert sum(item["decision"] == "ALLOWED" for item in audits) >= 3
+        if not stop:
+            assert {
+                "MESSAGE_CALLER_MISMATCH",
+                "REQUEST_REFUSED",
+                "CALLER_REFUSED",
+                "DUPLICATE_KEY",
+                "MESSAGE_LIMIT",
+            } <= {item.get("reason") for item in audits}
+            assert "BROKER_ATTACK_RESULT=" in journal
         print(
             "READINESS_RESULT="
             + json.dumps(
                 {
                     "launcher": "stopped" if stop else "inspection passed",
-                    "launcherUnchanged": True,
-                    "fixtureRuntimeBootstrap": "private boot marker; production unit still unverified",
+                    "launcherCandidateSha256": artifact.sha(
+                        repo / "deploy/image-runner/launcher.py"
+                    ),
+                    "managerTransport": "root-only pidfd-authenticated read-only broker; no manager bus mount",
+                    "retainedRestartRefused": True,
+                    "pinManualStopRefused": True,
                     "productionLimitsUnchanged": True,
                     "uid": UID,
                     "gid": GID,
@@ -302,6 +394,13 @@ def run(root: Path, manifest: dict[str, object], stop: bool) -> None:
             )
             application.command("systemctl", "stop", service_name)
             assert runner.show(service_name)["MainPID"] == "0"
+        if broker_name:
+            print("BROKER_FINAL_LOG=" + application.logs(broker_name), flush=True)
+            application.command("systemctl", "stop", broker_name)
+            assert runner.show(broker_name)["MainPID"] == "0"
+        if broker_fd >= 0:
+            assert not broker_fixture.broker.live(broker_fd)
+            os.close(broker_fd)
         for fd in descriptors.values():
             os.close(fd)
         # Do not clear FDSTORE, stop the pinned target, unlink or replace its fence.

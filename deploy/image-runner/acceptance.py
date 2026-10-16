@@ -25,6 +25,7 @@ def select_suite(scope: str) -> unittest.TestSuite:
         "readiness-encode",
         "readiness-launcher",
         "readiness-stop",
+        "readiness-db",
     ):
         raise ValueError("unknown fixture scope")
     import test_systemd
@@ -33,7 +34,12 @@ def select_suite(scope: str) -> unittest.TestSuite:
     names = unittest.defaultTestLoader.getTestCaseNames(test_systemd.SystemdTests)
     if child not in names:
         raise ValueError("missing child OOM acceptance case")
-    if scope in ("readiness-encode", "readiness-launcher", "readiness-stop"):
+    if scope in (
+        "readiness-encode",
+        "readiness-launcher",
+        "readiness-stop",
+        "readiness-db",
+    ):
         import readiness_test
 
         suite = unittest.defaultTestLoader.loadTestsFromTestCase(
@@ -41,6 +47,7 @@ def select_suite(scope: str) -> unittest.TestSuite:
                 "readiness-encode": readiness_test.EncodeTests,
                 "readiness-launcher": readiness_test.LauncherTests,
                 "readiness-stop": readiness_test.StopTests,
+                "readiness-db": readiness_test.DatabaseTests,
             }[scope]
         )
     elif scope in ("application", "application-api", "application-worker"):
@@ -106,6 +113,7 @@ def select_suite(scope: str) -> unittest.TestSuite:
             "readiness-encode",
             "readiness-launcher",
             "readiness-stop",
+            "readiness-db",
         )
         else 1
     ):
@@ -127,6 +135,7 @@ def main(scope: str = "full") -> int:
         "readiness-encode",
         "readiness-launcher",
         "readiness-stop",
+        "readiness-db",
     ):
         raise ValueError("unknown fixture scope")
     # vm.py creates this marker only in its fresh NoCloud guest. It authorizes
@@ -224,6 +233,7 @@ if __name__ == "__main__":
             "--readiness-encode",
             "--readiness-launcher",
             "--readiness-stop",
+            "--readiness-db",
         )
     ):
         sys.exit("Only fixed fixture selectors are accepted")

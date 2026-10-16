@@ -175,6 +175,11 @@ def run(scope: str = "application") -> None:
 
         launcher_fixture.run(root, manifest, scope == "readiness-stop")
         return
+    if scope == "readiness-db":
+        import db_fixture
+
+        db_fixture.run(root, manifest)
+        return
     try:
         account = pwd.getpwuid(55000)
         assert account.pw_name == "imagefixture" and account.pw_gid == 55000
