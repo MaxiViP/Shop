@@ -5,6 +5,10 @@
 Этот отчёт начинает отдельный security review. **SANDBOX_UNVERIFIED сохраняется.**
 Production, VPS, БД и originals не используются для проверки.
 
+Локальные native probes завершены в коммите `394fa35`: **3 PASS / 0 FAILED /
+0 skipped**. Production security acceptance остаётся открытым: API candidate
+ещё не согласован, Linux Node/Sharp artifact и target topology не приняты.
+
 ## Исходный аудит
 
 | ID | Проверка | Наблюдение по коду | Статус до новых fixtures |
@@ -37,8 +41,8 @@ UID/GID и всех capability sets остаются обязательными.
 supervisor и требует отдельного согласования; автоматически оно не предлагается.
 Семантика Bnd, UID drop и CAP_SETPCAP — в
 [Linux capabilities(7)](https://man7.org/linux/man-pages/man7/capabilities.7.html).
-Следующий безопасный шаг — доказать текущую границу дополнительными disposable
-exec probes с положительными controls, не расширяя production allowlist.
+Текущая граница дополнительно проверена disposable exec probes с положительными
+controls, без расширения production allowlist; результаты приведены ниже.
 
 ## API и общий UID
 
@@ -105,3 +109,135 @@ Disk/inode/quota/retained/I/O/headroom budgets и power-loss durability, вкл�
 Каждый новый native test работает только в новой bounded networkless QEMU VM.
 Старые passed tests повторяются только при изменении проверяемой реализации.
 Нет push/merge/deploy/backfill, migrations, изменений VPS/БД/originals.
+
+## Новые native evidence
+
+Принятый прогон:
+`work/image-acceptance-856d04eb2a384bdbb03a83e41a9cb1a5/`.
+Три cases за 263.777 s, 0 failures/errors/skips. Guest: systemd
+259.5-0ubuntu3.4, kernel 7.0.0-34-generic, cgroup v2, реальный namespace preflight.
+Ubuntu base SHA-256:
+`8800651811af9a85465ad1d552add729947bb16488dddb4a9b5305a3d97332b2`.
+
+Driver использует новый overlay/seed, сеть отключена, guest 2 GiB/2 CPU;
+внешний Docker ограничен 3 GiB без swap, 2 CPU, 128 tasks, RO root/source,
+cap-drop ALL и NNP, без host namespaces/socket/KVM/SSH. Сохранённый base
+используется только read-only. Экспорт serial и удаление своего нового volume
+подтверждены `cleanup.log`. Другие Docker resources не менялись.
+
+Source hashes всех 20 файлов из guest report совпали с
+`work/image-security-20261016T093922Z/candidate-5-sha256.json` и staged content
+`394fa35` после нормализации Git CRLF→LF. Structured reports, полный report и
+serial SHA сохранены в `accepted-security.json` в этой же evidence-директории.
+
+### S1 — worker capabilities
+
+Все real/effective/saved UID/GID = 55000, groups пусты, E/P/I/A=0,
+Bnd=0xe4, NNP=1, seccomp=2. Отказ EPERM получен для capset(0xe4),
+setresuid/setresgid(0), setgroups([0]), ambient raise и PR_CAPBSET_DROP без
+CAP_SETPCAP. Попытка очистить NNP возвращает EINVAL; identity не меняется.
+
+Exec plain, setuid-root и file-capability Python ELF внутри template-derived
+unit сохраняет тот же unprivileged профиль. Helpers — новые root-owned copies
+бинарника guest, вне originals; их SHA совпадает с исходным Python ELF.
+На suid-capable guest scratch FS positive controls с NNP=0 реально получили
+euid=0 либо E/P=0xe4. Отдельные controls на том же FS с одним NNP=1 сохранили
+UID 55000 и E/P/I/A=0 без systemd/seccomp/nosuid. Поэтому результат не объясняется
+неработающим setuid/file-capability fixture или только nosuid mount.
+
+Вывод ограничен проверенной комбинацией UID/GID drop + E/P/I/A=0 + NNP.
+Нулевой Bnd не заявляется. Production Node ELF и target kernel требуют
+собственного packaging acceptance. CAP_SETPCAP не добавлялся.
+
+### S2/S3 — API boundary и кандидат
+
+API probe использует текущий `shop-api.service`, сохраняет PrivateTmp и
+ProtectSystem, заменяет только identity/exec/paths на disposable fixtures,
+исключает env file и зависимости Docker. Это Python kernel/DAC probe, а не
+запуск Nest API. Новая nologin identity создаётся только в гостевой VM.
+
+| Операция | Текущий API profile | Candidate |
+| --- | --- | --- |
+| Чтение state/variants 0600 в roots 0700 | PASS | PASS |
+| write/chmod/unlink/rename state/variants | Разрешены | EROFS |
+| hard link state/variants → chat | Разрешён | EXDEV |
+| Запись synthetic products/chat | PASS | PASS |
+| signal permission probe к живому worker (`kill(pid, 0)`) | Разрешён | ESRCH |
+| `/proc/<worker>/root`, чтение через proc alias | EACCES | ENOENT |
+| PTRACE_SEIZE без записи/interrupt | EPERM | ESRCH |
+| runner runtime/control | EACCES | EACCES |
+
+Обратный proc/ptrace доступ уже запрещён текущей комбинацией namespace/kernel
+policy в этом guest; уязвимость ptrace по одному совпадению UID не заявляется.
+Подтверждены второй writer и signal permission в baseline. Candidate устраняет
+эти две возможности в fixtures. API Bnd остаётся штатным, E/P/I/A=0 и NNP=1;
+новый API seccomp profile этим изменением не вводится.
+
+ReadOnlyPaths задаёт mount view, не меняет ACL. Linux блокирует изменение
+унаследованных RO flags в менее привилегированном mount namespace:
+[mount_namespaces(7)](https://man7.org/linux/man-pages/man7/mount_namespaces.7.html).
+Это не заменяет аудит alternate mounts/aliases, inherited FDs, mount propagation
+и всех writers на target. Производственная policy пока не менялась.
+
+### S4 — bounded namespace stress
+
+Три последовательных запуска существующего positive namespace case прошли под
+одновременным guest load: CPUQuota=25% одного CPU, MemoryMax=64 MiB, swap=0,
+TasksMax=4. Реальные cpu.max/memory.max/pids.max проверены. Load оставался active
+и потребил 35,848,389 µs CPU. Время полных итераций: 48.854 / 47.294 / 45.465 s.
+
+Worker timeout **20 s**, unit RuntimeMaxSec **60 s**, CPUQuota=50%,
+MemoryHigh=512 MiB / MemoryMax=768 MiB, TasksMax=64 и security assertions
+не менялись. Каждая итерация проверила mount policy, credentials,
+native link/fsync/no-clobber, retained fence и неизменность своих synthetic
+input/original/unknown-lock fingerprints. Эти три повтора нужны для нового
+load scenario; полная старая матрица 64 не перезапускалась. Heavy app builds
+одновременно с VM не выполнялись.
+
+Это bounded synthetic evidence, не гарантия произвольной нагрузки или
+стабильности production Node/Sharp. Причина прежнего единичного namespace timeout
+не объявляется установленной этим успешным прогоном.
+
+### Проверки harness и сохранность
+
+Ruff check/format шести изменённых Python files — PASS. Изменённый portable
+selector regression — PASS: security выбирает ровно 3 cases, missing mandatory
+child OOM по-прежнему даёт отказ. Нативный прогон также проверяет новый selector.
+Frontend/backend/lockfile не менялись; ранее принятые app checks не повторялись.
+
+Прежние 64 accepted cases сохранены; добавлены 3 новых. **67 unique cases —
+совокупное evidence, не полный запуск на одном boot или production acceptance.**
+Portable selector входит в прежние 64, отдельным новым case не считается.
+Все 518 прежних evidence files и 43 защищённых baseline sources сохранили SHA;
+результат — `work/image-security-20261016T093922Z/preservation.json`.
+
+Все failed attempts сохранены вместе с соответствующими source snapshots:
+
+| Run | Результат и исправление нового harness |
+| --- | --- |
+| `0095ccb4bf154aa7868f5522df3aa1b9` | Worker exit 1 до API probe; child stderr потерян. Добавлена bounded диагностика. Причина этого запуска отдельно не установлена. |
+| `0364ecd5d50044ec8ee358a452b34cc3` | Ошибочное требование PID=2; фактически PID=3, PPID=1, credentials верны. Проверяются PID=1 supervisor и видимость только supervisor/worker. |
+| `47de61dbbf8a467e8f2234c2e57ff441` | API 217/USER: нет guest NSS record UID 55000; cleanup пытался чистить ненастроенный fdstore. Добавлены guest identity и conditional fdstore clean после quiescence. |
+| `e0f0c87676b54cbe9e06ebd2f70b5ecd` | API assertions прошли; cleanup вызвал reset-failed у уже GC'd successful units. Reset выполняется только для failed units. |
+
+Первые четыре прогона целиком FAILED и не учитываются как принятые cases;
+caps/stress до них не дошли. Полный `--security` принят только в пятом прогоне.
+Их prefixes — `work/image-acceptance-`; записи —
+`work/image-security-20261016T093922Z/failed-attempt-{1..4}.json`.
+Также явно заданы ожидаемые modes новых fixture ancestors, чтобы umask не
+делал их недоступными worker. Production permissions при этом не менялись.
+
+## Остановка перед production policy
+
+Проверенный [API candidate](../../deploy/image-runner/api-isolation.conf.example)
+не устанавливается deploy.sh и не добавлен в `shop-api.service`.
+Следующий локальный шаг — согласовать его перенос в production unit в репозитории.
+Установка/restart на target остаются отдельным будущим решением. До этого нужны
+existing roots, actual topology/ACL и startup/health/shutdown реального Node/Nest
+API; fixture не доказывает его работу как PID 1.
+
+S5/S6 остаются NOT VERIFIED: immutable Linux Node/Sharp/libvips closure и
+manifest; actual UID/GID/ACL/ancestors/mounts/aliases/writers; native target storage,
+bytes/inodes/quota/I/O budgets, backup/restore и `nobarrier` durability. Также
+остаются operational recovery/CI и G2–G9 approvals из production plan.
+Этап 5Б-3 полностью не закрыт. **SANDBOX_UNVERIFIED сохраняется.**

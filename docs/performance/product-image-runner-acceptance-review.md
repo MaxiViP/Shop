@@ -148,6 +148,11 @@ Synthetic fixtures не принимают production packaging или target ho
 **Worker CapBnd=0xe4 остаётся открытым security review** при нулевых
 CapEff/CapPrm/CapInh/CapAmb. Нулевой bounding set не заявляется.
 
+Обновление 5Б-3: [отдельный security review](product-image-security-review.md#новые-native-evidence)
+добавляет 3 native cases: exec capability bounds, API candidate и bounded
+namespace stress. Production Node/Sharp artifact и target acceptance этим не закрыты;
+исходный результат 64/64 не пересчитывается как новый полный прогон.
+
 Остаются immutable Node/Sharp/libvips artifact, actual shop UID/GID/ACL,
 API RO и обратная same-UID proc/ptrace boundary, target mounts/budgets и native
 storage/durability, crash/reboot/D-state/manual recovery, Linux application
