@@ -1,5 +1,10 @@
 # Linux WebP readiness: diagnostics and remaining gates
 
+Продолжение после отдельного разрешения владельца на локальный broker и DB/pool:
+[manager broker и lifecycle](product-image-broker-lifecycle.md). Ниже сохранён
+исторический результат этапа до этого разрешения; прежние NOT VERIFIED и
+отрицательные evidence не переписываются.
+
 2026-10-16. Продолжение после `4bfba36`, `a6e9e02`, ветка
 `feat/product-image-production-runner`. Это локальные synthetic fixtures;
 **SANDBOX_UNVERIFIED** остаётся обязательным отказом production apply.
