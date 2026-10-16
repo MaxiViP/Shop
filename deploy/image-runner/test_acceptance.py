@@ -61,4 +61,6 @@ class AcceptancePolicyTests(unittest.TestCase):
             self.assertIn("Restart=no", body)
             self.assertIn("PrivatePIDs=yes", body)
             self.assertIn("PrivateUsers=full", body)
+            self.assertNotIn("\nUser=", body)
+            self.assertIn("Group=root", body)
             self.assertIn("InaccessiblePaths=+/proc/sys/fs/binfmt_misc", body)

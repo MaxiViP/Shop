@@ -189,7 +189,10 @@ FDSTORE/pin/reload/reexec и NRestarts=0. Fixture fence освобождаетс
 
 ## Фактические результаты
 
-Последний real-systemd прогон завершён: **FAILED**. Failfast остановил suite на
+Результаты ниже зафиксированы в `0d26100`. Продолжение диагностики CAP_SETUID и
+отдельные результаты исправления: [supervisor credentials](product-image-runner-credentials.md).
+
+На момент `0d26100` real-systemd прогон завершён: **FAILED**. Failfast остановил suite на
 positive namespace case; незапущенные проверки остаются **NOT VERIFIED**.
 Parser tests и offline unit verify не заменяют lifecycle/namespace acceptance.
 
@@ -271,10 +274,12 @@ SHA-256 `26c4c59dcaf08ef503d10a6c53450df78de78fc828414a6a54ddfec0deded7f6`.
 
 Даже успешный fixture suite не закрывает следующие требования:
 
-- Текущий positive namespace case не проходит credential transition worker:
+- На момент `0d26100` positive namespace case не проходит credential transition worker:
   EPERM сохраняется при full UID/GID maps и setgroups=allow. Нужна отдельная
   диагностика точного отказа внутри disposable unit и завершённый suite без
   failures/errors/skips. Остальные 54 текущие VM проверки пока NOT VERIFIED.
+  Состояние этой строки в `0d26100` сохраняется как история; root cause и
+  последующие проверки описаны в [credentials report](product-image-runner-credentials.md).
 - Полная цепочка immutable production Node/Sharp/libvips artifact, package/native
   hashes, реальные shop UID/GID/ACL и exact launcher FragmentPaths/request/approval.
   Template-derived Python fixture unit не выдаётся за готовый Node production rootfs.

@@ -9,7 +9,8 @@ CollectMode=inactive
 [Service]
 Type=exec
 # Only the small, immutable supervisor runs as root. Its fixed Node child drops to shop.
-User=root
+# Inherit UID 0 from the system manager. systemd 259 drops CAP_SETUID for an
+# explicit User=root with seccomp + NNP; the launcher requires UID 0 and exact caps.
 Group=root
 RootDirectory=/var/lib/korzinamarket-image-runner/rootfs
 WorkingDirectory=/artifact/apps/api

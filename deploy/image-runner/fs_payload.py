@@ -47,6 +47,7 @@ def denied(operation: Callable[[], object]) -> None:
 
 def worker() -> dict[str, object]:
     assert os.getuid() == UID and os.getgid() == UID and os.getgroups() == []
+    assert os.getresuid() == (UID, UID, UID) and os.getresgid() == (UID, UID, UID)
     status = dict(
         line.split(":", 1)
         for line in Path("/proc/self/status").read_text().splitlines()
@@ -56,6 +57,7 @@ def worker() -> dict[str, object]:
     assert all(
         int(status[key], 16) == 0 for key in ("CapEff", "CapPrm", "CapAmb", "CapInh")
     )
+    assert int(status["CapBnd"], 16) == 0xE4  # A ceiling, not usable privileges.
     assert set(os.environ) <= {"PATH", "LANG"}
     config = json.loads(Path("/input/request.json").read_text())
     for name, identity in config["hostNamespaces"].items():
@@ -156,6 +158,17 @@ def worker() -> dict[str, object]:
         finally:
             os.close(fd)
     return {
+        "credentials": {
+            "uids": os.getresuid(),
+            "gids": os.getresgid(),
+            "groups": os.getgroups(),
+            "caps": {
+                key: status[key].strip()
+                for key in ("CapEff", "CapPrm", "CapAmb", "CapInh", "CapBnd")
+            },
+            "noNewPrivileges": status["NoNewPrivs"].strip(),
+            "seccomp": status["Seccomp"].strip(),
+        },
         "roOriginalsInventory": "PASSED",
         "originalFingerprint": list(before),
         "uidCapsEnvSecrets": "PASSED",

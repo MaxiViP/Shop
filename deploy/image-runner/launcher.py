@@ -300,14 +300,17 @@ def process_policy(value: str) -> None:
     fields = dict(line.split(":", 1) for line in value.splitlines() if ":" in line)
     allowed_caps = (1 << 2) | (1 << 5) | (1 << 6) | (1 << 7)
     require(fields.get("NoNewPrivs", "").strip() == "1", "PROCESS_POLICY_UNVERIFIED")
-    for key in ("CapEff", "CapPrm", "CapBnd", "CapInh"):
+    # An allowlist alone accepted 0x64: systemd had removed the CAP_SETUID that
+    # the fixed worker transition needs. Refuse before acquiring the fence.
+    for key in ("CapEff", "CapPrm", "CapBnd"):
         require(
-            int(fields.get(key, "-1").strip(), 16) & ~allowed_caps == 0,
+            int(fields.get(key, "-1").strip(), 16) == allowed_caps,
             "PROCESS_POLICY_UNVERIFIED",
         )
-    require(
-        int(fields.get("CapAmb", "-1").strip(), 16) == 0, "PROCESS_POLICY_UNVERIFIED"
-    )
+    for key in ("CapInh", "CapAmb"):
+        require(
+            int(fields.get(key, "-1").strip(), 16) == 0, "PROCESS_POLICY_UNVERIFIED"
+        )
     require(fields.get("Seccomp", "").strip() == "2", "PROCESS_POLICY_UNVERIFIED")
 
 
@@ -337,6 +340,8 @@ def manager_policy(
     expected = {
         "LoadState": "loaded",
         "Type": "exec",
+        "User": "",
+        "Group": "root",
         "Restart": "no",
         "Delegate": "no",
         "KillMode": "control-group",

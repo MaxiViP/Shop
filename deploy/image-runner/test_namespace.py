@@ -279,6 +279,8 @@ class NamespaceTests(unittest.TestCase):
             ]
             self.assertEqual(len(reports), 1, logs)
             report = json.loads(reports[0])
+            self.assertEqual(values["User"], "")
+            self.assertEqual(values["Group"], "root")
             if mode == "positive":
                 self.assertEqual(report["worker"]["nativeLinkFsyncNoClobber"], "PASSED")
                 self.assertEqual(values["NFileDescriptorStore"], "1")

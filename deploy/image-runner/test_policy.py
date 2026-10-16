@@ -292,6 +292,8 @@ class ParserTests(unittest.TestCase):
         values = {
             "LoadState": "loaded",
             "Type": "exec",
+            "User": "",
+            "Group": "root",
             "Restart": "no",
             "Delegate": "no",
             "KillMode": "control-group",
@@ -322,6 +324,9 @@ class ParserTests(unittest.TestCase):
         }
         runner.manager_policy(values, pin, "test.service", "/test")
         for change in (
+            {"User": "root"},
+            {"User": "shop"},
+            {"Group": "shop"},
             {"Restart": "always"},
             {"PrivatePIDs": "no"},
             {"PrivateUsers": "no"},
@@ -363,8 +368,13 @@ class ParserTests(unittest.TestCase):
         for value in (
             valid.replace("NoNewPrivs: 1", "NoNewPrivs: 0"),
             valid.replace("CapEff: e4", "CapEff: ffffffffff"),
+            valid.replace("CapEff: e4", "CapEff: 64"),
+            valid.replace("CapPrm: e4", "CapPrm: 64"),
+            valid.replace("CapBnd: e4", "CapBnd: 64"),
+            valid.replace("CapEff: e4", "CapEff: 0"),
             valid.replace("CapPrm: e4", "CapPrm: ffffffffff"),
             valid.replace("CapBnd: e4", "CapBnd: ffffffffff"),
+            valid.replace("CapInh: 0", "CapInh: 80"),
             valid.replace("CapInh: 0", "CapInh: ffffffffff"),
             valid.replace("CapPrm: e4\n", ""),
             valid.replace("CapAmb: 0", "CapAmb: 1"),
@@ -460,6 +470,8 @@ class UnitContractTests(unittest.TestCase):
             self.assertIn(literal, service)
         self.assertNotIn("\n[Install]", service + pin)
         self.assertNotIn("EnvironmentFile=", service)
+        self.assertNotIn("\nUser=", service)
+        self.assertIn("Group=root", service)
         self.assertNotIn("--apply", service)
         self.assertNotIn(
             "CPUAccounting=", service
