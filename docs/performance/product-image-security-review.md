@@ -6,8 +6,10 @@
 Production, VPS, БД и originals не используются для проверки.
 
 Локальные native probes завершены в коммите `394fa35`: **3 PASS / 0 FAILED /
-0 skipped**. Production security acceptance остаётся открытым: API candidate
-ещё не согласован, Linux Node/Sharp artifact и target topology не приняты.
+0 skipped**. После отдельного согласования API policy перенесена в локальный
+`shop-api.service` и [проверена напрямую](product-image-api-isolation.md).
+Production security acceptance остаётся открытым: Linux Node/Sharp artifact,
+target topology и application lifecycle в Linux unit не приняты.
 
 ## Исходный аудит
 
@@ -57,7 +59,7 @@ PrivateUsers=full влияет на kernel ptrace checks. В
 обратного proc/ptrace не выводится только из совпадения UID или наличия PrivatePIDs;
 её нужно проверить отдельно. Signals также требуют отдельной проверки.
 
-Конкретный кандидат для review, пока не production configuration:
+Проверенная policy, теперь включённая в локальный API unit:
 
 ```ini
 [Service]
@@ -67,12 +69,12 @@ ReadOnlyPaths=/var/lib/korzinamarket/uploads/.product-image-state
 InaccessiblePaths=/var/lib/korzinamarket-image-runner
 ```
 
-Это дополнение к существующему API unit, а не его замена. Paths должны существовать
-до старта. Нужны positive controls RW originals/chat, API reads 0600/0700,
-отказ state/variants write/chmod/unlink/link и проверка aliases/proc/ptrace/signals.
-После fixture proof потребуется согласование изменения production API policy,
-application startup/shutdown/health tests и проверка actual target topology.
-Текущий `shop-api.service` не меняется и candidate не устанавливается.
+Paths должны существовать до старта. Positive controls RW originals/chat,
+API reads 0600/0700, отказ state/variants write/chmod/unlink/link и проверка
+aliases/proc/ptrace/signals выполнены в fixtures. Перенос policy только в локальный
+`shop-api.service` отдельно согласован пользователем. Application lifecycle в
+Linux unit, actual target topology и любая установка остаются отдельными gates;
+см. [проверку переноса](product-image-api-isolation.md).
 
 ## Artifact и storage: необходимые evidence
 
@@ -227,14 +229,17 @@ caps/stress до них не дошли. Полный `--security` принят 
 Также явно заданы ожидаемые modes новых fixture ancestors, чтобы umask не
 делал их недоступными worker. Production permissions при этом не менялись.
 
-## Остановка перед production policy
+## Согласованный перенос API policy только в репозитории
 
-Проверенный [API candidate](../../deploy/image-runner/api-isolation.conf.example)
-не устанавливается deploy.sh и не добавлен в `shop-api.service`.
-Следующий локальный шаг — согласовать его перенос в production unit в репозитории.
+После отдельного согласования пользователя проверенная policy добавлена только
+в [локальный API unit](../../deploy/shop-api.service). Example сохранён как
+reference; fixture теперь рендерит настоящий unit без добавочного drop-in.
+[Отдельный отчёт](product-image-api-isolation.md) содержит native permission/mount
+proof и DB-free app regressions. Caps/stress и старая матрица не перезапускались.
+
 Установка/restart на target остаются отдельным будущим решением. До этого нужны
 existing roots, actual topology/ACL и startup/health/shutdown реального Node/Nest
-API; fixture не доказывает его работу как PID 1.
+API; Python fixture и Windows app tests не доказывают его работу как Linux PID 1.
 
 S5/S6 остаются NOT VERIFIED: immutable Linux Node/Sharp/libvips closure и
 manifest; actual UID/GID/ACL/ancestors/mounts/aliases/writers; native target storage,

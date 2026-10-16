@@ -16,9 +16,14 @@ TimeoutStopSec=30
 UMask=0027
 NoNewPrivileges=true
 PrivateTmp=true
+PrivatePIDs=yes
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/korzinamarket/uploads
+# Required roots: provision and verify them before any future rollout.
+ReadOnlyPaths=/var/lib/korzinamarket/uploads/product-variants
+ReadOnlyPaths=/var/lib/korzinamarket/uploads/.product-image-state
+InaccessiblePaths=/var/lib/korzinamarket-image-runner
 
 [Install]
 WantedBy=multi-user.target

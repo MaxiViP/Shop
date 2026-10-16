@@ -66,6 +66,7 @@ def run(scope: str = "full") -> int:
         "lifecycle",
         "namespace-positive",
         "security",
+        "security-api",
     ):
         raise ValueError("unknown fixture scope")
     if (ROOT / "fixture-vm-v1").read_text() != "disposable image acceptance only\n":
@@ -239,6 +240,7 @@ if __name__ == "__main__":
                     "--lifecycle",
                     "--namespace-positive",
                     "--security",
+                    "--security-api",
                 )
             )
         )

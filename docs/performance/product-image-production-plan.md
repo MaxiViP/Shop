@@ -115,18 +115,23 @@ EXDEV — stop, не повод включить copy/overwrite fallback.
 
 Текущий `shop-api.service` запускает Node как `shop:shop`, использует
 `ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp=true`, `UMask=0027` и
-`ReadWritePaths=/var/lib/korzinamarket/uploads`. Поэтому предлагаемые roots
-попадают в существующее RW исключение, если DAC/ACL/parents разрешают доступ.
+`ReadWritePaths=/var/lib/korzinamarket/uploads`. В локальной версии 5Б-3 добавлены
+более узкие `ReadOnlyPaths` для variants/state, `PrivatePIDs=yes` и
+`InaccessiblePaths` для runner control/rootfs. Пересечение с родительским RW
+исключением и сохранность originals/chat проверены в disposable namespace:
+[API isolation](product-image-api-isolation.md). Это изменение только репозитория;
+effective policy и совместимость target ещё не приняты.
 `UMask=0027` сам по себе не обеспечивает 0700/0600; новые roots provision отдельно.
 Hard-linked outputs сохраняют mode 0600: API с тем же UID 997 сможет их читать;
 другой UID — только после отдельно рассмотренной модели доступа, не через 0644.
 
-API registry не пишет по коду, но текущий unit и общий UID **не запрещают** ему
-запись в variants/state. Перед rollout спроектировать и проверить в scratch
-узкие read-only mounts этих двух roots в API namespace при сохранении штатной
-записи originals/chat для существующих upload endpoints. Проверить effective
-пересечение с родительским `ReadWritePaths`, отсутствие writable aliases и
-невозможность записи из API. Для runner, наоборот, разрешить RW только
+API registry не пишет по коду. Общий UID и DAC/ACL сами по себе не запрещают API
+запись в variants/state; для этого нужны действующие RO mounts. Перед rollout
+повторно проверить именно target namespace, отсутствие writable aliases,
+унаследованных FDs и несовместимых propagated mounts. Убедиться, что effective
+UPLOAD_DIR/PRODUCT_IMAGE_VARIANTS_DIR/PRODUCT_IMAGE_STATE_DIR совпадают с
+утверждёнными sibling roots; default variants root равен originals и для этого
+rollout не подходит. Для runner, наоборот, разрешить RW только
 variants/state, originals и inventory примонтировать RO; закрыть chat, secrets,
 DB sockets и возможность обхода через другой путь к тому же storage. Mount
 sandbox не защищает от другого доверенного процесса с тем же UID вне namespace.

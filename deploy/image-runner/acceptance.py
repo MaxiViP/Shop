@@ -18,6 +18,7 @@ def select_suite(scope: str) -> unittest.TestSuite:
         "lifecycle",
         "namespace-positive",
         "security",
+        "security-api",
     ):
         raise ValueError("unknown fixture scope")
     import test_systemd
@@ -26,11 +27,15 @@ def select_suite(scope: str) -> unittest.TestSuite:
     names = unittest.defaultTestLoader.getTestCaseNames(test_systemd.SystemdTests)
     if child not in names:
         raise ValueError("missing child OOM acceptance case")
-    if scope == "security":
+    if scope in ("security", "security-api"):
         import test_security
 
-        suite = unittest.defaultTestLoader.loadTestsFromTestCase(
-            test_security.SecurityTests
+        suite = (
+            unittest.TestSuite([test_security.SecurityTests("test_api_unit_boundary")])
+            if scope == "security-api"
+            else unittest.defaultTestLoader.loadTestsFromTestCase(
+                test_security.SecurityTests
+            )
         )
     elif scope == "namespace-positive":
         import test_namespace
@@ -62,7 +67,9 @@ def select_suite(scope: str) -> unittest.TestSuite:
             elif case.id() == child_id:
                 child_count += 1
     if child_count != (
-        0 if scope in ("lifecycle", "namespace-positive", "security") else 1
+        0
+        if scope in ("lifecycle", "namespace-positive", "security", "security-api")
+        else 1
     ):
         raise ValueError("incorrect child OOM fixture selection")
     return suite
@@ -75,6 +82,7 @@ def main(scope: str = "full") -> int:
         "lifecycle",
         "namespace-positive",
         "security",
+        "security-api",
     ):
         raise ValueError("unknown fixture scope")
     # vm.py creates this marker only in its fresh NoCloud guest. It authorizes
@@ -160,7 +168,13 @@ if __name__ == "__main__":
     if len(sys.argv) > 2 or (
         len(sys.argv) == 2
         and sys.argv[1]
-        not in ("--child-oom", "--lifecycle", "--namespace-positive", "--security")
+        not in (
+            "--child-oom",
+            "--lifecycle",
+            "--namespace-positive",
+            "--security",
+            "--security-api",
+        )
     ):
         sys.exit("Only fixed fixture selectors are accepted")
     try:

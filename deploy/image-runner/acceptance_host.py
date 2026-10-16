@@ -24,6 +24,7 @@ def main(scope: str = "full") -> int:
         "lifecycle",
         "namespace-positive",
         "security",
+        "security-api",
     ):
         raise ValueError("unknown fixture scope")
     name = "image-acceptance-" + uuid.uuid4().hex
@@ -249,7 +250,13 @@ if __name__ == "__main__":
     if len(sys.argv) > 2 or (
         len(sys.argv) == 2
         and sys.argv[1]
-        not in ("--child-oom", "--lifecycle", "--namespace-positive", "--security")
+        not in (
+            "--child-oom",
+            "--lifecycle",
+            "--namespace-positive",
+            "--security",
+            "--security-api",
+        )
     ):
         sys.exit("Only fixed fixture selectors are accepted")
     try:

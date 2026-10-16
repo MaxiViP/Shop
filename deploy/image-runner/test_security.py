@@ -214,6 +214,12 @@ class SecurityTests(unittest.TestCase):
                 path.write_bytes(b"synthetic-security-storage-v1")
                 path.chmod(0o600)
                 os.chown(path, UID, UID)
+        for name in ("products", "chat"):
+            (root / "uploads" / name).chmod(0o750)
+        original = root / "uploads/products/existing-original.webp"
+        original.write_bytes(b"synthetic-original-preserved")
+        original.chmod(0o640)
+        os.chown(original, UID, UID)
         (root / "input").mkdir(mode=0o700)
         for name in ("request.json", "inventory.jsonl", "approval.json"):
             path = root / "input" / name
@@ -329,7 +335,7 @@ class SecurityTests(unittest.TestCase):
             flush=True,
         )
 
-    def api_probe(self, root: Path, worker: str, candidate: bool) -> dict[str, object]:
+    def api_probe(self, root: Path, worker: str) -> dict[str, object]:
         values = runner.show(worker)
         group = Path("/sys/fs/cgroup") / values["ControlGroup"].lstrip("/")
         pids = (group / "cgroup.procs").read_text().split()
@@ -367,20 +373,32 @@ class SecurityTests(unittest.TestCase):
         # Keep API PrivateTmp. Only this new fixture is exposed read-only;
         # its selected uploads subtree retains the existing ReadWritePaths rule.
         body += f"BindReadOnlyPaths={self.root}:{self.root}\n"
-        if candidate:
-            proposed = (
-                Path(__file__).with_name("api-isolation.conf.example").read_text()
-            )
-            proposed = proposed.replace(
-                "/var/lib/korzinamarket/uploads", str(root / "uploads")
-            )
-            proposed = proposed.replace(
-                "/var/lib/korzinamarket-image-runner",
-                f"{self.root}/runtime {self.root}/control",
-            )
-            body += proposed
+        body = body.replace("/var/lib/korzinamarket/uploads", str(root / "uploads"))
+        body = body.replace(
+            "/var/lib/korzinamarket-image-runner",
+            f"{self.root}/runtime {self.root}/control",
+        )
         unit = self.install(body)
         self.finished(unit, 25)
+        effective = runner.show(unit)
+        self.assertEqual(effective["PrivatePIDs"], "yes")
+        self.assertEqual(effective["PrivateTmp"], "yes")
+        self.assertEqual(effective["ProtectSystem"], "strict")
+        self.assertEqual(effective["NoNewPrivileges"], "yes")
+        self.assertEqual(effective["User"], str(UID))
+        self.assertEqual(effective["Group"], str(UID))
+        self.assertEqual(effective["ReadWritePaths"].split(), [str(root / "uploads")])
+        self.assertEqual(
+            set(effective["ReadOnlyPaths"].split()),
+            {
+                str(root / "uploads" / name)
+                for name in ("product-variants", ".product-image-state")
+            },
+        )
+        self.assertEqual(
+            set(effective["InaccessiblePaths"].split()),
+            {str(self.root / "runtime"), str(self.root / "control")},
+        )
         reports = [
             json.loads(line.split("SECURITY_API=", 1)[1])
             for line in self.logs(unit).splitlines()
@@ -389,46 +407,37 @@ class SecurityTests(unittest.TestCase):
         self.assertEqual(len(reports), 1)
         return reports[0]
 
-    def test_api_boundary_candidate(self) -> None:
-        reports = {}
-        for candidate in (False, True):
-            root = self.case_root()
-            unit = self.start_worker(root, "boundary")
-            ready = root / "uploads/.product-image-state/work/worker-ready"
-            deadline = time.monotonic() + 30
-            while not ready.exists() and time.monotonic() < deadline:
-                time.sleep(0.05)
-            self.assertTrue(ready.exists(), self.logs(unit))
-            report = self.api_probe(root, unit, candidate)
-            for directory in ("product-variants", ".product-image-state"):
-                self.assertTrue(
-                    all(
-                        value["allowed"] == (not candidate)
-                        for value in report[directory].values()
-                    ),
-                    report,
+    def test_api_unit_boundary(self) -> None:
+        root = self.case_root()
+        unit = self.start_worker(root, "boundary")
+        ready = root / "uploads/.product-image-state/work/worker-ready"
+        deadline = time.monotonic() + 30
+        while not ready.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertTrue(ready.exists(), self.logs(unit))
+        report = self.api_probe(root, unit)
+        for directory in ("product-variants", ".product-image-state"):
+            self.assertFalse(
+                any(value["allowed"] for value in report[directory].values()), report
+            )
+        self.assertTrue(report["products"]["allowed"] and report["chat"]["allowed"])
+        self.assertFalse(
+            any(
+                report[key]["allowed"]
+                for key in (
+                    "procRoot",
+                    "procAlias",
+                    "ptrace",
+                    "signal",
+                    "control",
+                    "runtime",
+                    "storageParentWrite",
                 )
-            self.assertTrue(report["products"]["allowed"] and report["chat"]["allowed"])
-            self.assertEqual(report["signal"]["allowed"], not candidate)
-            if candidate:
-                self.assertFalse(
-                    any(
-                        report[key]["allowed"]
-                        for key in (
-                            "procRoot",
-                            "procAlias",
-                            "ptrace",
-                            "control",
-                            "runtime",
-                        )
-                    )
-                )
-            ready.with_name("finish").write_text("finish")
-            self.finished(unit)
-            reports["candidate" if candidate else "baseline"] = report
-        print(
-            "SECURITY_API_BOUNDARY=" + json.dumps(reports, sort_keys=True), flush=True
+            )
         )
+        ready.with_name("finish").write_text("finish")
+        self.finished(unit)
+        print("SECURITY_API_BOUNDARY=" + json.dumps(report, sort_keys=True), flush=True)
 
     def test_namespace_under_bounded_cpu_load(self) -> None:
         load = self.install("""[Service]

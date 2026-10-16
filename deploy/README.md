@@ -22,6 +22,14 @@ NVM для systemd не используется. pnpm берётся из `pack
 entrypoint текущей сборки; web — готовый Nitro output, без dev/watch/preview.
 Root `compose.yml` остаётся development-конфигурацией.
 
+WebP branch: локальный `shop-api.service` теперь включает PrivatePIDs и RO mounts
+variants/state. Перед любой будущей установкой нужны systemd ≥257 с работающим
+PID namespace, заранее существующие private roots и отдельная проверка actual
+UID/GID/ACL/paths. Наличие Ubuntu 24.04 само по себе этого не подтверждает.
+Текущий `deploy.sh` создаёт только products/chat, не WebP/control roots, и
+выполняет migrations; он не является разрешённой процедурой WebP rollout.
+См. [локальную проверку API isolation](../docs/performance/product-image-api-isolation.md).
+
 ## 1. Сразу после SSH: пакеты и runtime
 
 Команды рассчитаны на свежую Ubuntu 24.04 и SSH-пользователя с `sudo`.

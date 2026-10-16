@@ -1,6 +1,6 @@
-# Review candidate only. Never installed as a production drop-in.
-# Acceptance maps these directives exclusively to new disposable fixture paths.
-# Requires pre-existing roots and separate approval before a production API change.
+# Reference policy included in deploy/shop-api.service; not a separate drop-in.
+# Acceptance renders the actual API unit into new disposable fixture paths.
+# Target installation still requires verified roots and separate approval.
 [Service]
 PrivatePIDs=yes
 ReadOnlyPaths=/var/lib/korzinamarket/uploads/product-variants

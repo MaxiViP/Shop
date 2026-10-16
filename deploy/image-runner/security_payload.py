@@ -211,10 +211,64 @@ def api(path: Path) -> dict[str, object]:
     storage = path.parent / "uploads"
     assert storage.resolve() == storage
     results: dict[str, object] = {}
+    value = identity()
+    assert value["uids"] == value["gids"] == [UID, UID, UID]
+    assert value["nnp"] == 1
+    assert all(
+        value["caps"][key] == 0 for key in ("CapEff", "CapPrm", "CapInh", "CapAmb")
+    )
+    pid = os.getpid()
+    visible = {int(p.name) for p in Path("/proc").iterdir() if p.name.isdigit()}
+    assert os.readlink("/proc/self") == str(pid)
+    assert {1, pid} == visible, {"pid": pid, "visible": sorted(visible)}
+    results["pidNamespace"] = {"pid": pid, "visible": sorted(visible)}
+    fields = dict(
+        line.split(":", 1)
+        for line in Path("/proc/self/status").read_text().splitlines()
+        if ":" in line
+    )
+    assert int(fields["Umask"], 8) == 0o027
+    mounts = []
+    for line in Path("/proc/self/mountinfo").read_text().splitlines():
+        parts = line.split(" - ", 1)[0].split()
+        mounts.append(
+            {"id": int(parts[0]), "path": parts[4], "options": parts[5].split(",")}
+        )
+    topology = {}
+    for name in (".", "products", "chat", "product-variants", ".product-image-state"):
+        target = storage / name
+        mount = max(
+            (m for m in mounts if target.is_relative_to(m["path"])),
+            key=lambda m: len(Path(m["path"]).parts),
+        )
+        info = target.stat()
+        assert info.st_uid == info.st_gid == (0 if name == "." else UID)
+        assert stat.S_IMODE(info.st_mode) == (
+            0o755 if name == "." else 0o750 if name in ("products", "chat") else 0o700
+        )
+        assert (
+            "ro" if name in ("product-variants", ".product-image-state") else "rw"
+        ) in mount["options"]
+        topology[name] = {
+            **mount,
+            "uid": info.st_uid,
+            "gid": info.st_gid,
+            "mode": oct(stat.S_IMODE(info.st_mode)),
+        }
+    assert topology["products"]["id"] == topology["chat"]["id"] == topology["."]["id"]
+    assert all(
+        topology[name]["id"] != topology["."]["id"]
+        for name in ("product-variants", ".product-image-state")
+    )
+    results["topology"] = topology
     for directory in ("product-variants", ".product-image-state"):
         parent = storage / directory
         assert (parent / "read").read_bytes() == b"synthetic-security-storage-v1"
         results[directory] = {
+            "create": attempt(
+                lambda: (parent / "new-file").write_bytes(b"must-not-exist")
+            ),
+            "mkdir": attempt(lambda: (parent / "new-directory").mkdir()),
             "write": attempt(
                 lambda: (parent / "write").write_bytes(b"synthetic-api-write")
             ),
@@ -230,6 +284,61 @@ def api(path: Path) -> dict[str, object]:
     for directory in ("products", "chat"):
         leaf = storage / directory / "api-rw-probe"
         results[directory] = attempt(lambda: leaf.write_bytes(b"synthetic-api-rw"))
+    original = storage / "products/existing-original.webp"
+
+    def stamp() -> tuple[int, ...]:
+        info = original.stat()
+        return (
+            info.st_dev,
+            info.st_ino,
+            info.st_uid,
+            info.st_gid,
+            info.st_mode,
+            info.st_size,
+            info.st_mtime_ns,
+            info.st_ctime_ns,
+        )
+
+    before = stamp()
+    assert original.read_bytes() == b"synthetic-original-preserved"
+    assert stamp() == before
+    uploaded = storage / "products/api-upload.webp"
+    fd = os.open(uploaded, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+    try:
+        assert os.write(fd, b"synthetic-api-upload") == len(b"synthetic-api-upload")
+    finally:
+        os.close(fd)
+    assert uploaded.read_bytes() == b"synthetic-api-upload"
+    assert stat.S_IMODE(uploaded.stat().st_mode) == 0o640
+    try:
+        collision = os.open(uploaded, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+    except OSError as error:
+        assert error.errno == errno.EEXIST
+    else:
+        os.close(collision)
+        raise AssertionError("exclusive upload clobbered a file")
+    rollback = uploaded.with_name("rollback.webp")
+    rollback.write_bytes(b"synthetic-rollback")
+    rollback.unlink()
+    assert not rollback.exists()
+    hero = uploaded.parent / "hero"
+    hero.mkdir()
+    (hero / "hero-upload.webp").write_bytes(b"synthetic-hero-upload")
+    assert (hero / "hero-upload.webp").read_bytes() == b"synthetic-hero-upload"
+    assert (
+        original.read_bytes() == b"synthetic-original-preserved" and stamp() == before
+    )
+    results["originals"] = {
+        "existingPreserved": True,
+        "uploadRead": True,
+        "exclusiveCreate": True,
+        "rollbackUnlink": True,
+        "nestedUpload": True,
+        "mode": "0640",
+    }
+    results["storageParentWrite"] = attempt(
+        lambda: (storage / "unexpected-root").mkdir()
+    )
     pid = config["workerPid"]
     assert type(pid) is int and pid > 64
     results["procRoot"] = attempt(lambda: os.readlink(f"/proc/{pid}/root"))

@@ -603,6 +603,10 @@ class LifecyclePolicyTests(unittest.TestCase):
             ["test_namespace.NamespaceTests.test_actual_template_namespace"],
         )
         self.assertEqual(acceptance.select_suite("security").countTestCases(), 3)
+        self.assertEqual(
+            [case.id() for case in acceptance.select_suite("security-api")],
+            ["test_security.SecurityTests.test_api_unit_boundary"],
+        )
         with self.assertRaisesRegex(ValueError, "unknown fixture scope"):
             acceptance.select_suite("untrusted")
         for scope in (
@@ -611,6 +615,7 @@ class LifecyclePolicyTests(unittest.TestCase):
             "lifecycle",
             "namespace-positive",
             "security",
+            "security-api",
         ):
             with (
                 self.subTest(scope=scope),
