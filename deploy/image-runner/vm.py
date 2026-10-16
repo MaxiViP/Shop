@@ -67,6 +67,9 @@ def run(scope: str = "full") -> int:
         "namespace-positive",
         "security",
         "security-api",
+        "application",
+        "application-api",
+        "application-worker",
     ):
         raise ValueError("unknown fixture scope")
     if (ROOT / "fixture-vm-v1").read_text() != "disposable image acceptance only\n":
@@ -85,6 +88,8 @@ def run(scope: str = "full") -> int:
         SOURCE / "deploy/shop-image-runner-pin@.target",
         SOURCE / "apps/api/data/product-image-production/environment.ts",
     ]
+    if scope in ("application", "application-api", "application-worker"):
+        selected.append(SOURCE / "deploy/image-runner/application.mjs")
     for path in selected:
         if path.is_symlink() or not path.is_file() or path.stat().st_size > 128 * 1024:
             raise RuntimeError("unsafe fixture source")
@@ -157,6 +162,29 @@ def run(scope: str = "full") -> int:
             "6G",
         ]
     )
+    if scope in ("application", "application-api", "application-worker"):
+        artifact = Path("/artifact-input")
+        summary = json.loads((artifact / "summary.json").read_text())
+        if (
+            sha256(artifact / "rootfs.tar") != summary["rootfsSha256"]
+            or sha256(artifact / "manifest.json") != summary["manifestSha256"]
+            or (artifact / "rootfs.tar").stat().st_size > 512 * 1024**2
+        ):
+            raise RuntimeError("artifact media digest/size mismatch")
+        command(
+            [
+                "genisoimage",
+                "-quiet",
+                "-output",
+                str(ROOT / "artifact.iso"),
+                "-volid",
+                "IMAGE_RUNTIME",
+                "-joliet",
+                "-rock",
+                str(artifact),
+            ],
+            timeout=90,
+        )
     args = [
         "qemu-system-x86_64",
         "-machine",
@@ -188,6 +216,11 @@ def run(scope: str = "full") -> int:
         "-drive",
         f"file={ROOT / 'seed.iso'},if=virtio,format=raw,readonly=on",
     ]
+    if scope in ("application", "application-api", "application-worker"):
+        args += [
+            "-drive",
+            f"file={ROOT / 'artifact.iso'},if=virtio,format=raw,readonly=on",
+        ]
     log = ROOT / "serial.log"
     with log.open("xb") as output:
         child = subprocess.Popen(
@@ -241,6 +274,9 @@ if __name__ == "__main__":
                     "--namespace-positive",
                     "--security",
                     "--security-api",
+                    "--application",
+                    "--application-api",
+                    "--application-worker",
                 )
             )
         )

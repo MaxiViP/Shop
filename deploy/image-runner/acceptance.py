@@ -19,6 +19,9 @@ def select_suite(scope: str) -> unittest.TestSuite:
         "namespace-positive",
         "security",
         "security-api",
+        "application",
+        "application-api",
+        "application-worker",
     ):
         raise ValueError("unknown fixture scope")
     import test_systemd
@@ -27,7 +30,17 @@ def select_suite(scope: str) -> unittest.TestSuite:
     names = unittest.defaultTestLoader.getTestCaseNames(test_systemd.SystemdTests)
     if child not in names:
         raise ValueError("missing child OOM acceptance case")
-    if scope in ("security", "security-api"):
+    if scope in ("application", "application-api", "application-worker"):
+        import application_test
+
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(
+            application_test.ApplicationTests
+            if scope == "application"
+            else application_test.ApplicationApiTests
+            if scope == "application-api"
+            else application_test.ApplicationWorkerTests
+        )
+    elif scope in ("security", "security-api"):
         import test_security
 
         suite = (
@@ -68,7 +81,16 @@ def select_suite(scope: str) -> unittest.TestSuite:
                 child_count += 1
     if child_count != (
         0
-        if scope in ("lifecycle", "namespace-positive", "security", "security-api")
+        if scope
+        in (
+            "lifecycle",
+            "namespace-positive",
+            "security",
+            "security-api",
+            "application",
+            "application-api",
+            "application-worker",
+        )
         else 1
     ):
         raise ValueError("incorrect child OOM fixture selection")
@@ -83,6 +105,9 @@ def main(scope: str = "full") -> int:
         "namespace-positive",
         "security",
         "security-api",
+        "application",
+        "application-api",
+        "application-worker",
     ):
         raise ValueError("unknown fixture scope")
     # vm.py creates this marker only in its fresh NoCloud guest. It authorizes
@@ -174,6 +199,9 @@ if __name__ == "__main__":
             "--namespace-positive",
             "--security",
             "--security-api",
+            "--application",
+            "--application-api",
+            "--application-worker",
         )
     ):
         sys.exit("Only fixed fixture selectors are accepted")

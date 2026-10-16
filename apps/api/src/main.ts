@@ -11,6 +11,7 @@ import { configureProductImageHttp } from './product/image-static.js';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.enableShutdownHooks(['SIGTERM', 'SIGINT']);
   configureProxy(app);
   configureProductImageHttp(app, app.get(ImageRegistry), uploadRoot);
 

@@ -607,6 +607,18 @@ class LifecyclePolicyTests(unittest.TestCase):
             [case.id() for case in acceptance.select_suite("security-api")],
             ["test_security.SecurityTests.test_api_unit_boundary"],
         )
+        self.assertEqual(
+            [case.id() for case in acceptance.select_suite("application")],
+            ["application_test.ApplicationTests.test_packaged_node_and_api"],
+        )
+        self.assertEqual(
+            [case.id() for case in acceptance.select_suite("application-api")],
+            ["application_test.ApplicationApiTests.test_packaged_api"],
+        )
+        self.assertEqual(
+            [case.id() for case in acceptance.select_suite("application-worker")],
+            ["application_test.ApplicationWorkerTests.test_packaged_worker"],
+        )
         with self.assertRaisesRegex(ValueError, "unknown fixture scope"):
             acceptance.select_suite("untrusted")
         for scope in (
@@ -616,6 +628,9 @@ class LifecyclePolicyTests(unittest.TestCase):
             "namespace-positive",
             "security",
             "security-api",
+            "application",
+            "application-api",
+            "application-worker",
         ):
             with (
                 self.subTest(scope=scope),

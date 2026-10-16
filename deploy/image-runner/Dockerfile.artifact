@@ -1,0 +1,30 @@
+# Disposable Linux packaging fixture only. Never a deployment image.
+FROM node:24.20.0-bookworm-slim@sha256:6642ef280aebc09c4541bee0b15c9f89f0f3f3c247ddee79ae1d37eddfdcbbaa AS build
+COPY --from=python:3.13-slim-trixie@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f /etc/ssl/certs/ /etc/ssl/certs/
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get -o Acquire::Retries=2 update \
+    && apt-get -o Acquire::Retries=2 install -y --no-install-recommends python3 binutils systemd \
+    && rm -rf /var/lib/apt/lists/*
+RUN npm install --global --ignore-scripts pnpm@11.24.0
+WORKDIR /source
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api/package.json apps/api/package.json
+ENV SHARP_IGNORE_GLOBAL_LIBVIPS=1 TSX_DISABLE_CACHE=1
+RUN pnpm --filter api install --frozen-lockfile --ignore-scripts
+# Download the CLI's build dependency before entering the offline build steps.
+RUN cd apps/api && pnpm exec prisma --version
+COPY apps/api/ apps/api/
+# Generate code without a network or a real database address.
+RUN --network=none cd apps/api && DATABASE_URL=postgresql://fixture:fixture@127.0.0.1:1/forbidden \
+    pnpm exec prisma generate --config prisma7.config.ts
+RUN --network=none pnpm --filter api exec tsc --noEmit -p tsconfig.build.json \
+    && pnpm --filter api lint && pnpm --filter api build
+RUN --network=none cd apps/api && DOTENV_CONFIG_PATH=/dev/null pnpm exec vitest run \
+    src/product/image-registry.spec.ts src/product/image-static.spec.ts src/admin/images-upload.spec.ts \
+    --reporter=verbose --reporter=json --outputFile.json=/source/linux-tests.json
+COPY deploy/image-runner/ deploy/image-runner/
+COPY source.json source.json
+RUN --network=none cd deploy/image-runner && python3 -B -m unittest -v artifact_test \
+    && python3 -B artifact.py build
+FROM scratch AS export
+COPY --from=build /out/ /
