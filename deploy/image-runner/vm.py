@@ -70,6 +70,9 @@ def run(scope: str = "full") -> int:
         "application",
         "application-api",
         "application-worker",
+        "readiness-encode",
+        "readiness-launcher",
+        "readiness-stop",
     ):
         raise ValueError("unknown fixture scope")
     if (ROOT / "fixture-vm-v1").read_text() != "disposable image acceptance only\n":
@@ -81,15 +84,17 @@ def run(scope: str = "full") -> int:
     seed.mkdir()
     files = []
     source_hashes: dict[str, str] = {}
-    selected = sorted((SOURCE / "deploy/image-runner").glob("*.py")) + [
-        SOURCE / "deploy/image-runner/api-isolation.conf.example",
-        SOURCE / "deploy/shop-api.service",
-        SOURCE / "deploy/shop-image-runner@.service",
-        SOURCE / "deploy/shop-image-runner-pin@.target",
-        SOURCE / "apps/api/data/product-image-production/environment.ts",
-    ]
-    if scope in ("application", "application-api", "application-worker"):
-        selected.append(SOURCE / "deploy/image-runner/application.mjs")
+    selected = (
+        sorted((SOURCE / "deploy/image-runner").glob("*.py"))
+        + sorted((SOURCE / "deploy/image-runner").glob("*.mjs"))
+        + [
+            SOURCE / "deploy/image-runner/api-isolation.conf.example",
+            SOURCE / "deploy/shop-api.service",
+            SOURCE / "deploy/shop-image-runner@.service",
+            SOURCE / "deploy/shop-image-runner-pin@.target",
+            SOURCE / "apps/api/data/product-image-production/environment.ts",
+        ]
+    )
     for path in selected:
         if path.is_symlink() or not path.is_file() or path.stat().st_size > 128 * 1024:
             raise RuntimeError("unsafe fixture source")
@@ -162,7 +167,14 @@ def run(scope: str = "full") -> int:
             "6G",
         ]
     )
-    if scope in ("application", "application-api", "application-worker"):
+    if scope in (
+        "application",
+        "application-api",
+        "application-worker",
+        "readiness-encode",
+        "readiness-launcher",
+        "readiness-stop",
+    ):
         artifact = Path("/artifact-input")
         summary = json.loads((artifact / "summary.json").read_text())
         if (
@@ -216,7 +228,14 @@ def run(scope: str = "full") -> int:
         "-drive",
         f"file={ROOT / 'seed.iso'},if=virtio,format=raw,readonly=on",
     ]
-    if scope in ("application", "application-api", "application-worker"):
+    if scope in (
+        "application",
+        "application-api",
+        "application-worker",
+        "readiness-encode",
+        "readiness-launcher",
+        "readiness-stop",
+    ):
         args += [
             "-drive",
             f"file={ROOT / 'artifact.iso'},if=virtio,format=raw,readonly=on",
@@ -277,6 +296,9 @@ if __name__ == "__main__":
                     "--application",
                     "--application-api",
                     "--application-worker",
+                    "--readiness-encode",
+                    "--readiness-launcher",
+                    "--readiness-stop",
                 )
             )
         )

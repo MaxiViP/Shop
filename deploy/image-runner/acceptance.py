@@ -22,6 +22,9 @@ def select_suite(scope: str) -> unittest.TestSuite:
         "application",
         "application-api",
         "application-worker",
+        "readiness-encode",
+        "readiness-launcher",
+        "readiness-stop",
     ):
         raise ValueError("unknown fixture scope")
     import test_systemd
@@ -30,7 +33,17 @@ def select_suite(scope: str) -> unittest.TestSuite:
     names = unittest.defaultTestLoader.getTestCaseNames(test_systemd.SystemdTests)
     if child not in names:
         raise ValueError("missing child OOM acceptance case")
-    if scope in ("application", "application-api", "application-worker"):
+    if scope in ("readiness-encode", "readiness-launcher", "readiness-stop"):
+        import readiness_test
+
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(
+            {
+                "readiness-encode": readiness_test.EncodeTests,
+                "readiness-launcher": readiness_test.LauncherTests,
+                "readiness-stop": readiness_test.StopTests,
+            }[scope]
+        )
+    elif scope in ("application", "application-api", "application-worker"):
         import application_test
 
         suite = unittest.defaultTestLoader.loadTestsFromTestCase(
@@ -90,6 +103,9 @@ def select_suite(scope: str) -> unittest.TestSuite:
             "application",
             "application-api",
             "application-worker",
+            "readiness-encode",
+            "readiness-launcher",
+            "readiness-stop",
         )
         else 1
     ):
@@ -108,6 +124,9 @@ def main(scope: str = "full") -> int:
         "application",
         "application-api",
         "application-worker",
+        "readiness-encode",
+        "readiness-launcher",
+        "readiness-stop",
     ):
         raise ValueError("unknown fixture scope")
     # vm.py creates this marker only in its fresh NoCloud guest. It authorizes
@@ -202,6 +221,9 @@ if __name__ == "__main__":
             "--application",
             "--application-api",
             "--application-worker",
+            "--readiness-encode",
+            "--readiness-launcher",
+            "--readiness-stop",
         )
     ):
         sys.exit("Only fixed fixture selectors are accepted")

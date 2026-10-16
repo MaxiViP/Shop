@@ -619,6 +619,18 @@ class LifecyclePolicyTests(unittest.TestCase):
             [case.id() for case in acceptance.select_suite("application-worker")],
             ["application_test.ApplicationWorkerTests.test_packaged_worker"],
         )
+        self.assertEqual(
+            [case.id() for case in acceptance.select_suite("readiness-encode")],
+            ["readiness_test.EncodeTests.test_default_budget"],
+        )
+        self.assertEqual(
+            [case.id() for case in acceptance.select_suite("readiness-launcher")],
+            ["readiness_test.LauncherTests.test_inspection"],
+        )
+        self.assertEqual(
+            [case.id() for case in acceptance.select_suite("readiness-stop")],
+            ["readiness_test.StopTests.test_shutdown"],
+        )
         with self.assertRaisesRegex(ValueError, "unknown fixture scope"):
             acceptance.select_suite("untrusted")
         for scope in (
@@ -631,6 +643,9 @@ class LifecyclePolicyTests(unittest.TestCase):
             "application",
             "application-api",
             "application-worker",
+            "readiness-encode",
+            "readiness-launcher",
+            "readiness-stop",
         ):
             with (
                 self.subTest(scope=scope),

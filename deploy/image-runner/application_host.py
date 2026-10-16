@@ -25,7 +25,17 @@ def main() -> None:
         os.name != "nt"
         or len(sys.argv) not in (3, 4)
         or sys.argv[1] != "--artifact"
-        or (len(sys.argv) == 4 and sys.argv[3] not in ("--api-only", "--worker-only"))
+        or (
+            len(sys.argv) == 4
+            and sys.argv[3]
+            not in (
+                "--api-only",
+                "--worker-only",
+                "--encode-only",
+                "--launcher-only",
+                "--launcher-stop",
+            )
+        )
     ):
         raise ValueError("fixed local --artifact WORK/BUILD/artifact only")
     artifact = Path(sys.argv[2]).resolve(strict=True)
@@ -46,14 +56,17 @@ def main() -> None:
     output = REPO / "work" / name
     output.mkdir(exist_ok=False)
     snapshot = output / "source"
-    sources = list((REPO / "deploy/image-runner").glob("*.py")) + [
-        REPO / "deploy/image-runner/application.mjs",
-        REPO / "deploy/image-runner/api-isolation.conf.example",
-        REPO / "deploy/shop-api.service",
-        REPO / "deploy/shop-image-runner@.service",
-        REPO / "deploy/shop-image-runner-pin@.target",
-        REPO / "apps/api/data/product-image-production/environment.ts",
-    ]
+    sources = (
+        list((REPO / "deploy/image-runner").glob("*.py"))
+        + list((REPO / "deploy/image-runner").glob("*.mjs"))
+        + [
+            REPO / "deploy/image-runner/api-isolation.conf.example",
+            REPO / "deploy/shop-api.service",
+            REPO / "deploy/shop-image-runner@.service",
+            REPO / "deploy/shop-image-runner-pin@.target",
+            REPO / "apps/api/data/product-image-production/environment.ts",
+        ]
+    )
     hashes = {}
     for source in sources:
         if (
@@ -213,6 +226,12 @@ print('verified RO base; new overlay/seed required')
                     if len(sys.argv) == 3
                     else "--application-api"
                     if sys.argv[3] == "--api-only"
+                    else "--readiness-encode"
+                    if sys.argv[3] == "--encode-only"
+                    else "--readiness-launcher"
+                    if sys.argv[3] == "--launcher-only"
+                    else "--readiness-stop"
+                    if sys.argv[3] == "--launcher-stop"
                     else "--application-worker",
                 ],
                 "create.log",

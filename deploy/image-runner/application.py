@@ -165,6 +165,16 @@ def run(scope: str = "application") -> None:
         + json.dumps({"summary": summary, "entries": len(manifest["entries"])}),
         flush=True,
     )
+    if scope == "readiness-encode":
+        import readiness
+
+        readiness.run(root, manifest, scope)
+        return
+    if scope in ("readiness-launcher", "readiness-stop"):
+        import launcher_fixture
+
+        launcher_fixture.run(root, manifest, scope == "readiness-stop")
+        return
     try:
         account = pwd.getpwuid(55000)
         assert account.pw_name == "imagefixture" and account.pw_gid == 55000
