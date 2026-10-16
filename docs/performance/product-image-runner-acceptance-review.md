@@ -4,6 +4,8 @@
 `feat/product-image-production-runner`, исходный HEAD `c2e3646`.
 **Production apply остаётся SANDBOX_UNVERIFIED.**
 
+Следующий этап: [production security review — 5Б-3](product-image-security-review.md).
+
 ## Сохранённое состояние и изменения
 
 Все найденные незакоммиченные изменения сохранены: обязательный child OOM case,
