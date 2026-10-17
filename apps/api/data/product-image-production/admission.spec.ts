@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { inspectLauncherAdmission } from './admission.js';
+import { inspectLauncherAdmission, inspectLauncherDryRunHandoff } from './admission.js';
 import { RunnerError } from './model.js';
 import type { Options } from './options.js';
 
@@ -22,5 +22,15 @@ test('ordinary invocation cannot fabricate launcher admission', () => {
 
 test('arbitrary storage paths are not accepted', () => {
   assert.throws(() => inspectLauncherAdmission({ ...options, variantsRoot: '/tmp/variants' }),
+    (error: unknown) => error instanceof RunnerError && error.code === 'SANDBOX_UNVERIFIED');
+});
+
+test('inspection-only handoff cannot be fabricated by an ordinary process', () => {
+  assert.throws(() => inspectLauncherDryRunHandoff({ ...options, apply: false }),
+    (error: unknown) => error instanceof RunnerError && error.code === 'SANDBOX_UNVERIFIED');
+});
+
+test('inspection-only handoff never accepts apply options', () => {
+  assert.throws(() => inspectLauncherDryRunHandoff(options),
     (error: unknown) => error instanceof RunnerError && error.code === 'SANDBOX_UNVERIFIED');
 });

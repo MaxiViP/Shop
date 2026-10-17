@@ -674,45 +674,82 @@ def inspect(instance: str) -> None:
         notify_store(fence, os.environ.get("NOTIFY_SOCKET", ""))
         require(show(unit).get("NFileDescriptorStore") == "1", "FDSTORE_UNVERIFIED")
         require(not STOPPING, "STOP_REQUESTED")
-        child = subprocess.Popen(
-            [
-                "/usr/bin/node",
-                "--import",
-                "tsx",
-                "data/product-image-production/run.ts",
-                "--dry-run",
-                "--inventory",
-                "/input/inventory.jsonl",
-                "--source-root",
-                "/storage/products",
-                "--variants-root",
-                "/storage/product-variants",
-                "--state-root",
-                "/storage/.product-image-state",
-                "--batch-size",
-                str(data["batchSize"]),
-                "--approval",
-                "/input/approval.json",
-                "--approval-sha256",
-                str(data["approvalSha256"]),
-            ],
-            cwd="/artifact/apps/api",
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            close_fds=True,
-            user=account.pw_uid,
-            group=account.pw_gid,
-            extra_groups=[],
-            env={
-                "PATH": "/usr/bin:/bin",
-                "LANG": "C.UTF-8",
-                "NODE_ENV": "production",
-                "TSX_DISABLE_CACHE": "1",
-                "TMPDIR": "/tmp",
-                "UV_THREADPOOL_SIZE": "1",
-            },
-        )
+        # The optional broker-backed inspection path now hands its exact,
+        # root-owned request inode to the unprivileged Node child.  This is
+        # inspection-only: the child still receives --dry-run and the launcher
+        # still exits 78 with SANDBOX_UNVERIFIED after successful inspection.
+        admission_fd = None
+        if "managerBroker" in data:
+            request_path = INPUT / "request.json"
+            before = regular(request_path, 8192, owner=0)
+            require(
+                before.st_gid == 0 and stat.S_IMODE(before.st_mode) == 0o600,
+                "ADMISSION_REQUEST_UNSAFE",
+            )
+            admission_fd = os.open(
+                request_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+            )
+            try:
+                require(3 <= admission_fd <= 99, "ADMISSION_FD_UNSUPPORTED")
+                opened = os.fstat(admission_fd)
+                if (
+                    opened.st_dev, opened.st_ino, opened.st_size,
+                    opened.st_mtime_ns, opened.st_ctime_ns,
+                ) != (
+                    before.st_dev, before.st_ino, before.st_size,
+                    before.st_mtime_ns, before.st_ctime_ns,
+                ):
+                    raise Refused("ADMISSION_REQUEST_CHANGED")
+            except BaseException:
+                os.close(admission_fd)
+                raise
+        child_env = {
+            "PATH": "/usr/bin:/bin",
+            "LANG": "C.UTF-8",
+            "NODE_ENV": "production",
+            "TSX_DISABLE_CACHE": "1",
+            "TMPDIR": "/tmp",
+            "UV_THREADPOOL_SIZE": "1",
+        }
+        if admission_fd is not None:
+            child_env["KORZINA_IMAGE_ADMISSION_FD"] = str(admission_fd)
+        try:
+            child = subprocess.Popen(
+                [
+                    "/usr/bin/node",
+                    "--import",
+                    "tsx",
+                    "data/product-image-production/run.ts",
+                    "--dry-run",
+                    "--inventory",
+                    "/input/inventory.jsonl",
+                    "--source-root",
+                    "/storage/products",
+                    "--variants-root",
+                    "/storage/product-variants",
+                    "--state-root",
+                    "/storage/.product-image-state",
+                    "--batch-size",
+                    str(data["batchSize"]),
+                    "--approval",
+                    "/input/approval.json",
+                    "--approval-sha256",
+                    str(data["approvalSha256"]),
+                ],
+                cwd="/artifact/apps/api",
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                close_fds=True,
+                pass_fds=() if admission_fd is None else (admission_fd,),
+                user=account.pw_uid,
+                group=account.pw_gid,
+                extra_groups=[],
+                env=child_env,
+            )
+        finally:
+            if admission_fd is not None:
+                os.close(admission_fd)
         if STOPPING:
             child.terminate()
         _, error = child.communicate(timeout=45)

@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import { requireProductionSandbox } from './environment.js';
+import { inspectLauncherDryRunHandoff } from './admission.js';
 import { RunnerError } from './model.js';
 import { parseOptions } from './options.js';
 import { dryRun } from './runner.js';
@@ -22,6 +23,11 @@ else {
       if (!options.approval) throw new RunnerError('APPROVAL_REQUIRED');
       requireProductionSandbox(); // Before opening any caller-selected paths; no test/env override.
     }
+    // Only the inspection-only root supervisor supplies this inherited FD.
+    // Absence keeps legacy dry-run behavior; presence is verified fail-closed.
+    // This does not authorize --apply (which was rejected above).
+    if (process.env.KORZINA_IMAGE_ADMISSION_FD !== undefined)
+      inspectLauncherDryRunHandoff(options);
     sharp.concurrency(1);
     sharp.cache({ memory: 32, files: 0, items: 50 });
     console.log(JSON.stringify(await dryRun(options), null, 2));

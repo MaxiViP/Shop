@@ -57,7 +57,9 @@ function kernelPolicy(status: string): boolean {
  * A successful read-only inspection remains non-authorizing by contract.
  * All paths here are systemd-owned constants, never user-selected.
  */
-export function inspectLauncherAdmission(options: Options): Readonly<{
+type InspectKind = 'image-production-apply' | 'image-sandbox-inspection';
+
+function inspectHandoff(options: Options, kind: InspectKind): Readonly<{
   status: 'inspection-only';
   runId: string;
 }> {
@@ -69,7 +71,8 @@ export function inspectLauncherAdmission(options: Options): Readonly<{
       options.stateRoot !== '/storage/.product-image-state' ||
       options.inventory !== '/input/inventory.jsonl' ||
       options.approval !== '/input/approval.json' ||
-      !options.approvalSha256 || !options.apply) refuse();
+      !options.approvalSha256 ||
+      options.apply !== (kind === 'image-production-apply')) refuse();
   if (!kernelPolicy(readFileSync('/proc/self/status', 'utf8'))) refuse();
 
   // A number supplied through the environment is NOT itself a credential.
@@ -108,9 +111,9 @@ export function inspectLauncherAdmission(options: Options): Readonly<{
   } catch {
     refuse();
   }
-  // Current launcher issues ONLY image-sandbox-inspection and --dry-run;
-  // therefore this intentionally cannot succeed against the current unit.
-  if (request.kind !== 'image-production-apply' || request.schemaVersion !== 1 ||
+  // Bind to the exact inspector-only or future apply request kind; neither
+  // return value authorizes a production write.
+  if (request.kind !== kind || request.schemaVersion !== 1 ||
       typeof request.runId !== 'string' ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(request.runId) ||
       request.approvalSha256 !== options.approvalSha256 ||
@@ -119,4 +122,23 @@ export function inspectLauncherAdmission(options: Options): Readonly<{
   const cgroup = readFileSync('/proc/self/cgroup', 'utf8').trim();
   if (cgroup !== `0::/system.slice/shop-image-runner@${request.runId}.service`) refuse();
   return Object.freeze({ status: 'inspection-only', runId: request.runId });
+}
+
+/**
+ * Verifies the existing inspection-only launcher FD handoff. NEVER authorizes
+ * writes, even if all kernel and request identity checks succeed.
+ */
+export function inspectLauncherDryRunHandoff(options: Options): Readonly<{
+  status: 'inspection-only';
+  runId: string;
+}> {
+  return inspectHandoff(options, 'image-sandbox-inspection');
+}
+
+/** Retained as a non-authorizing candidate for a future separately approved apply protocol. */
+export function inspectLauncherAdmission(options: Options): Readonly<{
+  status: 'inspection-only';
+  runId: string;
+}> {
+  return inspectHandoff(options, 'image-production-apply');
 }
