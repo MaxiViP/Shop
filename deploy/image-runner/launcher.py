@@ -1,7 +1,7 @@
-"""Linux-only sandbox inspector. Never invokes apply or removes an unknown lock.
+"""Linux-only bounded image supervisor. Never removes an unknown lock.
 
 The systemd manager retains a duplicate deployment flock until separate recovery.
-No caller-selected executable, roots, limits, environment attestation or apply mode.
+No caller-selected executable, roots, limits, environment attestation or environment bypass.
 """
 
 from __future__ import annotations
@@ -99,7 +99,8 @@ def request(value: str, instance: str) -> dict[str, object]:
         "INVALID_REQUEST",
     )
     require(
-        data["kind"] == "image-sandbox-inspection" and data["runId"] == instance,
+        data["kind"] in ("image-sandbox-inspection", "image-production-apply")
+        and data["runId"] == instance,
         "SCOPE_MISMATCH",
     )
     require(
@@ -117,6 +118,7 @@ def request(value: str, instance: str) -> dict[str, object]:
             isinstance(data[key], str) and SHA.fullmatch(str(data[key])) is not None,
             "INVALID_DIGEST",
         )
+    require(data["kind"] != "image-production-apply" or "managerBroker" in data, "BROKER_REQUIRED")
     if "managerBroker" in data:
         from broker import Denied, identity
 
@@ -367,6 +369,7 @@ def manager_policy(
         "RuntimeMaxUSec": "10min",
         "TimeoutStopUSec": "30s",
         "ControlGroup": group,
+        "Slice": "system.slice",
         "PrivatePIDs": "yes",
         "PrivateUsers": "yes",
         "PrivateUsersEx": "full",
@@ -583,7 +586,7 @@ def pid_namespace(pid: int, proc_self: str) -> None:
     require(pid == 1 and proc_self == "1", "PID_NAMESPACE_UNVERIFIED")
 
 
-def inspect(instance: str) -> None:
+def inspect(instance: str) -> bool:
     global MANAGER
     require(sys.platform == "linux", "LINUX_REQUIRED")
     require(UUID.fullmatch(instance) is not None, "INVALID_INSTANCE")
@@ -674,10 +677,8 @@ def inspect(instance: str) -> None:
         notify_store(fence, os.environ.get("NOTIFY_SOCKET", ""))
         require(show(unit).get("NFileDescriptorStore") == "1", "FDSTORE_UNVERIFIED")
         require(not STOPPING, "STOP_REQUESTED")
-        # The optional broker-backed inspection path now hands its exact,
-        # root-owned request inode to the unprivileged Node child.  This is
-        # inspection-only: the child still receives --dry-run and the launcher
-        # still exits 78 with SANDBOX_UNVERIFIED after successful inspection.
+        # Only after all namespace, manager, digest and fence checks pass, hand
+        # the exact root-owned request inode to the fixed unprivileged child.
         admission_fd = None
         if "managerBroker" in data:
             request_path = INPUT / "request.json"
@@ -720,7 +721,7 @@ def inspect(instance: str) -> None:
                     "--import",
                     "tsx",
                     "data/product-image-production/run.ts",
-                    "--dry-run",
+                    "--apply" if data["kind"] == "image-production-apply" else "--dry-run",
                     "--inventory",
                     "/input/inventory.jsonl",
                     "--source-root",
@@ -738,7 +739,7 @@ def inspect(instance: str) -> None:
                 ],
                 cwd="/artifact/apps/api",
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 close_fds=True,
                 pass_fds=() if admission_fd is None else (admission_fd,),
@@ -752,11 +753,62 @@ def inspect(instance: str) -> None:
                 os.close(admission_fd)
         if STOPPING:
             child.terminate()
-        _, error = child.communicate(timeout=45)
+        try:
+            output, error = child.communicate(timeout=540)
+        except subprocess.TimeoutExpired:
+            child.terminate()
+            try:
+                child.communicate(timeout=25)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.communicate(timeout=5)
+            raise Refused("CHILD_TIMEOUT") from None
         require(not STOPPING, "STOP_REQUESTED")
+        if child.returncode != 0:
+            # Forward bounded protocol codes, never raw stderr or input data.
+            # This is diagnostic only, not authorization.
+            failure_code = None
+            for raw in (error[:8192], output[:256 * 1024]):
+                try:
+                    value = strict_json(raw.decode('utf-8', errors='strict'))
+                    code = value.get('errorCode') or value.get('error')
+                    if isinstance(code, str) and re.fullmatch(r'[A-Z_]{1,40}', code):
+                        failure_code = code
+                except (Refused, ValueError, UnicodeError):
+                    pass
+            stages = re.findall(
+                rb"(?m)^ADMISSION_STAGE=(IDENTITY|NSS|GROUP_ID|OPTIONS|"
+                rb"KERNEL_STATUS|KERNEL_POLICY|FD_NUMBER|FD_INODE|FD_READ|"
+                rb"REQUEST_JSON|REQUEST_BINDING|CGROUP_STATUS|CGROUP_PATH)$",
+                error[:8192],
+            )
+            print(
+                "ADMISSION_CHILD_FAILURE=" + json.dumps(
+                    {
+                        "exitCode": child.returncode,
+                        "code": failure_code,
+                        "stage": stages[-1].decode("ascii") if stages else "UNCLASSIFIED",
+                    }
+                ),
+                flush=True,
+            )
         require(child.returncode == 0, "SCOPE_OR_STATE_UNVERIFIED")
         require(not error, "CHILD_DIAGNOSTIC_UNVERIFIED")
-        # No native publication probe or production apply is authorized by inspection.
+        if data["kind"] == "image-production-apply":
+            require(len(output) <= 256 * 1024, "CHILD_REPORT_LIMIT")
+            report = strict_json(output.decode("utf-8", errors="strict"))
+            require(
+                report.get("mode") == "production-apply"
+                and report.get("runId") == instance
+                and report.get("considered") == data["batchSize"]
+                and report.get("processed") == data["batchSize"]
+                and report.get("stopped") is False
+                and report.get("failed") == 0
+                and report.get("productionApplyBlocked") is False,
+                "CHILD_REPORT_UNVERIFIED",
+            )
+            print(json.dumps(report), flush=True)
+            return True
         print(
             json.dumps(
                 {
@@ -776,6 +828,7 @@ def inspect(instance: str) -> None:
             ),
             flush=True,
         )
+        return False
     finally:
         os.close(
             fence
@@ -785,7 +838,7 @@ def inspect(instance: str) -> None:
 if __name__ == "__main__":
     try:
         require(len(sys.argv) == 2, "INVALID_OPTIONS")
-        inspect(sys.argv[1])
+        sys.exit(0 if inspect(sys.argv[1]) else 78)
     except (
         Refused,
         OSError,
@@ -805,5 +858,5 @@ if __name__ == "__main__":
             ),
             flush=True,
         )
-    # Even a fully successful inspection is not an attestation authorizing apply.
+    # Every refusal fails closed; never report a partial batch as successful.
     sys.exit(78)

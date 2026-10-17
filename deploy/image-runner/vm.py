@@ -74,6 +74,7 @@ def run(scope: str = "full") -> int:
         "readiness-launcher",
         "readiness-stop",
         "readiness-db",
+        "readiness-production",
     ):
         raise ValueError("unknown fixture scope")
     if (ROOT / "fixture-vm-v1").read_text() != "disposable image acceptance only\n":
@@ -176,6 +177,7 @@ def run(scope: str = "full") -> int:
         "readiness-launcher",
         "readiness-stop",
         "readiness-db",
+        "readiness-production",
     ):
         artifact = Path("/artifact-input")
         summary = json.loads((artifact / "summary.json").read_text())
@@ -263,6 +265,7 @@ def run(scope: str = "full") -> int:
         "readiness-launcher",
         "readiness-stop",
         "readiness-db",
+        "readiness-production",
     ):
         args += [
             "-drive",
@@ -330,6 +333,7 @@ if __name__ == "__main__":
                     "--readiness-launcher",
                     "--readiness-stop",
                     "--readiness-db",
+                    "--readiness-production",
                 )
             )
         )

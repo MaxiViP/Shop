@@ -23,7 +23,7 @@ class ArtifactTests(unittest.TestCase):
 
     def manifest(self) -> dict[str, object]:
         return {
-            "productionApply": "SANDBOX_UNVERIFIED",
+            "productionApply": "requires-launcher-admission",
             "entries": artifact.entries(self.root),
         }
 

@@ -35,6 +35,7 @@ def main() -> None:
                 "--launcher-only",
                 "--launcher-stop",
                 "--db-only",
+                "--production-only",
             )
         )
         or (len(sys.argv) == 6 and sys.argv[3:5] != ["--db-only", "--db-artifact"])
@@ -253,7 +254,9 @@ print('verified RO base; new overlay/seed required')
                     "-B",
                     "/fixture-repo/deploy/image-runner/vm.py",
                     "run",
-                    "--application"
+                    "--readiness-production"
+                    if len(sys.argv) == 4 and sys.argv[3] == "--production-only"
+                    else "--application"
                     if len(sys.argv) == 3
                     else "--application-api"
                     if sys.argv[3] == "--api-only"

@@ -1,4 +1,4 @@
-"""Guest-only full acceptance entrypoint. No production entrypoint is ever invoked."""
+"""Guest-only acceptance; production CLI runs only against fresh synthetic storage."""
 
 import json
 import os
@@ -26,6 +26,7 @@ def select_suite(scope: str) -> unittest.TestSuite:
         "readiness-launcher",
         "readiness-stop",
         "readiness-db",
+        "readiness-production",
     ):
         raise ValueError("unknown fixture scope")
     import test_systemd
@@ -39,6 +40,7 @@ def select_suite(scope: str) -> unittest.TestSuite:
         "readiness-launcher",
         "readiness-stop",
         "readiness-db",
+        "readiness-production",
     ):
         import readiness_test
 
@@ -48,6 +50,7 @@ def select_suite(scope: str) -> unittest.TestSuite:
                 "readiness-launcher": readiness_test.LauncherTests,
                 "readiness-stop": readiness_test.StopTests,
                 "readiness-db": readiness_test.DatabaseTests,
+                "readiness-production": readiness_test.ProductionTests,
             }[scope]
         )
     elif scope in ("application", "application-api", "application-worker"):
@@ -114,6 +117,7 @@ def select_suite(scope: str) -> unittest.TestSuite:
             "readiness-launcher",
             "readiness-stop",
             "readiness-db",
+            "readiness-production",
         )
         else 1
     ):
@@ -136,6 +140,7 @@ def main(scope: str = "full") -> int:
         "readiness-launcher",
         "readiness-stop",
         "readiness-db",
+        "readiness-production",
     ):
         raise ValueError("unknown fixture scope")
     # vm.py creates this marker only in its fresh NoCloud guest. It authorizes
@@ -210,7 +215,7 @@ def main(scope: str = "full") -> int:
         "failures": len(result.failures),
         "errors": len(result.errors),
         "skips": [(str(case), reason) for case, reason in result.skipped],
-        "productionApply": "SANDBOX_UNVERIFIED",
+        "productionApply": "verified-disposable-production-apply" if scope == "readiness-production" and result.wasSuccessful() and not result.skipped else "SANDBOX_UNVERIFIED",
         "scope": "synthetic systemd fixtures; not production packaging or deployment",
     }
     print("IMAGE_ACCEPTANCE_RESULT=" + json.dumps(report, sort_keys=True), flush=True)
@@ -234,6 +239,7 @@ if __name__ == "__main__":
             "--readiness-launcher",
             "--readiness-stop",
             "--readiness-db",
+            "--readiness-production",
         )
     ):
         sys.exit("Only fixed fixture selectors are accepted")

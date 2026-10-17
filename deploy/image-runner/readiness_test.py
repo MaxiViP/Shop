@@ -34,3 +34,9 @@ class StopTests(unittest.TestCase):
 class DatabaseTests(unittest.TestCase):
     def test_real_pool(self) -> None:
         application.run("readiness-db")
+
+
+@unittest.skipUnless(preflight.available(), "NOT VERIFIED: disposable systemd VM required")
+class ProductionTests(unittest.TestCase):
+    def test_operator_production_cli(self) -> None:
+        application.run("readiness-production")

@@ -90,7 +90,11 @@ async function newPage(base, width, dpr, height = 900, mobile = false,
 }
 async function loaded(page, selector = '.card__img img', expectedSrc) {
   try { await page.waitForFunction(({ selector, expectedSrc }) => {
-    const images = [...document.querySelectorAll(selector)];
+    const images = [...document.querySelectorAll(selector)].filter(image => {
+      if (selector !== '.card__img img') return true;
+      const rect = image.getBoundingClientRect();
+      return rect.top < innerHeight && rect.bottom > 0;
+    });
     return images.length > 0 && images.every(image => image.complete && image.naturalWidth > 0 &&
       (!expectedSrc || image.getAttribute('src') === expectedSrc));
   }, { selector, expectedSrc }, { timeout: 8000 }); } catch (error) {
@@ -153,6 +157,8 @@ try {
     headless: true, args: ['--disable-background-networking', '--disable-component-update', '--disable-sync'] });
   const ssr = await (await fetch(web.base + '/catalog')).text();
   assert.ok(ssr.includes('srcset=') && ssr.includes('sizes='));
+  assert.equal((ssr.match(/fetchpriority="high"/g) ?? []).length, 4);
+  assert.ok(ssr.includes('loading="lazy"'));
   assert.ok(!(await (await fetch(legacy.base + '/catalog')).text()).includes('srcset='));
   for (const [width, dpr, height, mobile] of [[390, 1, 844, true], [390, 2, 844, true], [390, 3, 844, true],
     [1440, 1, 900, false], [1440, 2, 900, false], [1440, 3, 900, false], [639, 3, 900, false], [844, 2, 390, true]].filter(() => !fallbackOnly)) {
@@ -162,7 +168,12 @@ try {
       const result = await geometry(view.page);
       assert.equal(result.src, base + fixture.images[0].url);
       assert.equal(result.fit, 'contain');
-      assert.equal(result.loading, null);
+      assert.equal(result.loading, 'eager');
+      assert.equal(result.decoding, 'auto');
+      const priorities = await view.page.locator('.card__img img').evaluateAll(images =>
+        images.map(image => image.getAttribute('fetchpriority')));
+      assert.deepEqual(priorities.slice(0, 4), ['high', 'high', 'high', 'high']);
+      assert.ok(priorities.slice(4).every(value => value === 'auto'));
       assert.ok(result.declared > 0 && Math.abs(result.naturalWidth - result.declared) < 2, 'sizes must be understood by the browser');
       const sources = await view.page.locator('.card__img img').evaluateAll(images => images.slice(0, 3).map(image => image.currentSrc));
       for (const [index, src] of sources.entries()) assert.ok(
@@ -177,7 +188,7 @@ try {
         try {
           await old.visit('/catalog'); await loaded(old.page);
           const before = await geometry(old.page);
-          assert.equal(before.srcset, null); assert.equal(before.sizes, null); assert.equal(before.decoding, null);
+          assert.equal(before.srcset, null); assert.equal(before.sizes, null); assert.equal(before.decoding, 'auto');
           assert.deepEqual(before.card, result.card); assert.deepEqual(before.box, result.box);
           passed('feature flag off preserves geometry and original attributes', { width });
         } finally { await old.close(); }

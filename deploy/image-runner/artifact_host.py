@@ -20,8 +20,8 @@ def digest(path: Path) -> str:
 
 
 def main() -> None:
-    if sys.argv[1:] != ["--build"] or os.name != "nt":
-        raise ValueError("fixed local Windows --build only")
+    if sys.argv[1:] != ["--build"]:
+        raise ValueError("fixed local --build only")
     output = REPO / "work" / ("linux-artifact-" + uuid.uuid4().hex)
     output.mkdir(exist_ok=False)
     context = output / "source"
@@ -66,6 +66,8 @@ def main() -> None:
             "application.py",
             "application.mjs",
             "launcher.py",
+            "broker.py",
+            "prepare.py",
         )
     ]
     hashes = {}
@@ -88,7 +90,7 @@ def main() -> None:
     provenance = {
         "head": head,
         "sources": hashes,
-        "productionApply": "SANDBOX_UNVERIFIED",
+        "productionApply": "requires-launcher-admission",
     }
     (context / "source.json").write_text(json.dumps(provenance, indent=2) + "\n")
     (output / "source.json").write_text(json.dumps(provenance, indent=2) + "\n")
@@ -97,7 +99,7 @@ def main() -> None:
         docker = [
             "docker",
             "--host",
-            "npipe:////./pipe/docker_engine",
+            "npipe:////./pipe/docker_engine" if os.name == "nt" else "unix:///var/run/docker.sock",
             "--config",
             client,
         ]
@@ -139,7 +141,7 @@ def main() -> None:
             "exitCode": child.returncode,
             "logSha256": digest(output / "build.log"),
             "sourceManifestSha256": digest(output / "source.json"),
-            "productionApply": "SANDBOX_UNVERIFIED",
+            "productionApply": "requires-launcher-admission",
         }
         (output / "build.json").write_text(json.dumps(receipt, indent=2) + "\n")
         if child.returncode:

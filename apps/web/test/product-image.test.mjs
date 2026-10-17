@@ -189,7 +189,7 @@ test('gallery switching updates source/metadata and resets failure, including du
   } finally { scope.stop(); }
 });
 
-test('SSR renders only prior img attributes with flag off and deterministic srcset with flag on', async () => {
+test('SSR preserves lazy loading independently of the responsive flag and emits deterministic srcset', async () => {
   for (const enabled of [false, true]) {
     const component = await imageComponent(await imageComposable({ enabled, asset }));
     const render = () => renderToString(createSSRApp({ render: () => h(component,
@@ -199,8 +199,8 @@ test('SSR renders only prior img attributes with flag off and deterministic srcs
     assert.ok(server.includes('src="' + asset(source) + '"') && server.includes('alt="Фото"'));
     assert.equal(server.includes('srcset='), enabled);
     assert.equal(server.includes('sizes='), enabled);
-    assert.equal(server.includes('decoding="async"'), enabled);
-    assert.ok(!server.includes('loading=') && !server.includes('fetchpriority='));
+    assert.ok(server.includes('decoding="async"'));
+    assert.ok(server.includes('loading="lazy"') && server.includes('fetchpriority="auto"'));
   }
 });
 
@@ -218,7 +218,7 @@ test('local real photographs use stage 3A verified metadata, including portrait 
   } finally { await fixture.close(); }
 });
 
-test('catalog, home and favorites still use the shared grid; no loading or layout policy changes', async () => {
+test('catalog, home and favorites use the shared grid with bounded initial priority and unchanged layout', async () => {
   const source = file => readFile(new URL('../app/' + file, import.meta.url), 'utf8');
   const [home, favorites, catalog, grid, card, gallery] = await Promise.all([
     source('pages/index.vue'), source('pages/favorites.vue'), source('components/catalog/View.vue'),
@@ -228,7 +228,8 @@ test('catalog, home and favorites still use the shared grid; no loading or layou
   assert.match(favorites, /compact/);
   assert.match(grid, /:key="product.id"/);
   assert.match(grid, /:data-product-index="start \+ index"/);
-  assert.ok(!card.includes('loading="lazy"') && !card.includes('fetchpriority='));
+  assert.match(card, /:eager-image="eagerImage"/);
+  assert.match(grid, /eagerImages && start \+ index < 4/);
   assert.match(card, /object-fit: contain/);
   assert.match(gallery, /context="original"/);
   assert.match(gallery, /loading="lazy"/);

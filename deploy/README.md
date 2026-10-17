@@ -429,3 +429,8 @@ TLS, firewall и реального доступа к серверу.
 [PostgreSQL Docker image / PGDATA 18](https://github.com/docker-library/docs/blob/master/postgres/README.md#pgdata),
 [Nuxt Node server](https://nuxt.com/docs/4.x/getting-started/deployment#nodejs-server),
 [NodeSource Node.js packages](https://github.com/nodesource/distributions/blob/master/DEV_README.md).
+
+
+## Адаптивные фото товаров
+
+Ограниченный Linux runner и rollout без миграций: [ручной runbook](../docs/performance/product-image-deploy.md). Для этой процедуры используется отдельный фиксированный checkout.

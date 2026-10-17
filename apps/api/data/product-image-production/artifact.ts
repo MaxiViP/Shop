@@ -4,8 +4,8 @@ import sharp from 'sharp';
 import { hash, readBounded } from '../../src/product/image-storage.js';
 import { jsonBytes, RunnerError } from './model.js';
 
-// Source artifact identity for 5B-1. No caller-supplied revision or environment assertion.
-// A packaged, immutable Linux artifact and native binary attestation remain 5B-2 gates.
+// Pin the executed sources/runtime into every approval, independently of the
+// root supervisor's immutable Linux artifact verification. No caller revision.
 const files = [
   'artifact.ts',
   'model.ts',
@@ -14,6 +14,7 @@ const files = [
   'state.ts',
   'runner.ts',
   'environment.ts',
+  'admission.ts',
   'run.ts',
   'fixture.ts',
   '../product-image-variants/files.ts',

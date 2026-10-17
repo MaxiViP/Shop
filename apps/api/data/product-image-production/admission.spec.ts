@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { resolve } from 'node:path';
+import { test } from 'vitest';
 import { inspectLauncherAdmission, inspectLauncherDryRunHandoff } from './admission.js';
 import { RunnerError } from './model.js';
 import type { Options } from './options.js';
+import { runProduction } from './runner.js';
 
 const options: Options = {
   apply: true,
@@ -32,5 +34,13 @@ test('inspection-only handoff cannot be fabricated by an ordinary process', () =
 
 test('inspection-only handoff never accepts apply options', () => {
   assert.throws(() => inspectLauncherDryRunHandoff(options),
+    (error: unknown) => error instanceof RunnerError && error.code === 'SANDBOX_UNVERIFIED');
+});
+
+test('the production writer refuses direct calls before opening missing inputs', async () => {
+  const input = { ...options };
+  for (const key of ['inventory', 'sourceRoot', 'variantsRoot', 'stateRoot', 'approval'] as const)
+    input[key] = resolve(input[key]!);
+  await assert.rejects(runProduction(input),
     (error: unknown) => error instanceof RunnerError && error.code === 'SANDBOX_UNVERIFIED');
 });

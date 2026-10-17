@@ -7,6 +7,7 @@
           :alt="product.images[0]?.alt || product.name"
           :context="compact ? 'compact' : 'card'"
           :identity="product.id"
+          :eager-image="eagerImage"
         >
           <span> Фото скоро </span>
         </ProductImage>
@@ -110,9 +111,10 @@ import { qtyText } from "~/utils/qty";
 import { money } from "~/utils/money";
 import { variableWeight } from '~/utils/sale';
 
-const { product } = defineProps<{
+const { product, eagerImage = false } = defineProps<{
   product: ProductListItem;
   compact?: boolean;
+  eagerImage?: boolean;
 }>();
 
 const cart = useCartStore();

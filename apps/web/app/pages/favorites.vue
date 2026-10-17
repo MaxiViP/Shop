@@ -17,7 +17,7 @@
         <h2 class="favorites-page__group-title">
           <NuxtLink :to="`/catalog/${group.slug}`">{{ group.name }} <UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink>
         </h2>
-        <ProductGrid :items="group.items" compact />
+        <ProductGrid :items="group.items" compact :eager-images="group === groups[0]" />
       </section>
     </div>
 

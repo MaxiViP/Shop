@@ -7,6 +7,8 @@ on:
       - 'apps/api/**'
       - 'apps/web/**'
       - 'docs/performance/**'
+      - 'deploy/image-runner/**'
+      - 'deploy/shop-image-runner*'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -95,6 +97,12 @@ jobs:
           NODE
       - name: Frontend unit regressions
         run: node --test apps/web/test/*.test.mjs
+      - name: Production admission and supervisor policy regressions
+        run: |
+          pnpm --filter api exec vitest run data/product-image-production/admission.spec.ts
+          python3 -B -m unittest discover -s deploy/image-runner -p test_policy.py
+          python3 -B -m unittest discover -s deploy/image-runner -p broker_test.py
+          python3 -B -m unittest discover -s deploy/image-runner -p manage_test.py
       - name: Production builds with feature flags off
         run: |
           pnpm --filter api build

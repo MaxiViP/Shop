@@ -1,5 +1,5 @@
 [Unit]
-Description=KorzinaMarket image sandbox inspection %i (apply disabled)
+Description=KorzinaMarket bounded product images %i
 Documentation=file:/opt/image-runner/README.md
 After=local-fs.target
 RequiresMountsFor=/var/lib/korzinamarket-image-runner/rootfs /var/lib/korzinamarket/uploads
@@ -8,6 +8,9 @@ CollectMode=inactive
 
 [Service]
 Type=exec
+# Template instances otherwise acquire an implicit per-template subslice.
+# Admission and recovery pin the exact /system.slice/<unit> cgroup.
+Slice=system.slice
 # Only the small, immutable supervisor runs as root. Its fixed Node child drops to shop.
 # Inherit UID 0 from the system manager. systemd 259 drops CAP_SETUID for an
 # explicit User=root with seccomp + NNP; the launcher requires UID 0 and exact caps.
@@ -93,10 +96,12 @@ BindReadOnlyPaths=/var/lib/korzinamarket-image-runner/requests/%i/request.json:/
 BindReadOnlyPaths=/var/lib/korzinamarket-image-runner/requests/%i/inventory.jsonl:/input/inventory.jsonl
 BindReadOnlyPaths=/var/lib/korzinamarket-image-runner/requests/%i/approval.json:/input/approval.json
 BindReadOnlyPaths=/run/lock/korzinamarket-deploy.lock:/control/deploy.lock
-# Only the root supervisor can reach this socket; it is never inherited by Node.
-BindReadOnlyPaths=/run/systemd/private:/run/systemd/private
+# Root-only read-only broker; the manager bus is never mounted into the worker.
+BindReadOnlyPaths=/run/korzina-manager-broker/%i/manager.sock:/run/image-manager.sock
 BindReadOnlyPaths=/etc/systemd/system/shop-image-runner@.service:/control/runner.service
 BindReadOnlyPaths=/etc/systemd/system/shop-image-runner-pin@.target:/control/pin.target
+BindReadOnlyPaths=/etc/passwd:/etc/passwd
+BindReadOnlyPaths=/etc/group:/etc/group
 ReadWritePaths=+/storage
 
-# Deliberately no [Install], timer, automatic restart or production apply command.
+# Manual bounded batches only; no automatic restart.

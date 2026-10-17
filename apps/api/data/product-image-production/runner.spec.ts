@@ -868,16 +868,16 @@ describe('production image runner preparation', () => {
     expect(await readdir(options.variantsRoot)).toEqual([]);
     expect(await (await store()).readReady(url(1))).toBeNull();
   });
-  it('keeps production apply unconditionally blocked even with env assertions and valid approval', async () => {
+  it('refuses direct production apply even with env assertions and valid approval', async () => {
     await approve();
     vi.stubEnv('IMAGE_SANDBOX_VERIFIED', 'true');
     vi.stubEnv('INVOCATION_ID', 'attestation-is-not-proof');
     vi.stubEnv('NODE_ENV', 'production');
-    expect(() => requireProductionSandbox()).toThrow(
+    expect(() => requireProductionSandbox(options)).toThrow(
       expect.objectContaining({ code: 'SANDBOX_UNVERIFIED' }),
     );
     await expect(dryRun(options)).rejects.toMatchObject({
-      code: 'SANDBOX_UNVERIFIED',
+      code: 'INVALID_OPTIONS',
     });
     await expect(runFixture(fixture, options)).rejects.toMatchObject({
       code: 'FIXTURE_ONLY',

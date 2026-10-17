@@ -1,4 +1,4 @@
-"""Fixed read-only manager channel. Local disposable VM candidate only."""
+"""Fixed root-only, pidfd-authenticated read-only systemd manager channel."""
 
 from __future__ import annotations
 
@@ -40,6 +40,7 @@ FIELDS = (
     "RuntimeMaxUSec",
     "TimeoutStopUSec",
     "ControlGroup",
+    "Slice",
     "PrivatePIDs",
     "PrivateUsers",
     "PrivateUsersEx",
@@ -331,9 +332,8 @@ def serve(instance: str) -> None:
     require(
         sys.platform == "linux"
         and os.geteuid() == 0
-        and Path("/etc/image-acceptance-disposable").read_text()
-        == "isolated-image-fixtures-v1\n",
-        "DISPOSABLE_VM_REQUIRED",
+        ,
+        "ROOT_LINUX_REQUIRED",
     )
     units = names(instance)
     config = binding_file(instance)
@@ -355,7 +355,7 @@ def serve(instance: str) -> None:
             "BROKER_READY=" + json.dumps({"instance": instance, "pid": os.getpid()}),
             flush=True,
         )
-        deadline, count = time.monotonic() + 300, 0
+        deadline, count = time.monotonic() + 660, 0
         while time.monotonic() < deadline and count < 64:
             try:
                 channel, _ = server.accept()
@@ -451,6 +451,110 @@ def serve(instance: str) -> None:
             finally:
                 if fd >= 0:
                     os.close(fd)
+
+
+def command(*args: str) -> None:
+    subprocess.run(list(args), check=True, timeout=15, stdin=subprocess.DEVNULL)
+
+
+def sha(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def start(instance: str) -> tuple[str, dict[str, int], int]:
+    directory = binding_file(instance).parent
+    directory.mkdir(mode=0o700, parents=True, exist_ok=False)
+    directory.chmod(0o700)
+    name = f"image-manager-broker-{instance}.service"
+    script = Path(__file__).resolve()
+    body = f"""[Unit]
+Description=Fixed read-only image manager broker
+[Service]
+Type=exec
+ExecStart=/usr/bin/python3 -I -B {script} {instance}
+Group=root
+UMask=0177
+Restart=no
+RuntimeMaxSec=660
+TimeoutStopSec=2
+KillMode=control-group
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateNetwork=yes
+PrivateDevices=yes
+PrivateIPC=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=~@mount @reboot @swap @module @raw-io @clock @debug
+MemoryMax=128M
+MemorySwapMax=0
+CPUQuota=50%
+TasksMax=16
+LimitNOFILE=128
+LimitCORE=0
+ReadWritePaths={directory}
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+"""
+    Path("/run/systemd/system", name).write_text(body)
+    command("systemctl", "daemon-reload")
+    command("systemctl", "start", name)
+    from launcher import show
+    state = show(name)
+    fd = os.pidfd_open(int(state["MainPID"]))
+    other = os.pidfd_open(1)
+    try:
+        assert fd_identity(fd) != fd_identity(other), (
+            "unique pidfs inode required"
+        )
+    finally:
+        os.close(other)
+    endpoint = directory / "manager.sock"
+    deadline = time.monotonic() + 8
+    while not endpoint.exists() and live(fd) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    info = endpoint.stat()
+    device, inode = fd_identity(fd)
+    return (
+        name,
+        {
+            "pidfdDev": device,
+            "pidfdIno": inode,
+            "socketDev": info.st_dev,
+            "socketIno": info.st_ino,
+        },
+        fd,
+    )
+
+
+def bind(instance: str, request: Path, unit: Path, pin: Path) -> None:
+    path = binding_file(instance)
+    with path.open("x") as stream:
+        json.dump(
+            {
+                "requestSha256": sha(request),
+                "unitSha256": sha(unit),
+                "pinSha256": sha(pin),
+            },
+            stream,
+        )
+    path.chmod(0o600)
 
 
 if __name__ == "__main__":

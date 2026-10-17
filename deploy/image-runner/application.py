@@ -165,6 +165,10 @@ def run(scope: str = "application") -> None:
         + json.dumps({"summary": summary, "entries": len(manifest["entries"])}),
         flush=True,
     )
+    if scope == "readiness-production":
+        import production_fixture
+        production_fixture.run(root, manifest)
+        return
     if scope == "readiness-encode":
         import readiness
 

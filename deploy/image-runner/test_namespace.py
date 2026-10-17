@@ -116,6 +116,12 @@ def render(template: str, root: Path, service: Path, pin: Path, mode: str) -> st
             line = f"BindPaths={root}/storage:/storage"
         elif key == "BindReadOnlyPaths":
             destination = line.rsplit(":", 1)[1]
+            if destination == "/run/image-manager.sock":
+                # Generic FS tests use the direct manager transport; production
+                # and broker fixtures bind the root-only broker instead.
+                destination = "/run/systemd/private"
+            if destination in ("/etc/passwd", "/etc/group"):
+                continue
             sources = {
                 "/storage/products": root / "storage/products",
                 "/input/request.json": root / "input/request.json",

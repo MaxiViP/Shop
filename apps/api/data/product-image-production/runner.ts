@@ -56,8 +56,7 @@ function codeOf(error: unknown) {
   return 'IO';
 }
 
-// The only writing caller requires a freshly minted, identity-pinned fixture workspace.
-// There is no exported arbitrary-root apply coordinator or production environment override.
+// Fixture authorization is separate from the production kernel/FD admission.
 export async function runFixture(
   fixture: Fixture,
   input: Options,
@@ -69,19 +68,27 @@ export async function runFixture(
 }
 export async function dryRun(input: Options) {
   const options = validateOptions(input);
-  if (options.apply) requireProductionSandbox();
+  if (options.apply) throw new RunnerError('INVALID_OPTIONS');
   const report = await execute(options);
   if (report.mode !== 'dry-run') throw new RunnerError('INVALID_STATE');
   return report;
 }
 
+export async function runProduction(input: Options, signal?: AbortSignal) {
+  const options = validateOptions(input);
+  if (!options.apply) throw new RunnerError('INVALID_OPTIONS');
+  requireProductionSandbox(options);
+  return execute(options, undefined, signal);
+}
+
 async function execute(
   options: Options,
   test?: { fixture: Fixture; hooks: FixtureHooks },
+  signal?: AbortSignal,
 ) {
   if (options.apply && (!options.approval || !options.approvalSha256))
     throw new RunnerError('APPROVAL_REQUIRED');
-  if (options.apply && !test) requireProductionSandbox();
+  if (options.apply && !test) requireProductionSandbox(options);
   const prepared = await prepare(options);
   const { proposal, storage } = prepared;
   const scope: Scope | null = prepared.approvalSha256
@@ -104,14 +111,15 @@ async function execute(
       proposal,
       productionApplyBlocked: true,
     };
-  if (!scope || !path || !test) throw new RunnerError('APPROVAL_REQUIRED');
+  if (!scope || !path) throw new RunnerError('APPROVAL_REQUIRED');
   if (!options.resume && (await optionalStat(path)))
     throw new RunnerError('RESUME_REQUIRED');
   const attempt = (previous?.checkpoint.attempt ?? 0) + 1;
   if (attempt > MAX_ATTEMPTS) throw new RunnerError('ATTEMPT_LIMIT');
-  const hooks = test.hooks;
+  const hooks = test?.hooks ?? { signal };
   const check = async () => {
-    await assertFixture(test.fixture, options);
+    if (test) await assertFixture(test.fixture, options);
+    else requireProductionSandbox(options);
     const current = await prepare(options);
     if (
       current.approvalSha256 !== scope.approvalSha256 ||
@@ -247,7 +255,7 @@ async function execute(
     }
     if (hooks.signal?.aborted) errorCode ??= 'INTERRUPTED';
     return {
-      mode: 'fixture-apply' as const,
+      mode: test ? 'fixture-apply' as const : 'production-apply' as const,
       runId: proposal.runId,
       considered: proposal.entries.length,
       processed: outcomes.length,
@@ -261,7 +269,7 @@ async function execute(
       retainedBytes,
       workerPeakRss,
       workerCpuMs,
-      productionApplyBlocked: true,
+      productionApplyBlocked: Boolean(test),
     };
   } finally {
     try {

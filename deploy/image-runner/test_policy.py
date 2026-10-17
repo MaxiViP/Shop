@@ -302,6 +302,7 @@ class ParserTests(unittest.TestCase):
             "RuntimeMaxUSec": "10min",
             "TimeoutStopUSec": "30s",
             "ControlGroup": "/test",
+            "Slice": "system.slice",
             "PrivatePIDs": "yes",
             "PrivateUsers": "yes",
             "PrivateUsersEx": "full",
@@ -329,6 +330,7 @@ class ParserTests(unittest.TestCase):
             {"User": "shop"},
             {"Group": "shop"},
             {"Restart": "always"},
+            {"Slice": "other.slice"},
             {"PrivatePIDs": "no"},
             {"PrivateUsers": "no"},
             {"PrivateUsers": "identity"},
@@ -457,6 +459,7 @@ class UnitContractTests(unittest.TestCase):
         pin = (deploy / "shop-image-runner-pin@.target").read_text(encoding="utf-8")
         for literal in (
             "Type=exec",
+            "Slice=system.slice",
             "Restart=no",
             "KillMode=control-group",
             "MemoryMax=768M",
@@ -489,13 +492,13 @@ class UnitContractTests(unittest.TestCase):
         self.assertIn("InaccessiblePaths=+/storage/chat", service)
         self.assertIn("ReadWritePaths=+/storage", service)
 
-    def test_production_gate_unchanged(self) -> None:
+    def test_production_gate_requires_kernel_fd_admission(self) -> None:
         root = Path(__file__).resolve().parents[2]
         gate = (
             root / "apps/api/data/product-image-production/environment.ts"
         ).read_text(encoding="utf-8")
-        self.assertIn("export function requireProductionSandbox(): never", gate)
-        self.assertIn("throw new RunnerError('SANDBOX_UNVERIFIED')", gate)
+        self.assertIn("requireProductionSandbox(options: Options): void", gate)
+        self.assertIn("inspectLauncherAdmission(options)", gate)
         self.assertNotIn("process.env", gate)
 
 

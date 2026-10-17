@@ -67,7 +67,7 @@ def entries(root: Path) -> list[dict[str, object]]:
 
 
 def verify(root: Path, manifest: dict[str, object]) -> None:
-    if manifest.get("productionApply") != "SANDBOX_UNVERIFIED":
+    if manifest.get("productionApply") != "requires-launcher-admission":
         raise ValueError("artifact tree/metadata mismatch")
     actual = entries(root)
     if actual != manifest["entries"]:
@@ -183,7 +183,7 @@ def build() -> None:
     ]
     for path in selected:
         package(path)
-    for name in ("launcher.py", "application.py", "application.mjs", "artifact.py"):
+    for name in ("launcher.py", "broker.py", "prepare.py", "application.py", "application.mjs", "artifact.py"):
         copy(SOURCE / "deploy/image-runner" / name, ROOT / "opt/image-runner" / name)
 
     python = Path("/usr/bin/python3")
@@ -268,6 +268,7 @@ def build() -> None:
         "run/host/os-release",
         "run/host/notify",
         "run/systemd/private",
+        "run/image-manager.sock",
         "run/systemd/journal/socket",
         "run/systemd/journal/stdout",
         "dev/log",
@@ -325,7 +326,7 @@ def build() -> None:
     manifest = {
         "format": 1,
         "scope": "disposable Linux artifact; target NOT VERIFIED",
-        "productionApply": "SANDBOX_UNVERIFIED",
+        "productionApply": "requires-launcher-admission",
         "base": BASE,
         "source": json.loads((SOURCE / "source.json").read_text()),
         "versions": versions,
@@ -343,7 +344,7 @@ def build() -> None:
     shutil.copyfile(SOURCE / "linux-tests.json", OUT / "linux-tests.json")
     summary = {
         "status": "BUILT",
-        "productionApply": "SANDBOX_UNVERIFIED",
+        "productionApply": "requires-launcher-admission",
         "files": len(manifest["entries"]),
         "rootfsSha256": sha(OUT / "rootfs.tar"),
         "manifestSha256": sha(OUT / "manifest.json"),
