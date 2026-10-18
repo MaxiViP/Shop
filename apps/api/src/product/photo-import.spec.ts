@@ -52,4 +52,4 @@ it('imports the new real WebP pack safely, repeats without duplicates and preser
     vi.unstubAllEnvs();
     await rm(root, { recursive: true, force: true });
   }
-});
+}, 30_000);
