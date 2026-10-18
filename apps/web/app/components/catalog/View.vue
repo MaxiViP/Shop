@@ -1,7 +1,7 @@
 <template>
   <UContainer class="catalog" :data-loaded-count="items.length">
     <div class="catalog__head">
-      <AppBreadcrumbs :items="breadcrumbs" />
+      <AppBreadcrumbs :items="breadcrumbs" compact />
       <ProductDensity />
       <p class="catalog__total" role="status">Найдено: {{ total }}</p>
     </div>

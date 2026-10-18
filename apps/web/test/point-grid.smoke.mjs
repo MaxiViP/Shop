@@ -7,7 +7,7 @@ import { chromium } from '@playwright/test';
 import { startWeb } from './browser.mjs';
 
 const artifacts = await mkdtemp(join(tmpdir(), 'korzina-point-grid-'));
-const categories = [{ id: 1, name: 'Фрукты', slug: 'fruits', active: true }, { id: 2, name: 'Ягоды', slug: 'berries', active: true }];
+const categories = [{ id: 1, name: 'Фрукты', slug: 'fruits', active: true }, { id: 2, name: 'Свежие ягоды с рынка и лесные ягоды', slug: 'berries', active: true }];
 const point = { id: 10, slug: 'ours', name: 'Наша точка «Овощи и фрукты»', cardColor: '#00FF00', isOurPoint: true, kind: 'STALL', floor: 2 };
 const products = Array.from({ length: 24 }, (_, i) => ({ id: i + 1, name: 'Яблоки красные ' + (i + 1), slug: 'apples-' + (i + 1),
   price: 12345 + i, priceStatus: 'AUDITED', priceQty: 1000, unit: 'GRAM', min: 500, step: 100, portionQty: 500,
@@ -88,6 +88,15 @@ try {
       });
       await page.screenshot({ path: join(artifacts, `grid-${columns}-${width}.png`) });
       assert.ok(Math.abs(placement.delta) < 1, JSON.stringify(placement));
+      assert.equal(await page.locator('.density__label').innerText(), 'Карточек в ряд');
+      assert.deepEqual((await page.locator('.density__option').allTextContents()).map(text => text.trim()), ['2', '3', '4']);
+      assert.equal(await page.locator('.density__option[aria-pressed="true"]').innerText(), String(columns));
+      assert.ok(await page.locator('.density__option').evaluateAll(buttons => buttons.every(button => {
+        const box = button.getBoundingClientRect();
+        return box.width >= 44 && box.height >= 44;
+      })));
+      assert.equal(await page.locator('.breadcrumbs').getByRole('link', { name: 'Главная', exact: true }).getAttribute('href'), '/');
+      assert.equal(await page.locator('.breadcrumbs__short').isVisible(), width < 368);
       const card = page.locator('.card').first();
       const sizes = await page.locator('.card').evaluateAll(cards => cards.map(card => ({
         height: card.getBoundingClientRect().height,
@@ -180,21 +189,19 @@ try {
     await page.reload({ waitUntil: 'networkidle' }); assert.equal(await columnCount(), columns);
     checks.push(`mobile ${columns} columns: centered cart quantity above ribbons, equal stable card heights, single-line prices, full-width icon sorting at 320/375/430px`);
   }
-  assert.equal(await page.locator('.density__option svg').count(), 3);
-  const icons = await page.locator('.density__icon').evaluateAll(icons => icons.map(icon => [...icon.querySelectorAll('rect')].map(square => ({
-    width: square.getAttribute('width'), height: square.getAttribute('height'), y: square.getAttribute('y'),
-  }))));
-  assert.deepEqual(icons.map(squares => squares.length), [2, 3, 4]);
-  assert.ok(icons.flat().every(square => square.width === '5' && square.height === '5' && square.y === '3.5'));
-  assert.ok((await page.locator('.density__option').allTextContents()).every(text => !text.trim()));
   await page.goto(web.base, { waitUntil: 'networkidle' });
-  assert.ok(await page.locator('.home__head .density').evaluate(control => {
-    const box = control.getBoundingClientRect(), head = control.parentElement.getBoundingClientRect();
-    return Math.abs(box.x + box.width / 2 - head.x - head.width / 2) < 1;
-  }));
+  for (const width of [320, 375, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.ok(await page.locator('.home__head .density').evaluate(control => {
+      const box = control.getBoundingClientRect(), head = control.parentElement.getBoundingClientRect();
+      return Math.abs(box.x + box.width / 2 - head.x - head.width / 2) < 1 && box.left >= head.left && box.right <= head.right;
+    }));
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    await page.screenshot({ path: join(artifacts, `home-${width}.png`) });
+  }
   assert.equal(await page.locator('.categories .density').count(), 0);
   assert.equal(await columnCount(), 4);
-  checks.push('inline grid buttons are centered in catalog and home headings');
+  checks.push('labeled numeric grid buttons have 44px touch targets, stay centered in catalog and home headings, and preserve selection');
   await page.locator('.card__add').first().click();
   await page.locator('.card__control').first().waitFor();
   assert.equal(await page.locator('.card').first().evaluate(card => getComputedStyle(card).borderColor), 'rgb(0, 255, 0)');
@@ -229,6 +236,34 @@ try {
   assert.ok(await page.getByText('В данной категории ничего не нашлось', { exact: true }).isVisible());
   assert.ok(await page.getByRole('heading', { name: 'Результаты поиска во всём каталоге' }).isVisible());
   assert.ok(await page.locator('.card').first().isVisible()); checks.push('empty category displays whole-catalog results');
+  const breadcrumbs = page.getByRole('navigation', { name: 'Хлебные крошки' });
+  assert.ok(await breadcrumbs.getByRole('link', { name: 'Главная', exact: true }).isVisible());
+  assert.equal(await breadcrumbs.locator('[aria-current="page"]').innerText(), categories[1].name);
+  assert.ok(await page.locator('.density').isHidden());
+  for (const width of [320, 360, 367, 368, 375, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.ok(await breadcrumbs.getByRole('link', { name: 'Главная', exact: true }).isHidden());
+    const catalogLink = breadcrumbs.getByRole('link', { name: 'Каталог', exact: true });
+    assert.ok(await catalogLink.isVisible());
+    assert.equal(new URL(await catalogLink.getAttribute('href'), web.base).searchParams.get('q'), 'яблоко');
+    assert.equal(await breadcrumbs.locator('.breadcrumbs__short').isVisible(), width < 368);
+    const current = breadcrumbs.locator('[aria-current="page"]');
+    assert.equal(await current.getAttribute('title'), categories[1].name);
+    assert.equal(await current.innerText(), categories[1].name);
+    const headingLayout = await page.locator('.catalog__head').evaluate(head => {
+      const box = head.getBoundingClientRect();
+      const control = head.querySelector('.density').getBoundingClientRect();
+      const crumbs = head.querySelector('.breadcrumbs').getBoundingClientRect();
+      const current = head.querySelector('.breadcrumbs [aria-current="page"]');
+      return { centered: Math.abs(control.x + control.width / 2 - box.x - box.width / 2) < 1,
+        separated: crumbs.right <= control.left, currentWidth: current.getBoundingClientRect().width,
+        truncated: current.scrollWidth > current.clientWidth, ellipsis: getComputedStyle(current).textOverflow };
+    });
+    assert.ok(headingLayout.centered && headingLayout.separated && headingLayout.currentWidth > 10 && headingLayout.truncated && headingLayout.ellipsis === 'ellipsis', JSON.stringify({ width, ...headingLayout }));
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    if (width === 320 || width === 375) await page.screenshot({ path: join(artifacts, `breadcrumbs-${width}.png`) });
+  }
+  checks.push('compact breadcrumbs retain accessible names and search links, abbreviate below 368px, and truncate long categories without shifting the grid control');
   user = { id: 7, name: 'Владелец', phone: '+79990000007', role: 'USER', verifiedAt: '2026-10-18T12:00:00Z', ownedPoints: [{ marketPointId: 10 }], telegram: null };
   await page.goto(web.base + '/staff/products/1', { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Редактировать свой товар' }).waitFor();
