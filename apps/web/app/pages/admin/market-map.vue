@@ -73,6 +73,13 @@
             <UInput :model-value="form.mapColor ?? ''" placeholder="Стандартный цвет" maxlength="7" aria-label="HEX-цвет точки" :disabled="busy" @update:model-value="form.mapColor = $event ? String($event) : null" />
             <UButton type="button" color="neutral" variant="ghost" :disabled="busy" @click="form.mapColor = null">Сбросить цвет</UButton>
           </div>
+          <UFormField label="Цвет рамки карточек товаров" help="Применяется ко всем товарам этой точки, в каталоге.">
+            <div class="map-admin__color">
+              <input type="color" class="map-admin__picker" :value="form.cardColor ?? '#00FF00'" :disabled="busy" aria-label="Цвет рамки карточек" @input="form.cardColor = ($event.target as HTMLInputElement).value.toUpperCase()">
+              <UInput :model-value="form.cardColor ?? ''" placeholder="#00FF00" maxlength="7" :disabled="busy" @update:model-value="form.cardColor = $event ? String($event) : null" />
+              <UButton variant="ghost" :disabled="busy" @click="form.cardColor = null">Сбросить рамку</UButton>
+            </div>
+          </UFormField>
           <USwitch v-model="form.isOurPoint" label="Наша точка" :disabled="busy || ['ENTRY', 'SERVICE'].includes(form.kind) && !form.isOurPoint" />
           <UFormField v-if="form.isOurPoint" label="Подпись" hint="По умолчанию: Мы здесь!"><UInput v-model="form.ourLabel" maxlength="80" placeholder="Мы здесь!" :disabled="busy" class="w-full" /></UFormField>
           <p v-if="form.isOurPoint" class="map-admin__muted">После сохранения эта точка станет единственной основной нашей точкой на данном этаже. Ранее назначенная точка сохранит остальные настройки.</p>
@@ -137,7 +144,7 @@ const points = ref<MarketPoint[]>(data.value ?? []), selected = ref<MarketPoint 
 const floors = Array.from({ length: 20 }, (_, index) => ({ value: index + 1, label: (index + 1) + ' этаж' }));
 type PointDraft = Omit<MarketPointInput, 'unitNumber' | 'description' | 'sampleAssortment' | 'ourLabel'> & { unitNumber: string; description: string; sampleAssortment: string; ourLabel: string };
 const defaults = (): PointDraft => ({ name: '', slug: '', unitNumber: '', kind: 'STALL', description: '', sampleAssortment: '', floor: floor.value,
-  mapX: null, mapY: null, mapWidth: null, mapHeight: null, mapColor: null, isOurPoint: false, ourLabel: '', isPublished: false, sortOrder: 0 });
+  mapX: null, mapY: null, mapWidth: null, mapHeight: null, mapColor: null, cardColor: null, isOurPoint: false, ourLabel: '', isPublished: false, sortOrder: 0 });
 const form = reactive<PointDraft>(defaults());
 const baseline = ref(JSON.stringify(form)), version = ref<string | undefined>();
 const busy = ref(false), placing = ref(false), placingEscalator = ref(false), editingGeometry = ref(false), showBounds = ref(false);
@@ -166,7 +173,7 @@ function draftFrom(point: MarketPoint): PointDraft {
   return { name: point.name, slug: point.slug, unitNumber: point.unitNumber ?? '', kind: point.kind,
     description: point.description ?? '', sampleAssortment: point.sampleAssortment ?? '', floor: point.floor,
     mapX: point.mapX, mapY: point.mapY, mapWidth: point.mapWidth ?? null, mapHeight: point.mapHeight ?? null,
-    mapColor: point.mapColor ?? null, isOurPoint: point.isOurPoint ?? false, ourLabel: point.ourLabel ?? '', isPublished: point.isPublished, sortOrder: point.sortOrder };
+    mapColor: point.mapColor ?? null, cardColor: point.cardColor ?? null, isOurPoint: point.isOurPoint ?? false, ourLabel: point.ourLabel ?? '', isPublished: point.isPublished, sortOrder: point.sortOrder };
 }
 function apply(point: MarketPoint | null) {
   selected.value = point; Object.assign(form, point ? draftFrom(point) : defaults());

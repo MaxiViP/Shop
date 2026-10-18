@@ -238,7 +238,8 @@ test('sorting uses a floating horizontal radio menu with labelled trigger, keybo
   assert.match(view, /aria-orientation="horizontal"/);
   assert.match(view, /ArrowRight/); assert.match(view, /ArrowLeft/); assert.match(view, /event.key === 'Home'/); assert.match(view, /event.key === 'End'/);
   assert.match(view, /open.value = false/);
-  assert.match(view, /overflow-x: auto/);
+  assert.match(view, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.ok(!view.includes('overflow-x: auto'));
 });
 
 test('scroll navigation only reveals the active tab horizontally, preserving routes and loaded cards', async () => {
@@ -257,4 +258,14 @@ test('scroll navigation only reveals the active tab horizontally, preserving rou
   assert.match(more, /new IntersectionObserver/);
   assert.match(more, /!props.loading && !props.error/);
   assert.match(more, /observer\?\.disconnect/);
+});
+
+test('empty category search carries whole-catalog fallback metadata and clears it on a new search', async t => {
+  const initial = { ...response([product(1, 'fruits')]), groupTotals: { current: 0, others: 1 } };
+  const { catalog, route, state } = await fixture(t, initial, 'berries', { q: 'яблоко' });
+  assert.deepEqual(catalog.groupTotals.value, { current: 0, others: 1 });
+  state.next = { ...response([product(2, 'berries')]), groupTotals: { current: 1, others: 0 } };
+  route.query.q = 'клубника';
+  await nextTick(); await nextTick();
+  assert.deepEqual(catalog.groupTotals.value, { current: 1, others: 0 });
 });

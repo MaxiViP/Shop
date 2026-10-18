@@ -1,3 +1,4 @@
+import { staffWhere } from '../auth/permissions.js';
 import type { NotificationType, Prisma } from '../db/gen/client.js';
 
 type OrderEvent = {
@@ -49,7 +50,7 @@ export async function chatEvent(db: Prisma.TransactionClient, data: {
   const type = data.imageRevisionId ? 'CHAT_IMAGE_REVISION' : 'CHAT_MESSAGE';
   const key = data.imageRevisionId ? `revision:${data.messageId}:${data.imageRevisionId}` : `message:${data.messageId}`;
   if (data.actorType === 'CUSTOMER') {
-    const staff = await db.user.findMany({ where: { role: { in: ['SELLER', 'ADMIN'] },
+    const staff = await db.user.findMany({ where: { ...staffWhere,
       ...(data.actorUserId ? { id: { not: data.actorUserId } } : {}) }, select: { id: true } });
     for (const recipient of staff) await inAppEvent(db, { orderId: data.orderId, messageId: data.messageId,
       imageRevisionId: data.imageRevisionId, type,
@@ -58,7 +59,7 @@ export async function chatEvent(db: Prisma.TransactionClient, data: {
     imageRevisionId: data.imageRevisionId, type, dedupeKey: key,
     eventData: { actorUserId: data.actorUserId } });
   const recipients = data.actorType === 'CUSTOMER'
-    ? await db.user.findMany({ where: { role: { in: ['SELLER', 'ADMIN'] },
+    ? await db.user.findMany({ where: { ...staffWhere,
       ...(data.actorUserId ? { id: { not: data.actorUserId } } : {}),
       staffTelegramIdentity: { is: { botStartedAt: { not: null }, blockedAt: null } },
     }, select: { id: true } })

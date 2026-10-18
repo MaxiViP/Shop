@@ -2,6 +2,7 @@
   <UContainer class="catalog" :data-loaded-count="items.length">
     <div class="catalog__head">
       <AppBreadcrumbs :items="breadcrumbs" />
+      <ProductDensity />
       <p class="catalog__total" role="status">Найдено: {{ total }}</p>
     </div>
     <h1 class="sr-only">{{ title }}</h1>
@@ -26,6 +27,11 @@
       <UButton type="button" variant="soft" @click="retry">Повторить</UButton>
     </div>
     <template v-else>
+      <div v-if="category && q && groupTotals?.current === 0" class="catalog__fallback" role="status">
+        <p>В данной категории ничего не нашлось</p>
+        <h2 v-if="items.length" class="catalog__group-title">Результаты поиска во всём каталоге</h2>
+        <p v-else>Во всём каталоге совпадений тоже нет. Попробуйте другое название.</p>
+      </div>
       <div v-if="groups.length" ref="groupList" class="catalog__groups">
         <section v-for="group in groups" :key="group.key" class="catalog__group" :data-category="group.key">
           <h2 class="catalog__group-title">{{ group.label }}</h2>
@@ -104,7 +110,7 @@ onBeforeUnmount(() => {
   document.querySelector('header.header')?.removeEventListener('transitionend', scheduleTrack);
 });
 
-const { search, q, sort, categoryQuery, items, groups, total, status, error, stale, loadingMore,
+const { search, q, sort, categoryQuery, items, groups, total, groupTotals, status, error, stale, loadingMore,
   hasMore, submitSearch, clearSearch, loadMore, retry, restart } = await useCatalog(category);
 const breadcrumbs = computed(() => [
   { label: 'Главная', to: '/' },
@@ -145,9 +151,15 @@ async function chooseCategory(slug: string) {
 .catalog__groups { display: grid; gap: 1.75rem; }
 .catalog__groups:has(.grid[data-windowed]) { overflow-anchor: none; }
 .catalog__group-title { margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--ui-border); font-size: 1.125rem; font-weight: 600; }
+.catalog__fallback { display: grid; gap: 1rem; margin-block: 1rem; }
 .catalog__empty { display: grid; justify-items: start; gap: 1rem; padding-block: 3rem; }
 .catalog__empty-title { font-size: var(--section-title); font-weight: 600; }
 .catalog__error { display: grid; justify-items: start; gap: 0.75rem; }
+@media (width < 40rem) {
+  .catalog__head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0.25rem; }
+  .catalog__head :deep(.breadcrumbs) { grid-column: 1; min-width: 0; overflow: hidden; }
+  .catalog__total { justify-self: end; max-width: 100%; white-space: normal; text-align: right; overflow-wrap: anywhere; }
+}
 @media (width < 48rem) { .catalog__search { display: none; } }
 @media (min-width: 40rem) { .catalog__total { font-size: 0.875rem; } }
 </style>

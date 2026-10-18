@@ -10,16 +10,17 @@ function executable(source) {
   for (const statement of [...parsed.statements].reverse()) if (ts.isImportDeclaration(statement)) source = source.slice(0, statement.getStart()) + source.slice(statement.end);
   return ts.transpileModule(source.replace(/^export /gm, '').replaceAll('import.meta.client', 'true'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 }
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const list = await readFile(new URL('../app/components/category/List.vue', import.meta.url), 'utf8');
 test('category search filters the loaded 100+ categories locally, keeps visible-category state and closes on a manual choice', async t => {
   const events = [], stops = [];
   const items = Array.from({ length: 110 }, (_, id) => ({ id, slug: 'category-' + id, name: 'Категория ' + id }));
   items[42].name = 'Сыры';
   const props = { items, query: { q: 'яблоко', sort: 'price_asc' }, active: 'category-42' };
-  const context = { ref, computed, nextTick, defineProps: () => props, defineEmits: () => (...args) => events.push(args),
+  const context = { ref, computed, nextTick, useRoute: () => ({ query: {} }), useApi: async () => ({ data: ref([]) }), defineProps: () => props, defineEmits: () => (...args) => events.push(args),
     watch: (...args) => { stops.push(watch(...args)); }, onMounted() {}, onBeforeUnmount() {} };
   const script = executable(parse(list).descriptor.scriptSetup.content);
-  const state = new Function(...Object.keys(context), script + '\nreturn { search, filtered, open, chooseCategory, link, current };')(...Object.values(context));
+  const state = await new AsyncFunction(...Object.keys(context), script + '\nreturn { search, filtered, open, chooseCategory, link, current };')(...Object.values(context));
   t.after(() => stops.forEach(stop => stop()));
   assert.equal(state.filtered.value.length, 110);
   state.search.value = '  сЫР  '; assert.deepEqual(state.filtered.value.map(item => item.id), [42]);
@@ -29,7 +30,7 @@ test('category search filters the loaded 100+ categories locally, keeps visible-
   state.chooseCategory({ button: 0, ctrlKey: true }, 'category-1'); assert.equal(state.open.value, true); assert.equal(events.length, 0);
   state.chooseCategory({ button: 0 }, 'category-1'); assert.equal(state.open.value, false); assert.deepEqual(events, [['choose', 'category-1']]);
   assert.deepEqual(state.link('/catalog/category-1'), { path: '/catalog/category-1', query: props.query });
-  assert.ok(!script.includes('useApi'));
+  assert.ok(script.includes('/categories/points')); // Product categories still filter locally.
 });
 
 test('hybrid navigation keeps its leading menu and trailing controls outside the scrolling strip and provides an accessible mobile sheet', () => {
@@ -50,11 +51,11 @@ test('category modal focuses the dialog first, focuses search only on demand and
   const toggle = { focus() { toggleFocus++; } };
   const dialog = { offsetHeight: 420, style: { setProperty: (key, value) => properties.set(key, value), removeProperty: key => properties.delete(key) }, focus() { dialogFocus++; } };
   const props = { items: [{ id: 1, slug: 'cheese', name: 'Сыры' }, { id: 2, slug: 'fruit', name: 'Фрукты' }] };
-  const context = { ref, computed, nextTick, defineProps: () => props, defineEmits: () => () => {},
+  const context = { ref, computed, nextTick, useRoute: () => ({ query: {} }), useApi: async () => ({ data: ref([]) }), defineProps: () => props, defineEmits: () => () => {},
     watch: (...args) => { stops.push(watch(...args)); }, onMounted() {}, onBeforeUnmount() {},
     window: { innerHeight: 800, visualViewport: { height: 800, offsetTop: 0 } } };
   const script = executable(parse(list).descriptor.scriptSetup.content);
-  const state = new Function(...Object.keys(context), script + '\nreturn { open, search, searchOpen, filtered, panel, searchBar, focusPanel, toggleSearch, closeSearch };')(...Object.values(context));
+  const state = await new AsyncFunction(...Object.keys(context), script + '\nreturn { open, search, searchOpen, filtered, panel, searchBar, focusPanel, toggleSearch, closeSearch };')(...Object.values(context));
   t.after(() => stops.forEach(stop => stop()));
   state.panel.value = { closest: () => dialog };
   state.searchBar.value = { querySelector: selector => selector === 'input' ? input : selector === '.categories__search-field' ? field : toggle };

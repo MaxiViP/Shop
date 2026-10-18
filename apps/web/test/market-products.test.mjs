@@ -50,6 +50,7 @@ async function component(file) {
   const module = { exports: {} };
   const context = { require: id => modules[id] ?? nodeRequire(id), exports: module.exports, module,
     computed, ref, watch, onMounted, onBeforeUnmount, useProductGallery, useProductImage, useRoute: () => ({ params: { slug: product.slug } }),
+    useMobileGrid: () => ({ columns: ref(2) }),
     useGridWindow: () => ({ start: ref(0), end: ref(120), top: ref(0), bottom: ref(0) }),
     useCartActions: () => ({ add: async () => true, subtract: async () => true }),
     useAsset: () => value => value, useHeaderNotice: () => ({ show() {} }),
@@ -138,7 +139,6 @@ test('seasonal and hit ribbons coexist on the shared card without changing its p
     const html = await render(Card, { product: { ...product, isSeasonal, isHit } });
     assert.equal(html.includes('card__ribbon--season'), isSeasonal);
     assert.equal(html.includes('card__ribbon--hit'), isHit);
-    assert.equal(html.includes('card__media--badged'), isSeasonal || isHit);
     assert.ok(html.includes('242 ₽'));
     assert.match(html, new RegExp('href="/product/' + product.slug + '"'));
   }
@@ -148,7 +148,6 @@ test('seasonal and hit ribbons coexist on the shared card without changing its p
   assert.match(css, /\.card__badges\s*\{[^}]*pointer-events:\s*none/);
   assert.match(css, /\.card__media\s*\{[^}]*position:\s*relative/);
   assert.match(css, /\.card__badges\s*\{[^}]*position:\s*absolute[^}]*left:\s*0[^}]*display:\s*grid/);
-  assert.match(css, /\.card__media--badged \.card__quantity\s*\{[^}]*top:\s*auto[^}]*bottom:\s*var\(--card-inset\)/);
 });
 
 test('HTTP product badges reach the shared photo card through home, search and infinite catalog feeds', async t => {
@@ -213,18 +212,17 @@ test('HTTP product badges reach the shared photo card through home, search and i
   assert.equal(requests.length, 6, 'Each feed uses one initial request and one cursor request');
 });
 
-test('a compact card keeps both ribbons and its cart quantity in separate photo positions', async () => {
+test('a compact card keeps its cart quantity centered above both photo ribbons', async () => {
   const previousQty = cart.qty;
   cart.qty = () => 1;
   try {
     const html = await render(Card, { product: { ...product, isHit: true, isSeasonal: true }, compact: true });
-    assert.ok(html.includes('card__media--badged'));
     assert.ok(html.includes('card__ribbon--hit') && html.includes('card__ribbon--season'));
     assert.ok(html.includes('card__quantity') && html.includes('card__control'));
     const css = parse(await source('components/product/Card.vue')).descriptor.styles[0].content;
     assert.match(css, /\.card__favorite\s*\{[^}]*right:\s*0\.25rem/);
     assert.match(css, /\.card__badges\s*\{[^}]*top:\s*var\(--card-inset\)[^}]*left:\s*0/);
-    assert.match(css, /\.card__media--badged \.card__quantity\s*\{[^}]*bottom:\s*var\(--card-inset\)[^}]*transform:\s*translateX\(-50%\)/);
+    assert.match(css, /\.card__quantity\s*\{[^}]*top:\s*50%[^}]*left:\s*50%[^}]*z-index:\s*5[^}]*transform:\s*translate\(-50%, -50%\)/);
   } finally { cart.qty = previousQty; }
 });
 
@@ -271,7 +269,7 @@ test('admin edits and resaves seller price, and requests customer price from the
     useApiClient: () => async (path, options) => {
       requests.push({ path, ...options });
       if (path === '/admin/products/pricing') {
-        assert.deepEqual(options.body, { price: 49500 });
+        assert.deepEqual(options.body, { price: 49500, serviceMarkupPercent: 10 });
         return { sellerPrice: 49500, serviceMarkupPercent: 10, serviceMarkup: 4950, customerPrice: 54450 };
       }
       return admin;

@@ -278,7 +278,7 @@
               class="mobile-nav__link mobile-nav__link--staff"
             >
               <UIcon name="i-lucide-clipboard-list" />
-              <span>Рабочее место продавца</span>
+              <span>{{ isPointOwner(auth.user) ? 'Рабочее место владельца точки' : 'Рабочее место продавца' }}</span>
             </NuxtLink>
           </div>
 
@@ -301,6 +301,7 @@
 </template>
 
 <script setup lang="ts">
+import { isStaff as hasStaffAccess, isPointOwner } from '~/utils/permissions';
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
 import { useFavoritesStore } from "~/stores/favorites";
@@ -346,7 +347,7 @@ watch(mobileOpen, (open) => { if (open) menuMounted.value = true; }, { flush: 's
 watch(loginOpen, (open) => { if (open) loginMounted.value = true; }, { flush: 'sync' });
 const account = computed(() => headerAccount(auth.user));
 const staff = computed(
-  () => auth.user?.role === "SELLER" || auth.user?.role === "ADMIN",
+  () => hasStaffAccess(auth.user),
 );
 
 const narrow = ref(false);

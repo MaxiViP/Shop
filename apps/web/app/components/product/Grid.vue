@@ -1,5 +1,5 @@
 <template>
-  <div ref="root" class="grid" :data-windowed="windowed || undefined">
+  <div ref="root" class="grid" :style="{ '--mobile-columns': columns }" :data-windowed="windowed || undefined">
     <slot>
       <div v-if="top" class="grid__spacer" :style="{ height: `${top}px` }" aria-hidden="true" />
       <ProductCard
@@ -7,6 +7,7 @@
         :key="product.id"
         :product="product"
         :compact="compact"
+        :density="columns"
         :eager-image="eagerImages && start + index < 4"
         :data-product-index="start + index"
       />
@@ -24,6 +25,7 @@ const props = withDefaults(defineProps<{
   windowed?: boolean;
   eagerImages?: boolean;
 }>(), { eagerImages: true });
+const { columns } = useMobileGrid();
 const root = ref<HTMLElement | null>(null);
 const { start, end, top, bottom } = useGridWindow(root, () => props.items.length, () => !!props.windowed);
 const visible = computed(() => props.items.slice(start.value, props.windowed ? end.value : undefined));
@@ -33,7 +35,7 @@ const visible = computed(() => props.items.slice(start.value, props.windowed ? e
 .grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--mobile-columns, 2), minmax(0, 1fr));
   gap: 0.375rem;
 }
 .grid__spacer { grid-column: 1 / -1; pointer-events: none; }

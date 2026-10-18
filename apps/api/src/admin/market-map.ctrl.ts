@@ -5,7 +5,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminGuard } from '../auth/admin.guard.js';
 import { MarketMapService } from '../market-map/market-map.service.js';
-import { floorQuery, pointSchema, pointPatch, layoutPatch, type PointInput, type PointPatch, type LayoutInput } from '../market-map/schema.js';
+import { floorQuery, pointListQuery, pointSchema, pointPatch, layoutPatch, type PointInput, type PointPatch, type LayoutInput } from '../market-map/schema.js';
 import type { ImageFile } from '../common/image.js';
 import { idSchema } from './schema.js';
 
@@ -15,8 +15,8 @@ export class AdminMarketMapCtrl {
   constructor(private readonly map: MarketMapService) {}
 
   @Get()
-  list(@Query({ schema: floorQuery }) query: { floor: number }) {
-    return this.map.list(query.floor);
+  list(@Query({ schema: pointListQuery }) query: { floor?: number }) {
+    return query.floor ? this.map.list(query.floor) : this.map.all();
   }
 
   @Get(':id')

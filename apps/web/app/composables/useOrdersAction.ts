@@ -1,3 +1,4 @@
+import { isStaff } from '~/utils/permissions';
 import { useAuthStore } from "~/stores/auth";
 import { ordersAction } from "~/utils/orders-action";
 
@@ -8,7 +9,7 @@ export function useOrdersAction() {
   const communication = useCommunication();
   return computed(() =>
     ordersAction(
-      ["SELLER", "ADMIN"].includes(auth.user?.role ?? ""),
+      isStaff(auth.user),
       newOrders.value,
       communication.count.value,
       communication.latestOrderId.value,

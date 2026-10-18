@@ -76,7 +76,7 @@ export class StaffCtrl {
   @Post(':id/restore')
   restore(@Param('id', { schema: idSchema }) id: number, @Req() request: AuthRequest,
     @Body({ schema: restoreSchema }) body: z.infer<typeof restoreSchema>) {
-    return this.staff.restore(id, request.user.id, request.user.role, body.cancellationId, staffActor(request.user));
+    return this.staff.restore(id, request.user.id, staffActor(request.user).role, body.cancellationId, staffActor(request.user));
   }
 
   @Get(':id')
@@ -155,7 +155,7 @@ export class StaffCtrl {
     @Req() request: AuthRequest,
     @Body({ schema: cancelSchema }) body: z.infer<typeof cancelSchema>,
   ) {
-    return this.staff.cancel(id, request.user.id, request.user.role, body.reason, staffActor(request.user));
+    return this.staff.cancel(id, request.user.id, staffActor(request.user).role, body.reason, staffActor(request.user));
   }
 
   @Put(':id/delivery')

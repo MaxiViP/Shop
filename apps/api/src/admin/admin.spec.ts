@@ -46,6 +46,7 @@ function fixture() {
     },
     productImage: { delete: vi.fn(), count: vi.fn(), update: vi.fn() },
     orderItem: { count: vi.fn() },
+    session: { deleteMany: vi.fn() },
     user: {
       findUniqueOrThrow: vi.fn(),
       findMany: vi.fn(),

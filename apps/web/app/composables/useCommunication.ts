@@ -1,3 +1,4 @@
+import { isStaff } from '~/utils/permissions';
 import { useAuthStore } from "~/stores/auth";
 
 export const useCommunicationRevision = () =>
@@ -8,7 +9,7 @@ export function useCommunication() {
   const api = useApiClient();
   const revision = useCommunicationRevision();
   const staff = computed(() =>
-    ["SELLER", "ADMIN"].includes(auth.user?.role ?? ""),
+    isStaff(auth.user),
   );
   const summary = ref<{ count: number; latestOrderId: string | number | null }>(
     { count: 0, latestOrderId: null },

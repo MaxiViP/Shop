@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma, UserRole } from '../db/gen/client.js';
+import { isStaff, type StaffUser } from '../auth/permissions.js';
+import type { Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import { guestTokenHash } from '../common/guest.js';
 import { OrderService } from './order.service.js';
@@ -61,16 +62,16 @@ export function inAppNotice(event: Event) {
 export class InAppService {
   constructor(private readonly db: DbService, private readonly orders: OrderService) {}
 
-  private async access(user: { id: number; role: UserRole } | null, guestToken?: string) {
+  private async access(user: ({ id: number } & StaffUser) | null, guestToken?: string) {
     const customer = await this.orders.customerOrders(user?.id ?? null, guestToken);
     const scopes: Prisma.OrderNotificationWhereInput[] = [];
     if (customer) scopes.push({ audience: 'CUSTOMER', order: customer });
-    if (user && ['SELLER', 'ADMIN'].includes(user.role)) scopes.push({ audience: 'STAFF', recipientUserId: user.id });
+    if (user && isStaff(user)) scopes.push({ audience: 'STAFF', recipientUserId: user.id });
     return { where: { channel: 'IN_APP' as const, OR: scopes },
       scope: user ? `u:${user.id}:${user.role}` : customer ? `g:${guestTokenHash(String(customer.guestSessionId)).slice(0, 24)}` : null };
   }
 
-  async list(user: { id: number; role: UserRole } | null, guestToken: string | undefined, limit: number) {
+  async list(user: ({ id: number } & StaffUser) | null, guestToken: string | undefined, limit: number) {
     const access = await this.access(user, guestToken);
     if (!access.scope) return { scope: null, events: [], hasMore: false };
     // Existing order/issue mutations cancel superseded deliveries in this same outbox.
@@ -92,7 +93,7 @@ export class InAppService {
     return { scope: access.scope, events: visible.slice(0, limit).map(inAppNotice), hasMore: rows.length > limit };
   }
 
-  async seen(user: { id: number; role: UserRole } | null, guestToken: string | undefined, ids: number[]) {
+  async seen(user: ({ id: number } & StaffUser) | null, guestToken: string | undefined, ids: number[]) {
     const access = await this.access(user, guestToken);
     const unique = [...new Set(ids)];
     return this.db.$transaction(async db => {

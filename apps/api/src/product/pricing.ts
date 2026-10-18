@@ -10,8 +10,8 @@ export function customerPrice(sellerPrice: number, percent = SERVICE_MARKUP_PERC
   return goodsLine(sellerPrice, 100 + percent, 100);
 }
 
-export function priceBreakdown(sellerPrice: number) {
-  const price = customerPrice(sellerPrice);
-  return { sellerPrice, serviceMarkupPercent: SERVICE_MARKUP_PERCENT,
+export function priceBreakdown(sellerPrice: number, percent = SERVICE_MARKUP_PERCENT) {
+  const price = customerPrice(sellerPrice, percent);
+  return { sellerPrice, serviceMarkupPercent: percent,
     serviceMarkup: price - sellerPrice, customerPrice: price };
 }

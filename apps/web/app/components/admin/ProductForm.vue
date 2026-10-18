@@ -65,10 +65,13 @@
               placeholder="199,50"
               class="w-full"
           /></UFormField>
+          <UFormField v-if="!owner" label="Наценка сервиса, %" help="Настраивает только администратор. Применяется к новым заказам.">
+            <UInput v-model.number="form.serviceMarkupPercent" type="number" min="0" max="100" step="1" required class="w-full" />
+          </UFormField>
           <UFormField label="Единица"
             ><USelect v-model="form.unit" :items="units" class="w-full"
           /></UFormField>
-          <UFormField label="Достоверность цены" help="Статус относится к цене продавца; сервис добавляется автоматически.">
+          <UFormField v-if="!owner" label="Достоверность цены" help="Статус относится к цене продавца; сервис добавляется автоматически.">
             <USelect v-model="form.priceStatus" :items="priceStatusItems" class="w-full" />
           </UFormField>
           <UFormField label="Единица цены" :error="quantityError.priceQty"><USelect v-model="form.priceUnit" :items="units" class="w-full" /></UFormField>
@@ -128,7 +131,7 @@
           <p>Изменение количества: {{ preview.manual }}</p>
         </div>
       </UCard>
-      <UCard>
+      <UCard v-if="!owner">
         <template #header><h2 class="font-semibold">Внутренний расчёт</h2></template>
         <div class="space-y-4">
           <UFormField label="Режим расчёта">
@@ -157,10 +160,10 @@
           <UFormField label="Торговая точка">
             <USelect v-model="form.marketPointId" :items="pointItems" class="w-full" />
           </UFormField>
-          <UFormField label="Проверено">
+          <UFormField v-if="!owner" label="Проверено">
             <UInput v-model="checkedDate" type="date" class="w-full" />
           </UFormField>
-          <UFormField label="Источник цены продавца" class="sm:col-span-2">
+          <UFormField v-if="!owner" label="Источник цены продавца" class="sm:col-span-2">
             <UInput v-model="form.sourceUrl" type="url" maxlength="2000" placeholder="https://…" class="w-full" />
             <a v-if="source?.sourceUrl" :href="source.sourceUrl" target="_blank" rel="noopener noreferrer" class="text-sm text-primary underline">Открыть источник</a>
           </UFormField>
@@ -168,7 +171,7 @@
       </UCard>
       <UCard>
         <template #header><h2 class="font-semibold">Публикация</h2></template>
-        <div class="grid sm:grid-cols-2 gap-4 mb-6">
+        <div v-if="!owner" class="grid sm:grid-cols-2 gap-4 mb-6">
           <fieldset class="sm:col-span-2 grid gap-3">
             <legend class="font-semibold">ХИТ</legend>
             <UFormField label="Отметка ХИТ"><USelect v-model="form.hitMode" :items="hitModes" class="w-full" /></UFormField>
@@ -184,7 +187,7 @@
         </div>
         <div class="flex flex-wrap gap-6 items-center">
           <USwitch v-model="form.active" label="Товар опубликован" />
-          <UFormField label="Порядок"
+          <UFormField v-if="!owner" label="Порядок"
             ><UInput
               v-model.number="form.sort"
               type="number"
@@ -200,7 +203,7 @@
         <UButton type="submit" :loading="busy">{{
           product ? "Сохранить изменения" : "Создать товар"
         }}</UButton
-        ><UButton to="/admin/products" color="neutral" variant="outline"
+        ><UButton :to="listPath" color="neutral" variant="outline"
           >К списку</UButton
         >
       </div>
@@ -210,6 +213,7 @@
     <AdminImages
       v-if="product"
       :product-id="product.id"
+      :api-root="apiRoot"
       :product-name="product.name"
       :value="product.images"
       @refresh="$emit('refresh')"
@@ -233,16 +237,20 @@ import type { HitMode, SeasonalMode, SeasonTemplate } from '~/types/badges';
 import { hitModes, seasonGroupLabel } from '~/utils/badges';
 const props = defineProps<{
   product?: AdminProduct;
+  owner?: boolean;
   categories: AdminCategory[];
 }>();
 const emit = defineEmits<{ refresh: [] }>();
 const source = props.product;
+const apiRoot = props.owner ? '/owner/products' : '/admin/products';
+const listPath = props.owner ? '/staff/products' : '/admin/products';
 const form = reactive({
   name: source?.name ?? "",
   slug: source?.slug ?? "",
   description: source?.description ?? "",
   categoryId: source?.categoryId ?? (undefined as number | undefined),
   marketPointId: source?.marketPointId ?? 0,
+  serviceMarkupPercent: source?.serviceMarkupPercent ?? 10,
   priceStatus: source?.priceStatus ?? 'ESTIMATED',
   sourceUrl: source?.sourceUrl ?? "",
   priceQty: source?.priceQty ?? 1,
@@ -276,17 +284,22 @@ watch(() => [form.saleModel, form.unit, form.priceUnit, form.priceQty, form.min,
 const checkedDate = ref(source?.sourceCheckedAt?.slice(0, 10) ?? "");
 const pricing = ref<ProductPricing | null>(source ?? null);
 const pricingError = ref(false);
-const { data: marketPoints } = await useApi<MarketPoint[]>("/admin/market-map/points");
-const { data: seasonTemplates } = await useApi<SeasonTemplate[]>('/admin/seasons');
+const { data: marketPoints } = await useApi<MarketPoint[]>(props.owner ? '/owner/points' : '/admin/market-map/points');
+const seasonTemplates = ref<SeasonTemplate[]>([]);
+if (!props.owner) {
+  const { data } = await useApi<SeasonTemplate[]>('/admin/seasons');
+  seasonTemplates.value = data.value ?? [];
+}
 const seasonModes = [{ label: 'Автоматически по шаблону', value: 'AUTO' }, { label: 'Вручную включить', value: 'MANUAL' }, { label: 'Выключить', value: 'OFF' }];
 const hitBadge = computed(() => form.hitMode === 'MANUAL' || (form.hitMode === 'AUTO' && source?.autoHit === true));
 const seasonItems = computed(() => [{ label: 'Без шаблона', value: 0 }, ...(seasonTemplates.value ?? []).map(template => ({
   label: `${template.name} · ${seasonGroupLabel(template.group)}${template.active ? '' : ' (отключён)'}`, value: template.id,
 }))]);
 const pointItems = computed(() => [
-  { label: "Без торговой точки", value: 0 },
+  ...(props.owner ? [] : [{ label: "Без торговой точки", value: 0 }]),
   ...(marketPoints.value ?? []).filter(point => point.kind !== "ENTRY").map(point => ({ label: point.name, value: point.id })),
 ]);
+if (props.owner && !form.marketPointId) form.marketPointId = marketPoints.value?.[0]?.id ?? 0;
 const settlementMode = ref<AdminProduct["settlementMode"]>(source?.settlementMode ?? "UNSET");
 const baseRubles = ref(source?.basePrice ? kopecksToRubles(source.basePrice) : "");
 const settlementOptions = [
@@ -339,7 +352,7 @@ function generateSlug() {
   if (!manualSlug.value) form.slug = productSlug(form.name);
 }
 const api = useApiClient();
-watch(rubles, (value, _previous, onCleanup) => {
+watch(() => [rubles.value, form.serviceMarkupPercent] as const, ([value], _previous, onCleanup) => {
   pricing.value = null;
   pricingError.value = false;
   const price = rublesToKopecks(value);
@@ -347,7 +360,7 @@ watch(rubles, (value, _previous, onCleanup) => {
   let active = true;
   const timer = setTimeout(async () => {
     try {
-      const result = await api<ProductPricing>("/admin/products/pricing", { method: "POST", body: { price } });
+      const result = await api<ProductPricing>(`${apiRoot}/pricing`, { method: "POST", body: { price, ...(props.owner ? source ? { productId: source.id } : {} : { serviceMarkupPercent: form.serviceMarkupPercent }) } });
       if (active) pricing.value = result;
     } catch {
       if (active) pricingError.value = true;
@@ -363,7 +376,7 @@ async function save() {
   if (saleChanged.value && !saleConfirmed.value) {
     error.value = 'Подтвердите условия продажи и проверьте цену за новую единицу.'; return;
   }
-  if (form.seasonalMode === 'AUTO' && !form.seasonTemplateId) {
+  if (!props.owner && form.seasonalMode === 'AUTO' && !form.seasonTemplateId) {
     error.value = 'Выберите шаблон сезонности.'; return;
   }
   if (Object.keys(quantityError.value).length) {
@@ -377,7 +390,7 @@ async function save() {
     return;
   }
   const basePrice = settlementMode.value === "SHARED_MARKUP" ? rublesToKopecks(baseRubles.value) : null;
-  if (settlementMode.value === "SHARED_MARKUP" && basePrice === null) {
+  if (!props.owner && settlementMode.value === "SHARED_MARKUP" && basePrice === null) {
     error.value = "Укажите корректную базовую цену для расчёта";
     return;
   }
@@ -388,11 +401,19 @@ async function save() {
   busy.value = true;
   error.value = "";
   try {
+    if (props.owner && !form.marketPointId) throw new Error('Выберите свою торговую точку');
+    const ownerBody = {
+      name: form.name.trim(), slug: form.slug, description: form.description.trim() || null,
+      price, priceQty: form.priceQty, unit: form.unit, step: form.step, min: form.min, portionQty: form.portionQty,
+      saleModel: form.saleModel, priceUnit: form.priceUnit, wholeLabel: variableWeight(form) ? form.wholeLabel : null,
+      estimatedWeightGrams: form.estimatedWeightGrams, categoryId: form.categoryId, marketPointId: form.marketPointId,
+      active: form.active, ...(saleChanged.value ? { saleChangeConfirmed: true } : {}),
+    };
     const result = await api<AdminProduct>(
-      source ? `/admin/products/${source.id}` : "/admin/products",
+      source ? `${apiRoot}/${source.id}` : apiRoot,
       {
         method: source ? "PATCH" : "POST",
-        body: {
+        body: props.owner ? ownerBody : {
           ...form,
           ...(saleChanged.value ? { saleChangeConfirmed: true } : {}),
           wholeLabel: variableWeight(form) ? form.wholeLabel : null,
@@ -414,7 +435,7 @@ async function save() {
       title: source ? "Изменения сохранены" : "Товар создан",
       color: "success",
     });
-    if (!source) await navigateTo(`/admin/products/${result.id}`);
+    if (!source) await navigateTo(`${listPath}/${result.id}`);
     else emit("refresh");
   } catch (value) {
     error.value = apiError(value);

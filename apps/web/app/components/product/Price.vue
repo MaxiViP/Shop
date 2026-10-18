@@ -1,6 +1,6 @@
 <template>
-  <strong class="price">
-    <span>{{ catalogMoney(product.price) }}</span>
+  <strong class="price" :style="{ '--price-characters': priceText.length + unit.length + 2 }">
+    <span class="price__value">{{ priceText }}</span>
     <span class="price__unit">/ {{ unit }}</span>
   </strong>
 </template>
@@ -14,6 +14,7 @@ const { product } = defineProps<{
   product: ProductListItem;
 }>();
 
+const priceText = computed(() => catalogMoney(product.price));
 const unit = computed(() => {
   const base = priceUnit(product);
   if (base === "GRAM") {
@@ -32,18 +33,20 @@ const unit = computed(() => {
 <style scoped>
 .price {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
   column-gap: 0.25em;
   min-width: 0;
   font-size: 0.9375rem;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
+  line-height: 1.2;
+  white-space: nowrap;
 }
+
+.price__value, .price__unit { flex: none; }
 
 .price__unit {
   color: var(--ui-text-muted);
-  font-size: 0.875rem;
+  font-size: 0.82em;
   font-weight: 400;
 }
 

@@ -1,3 +1,4 @@
+import { isStaff } from '~/utils/permissions';
 import { useAuthStore } from "~/stores/auth";
 import { emptyNewOrders, newOrdersLoader } from "~/utils/new-orders";
 
@@ -9,7 +10,7 @@ export function useNewOrders() {
   const revision = useNewOrdersRevision();
   const summary = ref(emptyNewOrders());
   const staff = computed(() =>
-    ["SELLER", "ADMIN"].includes(auth.user?.role ?? ""),
+    isStaff(auth.user),
   );
   let mounted = false;
   let timer: ReturnType<typeof setTimeout> | undefined;

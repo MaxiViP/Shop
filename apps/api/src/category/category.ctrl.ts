@@ -5,6 +5,9 @@ import { CategoryService } from './category.service.js';
 export class CategoryCtrl {
   constructor(private readonly category: CategoryService) {}
 
+  @Get('points')
+  points() { return this.category.points(); }
+
   @Get()
   list() {
     return this.category.list();

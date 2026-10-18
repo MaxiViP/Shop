@@ -15,6 +15,7 @@ export interface User {
   phone: string | null;
   name: string | null;
   role: UserRole;
+  ownedPoints?: { marketPointId: number }[];
   verifiedAt: string | null;
   telegram: TelegramProfile | null;
 }

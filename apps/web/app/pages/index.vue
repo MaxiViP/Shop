@@ -11,6 +11,7 @@
       <section class="home__section">
         <div class="home__head">
           <h2 class="home__title">Продукты с рынка</h2>
+          <ProductDensity />
 
           <NuxtLink to="/catalog">Смотреть всё →</NuxtLink>
         </div>
@@ -90,6 +91,12 @@ const { items, status, error, stale, hasMore, loadingMore, loadMore, retry } =
   display: inline-flex;
   align-items: center;
   min-height: var(--touch-target);
+}
+
+@media (width < 40rem) {
+  .home__head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0.25rem; }
+  .home__head .home__title { min-width: 0; font-size: 0.875rem; overflow-wrap: anywhere; }
+  .home__head > a { min-width: 0; justify-self: end; font-size: 0.75rem; text-align: right; }
 }
 
 .home__empty { color: var(--ui-text-muted); }

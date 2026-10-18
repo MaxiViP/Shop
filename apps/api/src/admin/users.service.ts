@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -14,6 +15,7 @@ const select = {
   name: true,
   phone: true,
   role: true,
+  ownedPoints: { select: { marketPointId: true, marketPoint: { select: { name: true } } } },
   verifiedAt: true,
   createdAt: true,
   updatedAt: true,
@@ -48,7 +50,7 @@ export class AdminUsersService {
   async list(query: UserQuery) {
     const { page, limit, search, role } = query;
     const where: Prisma.UserWhereInput = {
-      ...(role ? { role } : {}),
+      ...(role === 'POINT_OWNER' ? { ownedPoints: { some: {} } } : role ? { role } : {}),
       ...(search
         ? {
             OR: [
@@ -130,11 +132,29 @@ export class AdminUsersService {
       },
     };
   }
+  async points(id: number, pointIds: number[], actorId: number) {
+    return this.db.$transaction(async db => {
+      await db.$queryRaw`SELECT id FROM "User" WHERE id = ${id} FOR UPDATE`;
+      const user = await db.user.findUnique({ where: { id }, select });
+      if (!user) throw new NotFoundException('Пользователь не найден');
+      if (!user.phone && pointIds.length) throw new BadRequestException('Сначала привяжите номер телефона пользователя');
+      const count = await db.marketPoint.count({ where: { id: { in: pointIds }, kind: { notIn: ['ENTRY', 'SERVICE'] } } });
+      if (count !== pointIds.length) throw new BadRequestException('Выберите существующие торговые точки');
+      await db.marketPointOwner.deleteMany({ where: { userId: id } });
+      if (pointIds.length) await db.marketPointOwner.createMany({ data: pointIds.map(marketPointId => ({ userId: id, marketPointId })) });
+      // Discard earlier sessions, including demo/test logins that do not prove phone ownership.
+      await db.session.deleteMany({ where: { userId: id } });
+      await db.adminAudit.create({ data: { actorId, action: 'POINT_OWNERS_CHANGED', entity: 'USER', entityId: String(id),
+        oldValue: user.ownedPoints.map(point => point.marketPointId), newValue: pointIds } });
+      return db.user.findUniqueOrThrow({ where: { id }, select });
+    });
+  }
   async role(id: number, role: 'USER' | 'SELLER') {
     if (role !== 'USER' && role !== 'SELLER') throw new ForbiddenException();
     try {
       return await this.db.$transaction(
         async (db) => {
+          await db.$queryRaw`SELECT id FROM "User" WHERE id = ${id} FOR UPDATE`;
           const user = await db.user.findUniqueOrThrow({
             where: { id },
             select,
@@ -144,6 +164,7 @@ export class AdminUsersService {
             (user.phone !== null && user.phone === adminPhone())
           )
             throw new ForbiddenException('Роль администратора нельзя изменить');
+          if (user.role !== role) await db.session.deleteMany({ where: { userId: id } });
           return db.user.update({ where: { id }, data: { role }, select });
         },
         { isolationLevel: 'Serializable' },

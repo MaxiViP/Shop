@@ -65,6 +65,7 @@ model MarketPoint {
   mapWidth         Float?
   mapHeight        Float?
   mapColor         String?         @db.VarChar(7)
+  cardColor        String?         @db.VarChar(7)
   isOurPoint       Boolean         @default(false)
   ourLabel         String?         @db.VarChar(80)
   isPublished      Boolean         @default(false)
@@ -73,8 +74,19 @@ model MarketPoint {
   updatedAt        DateTime        @updatedAt
 
   products Product[]
+  owners   MarketPointOwner[]
 
   @@index([floor, isPublished, sortOrder, id])
+}
+
+model MarketPointOwner {
+  userId        Int
+  marketPointId Int
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  marketPoint   MarketPoint @relation(fields: [marketPointId], references: [id], onDelete: Cascade)
+
+  @@id([userId, marketPointId])
+  @@index([marketPointId])
 }
 
 model MarketLayout {
@@ -147,6 +159,7 @@ model Product {
   description String?
 
   // Original seller price in kopecks; service markup is calculated on the backend.
+  serviceMarkupPercent Int                @default(10)
   price                Int
   // Customer price per kilogram for GRAM prices, otherwise per one sale unit.
   normalizedPrice      Decimal            @default(dbgenerated()) @db.Decimal(30, 12)
@@ -234,6 +247,7 @@ model User {
   name           String?
   verifiedAt     DateTime?
   role           UserRole            @default(USER)
+  ownedPoints    MarketPointOwner[]
 
   orders                Order[]
   addresses             Address[]
@@ -1148,17 +1162,17 @@ model Cart {
 }
 
 model CartItem {
-  cartId    Int
-  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  productId Int
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  qty       Int
+  cartId         Int
+  cart           Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId      Int
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  qty            Int
   // Preserve quantity meaning when an administrator changes a sale mode.
-  quantityUnit Unit?
+  quantityUnit   Unit?
   weightMinGrams Int?
   weightMaxGrams Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@id([cartId, productId])
   @@index([productId])

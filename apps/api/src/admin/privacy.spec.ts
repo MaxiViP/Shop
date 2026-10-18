@@ -1,4 +1,4 @@
-import { productListSelect } from '../product/select.js';
+import { customerProduct, productListSelect } from '../product/select.js';
 import { cartProductSelect } from '../order/cart-quote.js';
 import { ProductService } from '../product/product.service.js';
 import { OrderService } from '../order/order.service.js';
@@ -16,18 +16,24 @@ const privateFields = [
 describe('public financial privacy boundary', () => {
   it('excludes settlement fields from catalog, detail, cart, favorites and Telegram selectors', () => {
     for (const select of [productListSelect, cartProductSelect])
-      for (const field of privateFields) expect(select).not.toHaveProperty(field);
+      for (const field of privateFields.filter(field => field !== 'serviceMarkupPercent')) expect(select).not.toHaveProperty(field);
     for (const field of privateFields) {
       expect(telegramOrderSelect).not.toHaveProperty(field);
       expect(telegramOrderSelect.items.select).not.toHaveProperty(field);
     }
   });
   it('uses the explicit safe selector for public product detail', async () => {
-    const findFirst = vi.fn().mockResolvedValue({ id: 1, name: 'Помидоры', price: 10000, marketPoint: null });
+    const findFirst = vi.fn().mockResolvedValue({ id: 1, name: 'Помидоры', price: 10000, serviceMarkupPercent: 25, marketPoint: null });
     const service = new ProductService({ product: { findFirst } } as unknown as DbService);
-    await service.get('tomatoes');
+    const result = await service.get('tomatoes');
+    for (const field of privateFields) expect(result).not.toHaveProperty(field);
+    expect(result.price).toBe(12500);
     const select = findFirst.mock.calls[0]![0].select;
-    for (const field of privateFields) expect(select).not.toHaveProperty(field);
+    for (const field of privateFields.filter(field => field !== 'serviceMarkupPercent')) expect(select).not.toHaveProperty(field);
+  });
+  it('strips internal markup after calculating the public price', () => {
+    const result = customerProduct({ price: 10000, serviceMarkupPercent: 25, marketPoint: null });
+    expect(result).toEqual({ price: 12500, marketPoint: null });
   });
   it('does not select private snapshots in customer order and staff detail', async () => {
     const queueDb = {

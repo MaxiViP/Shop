@@ -6,10 +6,11 @@
       <template #body>
         <div ref="panel" class="categories__panel">
           <nav class="categories__grid" aria-label="Полный список категорий">
-            <NuxtLink v-if="!search.trim() || 'все'.includes(search.trim().toLocaleLowerCase('ru-RU'))" :to="link('/catalog')" class="categories__card" :class="{ 'categories__card--active': active === '' }" :aria-current="current('')" @click="chooseCategory($event, '')">Все товары</NuxtLink>
+            <NuxtLink v-if="!search.trim() || 'все'.includes(search.trim().toLocaleLowerCase('ru-RU'))" :to="link('/catalog')" class="categories__card" :class="{ 'categories__card--active': active === '' && !route.query.marketPoint }" :aria-current="current('')" @click="chooseCategory($event, '')">Все товары</NuxtLink>
+            <NuxtLink v-for="point in filteredPoints" :key="'point-' + point.id" :to="pointLink(point.slug)" class="categories__card" :style="{ borderColor: point.cardColor ?? undefined }" :aria-current="route.query.marketPoint === point.slug ? 'page' : undefined" @click="open = false">{{ point.name }}</NuxtLink>
             <NuxtLink v-for="item in filtered" :key="item.id" :to="link(`/catalog/${item.slug}`)" class="categories__card" :class="{ 'categories__card--active': active === item.slug }" :aria-current="current(item.slug)" @click="chooseCategory($event, item.slug)">{{ item.name }}</NuxtLink>
           </nav>
-          <p v-if="search.trim() && !filtered.length && !'все'.includes(search.trim().toLocaleLowerCase('ru-RU'))" class="categories__empty" role="status">Категории не найдены</p>
+          <p v-if="search.trim() && !filtered.length && !filteredPoints.length && !'все'.includes(search.trim().toLocaleLowerCase('ru-RU'))" class="categories__empty" role="status">Категории не найдены</p>
         </div>
       </template>
       <template #footer>
@@ -26,7 +27,8 @@
       </template>
     </UModal>
     <nav ref="nav" class="categories__strip" aria-label="Категории товаров">
-      <NuxtLink :to="link('/catalog')" class="categories__item" :class="{ 'categories__item--active': active === '' }" :aria-current="current('')" @click="chooseCategory($event, '')">Все</NuxtLink>
+      <NuxtLink :to="link('/catalog')" class="categories__item" :class="{ 'categories__item--active': active === '' && !route.query.marketPoint }" :aria-current="current('')" @click="chooseCategory($event, '')">Все</NuxtLink>
+      <NuxtLink v-for="point in points" :key="'point-' + point.id" :to="pointLink(point.slug)" class="categories__item" :class="{ 'categories__item--active': route.query.marketPoint === point.slug }" :style="{ borderColor: point.cardColor ?? undefined }" :aria-current="route.query.marketPoint === point.slug ? 'page' : undefined">{{ point.name }}</NuxtLink>
       <NuxtLink v-for="item in items" :key="item.id" :to="link(`/catalog/${item.slug}`)" class="categories__item" :class="{ 'categories__item--active': active === item.slug }" :aria-current="current(item.slug)" @click="chooseCategory($event, item.slug)">{{ item.name }}</NuxtLink>
     </nav>
     <slot name="trailing">
@@ -40,6 +42,11 @@ import type { Category } from '~/types/category';
 import type { ProductSort } from '~/types/product';
 const props = defineProps<{ items: Category[]; query?: Record<string, string>; active?: string; sort?: ProductSort }>();
 const emit = defineEmits<{ choose: [slug: string]; 'update:sort': [value: ProductSort] }>();
+const route = useRoute();
+type CatalogPoint = { id: number; slug: string; name: string; cardColor: string | null; isOurPoint: boolean };
+const { data: points } = await useApi<CatalogPoint[]>('/categories/points', { default: () => [] });
+const filteredPoints = computed(() => points.value.filter(point => point.name.toLocaleLowerCase('ru-RU').includes(search.value.trim().toLocaleLowerCase('ru-RU'))));
+function pointLink(slug: string) { return { path: '/catalog', query: { ...props.query, marketPoint: slug } }; }
 const nav = ref<HTMLElement | null>(null);
 const panel = ref<HTMLElement | null>(null);
 const searchBar = ref<HTMLElement | null>(null);
@@ -51,9 +58,13 @@ const filtered = computed(() => {
   return props.items.filter(item => item.name.toLocaleLowerCase('ru-RU').includes(value));
 });
 function current(slug: string) {
+  if (route.query.marketPoint && !slug) return 'false';
   return props.active === undefined ? undefined : props.active === slug ? 'page' : 'false';
 }
-function link(path: string) { return props.query ? { path, query: props.query } : path; }
+function link(path: string) {
+  const { marketPoint: _point, ...query } = props.query ?? {};
+  return { path, query };
+}
 function chooseCategory(event: MouseEvent, slug: string) {
   if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
   open.value = false;

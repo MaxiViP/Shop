@@ -107,7 +107,7 @@ try {
     throw new Error(message + ': ' + await evaluate('document.body.innerText.slice(-1600)'));
   }
   const card = slug => `document.querySelector('.card a[href="/product/${slug}"]').closest('article')`;
-  const label = (slug, value) => `${card(slug)}.querySelector('.card__total')?.textContent.trim() === ${JSON.stringify(value)}`;
+  const label = (slug, value) => `${card(slug)}.querySelector('.card__quantity')?.textContent.trim() === ${JSON.stringify(value)}`;
   async function screenshot(name) { const { data } = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }); await writeFile(new URL(name, artifacts), Buffer.from(data, 'base64')); }
   for (const width of [320, 390, 1280]) {
     await command('Emulation.setDeviceMetricsOverride', { width, height: width < 640 ? 900 : 1000, deviceScaleFactor: 1, mobile: width < 640 });

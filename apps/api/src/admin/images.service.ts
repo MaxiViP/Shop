@@ -6,6 +6,8 @@ import {
 import { randomUUID } from 'node:crypto';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { lockOwner, ownerProductWhere } from '../auth/permissions.js';
+import type { Prisma } from '../db/gen/client.js';
 import { DbService } from '../db/db.service.js';
 import { normalizeImage, productUploadRoot, type ImageFile } from '../common/image.js';
 import { dbError } from './errors.js';
@@ -22,7 +24,7 @@ export function managedPath(url: string): string | null {
 export class ImagesService {
   constructor(private readonly db: DbService) {}
 
-  async upload(productId: number, file?: ImageFile) {
+  async upload(productId: number, file?: ImageFile, ownerId?: number) {
     const buffer = await normalizeImage(file);
     const url = `/uploads/products/${randomUUID()}.webp`;
     const path = managedPath(url)!;
@@ -30,7 +32,9 @@ export class ImagesService {
     await writeFile(path, buffer, { flag: 'wx' });
     try {
       return await this.db.$transaction(async (db) => {
+        if (ownerId) await lockOwner(db, ownerId);
         await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${productId} FOR UPDATE`;
+        if (ownerId) await this.ownerScope(db, productId, ownerId);
         if (!(await db.product.findUnique({ where: { id: productId } })))
           throw new NotFoundException('Товар не найден');
         const images = await db.productImage.findMany({
@@ -53,10 +57,12 @@ export class ImagesService {
     }
   }
 
-  async update(productId: number, id: number, data: ImageInput) {
+  async update(productId: number, id: number, data: ImageInput, ownerId?: number) {
     try {
       return await this.db.$transaction(async (db) => {
+        if (ownerId) await lockOwner(db, ownerId);
         await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${productId} FOR UPDATE`;
+        if (ownerId) await this.ownerScope(db, productId, ownerId);
         const images = await db.productImage.findMany({
           where: { productId },
           orderBy: [{ sort: 'asc' }, { id: 'asc' }],
@@ -77,10 +83,12 @@ export class ImagesService {
     }
   }
 
-  async primary(productId: number, id: number) {
+  async primary(productId: number, id: number, ownerId?: number) {
     try {
       return await this.db.$transaction(async (db) => {
+        if (ownerId) await lockOwner(db, ownerId);
         await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${productId} FOR UPDATE`;
+        if (ownerId) await this.ownerScope(db, productId, ownerId);
         const images = await db.productImage.findMany({
           where: { productId },
           orderBy: [{ sort: 'asc' }, { id: 'asc' }],
@@ -106,11 +114,13 @@ export class ImagesService {
     }
   }
 
-  async remove(productId: number, id: number) {
+  async remove(productId: number, id: number, ownerId?: number) {
     let image;
     try {
       image = await this.db.$transaction(async (db) => {
+        if (ownerId) await lockOwner(db, ownerId);
         await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${productId} FOR UPDATE`;
+        if (ownerId) await this.ownerScope(db, productId, ownerId);
         return db.productImage.delete({ where: { id, productId } });
       });
     } catch (error) {
@@ -118,6 +128,11 @@ export class ImagesService {
     }
     await this.cleanup(image.url);
     return { ok: true };
+  }
+
+  private async ownerScope(db: Prisma.TransactionClient, id: number, userId: number) {
+    if (!await db.product.findUnique({ where: { id, ...ownerProductWhere(userId) } }))
+      throw new NotFoundException('Товар не найден');
   }
 
   async cleanup(url: string) {

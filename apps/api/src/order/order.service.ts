@@ -1,3 +1,4 @@
+import { staffWhere } from '../auth/permissions.js';
 import { orderableProductWhere } from '../product/select.js';
 import {
   BadRequestException,
@@ -134,7 +135,7 @@ export class OrderService {
       const saved = await db.order.update({ where: { id: order.id }, data: {
         ...fulfillment,
       }, select: { fulfillmentMode: true, scheduledFor: true } });
-      const staff = await db.user.findMany({ where: { role: { in: ['SELLER', 'ADMIN'] },
+      const staff = await db.user.findMany({ where: { ...staffWhere,
         ...(userId ? { id: { not: userId } } : {}) }, select: { id: true } });
       const eventId = randomUUID();
       for (const recipient of staff) await inAppEvent(db, { orderId: order.id, type: 'SCHEDULE_CHANGED',
@@ -166,7 +167,7 @@ export class OrderService {
     const quote = await this.quote(data, db, userId);
     const settlement = await db.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, settlementMode: true, basePrice: true },
+      select: { id: true, settlementMode: true, basePrice: true, serviceMarkupPercent: true },
     });
     const settlementById = new Map(settlement.map(product => [product.id, product]));
     if (data.quoteToken && data.quoteToken !== quote.token)
@@ -191,7 +192,7 @@ export class OrderService {
         productSlug: product.slug,
         image: product.images[0]?.url,
         price: product.price,
-        serviceMarkupPercentSnapshot: SERVICE_MARKUP_PERCENT,
+        serviceMarkupPercentSnapshot: financialSnapshot.serviceMarkupPercent ?? SERVICE_MARKUP_PERCENT,
         priceQty: product.priceQty,
         unit: product.unit,
         saleModel: product.saleModel,

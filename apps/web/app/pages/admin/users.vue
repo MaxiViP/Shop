@@ -12,6 +12,7 @@
             { label: 'Все', value: 'all' },
             { label: 'Пользователь', value: 'USER' },
             { label: 'Продавец', value: 'SELLER' },
+            { label: 'Владелец точки', value: 'POINT_OWNER' },
             { label: 'Администратор', value: 'ADMIN' },
           ]"
       /></UFormField>
@@ -57,6 +58,8 @@
               <UBadge :color="user.role === 'ADMIN' ? 'primary' : 'neutral'">{{
                 roles[user.role]
               }}</UBadge>
+              <UBadge v-if="user.ownedPoints.length" color="success" class="mt-1">Владелец точки</UBadge>
+              <p v-for="point in user.ownedPoints" :key="point.marketPointId" class="text-xs text-muted">{{ point.marketPoint.name }}</p>
             </td>
             <td class="pr-3">{{ date(user.verifiedAt) }}</td>
             <td>{{ user.orders }}</td>
@@ -84,6 +87,7 @@
                     : "Убрать права продавца"
                 }}</UButton
               ><span v-else class="text-muted">Защищён</span>
+              <UButton class="mt-2" size="xs" variant="soft" :disabled="busy" @click="editPoints(user)">Точки владельца</UButton>
             </td>
           </tr>
         </tbody>
@@ -116,6 +120,19 @@
       :busy="busy"
       @confirm="changeRole"
     />
+    <UModal v-model:open="pointsOpen" title="Права владельца точки" :description="ownerUser?.phone ?? ownerUser?.name ?? 'Выберите торговые точки пользователя'">
+      <template #body>
+        <p class="mb-4 text-sm text-muted">Владелец получает доступ к заказам и редактирует только товары назначенных точек. Права продавца задаются отдельно. После сохранения пользователю нужно войти заново.</p>
+        <div class="space-y-3">
+          <UCheckbox v-for="point in pointOptions" :key="point.id" :model-value="pointIds.includes(point.id)" :label="`${point.name} · ${point.floor} этаж`" :disabled="busy" @update:model-value="togglePoint(point.id, $event === true)" />
+        </div>
+        <p v-if="!pointOptions.length">Сначала добавьте торговую точку в разделе «Карта рынка».</p>
+      </template>
+      <template #footer>
+        <UButton :loading="busy" @click="savePoints">Сохранить права</UButton>
+        <UButton color="neutral" variant="ghost" :disabled="busy" @click="pointsOpen = false">Отмена</UButton>
+      </template>
+    </UModal>
     <AdminUserDetail
       v-if="detailId && detailOpen"
       :id="detailId"
@@ -125,6 +142,7 @@
 </template>
 
 <script setup lang="ts">
+import type { MarketPoint } from '~/types/market-map';
 import type { AdminUser, AdminPage } from "~/types/admin";
 definePageMeta({ middleware: "admin", layout: "admin" });
 const search = ref("");
@@ -161,6 +179,26 @@ const toast = useToast();
 const selected = ref<AdminUser>();
 const busy = ref(false);
 const confirm = ref(false);
+const ownerUser = ref<AdminUser>();
+const pointsOpen = ref(false), pointIds = ref<number[]>([]);
+const { data: allPoints } = await useApi<MarketPoint[]>('/admin/market-map/points');
+const pointOptions = computed(() => (allPoints.value ?? []).filter(point => !['ENTRY', 'SERVICE'].includes(point.kind)));
+function editPoints(user: AdminUser) {
+  ownerUser.value = user; pointIds.value = user.ownedPoints.map(point => point.marketPointId); pointsOpen.value = true;
+}
+function togglePoint(id: number, checked: boolean) {
+  pointIds.value = pointIds.value.filter(value => value !== id);
+  if (checked) pointIds.value.push(id);
+}
+async function savePoints() {
+  if (!ownerUser.value || busy.value) return;
+  busy.value = true;
+  try {
+    await api(`/admin/users/${ownerUser.value.id}/points`, { method: 'PATCH', body: { pointIds: pointIds.value } });
+    pointsOpen.value = false; await refresh(); toast.add({ title: 'Права владельца сохранены', color: 'success' });
+  } catch (value) { toast.add({ title: apiError(value), color: 'error' }); }
+  finally { busy.value = false; }
+}
 const detailId = ref(0);
 const detailOpen = ref(false);
 async function changeRole() {

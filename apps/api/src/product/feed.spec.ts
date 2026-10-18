@@ -58,3 +58,17 @@ it('reuses bounded home ranks but rejects a cursor after live membership changes
   expect(raw).toHaveBeenCalledTimes(3);
   await expect(productFeed(db, { ...query, cursor: first.nextCursor! })).rejects.toThrow('Каталог обновился');
 });
+
+it('searches categories on both sides of the selected category and reports an empty-category fallback', async () => {
+  const row = { id: 2, name: 'Яблоки', price: 10000, sort: 0, createdAt: new Date(), categoryId: 1, categorySort: 0 };
+  const raw = vi.fn<(sql: Prisma.Sql) => Promise<unknown>>().mockResolvedValueOnce([{ total: 1, current: 0 }]).mockResolvedValueOnce([row]);
+  const tx = { $queryRaw: raw, product: { aggregate: async () => ({ _max: { id: 2 } }), findMany: async () => [{ ...row, marketPoint: null }] } };
+  const db = { $transaction: (run: (client: typeof tx) => Promise<unknown>) => run(tx) } as unknown as PrismaClient;
+  const result = await productFeed(db, productQuerySchema.parse({ feed: 'catalog', category: 'berries', q: 'яблоки' }));
+  expect(result.groupTotals).toEqual({ current: 0, others: 1 });
+  expect(result.items.map(item => item.id)).toEqual([2]);
+  for (const [sql] of raw.mock.calls) {
+    expect(sql.text).not.toContain('(c.sort, c.id) >=');
+    expect(sql.text).toContain('CASE WHEN c.slug =');
+  }
+});

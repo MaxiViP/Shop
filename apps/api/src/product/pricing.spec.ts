@@ -82,3 +82,18 @@ describe('dated market product dataset', () => {
     expect(() => validateMarketProducts(marketProducts.map((row, index) => index ? row : { ...row, sellerPrice: 0 }))).toThrow();
   });
 });
+
+it('applies the administrator markup consistently to public cards and cart totals', () => {
+  const source = { id: 1, name: 'Рис', slug: 'rice', price: 10000, serviceMarkupPercent: 25,
+    unit: 'PIECE' as const, priceStatus: 'AUDITED' as const, isSeasonal: false, isHit: false,
+    hitMode: 'AUTO' as const, seasonalMode: 'OFF' as const, seasonTemplate: null,
+    seasonalStartsAt: null, seasonalEndsAt: null, saleModel: null, priceUnit: null, wholeLabel: null,
+    estimatedWeightGrams: null, priceQty: 1, min: 1, step: 1, portionQty: 1,
+    marketPoint: { slug: 'ours', name: 'Наша точка', isPublished: true, cardColor: '#00FF00' },
+    images: [], category: { name: 'Бакалея', slug: 'grocery' } };
+  expect(customerProduct(source)).toMatchObject({ price: 12500, marketPoint: { cardColor: '#00FF00' } });
+  expect(customerProduct(source)).not.toHaveProperty('serviceMarkupPercent');
+  expect(cartQuote(new Map([[1, 2]]), [source])).toMatchObject({ subtotal: 25000 });
+  expect(priceBreakdown(10000, 0).customerPrice).toBe(10000);
+  expect(priceBreakdown(10000, 100).customerPrice).toBe(20000);
+});

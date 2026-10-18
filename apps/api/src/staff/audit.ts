@@ -1,11 +1,12 @@
 import { ForbiddenException } from '@nestjs/common';
+import { isStaff, ownershipSelect, type StaffUser } from '../auth/permissions.js';
 import type { Prisma, UserRole } from '../db/gen/client.js';
 
 export type StaffActor = { userId: number; role: 'SELLER' | 'ADMIN' };
 
-export function staffActor(user: { id: number; role: UserRole }): StaffActor {
-  if (user.role !== 'SELLER' && user.role !== 'ADMIN') throw new ForbiddenException('??? ???????');
-  return { userId: user.id, role: user.role };
+export function staffActor(user: { id: number } & StaffUser): StaffActor {
+  if (!isStaff(user)) throw new ForbiddenException('??? ???????');
+  return { userId: user.id, role: user.role === 'ADMIN' ? 'ADMIN' : 'SELLER' };
 }
 export function assertStaffActor(actor: StaffActor | undefined, userId: number | null, role?: UserRole): void {
   if (actor && (actor.userId !== userId || (role && actor.role !== role)))
@@ -27,7 +28,9 @@ export async function recordStaffAudit(db: Prisma.TransactionClient, orderId: nu
   const rows = await db.$queryRaw<{ role: UserRole }[]>`
     SELECT "role" FROM "User" WHERE "id" = ${actor.userId} FOR SHARE
   `;
-  const role = rows[0]?.role;
+  const stored = rows[0]?.role;
+  const owner = stored === 'USER' ? await db.user.findUnique({ where: { id: actor.userId }, select: { role: true, ...ownershipSelect } }) : null;
+  const role = stored === 'USER' && owner && isStaff(owner) ? 'SELLER' : stored;
   if ((role !== 'SELLER' && role !== 'ADMIN') || role !== actor.role)
     throw new ForbiddenException('Нет доступа');
   await db.orderStaffAudit.create({ data: {

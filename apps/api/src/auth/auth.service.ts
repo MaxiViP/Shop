@@ -22,6 +22,7 @@ import type { Prisma } from '../db/gen/client.js';
 import { guestTokenHash } from '../common/guest.js';
 import { adminPhone } from './admin.config.js';
 import { authUser, authUserSelect } from './auth-user.js';
+import { isStaff, ownershipSelect } from './permissions.js';
 import { otpDeliveryMode } from './otp-delivery.js';
 import { DisabledOtpSms, OtpSmsProvider } from './otp-sms.provider.js';
 
@@ -59,12 +60,12 @@ export class AuthService {
     if (!testPhoneAuthEnabled()) return { method: 'OTP' };
     const existing = await this.db.user.findUnique({
       where: { phone },
-      select: { role: true },
+      select: { role: true, ...ownershipSelect },
     });
     return {
       method: existing?.role === 'ADMIN'
         ? 'PASSWORD'
-        : existing?.role === 'SELLER'
+        : existing && isStaff(existing)
           ? 'OTP'
           : 'TEST_PHONE',
     };
@@ -82,7 +83,7 @@ export class AuthService {
         where: { phone },
         select: authUserSelect,
       });
-      if (existing && existing.role !== 'USER')
+      if (existing && isStaff(existing))
         throw new UnauthorizedException('Этот способ входа недоступен');
       const user = existing ?? await db.user.create({
         data: { phone, role: 'USER' },
@@ -105,9 +106,9 @@ export class AuthService {
       if (mode === 'DEMO') {
         const existing = await db.user.findUnique({
           where: { phone },
-          select: { role: true },
+          select: { role: true, ...ownershipSelect },
         });
-        if (existing?.role === 'SELLER')
+        if (existing && isStaff(existing))
           throw new UnauthorizedException('Демонстрационный вход доступен только покупателю');
       }
       const now = Date.now();
@@ -198,7 +199,7 @@ export class AuthService {
       if (demoOtp) {
         // A publicly displayed OTP proves no phone ownership or account link.
         const existing = await db.user.findUnique({ where: { phone }, select });
-        if (existing && existing.role !== 'USER')
+        if (existing && isStaff(existing))
           throw new UnauthorizedException('Демонстрационный вход доступен только покупателю');
         const user = existing ?? await db.user.create({
           data: { phone, role: 'USER' },
@@ -328,6 +329,7 @@ export class AuthService {
       return null;
     }
 
+    if ((token.startsWith('tp_') || token.startsWith('do_')) && isStaff(session.user)) return null;
     const day = 24 * 60 * 60 * 1000;
 
     if (Date.now() - session.lastUsedAt.getTime() > day) {
@@ -353,7 +355,7 @@ export class AuthService {
   private async rejectAdminOtp(phone: string) {
     const user = await this.db.user.findUnique({
       where: { phone },
-      select: { role: true },
+      select: { role: true, ...ownershipSelect },
     });
     if (phone === adminPhone() || user?.role === 'ADMIN')
       throw new UnauthorizedException('Используйте вход администратора');

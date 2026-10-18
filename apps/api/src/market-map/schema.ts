@@ -6,6 +6,7 @@ export const marketSlug = z.string().trim().min(1).max(180)
 export const floorQuery = z.object({
   floor: z.coerce.number().int().min(1).max(20).default(2),
 });
+export const pointListQuery = z.object({ floor: z.coerce.number().int().min(1).max(20).optional() });
 const pointFields = z.strictObject({
   slug: marketSlug,
   name: z.string().trim().min(1).max(160),
@@ -19,6 +20,7 @@ const pointFields = z.strictObject({
   mapWidth: z.number().min(minHitSize).max(mapSize.width).nullable().optional(),
   mapHeight: z.number().min(minHitSize).max(mapSize.height).nullable().optional(),
   mapColor: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'Укажите HEX-цвет, например #00DC82').transform(value => value.toUpperCase()).nullable().optional(),
+  cardColor: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'Укажите HEX-цвет').transform(value => value.toUpperCase()).nullable().optional(),
   isOurPoint: z.boolean().optional(),
   ourLabel: z.string().trim().max(80).nullable().optional(),
   isPublished: z.boolean(),

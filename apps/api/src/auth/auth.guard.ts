@@ -13,6 +13,7 @@ export type AuthRequest = Request & {
     phone: string | null;
     name: string | null;
     role: 'USER' | 'SELLER' | 'ADMIN';
+    ownedPoints?: { marketPointId: number }[];
     verifiedAt: Date | null;
   };
 };

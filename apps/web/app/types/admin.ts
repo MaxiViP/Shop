@@ -73,6 +73,7 @@ export interface AdminUser {
   createdAt: string;
   updatedAt: string;
   protected: boolean;
+  ownedPoints: { marketPointId: number; marketPoint: { name: string } }[];
   orders: number;
   completed: number;
   spent: number;

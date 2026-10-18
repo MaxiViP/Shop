@@ -12,7 +12,7 @@ const slug = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug: латинские буквы, цифры и дефисы');
 const sort = z.number().int().min(-1_000_000).max(1_000_000);
 const qty = z.number().int().positive().max(MAX_QTY);
-export const pricePreviewSchema = z.strictObject({ price: z.number().int().positive().max(100_000_000) });
+export const pricePreviewSchema = z.strictObject({ price: z.number().int().positive().max(100_000_000), serviceMarkupPercent: z.number().int().min(0).max(100).optional() });
 export const priceStatusSchema = z.enum(['ESTIMATED', 'SOURCE', 'AUDITED']);
 const productFields = z.strictObject({
   saleChangeConfirmed: z.literal(true).optional(),
@@ -20,6 +20,7 @@ const productFields = z.strictObject({
   slug,
   description: z.string().trim().max(10000).nullable(),
   price: z.number().int().positive().max(100_000_000),
+  serviceMarkupPercent: z.number().int().min(0).max(100).optional(),
   priceStatus: priceStatusSchema.optional(),
   settlementMode: z.enum(['UNSET', 'SHARED_MARKUP', 'NO_MARKUP']).optional(),
   basePrice: z.number().int().positive().max(100_000_000).nullable().optional(),
@@ -63,6 +64,14 @@ export const categorySchema = z.strictObject({
   parentId: z.number().int().positive().nullable(),
 });
 export const categoryPatch = categorySchema.partial();
+export const pointOwnersSchema = z.strictObject({ pointIds: z.array(idSchema).max(100).refine(ids => new Set(ids).size === ids.length, 'Точки не должны повторяться') });
+export const ownerProductFields = productFields.pick({
+  saleChangeConfirmed: true, name: true, slug: true, description: true, price: true, priceQty: true,
+  unit: true, step: true, min: true, portionQty: true, saleModel: true, priceUnit: true,
+  wholeLabel: true, estimatedWeightGrams: true, categoryId: true, active: true,
+}).extend({ marketPointId: idSchema });
+export const ownerProductPatch = ownerProductFields.partial();
+export type OwnerProductInput = z.infer<typeof ownerProductFields>;
 export const roleSchema = z.strictObject({ role: z.enum(['USER', 'SELLER']) });
 export const imageSchema = z.strictObject({
   alt: z.string().trim().max(300).nullable().optional(),
@@ -78,6 +87,7 @@ export const pageSchema = z.object({
 export const productQuery = pageSchema.extend({
   category: idSchema.optional(),
   marketPoint: idSchema.optional(),
+  serviceMarkupPercent: z.number().int().min(0).max(100).optional(),
   priceStatus: priceStatusSchema.optional(),
   active: z.enum(['true', 'false']).optional(),
   hitMode: z.enum(['AUTO', 'MANUAL', 'OFF']).optional(),
@@ -85,7 +95,7 @@ export const productQuery = pageSchema.extend({
   settlementMode: z.enum(['UNSET', 'SHARED_MARKUP', 'NO_MARKUP']).optional(),
 });
 export const userQuery = pageSchema.extend({
-  role: z.enum(['USER', 'SELLER', 'ADMIN']).optional(),
+  role: z.enum(['USER', 'SELLER', 'ADMIN', 'POINT_OWNER']).optional(),
 });
 export type ProductInput = z.infer<typeof productSchema>;
 export type CategoryInput = z.infer<typeof categorySchema>;

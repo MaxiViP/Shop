@@ -163,10 +163,12 @@
 <script setup lang="ts">
 import type { AdminImage } from "~/types/admin";
 const props = defineProps<{
+  apiRoot?: string;
   productId: number;
   productName: string;
   value: AdminImage[];
 }>();
+const apiRoot = props.apiRoot ?? '/admin/products';
 const emit = defineEmits<{ refresh: [] }>();
 const images = ref<AdminImage[]>([]);
 const drafts = reactive<Record<number, { alt: string; sort: number }>>({});
@@ -214,7 +216,7 @@ function drop(event: DragEvent) {
 }
 async function reload() {
   const product = await api<{ images: AdminImage[] }>(
-    `/admin/products/${props.productId}`,
+    `${apiRoot}/${props.productId}`,
   );
   apply(product.images);
   for (const image of product.images)
@@ -246,7 +248,7 @@ async function upload(files: File[]) {
       const body = new FormData();
       body.append("file", file);
       const image = await api<AdminImage>(
-        `/admin/products/${props.productId}/images`,
+        `${apiRoot}/${props.productId}/images`,
         { method: "POST", body },
       );
       apply([...images.value, image]);
@@ -270,7 +272,7 @@ async function mutate(
   error.value = "";
   try {
     await api(
-      `/admin/products/${props.productId}/images/${image.id}${body === null ? "/primary" : ""}`,
+      `${apiRoot}/${props.productId}/images/${image.id}${body === null ? "/primary" : ""}`,
       {
         method: body === null ? "POST" : "PATCH",
         ...(body === null ? {} : { body }),
@@ -308,7 +310,7 @@ async function remove() {
   error.value = "";
   try {
     await api(
-      `/admin/products/${props.productId}/images/${selected.value.id}`,
+      `${apiRoot}/${props.productId}/images/${selected.value.id}`,
       { method: "DELETE" },
     );
     await reload();

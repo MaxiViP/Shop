@@ -1,3 +1,4 @@
+import { isStaff, ownershipSelect } from '../auth/permissions.js';
 import { variableWeight } from '../product/sale.js';
 import { HttpException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { z } from 'zod';
@@ -14,7 +15,7 @@ import { activeStatuses, canQuickConfirm, dashboard, extraPage, itemPage, itemVi
   type Keyboard } from './staff-bot-view.js';
 import { TelegramService } from './telegram.service.js';
 
-type Identity = { id: number; userId: number; user: { role: 'USER' | 'SELLER' | 'ADMIN' } };
+type Identity = { id: number; userId: number; user: { role: 'USER' | 'SELLER' | 'ADMIN'; ownedPoints?: { marketPointId: number }[] } };
 
 @Injectable()
 export class StaffBotService {
@@ -82,9 +83,9 @@ export class StaffBotService {
   private async identity(telegramUserId: number): Promise<Identity | null> {
     const identity = await this.db.staffTelegramIdentity.findUnique({
       where: { telegramUserId: BigInt(telegramUserId) },
-      select: { id: true, userId: true, user: { select: { role: true } } },
+      select: { id: true, userId: true, user: { select: { role: true, ...ownershipSelect } } },
     });
-    return identity && ['SELLER', 'ADMIN'].includes(identity.user.role) ? identity : null;
+    return identity && isStaff(identity.user) ? identity : null;
   }
 
   private async message(message: StaffMessage, identity: Identity): Promise<void> {
@@ -110,7 +111,7 @@ export class StaffBotService {
       return;
     }
     if (text.startsWith('/')) return;
-    const result = await this.flows.input(message, identity.id, staffActor({ id: identity.userId, role: identity.user.role }));
+    const result = await this.flows.input(message, identity.id, staffActor({ id: identity.userId, ...identity.user }));
     if (result) await this.refreshSaved(chatId, result.dashboardMessageId, result.orderId);
   }
 
@@ -155,7 +156,7 @@ export class StaffBotService {
     if (!legacy && !parsed) return 'Некорректная кнопка';
     const orderId = (legacy ?? parsed)!.orderId;
     const action = legacy?.action ?? parsed!.action;
-    const actor = staffActor({ id: identity.userId, role: identity.user.role });
+    const actor = staffActor({ id: identity.userId, ...identity.user });
     const chatId = callback.message.chat.id;
     const messageId = callback.message.message_id;
 

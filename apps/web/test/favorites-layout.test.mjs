@@ -22,7 +22,7 @@ test('compact favorites retain photo, favorite action, price, and cart controls'
   ]);
   assert.match(page, /v-for="group in groups"/);
   assert.match(page, /<ProductGrid :items="group\.items" compact/);
-  assert.match(grid, /repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(grid, /repeat\(var\(--mobile-columns, 2\), minmax\(0, 1fr\)\)/);
   assert.match(grid, /:compact="compact"/);
   for (const element of ['card__img', '<ProductFavorite', '<ProductPrice', 'card__add', 'card__control'])
     assert.ok(card.includes(element));

@@ -9,6 +9,7 @@
       <UBadge size="lg">{{ activeCount }} активных</UBadge>
     </header>
 
+    <UButton v-if="isPointOwner(auth.user)" to="/staff/products" icon="i-lucide-package" variant="soft" class="mb-4">Товары и категории моей точки</UButton>
     <nav class="queue__tabs" aria-label="Фильтр заказов">
       <UButton
         v-for="filter in filters"
@@ -216,6 +217,7 @@
 </template>
 
 <script setup lang="ts">
+import { isStaff, isPointOwner } from '~/utils/permissions';
 import { formatAddress } from "~/utils/address";
 import type { OrderStatus, StaffOrder } from '~/types/order'
 import { useAuthStore } from '~/stores/auth'
@@ -235,7 +237,7 @@ const auth = useAuthStore()
 const api = useApiClient()
 const toast = useToast()
 
-if (auth.user?.role !== 'SELLER' && auth.user?.role !== 'ADMIN') {
+if (!isStaff(auth.user)) {
   await navigateTo('/')
 }
 

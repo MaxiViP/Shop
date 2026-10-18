@@ -5,6 +5,7 @@ export const authUserSelect = {
   phone: true,
   name: true,
   role: true,
+  ownedPoints: { select: { marketPointId: true } },
   verifiedAt: true,
   telegramIdentity: {
     select: {
@@ -27,6 +28,7 @@ export function authUser(user: AuthUser) {
     phone: user.phone,
     name: user.name,
     role: user.role,
+    ownedPoints: user.ownedPoints ?? [],
     verifiedAt: user.verifiedAt,
     telegram: telegram
       ? {

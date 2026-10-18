@@ -15,6 +15,7 @@ export interface MarketPoint {
   mapWidth: number | null;
   mapHeight: number | null;
   mapColor: string | null;
+  cardColor: string | null;
   isOurPoint: boolean;
   ourLabel: string | null;
   isPublished: boolean;

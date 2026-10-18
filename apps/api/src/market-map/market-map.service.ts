@@ -31,6 +31,10 @@ export class MarketMapService {
     });
   }
 
+  all() {
+    return this.db.marketPoint.findMany({ orderBy: [{ floor: 'asc' }, { sortOrder: 'asc' }, { id: 'asc' }] });
+  }
+
   async publicPoint(slug: string) {
     const point = await this.db.marketPoint.findFirst({ where: { slug, isPublished: true } });
     if (!point) throw new NotFoundException('Точка не найдена');

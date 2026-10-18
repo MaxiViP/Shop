@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { MarketMapService } from './market-map.service.js';
-import { floorQuery, pointPatch, pointSchema } from './schema.js';
+import { floorQuery, pointListQuery, pointPatch, pointSchema } from './schema.js';
 import type { DbService } from '../db/db.service.js';
 
 const input = { name: 'Fresh Bar', slug: 'fresh-bar', kind: 'FOODCOURT' as const, mapX: 33, mapY: 70 };
@@ -12,6 +12,8 @@ describe('Market map validation and publication', () => {
     expect(pointSchema.parse({ ...input, unitNumber: '' }).unitNumber).toBe('');
     expect(floorQuery.parse({})).toEqual({ floor: 2 });
     expect(floorQuery.parse({ floor: '3' })).toEqual({ floor: 3 });
+    expect(pointListQuery.parse({})).toEqual({});
+    expect(pointListQuery.parse({ floor: '3' })).toEqual({ floor: 3 });
   });
 
   it.each([

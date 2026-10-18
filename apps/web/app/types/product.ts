@@ -38,7 +38,7 @@ export interface ProductListItem extends Sale {
   seasonalStartsAt: string | null;
   seasonalEndsAt: string | null;
 
-  marketPoint: { slug: string; name: string } | null;
+  marketPoint: { slug: string; name: string; cardColor?: string | null } | null;
 
   category: {
     name: string;

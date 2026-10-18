@@ -1,3 +1,4 @@
+import { OwnerCtrl } from './owner.ctrl.js';
 import { Module } from '@nestjs/common';
 import { ResearchDraftsCtrl } from './research-drafts.ctrl.js';
 import { ResearchDraftsService } from './research-drafts.service.js';
@@ -35,6 +36,7 @@ import { HitsService } from './hits.service.js';
   controllers: [
     AdminPromoCtrl,
     AdminProductsCtrl,
+    OwnerCtrl,
     AdminCategoriesCtrl,
     AdminUsersCtrl,
     SettingsCtrl,

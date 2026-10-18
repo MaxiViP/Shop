@@ -571,6 +571,7 @@
 </template>
 
 <script setup lang="ts">
+import { isStaff } from '~/utils/permissions';
 import { formatAddress } from "~/utils/address";
 import type {
   DeliveryProvider,
@@ -608,7 +609,7 @@ const api = useApiClient()
 const toast = useToast()
 const newOrdersRevision = useNewOrdersRevision()
 
-if (auth.user?.role !== 'SELLER' && auth.user?.role !== 'ADMIN') {
+if (!isStaff(auth.user)) {
   await navigateTo('/')
 }
 

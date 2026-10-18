@@ -32,7 +32,7 @@ function rankCache(db: PrismaClient) {
 
 export function feedScope(query: ProductQuery) {
   return createHash('sha256').update(JSON.stringify({
-    priceBasis: 'kg-or-unit-v2', feed: query.feed, category: query.category ?? null, q: query.q ?? null,
+    priceBasis: 'kg-or-unit-v3-point-markup', feed: query.feed, category: query.category ?? null, q: query.q ?? null,
     marketPoint: query.marketPoint ?? null, ids: query.ids?.toSorted((a, b) => a - b) ?? null,
     sort: query.sort,
     tag: query.tag ?? null,
@@ -91,7 +91,7 @@ export async function productFeed(db: PrismaClient, query: ProductQuery) {
     if (query.tag === 'seasonal') {
       filters.push(seasonalSql(new Date()));
     }
-    if (query.category) filters.push(query.feed === 'catalog'
+    if (query.category && (query.feed !== 'catalog' || !query.q)) filters.push(query.feed === 'catalog'
       ? Prisma.sql`(c.sort, c.id) >= (SELECT sort, id FROM "Category" WHERE slug = ${query.category} AND active)`
       : Prisma.sql`c.slug = ${query.category}`);
     if (query.marketPoint) filters.push(Prisma.sql`m.slug = ${query.marketPoint} AND m."isPublished"`);
@@ -102,12 +102,16 @@ export async function productFeed(db: PrismaClient, query: ProductQuery) {
     }
     const pool = Prisma.sql`SELECT p.id, p.name, ${['price_asc', 'price_desc'].includes(query.sort)
       ? Prisma.sql`p."normalizedPrice"::double precision` : Prisma.sql`p.price`} AS price, p.sort, p."createdAt", p."marketPointId",
-      c.id AS "categoryId", c.sort AS "categorySort"
+      c.id AS "categoryId", ${query.feed === 'catalog' && query.category && query.q
+        ? Prisma.sql`CASE WHEN c.slug = ${query.category} THEN -2147483648 ELSE c.sort END`
+        : Prisma.sql`c.sort`} AS "categorySort"
       FROM "Product" p JOIN "Category" c ON c.id = p."categoryId"
       LEFT JOIN "MarketPoint" m ON m.id = p."marketPointId"
       WHERE ${Prisma.join(filters, ' AND ')}`;
-    const counts = await tx.$queryRaw<{ total: number; revision: string | null }[]>(Prisma.sql`
-      SELECT count(*)::int AS total, ${query.feed === 'home'
+    const counts = await tx.$queryRaw<{ total: number; revision: string | null; current: number }[]>(Prisma.sql`
+      SELECT count(*)::int AS total,
+        ${query.feed === 'catalog' && query.category && query.q ? Prisma.sql`count(*) FILTER (WHERE "categoryId" = (SELECT id FROM "Category" WHERE slug = ${query.category}))::int` : Prisma.sql`0::int`} AS current,
+        ${query.feed === 'home'
         ? Prisma.sql`md5(coalesce(string_agg(jsonb_build_array(id, "marketPointId", "categoryId")::text, ',' ORDER BY id), ''))`
         : Prisma.sql`NULL::text`} AS revision FROM (${pool}) matching`);
     const revision = counts[0]?.revision ?? undefined;
@@ -164,6 +168,6 @@ export async function productFeed(db: PrismaClient, query: ProductQuery) {
       tail: { ...tail, createdAt: tail.createdAt.toISOString() },
     } satisfies Cursor)).toString('base64url') : null;
     return { items: page.flatMap(row => { const product = products.get(row.id); return product ? [product] : []; }),
-      total, nextCursor, seed, page: 1, limit: query.limit, pages: Math.ceil(total / query.limit) };
+      total, nextCursor, seed, ...(query.feed === 'catalog' && query.category && query.q ? { groupTotals: { current: counts[0]?.current ?? 0, others: total - (counts[0]?.current ?? 0) } } : {}), page: 1, limit: query.limit, pages: Math.ceil(total / query.limit) };
   }, { isolationLevel: 'RepeatableRead' });
 }

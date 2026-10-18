@@ -6,6 +6,7 @@ export async function useProductFeed(query: MaybeRefOrGetter<ProductFeedQuery>, 
   const requestQuery = computed(() => ({ ...toValue(query) }));
   const items = ref<ProductListItem[]>([]);
   const total = ref(0);
+  const groupTotals = ref<ProductListResponse['groupTotals']>();
   const cursor = ref<string | null>(null);
   const status = ref<'pending' | 'success' | 'error'>('pending');
   const error = shallowRef<unknown>(null);
@@ -37,6 +38,7 @@ export async function useProductFeed(query: MaybeRefOrGetter<ProductFeedQuery>, 
     });
     items.value = append ? [...items.value, ...fresh] : fresh;
     total.value = response.total;
+    groupTotals.value = response.groupTotals;
     cursor.value = response.nextCursor ?? null;
   }
 
@@ -70,6 +72,7 @@ export async function useProductFeed(query: MaybeRefOrGetter<ProductFeedQuery>, 
     generation++;
     controller?.abort();
     items.value = [];
+    groupTotals.value = undefined;
     cursor.value = null;
     stale.value = false;
     loadingMore.value = false;
@@ -80,5 +83,5 @@ export async function useProductFeed(query: MaybeRefOrGetter<ProductFeedQuery>, 
     await request(true);
   }
   const retry = () => !stale.value && items.value.length && cursor.value ? loadMore() : reset();
-  return { items, total, status, error, stale, loadingMore, hasMore: computed(() => cursor.value !== null), loadMore, retry, restart: reset };
+  return { items, total, groupTotals, status, error, stale, loadingMore, hasMore: computed(() => cursor.value !== null), loadMore, retry, restart: reset };
 }
