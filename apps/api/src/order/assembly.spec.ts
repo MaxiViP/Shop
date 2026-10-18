@@ -26,7 +26,7 @@ describe('Assembly integer rules', () => {
   );
   it('rounds half a kopeck up deterministically', () => {
     expect(lineAmount(1, 1, 2)).toBe(1);
-    expect(lineAmount(1, 1, 3)).toBe(0);
+    expect(() => lineAmount(1, 1, 3)).toThrow(RangeError);
   });
   it.each([
     [1000, 900, false],

@@ -62,7 +62,8 @@ export function useCartQuote(): QuoteState {
           items: cart.items.map((item) => ({
             productId: item.product.id,
             qty: item.qty,
-            ...((item.product.priceUnit === 'GRAM' && item.product.unit !== 'GRAM') || (item.quantityUnit && item.quantityUnit !== item.product.unit) ? { quantityUnit: item.quantityUnit ?? item.product.unit, weightMinGrams: item.weightMinGrams, weightMaxGrams: item.weightMaxGrams } : {}),
+            quantityUnit: item.quantityUnit ?? item.product.unit,
+            ...((item.product.priceUnit === 'GRAM' && item.product.unit !== 'GRAM') || (item.quantityUnit && item.quantityUnit !== item.product.unit) ? { weightMinGrams: item.weightMinGrams, weightMaxGrams: item.weightMaxGrams } : {}),
           })),
         },
       });

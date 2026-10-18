@@ -6,6 +6,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { createPinia } from "pinia";
 import { useCartStore } from "../app/stores/cart.ts";
 import { decodeCart, previewTotal, validCartQty } from "../app/utils/cart.ts";
+import { compatibleQuantityUnit } from '../app/utils/sale.ts';
 
 const product = {
   id: 1, name: "Apples", slug: "apples", price: 350000, priceQty: 1000,
@@ -54,7 +55,7 @@ function restoration(cart, initial) {
   return { finish: hooks.get("page:finish"), reads, get saved() { return saved; } };
 }
 
-async function detail(t, cart) {
+async function detail(t, cart, selected = product) {
   const stops = [];
   t.after(() => stops.forEach(stop => stop()));
   const script = pageSource.match(/<script setup lang="ts">([\s\S]*?)<\/script>/)?.[1];
@@ -68,18 +69,33 @@ async function detail(t, cart) {
     useHeaderNotice: () => ({ show: notice => notices.push(notice) }),
     useApi: async path => {
       assert.equal(path, "/products/apples");
-      return { data: ref(product), error: ref(null) };
+      return { data: ref(selected), error: ref(null) };
     },
     ref, computed,
     watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
-    previewTotal, validCartQty,
+    previewTotal, validCartQty, compatibleQuantityUnit,
     usePageSeo() {}, useJsonLd() {},
   };
-  const setup = new AsyncFunction(...Object.keys(context), executable + "\nreturn { add, qty, total, cartQty };");
+  const setup = new AsyncFunction(...Object.keys(context), executable + "\nreturn { add, qty, total, cartQty, cartSelectionValid };");
   const state = await setup(...Object.values(context));
   assert.match(pageSource, /:disabled="!cart\.restored \|\| cart\.serverBusy \|\| !validCartQty\(qty, product\)" @click="add"/);
   return { ...state, notices };
 }
+
+test('detail requires a fresh selection after grams become pieces, preserving the old selection until confirmation', async t => {
+  const cart = useCartStore(createPinia());
+  cart.restore([{ product: { ...product, min: 1, step: 1, portionQty: 1 }, qty: 5, quantityUnit: 'GRAM' }]);
+  const selected = { ...product, unit: 'PIECE', priceUnit: 'PIECE', saleModel: 'PIECE_FIXED', priceQty: 1, min: 1, step: 1, portionQty: 1 };
+  const page = await detail(t, cart, selected);
+  assert.equal(page.cartSelectionValid.value, false);
+  assert.equal(page.qty.value, 1);
+  assert.equal(cart.items[0].quantityUnit, 'GRAM');
+  assert.equal(cart.qty(1), 5);
+  await page.add();
+  assert.equal(cart.qty(1), 1);
+  assert.equal(cart.items[0].quantityUnit, 'PIECE');
+  assert.equal(page.cartSelectionValid.value, true);
+});
 
 test("fresh product route waits for restore, then click adds immediately and persists the saved cart", async t => {
   const cart = useCartStore(createPinia());
@@ -100,7 +116,7 @@ test("fresh product route waits for restore, then click adds immediately and per
   assert.equal(cart.count, 2);
   assert.equal(cart.qty(product.id), 500);
   assert.equal(page.cartQty.value, 500);
-  assert.equal(cart.key, "[[2,500],[1,500]]");
+  assert.equal(cart.key, '[[2,500,"GRAM"],[1,500,"GRAM"]]');
   assert.equal(cart.quoteReady, false);
   await nextTick();
   assert.deepEqual(JSON.parse(storage.saved).items.map(item => item.product.id), [2, 1]);
@@ -118,7 +134,7 @@ test("product detail sets the desired quantity on one existing cart row", async 
   await page.add();
   assert.equal(cart.count, 1);
   assert.equal(cart.qty(product.id), 800);
-  assert.equal(cart.key, "[[1,800]]");
+  assert.equal(cart.key, '[[1,800,"GRAM"]]');
   await nextTick();
   assert.equal(JSON.parse(storage.saved).items[0].qty, 800);
 });

@@ -1,7 +1,7 @@
 import { useCartStore } from "../stores/cart.ts";
 import { nextCartQty, previousCartQty, validCartQty } from "../utils/cart.ts";
 import type { ProductListItem } from "../types/product";
-import { variableWeight } from '../utils/sale.ts';
+import { compatibleQuantityUnit, variableWeight } from '../utils/sale.ts';
 
 export function useCartActions() {
   const cart = useCartStore();
@@ -20,6 +20,8 @@ export function useCartActions() {
 
   async function add(product: ProductListItem) {
     if (!cart.restored) return false;
+    const item = cart.items.find(row => row.product.id === product.id);
+    if (item && !compatibleQuantityUnit(item.quantityUnit ?? item.product.unit, product)) return false;
     const before = cart.qty(product.id);
     if (cart.mode === "guest") {
       const changed = cart.add(product);
@@ -29,7 +31,7 @@ export function useCartActions() {
     const next = nextCartQty(before || undefined, product);
     if (next === null) return false;
     const changed = await cart.changeServer({
-      kind: "add", productId: product.id, qty: next - before,
+      kind: "add", productId: product.id, qty: next - before, quantityUnit: product.unit,
     });
     if (changed && cart.qty(product.id) > before) cart.noteAddition();
     return changed;
@@ -37,6 +39,8 @@ export function useCartActions() {
 
   async function subtract(product: ProductListItem) {
     if (!cart.restored) return false;
+    const item = cart.items.find(row => row.product.id === product.id);
+    if (item && !compatibleQuantityUnit(item.quantityUnit ?? item.product.unit, product)) return false;
     if (cart.mode === "guest") return cart.subtract(product);
     const previous = cart.qty(product.id);
     if (!previous) return false;
@@ -44,7 +48,7 @@ export function useCartActions() {
     if (next === null) return false;
     return next === 0
       ? cart.changeServer({ kind: "remove", productId: product.id })
-      : cart.changeServer({ kind: "set", productId: product.id, qty: next });
+      : cart.changeServer({ kind: "set", productId: product.id, qty: next, quantityUnit: product.unit });
   }
 
   async function setQty(id: number, qty: number) {

@@ -4,6 +4,10 @@
     "incremental": false
   },
   "include": [
+    "data/product-photos/**/*.ts",
+    "src/product/photo-import.spec.ts",
+    "src/cart/cart.spec.ts",
+    "src/admin/admin.spec.ts",
     "data/catalog-import/**/*.ts",
     "data/bagrationovsky/**/*.ts",
     "data/sale-audit/**/*.ts",

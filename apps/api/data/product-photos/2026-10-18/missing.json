@@ -1,0 +1,330 @@
+[
+  {
+    "slug": "cezoni-market-black-olives-350g",
+    "name": "Оливки CEZONI черные в рассоле 350 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "preserves-pickles"
+  },
+  {
+    "slug": "cezoni-market-butter-biscuits-180g",
+    "name": "Печенье CEZONI домашнее на сливочном масле 180 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "sweets-biscuits"
+  },
+  {
+    "slug": "cezoni-market-cantuccini-cherry-almond-180g",
+    "name": "Печенье Кантуччини Вишня и миндаль CEZONI 180 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "sweets-biscuits"
+  },
+  {
+    "slug": "cezoni-market-casa-rinaldi-carnaroli-500g",
+    "name": "Рис Casa Rinaldi Карнароли 500 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "pasta-grains"
+  },
+  {
+    "slug": "cezoni-market-casa-rinaldi-modena-spray-250ml",
+    "name": "Уксус бальзамический Casa Rinaldi Modena спрей 250 мл",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "sauces-spices"
+  },
+  {
+    "slug": "cezoni-market-classic-grissini-150g",
+    "name": "Гриссини классические CEZONI 150 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "grocery"
+  },
+  {
+    "slug": "cezoni-market-dalla-costa-fast-races-250g",
+    "name": "Паста детская Dalla Costa «Быстрые гонки» 250 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "pasta-grains"
+  },
+  {
+    "slug": "cezoni-market-de-luca-lasagna-129-500g",
+    "name": "Паста De Luca Lasagna №129 500 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "pasta-grains"
+  },
+  {
+    "slug": "cezoni-market-de-luca-linguine-012-500g",
+    "name": "Паста De Luca Linguine №012 500 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "pasta-grains"
+  },
+  {
+    "slug": "cezoni-market-donna-carmela-igp-500ml",
+    "name": "Оливковое масло Donna Carmela IGP 500 мл",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "oils"
+  },
+  {
+    "slug": "cezoni-market-grilled-artichokes-350g",
+    "name": "Артишоки CEZONI гриль 350 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "preserves-pickles"
+  },
+  {
+    "slug": "cezoni-market-iori-classic-adjika-135g",
+    "name": "Аджика абхазская классическая IORI 135 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "sauces-spices"
+  },
+  {
+    "slug": "cezoni-market-iori-green-adjika-120g",
+    "name": "Аджика абхазская зелёная IORI 120 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "sauces-spices"
+  },
+  {
+    "slug": "cezoni-market-iori-narsharab-350g",
+    "name": "Соус Наршараб IORI 350 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "sauces-spices"
+  },
+  {
+    "slug": "cezoni-market-iori-satsebeli-bbq-270g",
+    "name": "Соус сацебели шашлычный IORI 270 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "sauces-spices"
+  },
+  {
+    "slug": "cezoni-market-iori-satsebeli-classic-265g",
+    "name": "Соус сацебели классический IORI 265 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "sauces-spices"
+  },
+  {
+    "slug": "cezoni-market-iori-tkemali-bbq-285g",
+    "name": "Соус ткемали шашлычный IORI 285 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "sauces-spices"
+  },
+  {
+    "slug": "cezoni-market-iori-tkemali-classic-285g",
+    "name": "Соус ткемали классический IORI 285 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "sauces-spices"
+  },
+  {
+    "slug": "cezoni-market-iori-tomato-basil-265g",
+    "name": "Соус томатный с базиликом IORI 265 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "sauces-spices"
+  },
+  {
+    "slug": "cezoni-market-nadawilli-garlic-sunflower-oil-250ml",
+    "name": "Масло подсолнечное чесночное Nadawilli 250 мл",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "oils"
+  },
+  {
+    "slug": "cezoni-market-nadawilli-pumpkin-oil-250ml",
+    "name": "Масло тыквенное Nadawilli 250 мл",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "oils"
+  },
+  {
+    "slug": "cezoni-market-nadawilli-sunflower-oil-250ml",
+    "name": "Масло подсолнечное Nadawilli 250 мл",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "oils"
+  },
+  {
+    "slug": "cezoni-market-nadawilli-sunflower-oil-500ml",
+    "name": "Масло подсолнечное Nadawilli 500 мл",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "oils"
+  },
+  {
+    "slug": "cezoni-market-nadawilli-walnut-oil-250ml",
+    "name": "Масло грецкого ореха Nadawilli 250 мл",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "oils"
+  },
+  {
+    "slug": "cezoni-market-nadawilli-wheat-germ-oil-250ml",
+    "name": "Масло зародышей пшеницы Nadawilli 250 мл",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "oils"
+  },
+  {
+    "slug": "cezoni-market-nocellara-green-olives-350g",
+    "name": "Оливки зеленые Ночеллара CEZONI 350 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "preserves-pickles"
+  },
+  {
+    "slug": "cezoni-market-nonno-giovanni-dop-250ml",
+    "name": "Оливковое масло Nonno Giovanni DOP 250 мл",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "oils"
+  },
+  {
+    "slug": "cezoni-market-nonno-giovanni-dop-500ml",
+    "name": "Оливковое масло Nonno Giovanni DOP 500 мл",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "oils"
+  },
+  {
+    "slug": "cezoni-market-sun-dried-tomatoes-260ml",
+    "name": "Томаты вяленые CEZONI в масле 260 мл",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "preserves-pickles"
+  },
+  {
+    "slug": "cezoni-market-valgri-borlotti-350g",
+    "name": "Фасоль Borlotti Valgri 350 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "preserves-pickles"
+  },
+  {
+    "slug": "cezoni-market-valgri-cannellini-350g",
+    "name": "Фасоль Cannellini Valgri 350 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "preserves-pickles"
+  },
+  {
+    "slug": "cezoni-market-valgri-spanish-white-beans-350g",
+    "name": "Фасоль белая испанская Valgri 350 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "preserves-pickles"
+  },
+  {
+    "slug": "cezoni-market-valgri-tondini-350g",
+    "name": "Фасоль Tondini Valgri 350 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "preserves-pickles"
+  },
+  {
+    "slug": "cezoni-market-valgri-young-peas-350g",
+    "name": "Горошек молодой Valgri 350 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "cezoni-market",
+    "marketPointName": "Cezoni Market",
+    "categorySlug": "preserves-pickles"
+  },
+  {
+    "slug": "grand-bazar-as-whole-grain-bulgur-1000g",
+    "name": "Булгур цельнозерновой AS 1000 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "grand-bazar",
+    "marketPointName": "Гранд Базар",
+    "categorySlug": "pasta-grains"
+  },
+  {
+    "slug": "grand-bazar-cansa-yakan-biber-1200g",
+    "name": "Перец острый маринованный Cansa Yakan Biber 1200 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "grand-bazar",
+    "marketPointName": "Гранд Базар",
+    "categorySlug": "preserves-pickles"
+  },
+  {
+    "slug": "grand-bazar-koska-pomegranate-tea-200g",
+    "name": "Чай гранатовый растворимый Koska 200 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "grand-bazar",
+    "marketPointName": "Гранд Базар",
+    "categorySlug": "tea-coffee"
+  },
+  {
+    "slug": "grand-bazar-koska-tahini-530g",
+    "name": "Кунжутная паста Tahini Koska 530 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "grand-bazar",
+    "marketPointName": "Гранд Базар",
+    "categorySlug": "grocery"
+  },
+  {
+    "slug": "grand-bazar-naturel-yellow-lentils-1000g",
+    "name": "Чечевица жёлтая Grand Bazar by Naturel 1000 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "grand-bazar",
+    "marketPointName": "Гранд Базар",
+    "categorySlug": "pasta-grains"
+  },
+  {
+    "slug": "grand-bazar-ulker-protein-chocolate-banana-280g",
+    "name": "Сэндвич-печенье Ulker Protein шоколад-банан 280 г",
+    "priceStatus": "SOURCE",
+    "marketPointSlug": "grand-bazar",
+    "marketPointName": "Гранд Базар",
+    "categorySlug": "sweets-biscuits"
+  },
+  {
+    "slug": "vegetables-fruits-east-potatoes-sineglazka",
+    "name": "Картофель столовый «Синеглазка», немытый",
+    "priceStatus": "ESTIMATED",
+    "marketPointSlug": "vegetables-fruits-east",
+    "marketPointName": "Наша точка \"Овощи и фрукты \"",
+    "categorySlug": "ovoschi"
+  }
+]

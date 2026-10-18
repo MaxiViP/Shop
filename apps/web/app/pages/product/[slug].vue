@@ -23,16 +23,16 @@
       </div>
 
       <ProductPrice :product="product" />
-      <p v-if="variableWeight(product)" class="product__text">{{ product.unit === 'BUNCH' ? 'Продается пучками' : 'Продается целиком' }}. Вес и стоимость уточняются при сборке.</p>
+      <p v-if="saleExplanation(product)" class="product__text">{{ saleExplanation(product) }}</p>
       <ProductOrigin :point="product.marketPoint" :price-status="product.priceStatus" class="mt-3" />
 
       <div class="product__buy">
-        <UAlert v-if="cartQty && !validCartQty(cartQty, product)" color="warning" title="Сохранённое количество не соответствует текущему шагу. Выберите новое и нажмите «Обновить количество в корзине»." />
+        <UAlert v-if="cartQty && !cartSelectionValid" color="warning" title="Условия продажи изменились. Выберите количество заново и нажмите «Обновить количество в корзине»." />
         <ProductQty v-model="qty" :product="product" />
 
         <div class="product__purchase">
           <span v-if="cartQty" class="product__cart-qty">
-            В корзине: {{ qtyText(product.unit, cartQty) }}
+            В корзине: {{ qtyText(cartItem?.quantityUnit ?? cartItem?.product.unit ?? product.unit, cartQty) }}
           </span>
 
           <UButton size="lg" class="product__btn" :disabled="!cart.restored || cart.serverBusy || !validCartQty(qty, product)" @click="add">
@@ -61,7 +61,7 @@ import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
 import { qtyText } from "~/utils/qty";
 import { previewTotal, validCartQty } from "~/utils/cart";
-import { variableWeight } from '~/utils/sale';
+import { compatibleQuantityUnit, saleExplanation } from '~/utils/sale';
 import { quickAddState } from '~/utils/quick-add';
 
 const route = useRoute();
@@ -87,10 +87,15 @@ if (error.value || !product.value) {
   });
 }
 
+const cartItem = computed(() => cart.items.find(item => item.product.id === product.value!.id));
+const cartSelectionValid = computed(() => !cartItem.value || (
+  validCartQty(cartItem.value.qty, product.value!) &&
+  compatibleQuantityUnit(cartItem.value.quantityUnit ?? cartItem.value.product.unit, product.value!)
+));
 const qty = ref(product.value.portionQty);
-watch(() => [cart.restored, cart.qty(product.value!.id)], () => {
-  const current = cart.qty(product.value!.id);
-  if (current) qty.value = validCartQty(current, product.value!) ? current : product.value!.min;
+watch(() => [cart.restored, cartItem.value?.qty, cartItem.value?.quantityUnit, cartItem.value?.product.unit], () => {
+  const current = cartItem.value?.qty;
+  if (current) qty.value = cartSelectionValid.value ? current : product.value!.min;
 }, { immediate: true });
 
 const total = computed(() => {

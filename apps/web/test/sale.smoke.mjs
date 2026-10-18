@@ -1,17 +1,22 @@
 // Local fixture API and an isolated headless Chromium profile; no production requests/writes.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { startWeb, openBrowser } from './browser.mjs';
 import { lineAmount } from '../app/utils/assembly.ts';
-import { estimatedQuantity } from '../app/utils/sale.ts';
-const artifacts = new URL('../../../docs/catalog-sale-audit/ui/', import.meta.url);
+import { estimatedQuantity, saleExplanation } from '../app/utils/sale.ts';
+import { photoOrigins } from '../../api/src/product/photo-origins.ts';
+const artifacts = new URL(process.env.SALE_SMOKE_OUTPUT ?? '../../../docs/catalog-sale-audit/ui/', import.meta.url);
 await mkdir(artifacts, { recursive: true });
 const category = { id: 1, name: 'Продукты', slug: 'market' };
 const baseProduct = { min: 1, step: 1, portionQty: 1, priceQty: 1, priceStatus: 'AUDITED', category, images: [], marketPoint: null, isSeasonal: false, isHit: false, seasonalStartsAt: null, seasonalEndsAt: null, description: null };
+const illustrationSlug = 'cezoni-market-black-olives-350g';
+const illustrationUrl = Object.entries(photoOrigins).find(([, slug]) => slug === illustrationSlug)?.[0];
+assert.ok(illustrationUrl);
+const illustrationBytes = await readFile(new URL(`../../api/data/product-photos/2026-10-18/pack/cezoni-market/${illustrationSlug}.webp`, import.meta.url));
 const products = [
   { ...baseProduct, id: 1, name: 'Картофель', slug: 'loose', price: 11000, unit: 'GRAM', priceUnit: 'GRAM', saleModel: 'WEIGHT_LOOSE', priceQty: 1000, min: 500, step: 100, portionQty: 500 },
   { ...baseProduct, id: 2, name: 'Голубика в лотке 125 г', slug: 'pack', price: 22000, unit: 'PACK', priceUnit: 'PACK', saleModel: 'PACK' },
@@ -19,7 +24,8 @@ const products = [
   { ...baseProduct, id: 4, name: 'Говяжий отруб на кости', slug: 'whole', price: 165000, unit: 'PIECE', priceUnit: 'GRAM', saleModel: 'WHOLE_VARIABLE_WEIGHT', priceQty: 1000, wholeLabel: 'кусок' },
   { ...baseProduct, id: 5, name: 'Дорадо целая', slug: 'fish', price: 110000, unit: 'PIECE', priceUnit: 'GRAM', saleModel: 'WHOLE_VARIABLE_WEIGHT', priceQty: 1000, wholeLabel: 'рыба' },
   { ...baseProduct, id: 6, name: 'Филе с нарезкой по весу', slug: 'cut', price: 220000, unit: 'GRAM', priceUnit: 'GRAM', saleModel: 'CUT_TO_WEIGHT', priceQty: 1000, min: 500, step: 100, portionQty: 500 },
-  { ...baseProduct, id: 7, name: 'Булочка', slug: 'piece', price: 5500, unit: 'PIECE', priceUnit: 'PIECE', saleModel: 'PIECE_FIXED' },
+  { ...baseProduct, id: 7, name: 'Форель со штучной ценой', slug: 'piece', price: 5500, unit: 'PIECE', priceUnit: 'PIECE', saleModel: 'PIECE_FIXED' },
+  { ...baseProduct, id: 8, name: 'Оливки чёрные в рассоле 350 г', slug: illustrationSlug, price: 23949, unit: 'PACK', priceUnit: 'PACK', saleModel: 'PACK', images: [{ url: illustrationUrl, alt: null }] },
 ];
 const publicId = randomUUID();
 let staffMode = false;
@@ -34,6 +40,7 @@ const staffOrder = () => ({ id: 707, publicId, status: 'ASSEMBLING', type: 'PICK
   cancellations: [], restoreProblem: null, issues: [], extras: [], payment: null, delivery: null, preparationMinutes: 15, createdAt: new Date().toISOString() });
 const api = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
+  if (url.pathname === illustrationUrl) { res.setHeader('Content-Type', 'image/webp'); res.end(illustrationBytes); return; }
   res.setHeader('Content-Type', 'application/json');
   if (req.headers.origin && /^http:\/\/127\.0\.0\.1:\d+$/.test(req.headers.origin)) {
     res.setHeader('Access-Control-Allow-Origin', req.headers.origin); res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -107,7 +114,16 @@ try {
     await command('Page.navigate', { url: 'about:blank' });
     await wait("location.href === 'about:blank'", 'Unload previous fixture');
     await command('Page.navigate', { url: web.base + '/catalog' });
-    await wait("document.querySelectorAll('.card').length === 7 && !document.querySelector('.card__add').disabled", 'Catalog hydration');
+    await wait("document.querySelectorAll('.card').length === 8 && !document.querySelector('.card__add').disabled", 'Catalog hydration');
+    assert.equal(await evaluate(`${card(illustrationSlug)}.textContent.includes('Иллюстрация товара')`), true);
+    assert.equal(await evaluate(`${card(illustrationSlug)}.querySelector('.price').textContent.includes('239,49')`), true);
+    assert.equal(await evaluate(`${card('piece')}.querySelector('.card__sale') === null`), true);
+    await command('Page.navigate', { url: web.base + '/product/' + illustrationSlug });
+    await wait("Boolean(document.querySelector('.gallery__illustration')) && document.querySelector('.gallery img')?.naturalWidth > 0", 'Product illustration and real WebP loading');
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'Product overflow');
+    await screenshot(`illustration-${width}.png`);
+    await command('Page.navigate', { url: web.base + '/catalog' });
+    await wait("document.querySelectorAll('.card').length === 8 && !document.querySelector('.card__add').disabled", 'Return to catalogue');
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'Catalog overflow');
     await evaluate(`${card('loose')}.querySelector('.card__add').click()`); await wait(label('loose', '500 г'), 'First loose portion');
     await evaluate(`${card('loose')}.querySelectorAll('.card__portion')[1].click()`); await wait(label('loose', '600 г'), 'Loose step');
@@ -121,7 +137,7 @@ try {
     await evaluate(`${card('fish')}.querySelector('.card__portion').click()`); await wait(label('fish', '1 рыба'), 'One whole fish');
     assert.equal(await evaluate(`${card('whole')}.querySelector('.price__unit').textContent.trim()`), '/ кг');
     assert.equal(await evaluate(`${card('fish')}.querySelector('.price__unit').textContent.trim()`), '/ кг');
-    assert.equal(await evaluate(`${card('whole')}.textContent.includes('Целиком. Вес и стоимость уточняются при сборке.')`), true);
+    assert.equal(await evaluate(`${card('whole')}.textContent.includes(${JSON.stringify(saleExplanation(products[3]))})`), true);
     assert.equal(await evaluate(`Array.from(document.querySelectorAll('.card__portion')).every(button=>button.getBoundingClientRect().width>=44&&button.getBoundingClientRect().height>=44)`), true, 'Card touch targets');
     await screenshot(`catalog-${width}.png`);
     await command('Page.navigate', { url: web.base + '/cart' });

@@ -397,6 +397,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         kind: 'set',
         productId: product.id,
         qty: 500,
+        quantityUnit: 'GRAM',
         weightMinGrams: null,
         weightMaxGrams: null,
       });

@@ -1,0 +1,9 @@
+Built-in imagegen only. One call per product. For the repeated batch calls,
+substitute name and subject from missing.json and subjects.json:
+
+Use case: product-mockup. Square photorealistic grocery catalog illustration of the product contents for {name}. Subject: {subject} Clean seamless white background, realistic natural food texture, soft professional studio light, centered complete subject with clear margins. No text, logo, watermark, invented branded packaging, advertising claims or unrelated garnish. Show the food itself, not an imitation of its branded package.
+
+The previously saved bulgur and black olives are reused. Butter biscuits were
+generated separately with the same contents-only white-background constraints.
+All resulting subjects are visually reviewed. PNG-to-WebP conversion uses local
+Sharp at quality 88 and a maximum 1024 px edge, without cropping.

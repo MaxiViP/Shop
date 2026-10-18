@@ -5,14 +5,19 @@ import { PrismaClient } from '../../src/db/gen/client.js';
 import { readPhotoPack } from '../../src/product/photo-pack.js';
 import { importProductPhotos, validateProductPhotos } from '../../src/product/photo-import.js';
 
-const args = process.argv.slice(2);
+const input = process.argv.slice(2);
+const batchIndex = input.indexOf('--batch');
+const batch = batchIndex < 0 ? '2026-10-07' : input[batchIndex + 1];
+if (!['2026-10-07', '2026-10-18'].includes(batch ?? '') || input.filter(arg => arg === '--batch').length > 1)
+  throw new Error('Unknown photo batch');
+const args = input.filter((_, index) => batchIndex < 0 || (index !== batchIndex && index !== batchIndex + 1));
 const modes = args.filter(arg => ['--audit', '--dry-run', '--apply', '--validate'].includes(arg));
 if (new Set(args).size !== args.length || modes.length > 1 ||
   args.some(arg => !['--audit', '--dry-run', '--apply', '--validate', '--allow-remote'].includes(arg)))
   throw new Error('Использование: tsx data/product-photos/run.ts [--audit|--dry-run|--apply|--validate] [--allow-remote]');
 let db: PrismaClient | undefined;
 try {
-  const pack = await readPhotoPack(fileURLToPath(new URL('./2026-10-07/', import.meta.url)));
+  const pack = await readPhotoPack(fileURLToPath(new URL(batch === '2026-10-18' ? './2026-10-18/pack/' : './2026-10-07/', import.meta.url)));
   if (modes[0] === '--audit') {
     console.log(JSON.stringify(pack.audit, null, 2));
     if (!pack.audit.clean) process.exitCode = 1;

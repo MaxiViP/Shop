@@ -89,7 +89,7 @@ export function previousCartQty(
 export function cartKey(items: CartItem[]) {
   return JSON.stringify(items.map(item => variableWeight(item.product) || item.weightMinGrams || item.weightMaxGrams
     ? [item.product.id, item.qty, item.quantityUnit ?? item.product.unit, item.weightMinGrams ?? null, item.weightMaxGrams ?? null]
-    : [item.product.id, item.qty]));
+    : [item.product.id, item.qty, item.quantityUnit ?? item.product.unit]));
 }
 export function reconcileCart(
   items: CartItem[],
@@ -129,7 +129,7 @@ export function cartLineMessage(line: CartQuoteLine | undefined) {
   if (line?.status === "INVALID_QUANTITY")
     return "Количество не соответствует текущему минимуму или шагу продажи.";
   if (line?.status === "PRICE_OVERFLOW")
-    return "Стоимость позиции слишком велика. Уменьшите количество.";
+    return "Стоимость позиции вне допустимого диапазона. Проверьте цену и количество.";
   return "";
 }
 

@@ -1,4 +1,22 @@
-# Product photo import: 2026-10-07
+# Product photo import
+
+The additional `2026-10-18/pack/` batch is selected with `--batch 2026-10-18`.
+It uses the same auditor and importer. Its queue, subjects, progress and fresh
+read-only local catalogue snapshot are in `2026-10-18/`. Resume preparation from
+`progress.json`; prepared files are never regenerated or overwritten.
+
+```powershell
+pnpm.cmd --dir apps/api exec tsx data/product-photos/run.ts --batch 2026-10-18 --audit
+pnpm.cmd --dir apps/api exec tsx data/product-photos/run.ts --batch 2026-10-18 --dry-run
+```
+
+The new batch has only been prepared and tested. No database import is automatic.
+Applying either batch requires separate authorization. For new preparations,
+`prepare.mjs <exact-slug> <reviewed-png-path>` converts one reviewed built-in
+imagegen output to WebP and updates its manifest, progress and exact URL provenance
+registry. Running it without arguments rebuilds the progress and registry.
+
+## Original batch: 2026-10-07
 
 `2026-10-07/manifest.json` and its 146 WebP files are the versioned import source.
 The manifest preserves the exported product slugs, names and MarketPoint slugs;

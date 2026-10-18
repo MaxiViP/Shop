@@ -16,7 +16,7 @@ export async function importProductPhotos(db: PrismaClient, pack: PhotoPack, dry
       else await tx.$queryRaw`SELECT id FROM "Product" WHERE slug IN (${Prisma.join(pack.manifest.products.map(row => row.slug))}) ORDER BY id FOR UPDATE`;
       const products = await tx.product.findMany({
         where: { slug: { in: pack.manifest.products.map(row => row.slug) } },
-        select: { id: true, slug: true, marketPoint: { select: { slug: true } },
+        select: { id: true, slug: true, name: true, marketPoint: { select: { slug: true } },
           images: { select: { id: true, url: true }, orderBy: [{ sort: 'asc' }, { id: 'asc' }] } },
       });
       const plannedUrls = pack.files.map(file => placeholderUrl(file.product, pack.manifest.batch));
@@ -26,6 +26,8 @@ export async function importProductPhotos(db: PrismaClient, pack: PhotoPack, dry
       for (const file of pack.files) {
         const product = products.find(row => row.slug === file.product.slug);
         if (!product) throw new Error(`Product не найден: ${file.product.slug}. Импорт не создаёт товары.`);
+        if (product.name !== file.product.name)
+          throw new Error(`Название Product не совпадает с manifest: ${product.slug}`);
         if (product.marketPoint?.slug !== file.product.marketPointSlug)
           throw new Error(`Неверный MarketPoint у Product ${product.slug}`);
         const url = placeholderUrl(file.product, pack.manifest.batch);

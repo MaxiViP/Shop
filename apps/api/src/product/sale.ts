@@ -38,6 +38,13 @@ export function priceUnit(product: Sale): SaleUnit {
 export function variableWeight(product: Sale): boolean {
   return priceUnit(product) === 'GRAM' && product.unit !== 'GRAM';
 }
+type SaleTerms = Sale & { priceQty: number; min: number; step: number; portionQty: number };
+export function saleTermsChanged(before: SaleTerms, after: SaleTerms): boolean {
+  return saleModel(before) !== saleModel(after) || before.unit !== after.unit ||
+    priceUnit(before) !== priceUnit(after) || before.priceQty !== after.priceQty ||
+    before.min !== after.min || before.step !== after.step || before.portionQty !== after.portionQty ||
+    (before.estimatedWeightGrams ?? null) !== (after.estimatedWeightGrams ?? null);
+}
 export function compatibleQuantityUnit(
   previous: SaleUnit | null | undefined,
   product: Sale,

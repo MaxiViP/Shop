@@ -12,6 +12,7 @@
         <span class="gallery__empty">Фото скоро</span>
       </ProductImage>
     </div>
+    <p v-if="productIllustration(current)" class="gallery__illustration">Иллюстрация товара</p>
     <div
       v-if="hasThumbnails"
       class="gallery__rail"
@@ -42,6 +43,7 @@
 
 <script setup lang="ts">
 import type { ProductImage } from '~/types/product';
+import { productIllustration } from '~/utils/product-illustration';
 const props = defineProps<{
   images: ProductImage[];
   name: string;
@@ -77,6 +79,7 @@ const { selected, current, hasThumbnails, select } = useProductGallery(
 .gallery__empty {
   color: var(--ui-text-muted);
 }
+.gallery__illustration { color: var(--ui-text-muted); font-size: 0.8125rem; }
 .gallery__rail {
   display: flex;
   gap: 0.5rem;

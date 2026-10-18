@@ -7,7 +7,7 @@ import { normalizeImage } from '../common/image.js';
 const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(180);
 export const photoManifestSchema = z.strictObject({
   kind: z.literal('AI_PLACEHOLDER'),
-  batch: z.literal('2026-10-07'),
+  batch: z.enum(['2026-10-07', '2026-10-18']),
   products: z.array(z.strictObject({
     slug, name: z.string().min(1).max(160), marketPointSlug: slug,
     marketPointName: z.string().min(1).max(160), categorySlug: slug,

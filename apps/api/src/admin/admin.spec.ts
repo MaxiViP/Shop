@@ -150,10 +150,18 @@ describe('Admin products', () => {
   );
   it('accepts a compatible multi-field change in one update', async () => {
     db.product.findUnique.mockResolvedValue(product);
-    const patch = { min: 600, step: 300, portionQty: 900 };
+    const patch = { min: 600, step: 300, portionQty: 900, saleChangeConfirmed: true as const };
     db.product.update.mockResolvedValue({ ...product, ...patch });
-    await expect(service.update(1, patch)).resolves.toMatchObject(patch);
+    await expect(service.update(1, patch)).resolves.toMatchObject({ min: 600, step: 300, portionQty: 900 });
+    expect(db.product.update.mock.calls[0]?.[0].data.saleChangeConfirmed).toBeUndefined();
     expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
+  });
+  it('requires explicit confirmation before changing the price base or quantity meaning', async () => {
+    db.product.findUnique.mockResolvedValue(product);
+    for (const patch of [{ priceQty: 500 }, { unit: 'PIECE' as const, min: 1, step: 1, portionQty: 1 }, { portionQty: 1000 }]) {
+      await expect(service.update(1, patch)).rejects.toThrow('Подтвердите изменение условий продажи');
+      expect(db.product.update).not.toHaveBeenCalled();
+    }
   });
   it('rejects an incompatible create before writing', async () => {
     await expect(service.create({ ...product, portionQty: 501 })).rejects.toBeInstanceOf(BadRequestException);
@@ -164,7 +172,7 @@ describe('Admin products', () => {
     await expect(service.update(1, { name: 'Новое название' })).rejects.toBeInstanceOf(BadRequestException);
     expect(db.product.update).not.toHaveBeenCalled();
     db.product.update.mockResolvedValue(product);
-    await expect(service.update(1, { step: 100 })).resolves.toMatchObject(product);
+    await expect(service.update(1, { step: 100, saleChangeConfirmed: true })).resolves.toMatchObject(product);
   });
   it('includes inactive products admin-side', async () => {
     db.product.findMany.mockResolvedValue([{ ...product, active: false }]);

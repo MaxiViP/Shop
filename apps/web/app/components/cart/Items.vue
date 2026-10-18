@@ -52,7 +52,7 @@
           class="item__correction"
         >
           <p class="text-muted">
-            Выбрано: {{ qtyText(item.product.unit, item.qty) }}. Минимум:
+            Выбрано: {{ qtyText(item.quantityUnit ?? item.product.unit, item.qty) }}. Минимум:
             {{ qtyText(item.product.unit, item.product.min) }}, шаг:
             {{ qtyText(item.product.unit, item.product.step) }}.
           </p>

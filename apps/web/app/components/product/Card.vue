@@ -29,6 +29,7 @@
     </div>
 
     <div class="card__body">
+      <p v-if="productIllustration(product.images[0])" class="card__illustration">Иллюстрация товара</p>
       <NuxtLink
         v-if="!compact"
         :to="`/catalog/${product.category.slug}`"
@@ -44,7 +45,7 @@
       </NuxtLink>
 
       <ProductOrigin :point="product.marketPoint" :price-status="product.priceStatus" />
-      <p v-if="variableWeight(product)" class="card__sale">{{ product.unit === 'BUNCH' ? 'Пучками' : 'Целиком' }}. Вес и стоимость уточняются при сборке.</p>
+      <p v-if="saleExplanation(product)" class="card__sale">{{ saleExplanation(product) }}</p>
 
       <div class="card__bottom">
         <ProductPrice :product="product" />
@@ -109,7 +110,8 @@ import { quickAddState } from "~/utils/quick-add";
 import { nextCartQty, previousCartQty } from "~/utils/cart";
 import { qtyText } from "~/utils/qty";
 import { money } from "~/utils/money";
-import { variableWeight } from '~/utils/sale';
+import { saleExplanation, variableWeight } from '~/utils/sale';
+import { productIllustration } from '~/utils/product-illustration';
 
 const { product, eagerImage = false } = defineProps<{
   product: ProductListItem;
@@ -609,7 +611,7 @@ async function subtract() {
   }
 }
 
-.card__sale { margin-block: 0.25rem; font-size: 0.75rem; line-height: 1.3; color: var(--ui-text-muted); }
+.card__sale, .card__illustration { margin-block: 0.25rem; font-size: 0.75rem; line-height: 1.3; color: var(--ui-text-muted); }
 
 .card__badges { position: absolute; top: var(--card-inset); left: 0; z-index: 4; display: grid; justify-items: start; gap: 0.25rem; pointer-events: none; }
 .card__ribbon { padding: 0.25rem 0.625rem 0.25rem 0.5rem; border-radius: 0 0.375rem 0.375rem 0; color: #fff; font-size: clamp(0.625rem, 1.8vw, 0.6875rem); font-weight: 800; line-height: 1.25; letter-spacing: 0.025em; box-shadow: 0 1px 3px rgb(0 0 0 / 15%); }

@@ -10,6 +10,8 @@ import ts from 'typescript';
 import * as money from '../app/utils/money.ts';
 import * as quantity from '../app/utils/assembly.ts';
 import * as sale from '../app/utils/sale.ts';
+import { productIllustration } from '../app/utils/product-illustration.ts';
+import { photoOrigins } from '../../api/src/product/photo-origins.ts';
 import { qtyText } from '../app/utils/qty.ts';
 import { quickAddState } from '../app/utils/quick-add.ts';
 import { nextCartQty, previousCartQty, previewTotal, validCartQty } from '../app/utils/cart.ts';
@@ -28,6 +30,7 @@ const product = { id: 1, name: 'Рис Casa Rinaldi Карнароли 500 г', 
 const cart = { restored: true, serverBusy: false, quoteReady: true, items: [], qty: () => 0, displayLineTotal: () => null };
 
 const modules = {
+  '~/utils/product-illustration': { productIllustration },
   '~/utils/money': money,
   '~/utils/sale': sale,
   '../../utils/sale.ts': sale,
@@ -89,6 +92,16 @@ test('product card renders backend customer price once, market link and a calm n
   assert.ok(html.includes('Cezoni Market'));
   assert.ok(html.includes('Цена по открытому источнику и может измениться при сборке.'));
   assert.ok(!html.includes('sourceUrl') && !html.includes('220 ₽') && !html.includes('role="alert"'));
+});
+test('card and selected gallery image visibly label only the exact imported illustration', async () => {
+  const url = Object.entries(photoOrigins).find(([, slug]) => slug === product.slug)?.[0];
+  assert.ok(url);
+  const images = [{ url, alt: null }];
+  assert.match(await render(Card, { product: { ...product, images } }), /Иллюстрация товара/);
+  assert.match(await render(Gallery, { images, name: product.name, slug: product.slug }), /Иллюстрация товара/);
+  const real = [{ url: '/uploads/products/real-photo.webp', alt: 'Иллюстрация товара' }];
+  assert.ok(!(await render(Card, { product: { ...product, images: real } })).includes('card__illustration'));
+  assert.ok(!(await render(Gallery, { images: real, name: product.name, slug: product.slug })).includes('gallery__illustration'));
 });
 
 test('product detail renders the same customer price, purchase total and market point link', async () => {
@@ -266,7 +279,7 @@ test('admin edits and resaves seller price, and requests customer price from the
     useToast: () => ({ add() {} }), apiError: value => String(value),
   };
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-  const form = await new AsyncFunction(...Object.keys(context), code + '\nreturn { save, rubles, pricing, pointItems };')(...Object.values(context));
+  const form = await new AsyncFunction(...Object.keys(context), code + '\nreturn { save, rubles, pricing, pointItems, form, saleConfirmed, saleChanged, error };')(...Object.values(context));
   assert.equal(form.rubles.value, '220.00');
   assert.equal(form.pricing.value.customerPrice, 24200);
   await form.save(); await form.save();
@@ -279,6 +292,26 @@ test('admin edits and resaves seller price, and requests customer price from the
   assert.equal(form.pricing.value.customerPrice, 54450);
   assert.equal(requests.at(-1).path, '/admin/products/pricing');
   assert.ok(!Object.hasOwn(requests[0].body, 'customerPrice'));
+  form.form.saleModel = 'WEIGHT_LOOSE';
+  await nextTick();
+  assert.equal(form.form.unit, 'PACK', 'Selecting a model must not silently change quantity units');
+  assert.equal(form.form.priceQty, 1, 'Selecting a model must not reinterpret the existing price');
+  assert.equal(form.rubles.value, '495');
+  Object.assign(form.form, { unit: 'GRAM', priceUnit: 'GRAM', priceQty: 1000, min: 300, step: 100, portionQty: 500 });
+  await nextTick();
+  assert.equal(form.saleChanged.value, true);
+  const before = requests.length;
+  await form.save();
+  assert.equal(requests.length, before, 'Unconfirmed sale terms must not reach the API');
+  assert.match(form.error.value, /Подтвердите условия продажи/);
+  form.saleConfirmed.value = true;
+  await form.save();
+  assert.equal(requests.at(-1).body.saleChangeConfirmed, true);
+  assert.equal(requests.at(-1).body.price, 49500);
+  assert.equal(requests.at(-1).body.priceQty, 1000);
+  form.form.portionQty = 600;
+  await nextTick();
+  assert.equal(form.saleConfirmed.value, false, 'Editing terms again invalidates the previous confirmation');
 });
 
 async function priceEditor(item) {
