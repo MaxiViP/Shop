@@ -6,7 +6,7 @@ import { money } from "../app/utils/money.ts";
 const header = await readFile(new URL("../app/components/app/Header.vue", import.meta.url), "utf8");
 const brand = await readFile(new URL("../app/components/app/MarketLogo.vue", import.meta.url), "utf8");
 const orders = await readFile(new URL("../app/components/app/OrdersAction.vue", import.meta.url), "utf8");
-const beforeDrawer = header.slice(0, header.indexOf("<UDrawer"));
+const beforeDrawer = header.slice(0, header.indexOf("<LazyUDrawer"));
 
 test("brand, navigation and actions follow the requested order", () => {
   assert.ok(beforeDrawer.indexOf('class="header__brand"') < beforeDrawer.indexOf('class="header__nav"'));

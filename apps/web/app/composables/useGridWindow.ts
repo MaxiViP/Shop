@@ -9,6 +9,7 @@ export function useGridWindow(root: Ref<HTMLElement | null>, count: () => number
   let anchor: { index: number; top: number } | undefined;
   let layoutAnchor: typeof anchor, restoring = 0;
   let observer: ResizeObserver | undefined, visibility: IntersectionObserver | undefined;
+  let mounted = false, listening = false;
   function reset() { start.value = 0; end.value = count(); top.value = 0; bottom.value = 0; }
   function sum(from: number, to: number) { let result = 0; for (let row = from; row < to; row++) result += heights.get(row) ?? estimate; return result; }
   function visibleAnchor() {
@@ -21,6 +22,7 @@ export function useGridWindow(root: Ref<HTMLElement | null>, count: () => number
   }
   function measure() {
     frame = 0;
+    if (!enabled()) return;
     const element = root.value; if (!element) return;
     const style = getComputedStyle(element), nextColumns = style.gridTemplateColumns.split(' ').filter(Boolean).length || 1;
     const box = element.getBoundingClientRect();
@@ -41,7 +43,6 @@ export function useGridWindow(root: Ref<HTMLElement | null>, count: () => number
     if (start.value % columns === 0) for (const [row, height] of measured) if (height > 0) heights.set(row, height);
     const samples = heights.size ? heights : measured;
     if (samples.size) estimate = [...samples.values()].toSorted((a, b) => a - b)[Math.floor(samples.size / 2)]!;
-    if (!enabled()) { reset(); anchor = visibleAnchor(); return; }
     const rows = Math.ceil(count() / columns);
     const from = Math.max(0, -box.top - 900), to = Math.max(0, window.innerHeight - box.top + 900);
     let first = 0, offset = 0;
@@ -68,16 +69,32 @@ export function useGridWindow(root: Ref<HTMLElement | null>, count: () => number
       if (restoring > 0 && --restoring > 0) queue();
     });
   }
-  function queue() { if (!frame) frame = requestAnimationFrame(measure); }
-  function schedule() { if (!enabled() || near) queue(); }
-  onMounted(() => {
+  function queue() { if (mounted && enabled() && !frame) frame = requestAnimationFrame(measure); }
+  function schedule() { if (near) queue(); }
+  function stop() {
+    revision++;
+    observer?.disconnect(); visibility?.disconnect();
+    observer = undefined; visibility = undefined;
+    window.removeEventListener('scroll', schedule); window.removeEventListener('resize', queue);
+    cancelAnimationFrame(frame); frame = 0; listening = false;
+  }
+  function sync() {
+    if (!enabled()) {
+      if (listening) stop();
+      reset(); heights.clear(); columns = 0; width = 0;
+      anchor = undefined; layoutAnchor = undefined; restoring = 0; near = true;
+      return;
+    }
+    if (!mounted || listening) return;
+    listening = true;
     window.addEventListener('scroll', schedule, { passive: true }); window.addEventListener('resize', queue, { passive: true });
     observer = new ResizeObserver(queue); if (root.value) observer.observe(root.value);
     visibility = new IntersectionObserver(entries => { near = entries.some(entry => entry.isIntersecting); queue(); }, { rootMargin: '900px 0px' });
     if (root.value) visibility.observe(root.value); queue();
-  });
-  onBeforeUnmount(() => { revision++; observer?.disconnect(); visibility?.disconnect(); window.removeEventListener('scroll', schedule); window.removeEventListener('resize', queue); cancelAnimationFrame(frame); });
-  watch([count, enabled], () => { if (!enabled()) reset(); if (import.meta.client) queue(); }, { flush: 'post' });
+  }
+  onMounted(() => { mounted = true; sync(); });
+  onBeforeUnmount(() => { mounted = false; stop(); });
+  watch([count, enabled], () => { sync(); if (import.meta.client) queue(); }, { flush: 'post' });
   onUpdated(() => { if (enabled()) schedule(); });
   return { start, end, top, bottom };
 }

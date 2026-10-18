@@ -14,7 +14,7 @@
         aria-haspopup="dialog"
         aria-controls="mobile-menu"
         :aria-expanded="mobileOpen"
-        @click="mobileOpen = !mobileOpen"
+        @click="toggleMenu"
       >
         <span class="header__burger" aria-hidden="true">
           <span class="header__burger-line" />
@@ -91,7 +91,7 @@
           color="neutral"
           :aria-label="account.label"
           :title="account.label"
-          @click="!account.to && login()"
+          @click="!account.to && login($event)"
         />
         <AppOrdersAction class="header__orders" :action="orders" />
         <div class="header__action header__action--favorites">
@@ -140,8 +140,10 @@
       </div>
     </UContainer>
 
-    <UDrawer
+    <LazyUDrawer
+      v-if="menuMounted"
       v-model:open="mobileOpen"
+      :content="{ onOpenAutoFocus: focusMenu, onCloseAutoFocus: restoreMenuFocus }"
       :should-scale-background="false"
       :no-body-styles="true"
       direction="left"
@@ -289,9 +291,9 @@
           </div>
         </nav>
       </template>
-    </UDrawer>
+    </LazyUDrawer>
 
-    <AuthModal v-model:open="loginOpen" />
+    <LazyAuthModal v-if="loginMounted" v-model:open="loginOpen" :content="{ onCloseAutoFocus: restoreLoginFocus }" />
   </header>
   <div class="header-spacer" aria-hidden="true" />
 
@@ -337,6 +339,11 @@ onBeforeUnmount(notice.clear);
 watch(() => auth.user?.id, notice.clear);
 const loginOpen = ref(false);
 const mobileOpen = ref(false);
+// Keep each instance after first use: closing transitions and auth state survive.
+const menuMounted = ref(false);
+const loginMounted = ref(false);
+watch(mobileOpen, (open) => { if (open) menuMounted.value = true; }, { flush: 'sync' });
+watch(loginOpen, (open) => { if (open) loginMounted.value = true; }, { flush: 'sync' });
 const account = computed(() => headerAccount(auth.user));
 const staff = computed(
   () => auth.user?.role === "SELLER" || auth.user?.role === "ADMIN",
@@ -399,7 +406,26 @@ watch(() => route.fullPath, () => {
   notice.clear();
 });
 
-function login() {
+let menuTrigger: HTMLElement | undefined;
+let loginTrigger: HTMLElement | undefined;
+function toggleMenu(event: MouseEvent) {
+  if (event.currentTarget instanceof HTMLElement) menuTrigger = event.currentTarget;
+  mobileOpen.value = !mobileOpen.value;
+}
+function focusMenu(event: Event) {
+  event.preventDefault();
+  document.querySelector<HTMLElement>('#mobile-menu a')?.focus({ preventScroll: true });
+}
+function restoreMenuFocus(event: Event) {
+  event.preventDefault();
+  if (!loginOpen.value) menuTrigger?.focus({ preventScroll: true });
+}
+function restoreLoginFocus(event: Event) {
+  event.preventDefault();
+  if (!loginOpen.value) loginTrigger?.focus({ preventScroll: true });
+}
+function login(event?: MouseEvent) {
+  loginTrigger = mobileOpen.value ? menuTrigger : event?.currentTarget instanceof HTMLElement ? event.currentTarget : undefined;
   mobileOpen.value = false;
   loginOpen.value = true;
 }
