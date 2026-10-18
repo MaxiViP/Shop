@@ -1,0 +1,33 @@
+name: Image sandbox disposable systemd acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-sandbox-acceptance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  disposable-vm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # Host OS/version is not an attestation. Only the new guest is privileged;
+      # the harness verifies its PID 1, systemd, controllers and namespaces.
+      - name: Networkless Ubuntu VM with native systemd and cgroup v2
+        timeout-minutes: 32
+        run: python3 -B deploy/image-runner/acceptance_host.py
+      - name: Retain evidence, including NOT VERIFIED and failed runs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-sandbox-acceptance-${{ github.run_id }}
+          path: work/image-acceptance-*/*.log
+          if-no-files-found: warn
+          retention-days: 7

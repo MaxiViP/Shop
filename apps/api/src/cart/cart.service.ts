@@ -98,8 +98,12 @@ export class CartService {
             where: { ...orderableProductWhere, id: productId },
           });
           if (!product) throw new NotFoundException('Товар больше недоступен');
+          if ((change.kind === 'add' || change.kind === 'set') && change.quantityUnit !== undefined &&
+            !compatibleQuantityUnit(change.quantityUnit, product))
+            throw new BadRequestException('Способ продажи изменился. Выберите количество в текущей единице товара.');
           const old = cart.items.find((item) => item.productId === productId);
-          if (old && !compatibleQuantityUnit(old.quantityUnit, product) && change.kind !== 'set')
+          if (old && !compatibleQuantityUnit(old.quantityUnit, product) &&
+            (change.kind !== 'set' || change.quantityUnit !== product.unit))
             throw new BadRequestException('Способ продажи изменился. Выберите число целых экземпляров заново.');
           if (
             ((change.kind === 'set' && !cartQuantityValid(change.qty, product.min, product.step)) ||

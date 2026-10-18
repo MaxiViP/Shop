@@ -2,6 +2,7 @@ name: Checkout E2E
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
   workflow_dispatch:
@@ -15,6 +16,8 @@ concurrency:
 
 jobs:
   checkout:
+    # Do not run database/browser series while a PR is still a draft.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:

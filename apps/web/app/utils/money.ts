@@ -2,6 +2,10 @@ export function money(value: number) {
   return `${(value / 100).toLocaleString("ru-RU")} ₽`;
 }
 
+export function catalogMoney(value: number) {
+  return money(value);
+}
+
 export function knownMoney(value: number | null, unknown = "Рассчитывается") {
   return value === null ? unknown : money(value);
 }

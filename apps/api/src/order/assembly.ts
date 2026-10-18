@@ -65,6 +65,8 @@ export function lineAmount(
   const denominator = integer(priceQty, 1, MAX_QTY);
   // Positive half-up rounding, without floating-point intermediate products.
   const result = (2n * numerator + denominator) / (2n * denominator);
+  if (result === 0n)
+    throw new RangeError('Стоимость положительного количества меньше одной копейки. Проверьте цену и количество.');
   if (result > BigInt(MAX_MONEY))
     throw new RangeError('Сумма позиции превышает допустимую стоимость');
   return Number(result);

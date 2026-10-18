@@ -82,6 +82,51 @@ test('category modal focuses the dialog first, focuses search only on demand and
 });
 
 const windowCode = executable(await readFile(new URL('../app/composables/useGridWindow.ts', import.meta.url), 'utf8'));
+test('disabled grids do no DOM work, install no listeners and cancel pending work when virtualization stops', async t => {
+  const mounted = [], disposed = [], stops = [], listeners = new Map(), frames = new Map();
+  let sequence = 0, reads = 0, observers = 0, scroll = 5000, grid;
+  const count = ref(24), enabled = ref(false);
+  const cards = () => {
+    assert.equal(enabled.value, true, 'disabled grid queried cards'); reads++;
+    return Array.from({ length: grid.end.value - grid.start.value }, (_, i) => ({
+      dataset: { productIndex: String(grid.start.value + i) }, getBoundingClientRect: () => ({ height: 400 }),
+    }));
+  };
+  const root = ref({ querySelectorAll: cards, getBoundingClientRect: () => {
+    assert.equal(enabled.value, true, 'disabled grid measured layout'); reads++;
+    return { top: -scroll, width: 390 };
+  } });
+  const context = { ref, nextTick, watch: (...args) => { stops.push(watch(...args)); },
+    onMounted: fn => mounted.push(fn), onBeforeUnmount: fn => disposed.push(fn), onUpdated() {},
+    window: { innerHeight: 800, get scrollY() { return scroll; }, scrollBy: ({ top }) => { scroll += top; },
+      addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) },
+    document: { querySelectorAll: cards }, getComputedStyle: () => ({ gridTemplateColumns: '180px 180px', rowGap: '8px' }),
+    requestAnimationFrame: fn => { frames.set(++sequence, fn); return sequence; }, cancelAnimationFrame: id => frames.delete(id),
+    ResizeObserver: class { constructor() { observers++; } observe() {} disconnect() { observers--; } },
+    IntersectionObserver: class { constructor() { observers++; } observe() {} disconnect() { observers--; } },
+  };
+  grid = new Function(...Object.keys(context), 'root', 'count', 'enabled', windowCode + '\nreturn useGridWindow(root,count,enabled);')(...Object.values(context), root, () => count.value, () => enabled.value);
+  t.after(() => { disposed.forEach(fn => fn()); stops.forEach(stop => stop()); });
+  mounted.forEach(fn => fn());
+  count.value = 48; await nextTick();
+  assert.equal(reads, 0); assert.equal(observers, 0); assert.equal(listeners.size, 0); assert.equal(frames.size, 0);
+  assert.equal(grid.end.value, 48);
+  count.value = 600; enabled.value = true; await nextTick();
+  assert.equal(observers, 2); assert.equal(listeners.size, 2);
+  const pending = [...frames.values()]; frames.clear(); pending.forEach(fn => fn());
+  await nextTick();
+  assert.ok(reads > 0); assert.ok(grid.start.value > 0); assert.equal(scroll, 5000);
+  listeners.get('scroll')();
+  const stale = [...frames.values()];
+  enabled.value = false; await nextTick();
+  const previousReads = reads;
+  stale.forEach(fn => fn());
+  assert.equal(reads, previousReads); assert.equal(observers, 0); assert.equal(listeners.size, 0); assert.equal(frames.size, 0);
+  assert.deepEqual([grid.start.value, grid.end.value, grid.top.value, grid.bottom.value], [0, 600, 0, 0]);
+  assert.equal(scroll, 5000);
+  enabled.value = true; await nextTick();
+  assert.equal(observers, 2); assert.equal(listeners.size, 2); assert.equal(frames.size, 1);
+});
 test('long feeds bound mounted cards, preserve measured row height while scrolling, and release observers', t => {
   const mounted = [], disposed = [], stops = [], listeners = new Map(), frames = new Map();
   let sequence = 0, scroll = 0, grid;

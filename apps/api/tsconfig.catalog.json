@@ -4,9 +4,17 @@
     "incremental": false
   },
   "include": [
+    "data/product-photos/**/*.ts",
+    "src/product/photo-import.spec.ts",
+    "src/cart/cart.spec.ts",
+    "src/admin/admin.spec.ts",
     "data/catalog-import/**/*.ts",
     "data/bagrationovsky/**/*.ts",
     "data/sale-audit/**/*.ts",
+    "data/product-image-variants/**/*.ts",
+    "data/product-image-production/**/*.ts",
+    "src/product/image-*.spec.ts",
+    "test/product-images.spec.ts",
     "test/catalog-import.e2e-spec.ts",
     "test/bagrationovsky*.ts",
     "test/sale-models.e2e-spec.ts"

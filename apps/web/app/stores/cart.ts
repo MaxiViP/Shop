@@ -1,7 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import type { ProductListItem } from "~/types/product";
-import { variableWeight } from '../utils/sale.ts';
+import { compatibleQuantityUnit, variableWeight } from '../utils/sale.ts';
 import {
   cartKey,
   nextCartQty,
@@ -74,6 +74,7 @@ export const useCartStore = defineStore("cart", () => {
 
   function add(product: ProductListItem) {
     const item = items.value.find((item) => item.product.id === product.id);
+    if (item && !compatibleQuantityUnit(item.quantityUnit ?? item.product.unit, product)) return false;
     const next = nextCartQty(item?.qty, product);
     return next !== null && put(product, next);
   }
@@ -81,6 +82,7 @@ export const useCartStore = defineStore("cart", () => {
   function subtract(product: ProductListItem) {
     const item = items.value.find((item) => item.product.id === product.id);
     if (!item) return false;
+    if (!compatibleQuantityUnit(item.quantityUnit ?? item.product.unit, product)) return false;
     const next = previousCartQty(item.qty, product);
     if (next === null) return false;
     if (next === 0) {
@@ -97,7 +99,7 @@ export const useCartStore = defineStore("cart", () => {
     if (!item && items.value.length >= 50) return false;
     // The same desired quantity is a no-op. Keep reconciled server product data,
     // rather than replacing it with a potentially older catalog snapshot.
-    if (item?.qty === qty && (!item.quantityUnit || item.quantityUnit === product.unit) &&
+    if (item?.qty === qty && (item.quantityUnit ?? item.product.unit) === product.unit &&
       (variableWeight(product) || (!item.weightMinGrams && !item.weightMaxGrams))) return true;
     invalidateQuote();
     if (item) {

@@ -7,7 +7,7 @@ import { ImagesService } from './images.service.js';
 import { quantityErrors, type ProductQuantity } from '../order/assembly.js';
 import { priceBreakdown } from '../product/pricing.js';
 import { hitActive, type HitProduct } from '../product/badges.js';
-import { saleErrors, type Sale } from '../product/sale.js';
+import { saleErrors, saleTermsChanged, type Sale } from '../product/sale.js';
 
 function adminProduct<T extends { price: number } & HitProduct>(product: T) {
   return { ...product, autoHit: product.isHit === true, isHit: hitActive(product), ...priceBreakdown(product.price) };
@@ -96,6 +96,8 @@ export class AdminProductsService {
   }
   pricing(price: number) { return priceBreakdown(price); }
   async create(data: ProductInput, actorId?: number) {
+    const { saleChangeConfirmed: _confirmed, ...fields } = data;
+    data = fields;
     validateQuantity(data);
     validateSeason(data);
     const values = settlement(data.settlementMode, data.basePrice);
@@ -114,11 +116,15 @@ export class AdminProductsService {
     }
   }
   async update(id: number, data: Partial<ProductInput>, actorId?: number) {
+    const { saleChangeConfirmed, ...fields } = data;
+    data = fields;
     try {
       return await this.db.$transaction(
         async (db) => {
           const current = await db.product.findUnique({ where: { id } });
           if (!current) throw new NotFoundException('Товар не найден');
+          if (saleTermsChanged(current, { ...current, ...data }) && !saleChangeConfirmed)
+            throw new BadRequestException('Подтвердите изменение условий продажи и проверьте цену за новую единицу.');
           validateQuantity({ ...current, ...data });
           validateSeason({ ...current, ...data });
           const season = await this.season(db, data, current);

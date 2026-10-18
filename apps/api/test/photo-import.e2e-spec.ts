@@ -16,6 +16,7 @@ import type { DbService } from '../src/db/db.service.js';
 import type { TelegramService } from '../src/telegram/telegram.service.js';
 import type { PhotoPack } from '../src/product/photo-pack.js';
 import { ProductCtrl } from '../src/product/product.ctrl.js';
+import { ImageRegistry } from '../src/product/image-registry.js';
 import { ProductService } from '../src/product/product.service.js';
 import { CartCtrl } from '../src/cart/cart.ctrl.js';
 import { CartService } from '../src/cart/cart.service.js';
@@ -69,6 +70,7 @@ describe.skipIf(!process.env.DATABASE_URL)('product photo import / isolated loca
     const module = await Test.createTestingModule({
       controllers: [ProductCtrl, CartCtrl, FavoriteCtrl], providers: [
         { provide: ProductService, useValue: new ProductService(database) },
+        { provide: ImageRegistry, useValue: new ImageRegistry({ enabled: false }) },
         { provide: CartService, useValue: new CartService(database, orders) },
         { provide: FavoriteService, useValue: new FavoriteService(database) },
         { provide: AuthService, useValue: { me: async () => ({ id: userId, role: 'USER' }) } },

@@ -1,6 +1,7 @@
 <template>
   <section
     v-if="activeSlide"
+    ref="hero"
     class="hero"
     :class="{ 'hero--feature': featureSlide }"
     aria-label="Прилавки рынка"
@@ -21,14 +22,23 @@
         leave-to-class="hero__frame--hidden"
       >
         <div :key="activeSlide.id" class="hero__frame">
-          <img
-            v-if="activeSlide.image"
-            class="hero__image"
-            :src="asset(activeSlide.image)"
-            :style="{ objectPosition: activeSlide.position ?? 'center' }"
-            alt=""
-            draggable="false"
-          >
+          <picture v-if="activeSlide.image">
+            <source v-if="responsiveImage" type="image/avif" :srcset="responsiveImage.avifSrcset" :sizes="responsiveImage.sizes">
+            <img
+              class="hero__image"
+              :src="asset(activeSlide.image)"
+              :srcset="responsiveImage?.srcset"
+              :sizes="responsiveImage?.sizes"
+              :width="responsiveImage?.width"
+              :height="responsiveImage?.height"
+              :fetchpriority="activeIndex === 0 ? 'high' : 'auto'"
+              loading="eager"
+              decoding="async"
+              :style="{ objectPosition: activeSlide.position ?? 'center' }"
+              alt=""
+              draggable="false"
+            >
+          </picture>
 
           <div class="hero__content hero__content--active" :data-slide-id="activeSlide.id" :aria-hidden="featureSlide || undefined">
             <p v-if="activeSlide.eyebrow" class="hero__label">
@@ -151,6 +161,7 @@
 
 <script setup lang="ts">
 import { heroDuration } from '~/utils/home-slides';
+import { heroImage } from '~/utils/hero-image';
 const { slides: heroSlides } = await useHomeSlides();
 const asset = useAsset();
 const activeIndex = ref(0);
@@ -167,6 +178,19 @@ const featureSlide = computed(
 const activeSlide = computed(
   () => heroSlides.value[activeIndex.value] ?? heroSlides.value[0],
 );
+const hero = ref<HTMLElement | null>(null);
+const coverWidth = ref(0);
+const responsiveImage = computed(() => heroImage(activeSlide.value?.image, coverWidth.value));
+let heroObserver: ResizeObserver | undefined;
+onMounted(() => {
+  heroObserver = new ResizeObserver(([entry]) => {
+    if (!entry) return;
+    // cover may scale by height on phones. Using only 100vw undersamples at DPR 2/3.
+    coverWidth.value = Math.max(entry.contentRect.width, entry.contentRect.height * 1672 / 941);
+  });
+  if (hero.value) heroObserver.observe(hero.value);
+});
+onBeforeUnmount(() => heroObserver?.disconnect());
 let media: MediaQueryList | undefined;
 let motion: MediaQueryList | undefined;
 let autoplay: ReturnType<typeof setTimeout> | undefined;

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createPinia } from 'pinia';
 import { useCartStore } from '../app/stores/cart.ts';
-import { decodeCart, previewTotal, validCartQty } from '../app/utils/cart.ts';
+import { cartKey, decodeCart, previewTotal, validCartQty } from '../app/utils/cart.ts';
 import { qtyText } from '../app/utils/qty.ts';
 import { quickAddState } from '../app/utils/quick-add.ts';
 import { deliveryEligibility } from '../app/utils/shop-settings.ts';
@@ -50,4 +50,33 @@ test('a verified unknown-weight quote remains orderable with no invented subtota
   assert.equal(cart.quote.valid, true);
   assert.equal(cart.total, null);
   assert.equal(deliveryEligibility(null, { deliveryEnabled: true, pickupEnabled: true, minDeliverySubtotal: 100000 }).pickup, true);
+});
+test('stale grams cannot be silently changed to pieces by plus or minus', () => {
+  const cart = useCartStore(createPinia());
+  const grams = { ...whole, unit: 'GRAM', priceUnit: 'GRAM', saleModel: 'WEIGHT_LOOSE', min: 1, step: 1, portionQty: 1 };
+  cart.restore([{ product: grams, qty: 5, quantityUnit: 'GRAM' }]);
+  assert.equal(cart.add(whole), false);
+  assert.equal(cart.subtract(whole), false);
+  assert.equal(cart.qty(1), 5);
+  assert.equal(cart.put(whole, 2), true); // Explicitly chosen new total.
+  assert.equal(cart.items[0].quantityUnit, 'PIECE');
+  assert.equal(cart.qty(1), 2);
+});
+test('preview never presents positive quantities as free', () => {
+  assert.equal(previewTotal({ ...whole, unit: 'GRAM', priceUnit: 'GRAM', saleModel: 'WEIGHT_LOOSE', price: 1, priceQty: 1000 }, 1), null);
+});
+test('stale quantityUnit remains part of the quote identity until explicitly corrected', () => {
+  const fixed = { ...whole, priceUnit: 'PIECE', saleModel: 'PIECE_FIXED', priceQty: 1 };
+  assert.notEqual(cartKey([{ product: fixed, qty: 2, quantityUnit: 'GRAM' }]), cartKey([{ product: fixed, qty: 2, quantityUnit: 'PIECE' }]));
+});
+test('explicit same-number correction from grams to pieces refreshes product data and quote identity', () => {
+  const cart = useCartStore(createPinia());
+  const grams = { ...whole, unit: 'GRAM', saleModel: 'WEIGHT_LOOSE', min: 1, step: 1, portionQty: 1 };
+  const pieces = { ...whole, priceUnit: 'PIECE', priceQty: 1, saleModel: 'PIECE_FIXED' };
+  cart.restore([{ product: grams, qty: 1 }]);
+  const before = cart.key;
+  assert.equal(cart.put(pieces, 1), true);
+  assert.equal(cart.items[0].product.unit, 'PIECE');
+  assert.notEqual(cart.key, before);
+  assert.equal(cart.quoteReady, false);
 });

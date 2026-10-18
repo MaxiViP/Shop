@@ -1,13 +1,13 @@
 <template>
   <strong class="price">
-    <span>{{ money(product.price) }}</span>
+    <span>{{ catalogMoney(product.price) }}</span>
     <span class="price__unit">/ {{ unit }}</span>
   </strong>
 </template>
 
 <script setup lang="ts">
 import type { ProductListItem } from "~/types/product";
-import { money } from "~/utils/money";
+import { catalogMoney } from "~/utils/money";
 import { priceUnit } from '../../utils/sale.ts';
 
 const { product } = defineProps<{

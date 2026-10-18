@@ -15,6 +15,7 @@ const qty = z.number().int().positive().max(MAX_QTY);
 export const pricePreviewSchema = z.strictObject({ price: z.number().int().positive().max(100_000_000) });
 export const priceStatusSchema = z.enum(['ESTIMATED', 'SOURCE', 'AUDITED']);
 const productFields = z.strictObject({
+  saleChangeConfirmed: z.literal(true).optional(),
   name,
   slug,
   description: z.string().trim().max(10000).nullable(),

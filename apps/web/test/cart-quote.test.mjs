@@ -54,7 +54,7 @@ test("layout and page share quotes, retries and cancellation across cart edits a
     cart.restore([{ product, qty: 500 }]);
     await nextTick();
     assert.equal(requests.length, 1);
-    assert.deepEqual(requests[0].body, { items: [{ productId: 1, qty: 500 }] });
+    assert.deepEqual(requests[0].body, { items: [{ productId: 1, qty: 500, quantityUnit: 'GRAM' }] });
     cart.add(product);
     await nextTick();
     assert.equal(requests.length, 2);

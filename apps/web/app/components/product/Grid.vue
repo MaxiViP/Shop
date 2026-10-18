@@ -7,6 +7,7 @@
         :key="product.id"
         :product="product"
         :compact="compact"
+        :eager-image="eagerImages && start + index < 4"
         :data-product-index="start + index"
       />
       <div v-if="bottom" class="grid__spacer" :style="{ height: `${bottom}px` }" aria-hidden="true" />
@@ -17,11 +18,12 @@
 <script setup lang="ts">
 import type { ProductListItem } from "~/types/product";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   items: ProductListItem[];
   compact?: boolean;
   windowed?: boolean;
-}>();
+  eagerImages?: boolean;
+}>(), { eagerImages: true });
 const root = ref<HTMLElement | null>(null);
 const { start, end, top, bottom } = useGridWindow(root, () => props.items.length, () => !!props.windowed);
 const visible = computed(() => props.items.slice(start.value, props.windowed ? end.value : undefined));

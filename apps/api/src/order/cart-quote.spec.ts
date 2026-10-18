@@ -137,6 +137,9 @@ describe('Current server cart quote', () => {
     ).toBe(2147483647);
   });
   it('reports line and total overflow without an unhandled Prisma/database error', () => {
+    expect(calculate(1, { min: 1, step: 1, price: 1, priceQty: 1000 })).toMatchObject({
+      valid: false, subtotal: null, items: [{ status: 'PRICE_OVERFLOW', lineTotal: null }],
+    });
     expect(calculate(1100, { price: 2147483647, priceQty: 1 })).toMatchObject({
       valid: false,
       items: [{ status: 'PRICE_OVERFLOW' }],

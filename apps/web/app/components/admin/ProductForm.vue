@@ -50,7 +50,13 @@
           ><h2 class="font-semibold">Цена и количество</h2></template
         >
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <UFormField label="Способ продажи" :error="quantityError.saleModel" help="Нарезку, фасовку и оценочный вес подтвердите у продавца."><USelect v-model="form.saleModel" :items="saleOptions" value-key="value" class="w-full" @update:model-value="chooseSale" /></UFormField>
+          <UFormField label="Способ продажи" :error="quantityError.saleModel" help="Нарезку, фасовку и оценочный вес подтвердите у продавца. Выбор режима не изменяет цену, единицы и количества автоматически."><USelect v-model="form.saleModel" :items="saleOptions" value-key="value" class="w-full" /></UFormField>
+          <UAlert v-if="saleChanged" class="sm:col-span-2 lg:col-span-3" color="warning" title="Изменяются условия продажи">
+            <template #description>
+              <p>Проверьте цену за указанную единицу, минимальный заказ, шаг и порцию. Прежняя цена автоматически не пересчитывается.</p>
+              <UCheckbox v-model="saleConfirmed" label="Условия подтверждены продавцом; цена и количества проверены" class="mt-3" />
+            </template>
+          </UAlert>
           <UFormField label="Цена продавца, ₽" required help="Исходная цена без сервиса KorzinaMarket."
             ><UInput
               v-model="rubles"
@@ -221,7 +227,7 @@ import { priceStatusItems } from "~/utils/price-status";
 import type { Unit } from "~/types/product";
 import { MAX_QTY, manualQuantity, quantityErrors } from "~/utils/assembly";
 import { qtyText } from "~/utils/qty";
-import { priceUnit, saleErrors, variableWeight, wholeLabels, type SaleModel } from '~/utils/sale';
+import { priceUnit, saleErrors, saleTermsChanged, variableWeight, wholeLabels, type SaleModel } from '~/utils/sale';
 import { nextCartQty } from '~/utils/cart';
 import type { HitMode, SeasonalMode, SeasonTemplate } from '~/types/badges';
 import { hitModes, seasonGroupLabel } from '~/utils/badges';
@@ -263,15 +269,10 @@ const saleOptions = [
   { label: 'Пучками', value: 'BUNCH' }, { label: 'Упаковками', value: 'PACK' },
   { label: 'Целиком с взвешиванием', value: 'WHOLE_VARIABLE_WEIGHT' }, { label: 'Нарезка по весу', value: 'CUT_TO_WEIGHT' },
 ];
-function chooseSale() {
-  if (!form.saleModel) return;
-  const mode = form.saleModel;
-  form.unit = mode === 'PACK' ? 'PACK' : mode === 'BUNCH' ? 'BUNCH' : ['WHOLE_VARIABLE_WEIGHT', 'PIECE_FIXED'].includes(mode) ? 'PIECE' : 'GRAM';
-  form.priceUnit = mode === 'WHOLE_VARIABLE_WEIGHT' ? 'GRAM' : form.unit;
-  // The administrator must check the existing price before changing its base.
-  if (form.unit !== 'GRAM') form.min = form.step = form.portionQty = 1;
-  if (!variableWeight(form)) { form.estimatedWeightGrams = null; estimate.value = ''; }
-}
+const saleConfirmed = ref(false);
+const saleChanged = computed(() => Boolean(source && saleTermsChanged(source, form)));
+watch(() => [form.saleModel, form.unit, form.priceUnit, form.priceQty, form.min, form.step,
+  form.portionQty, form.estimatedWeightGrams, rubles.value], () => { saleConfirmed.value = false; });
 const checkedDate = ref(source?.sourceCheckedAt?.slice(0, 10) ?? "");
 const pricing = ref<ProductPricing | null>(source ?? null);
 const pricingError = ref(false);
@@ -359,6 +360,9 @@ const busy = ref(false);
 const error = ref("");
 async function save() {
   if (busy.value) return;
+  if (saleChanged.value && !saleConfirmed.value) {
+    error.value = 'Подтвердите условия продажи и проверьте цену за новую единицу.'; return;
+  }
   if (form.seasonalMode === 'AUTO' && !form.seasonTemplateId) {
     error.value = 'Выберите шаблон сезонности.'; return;
   }
@@ -390,6 +394,7 @@ async function save() {
         method: source ? "PATCH" : "POST",
         body: {
           ...form,
+          ...(saleChanged.value ? { saleChangeConfirmed: true } : {}),
           wholeLabel: variableWeight(form) ? form.wholeLabel : null,
           name: form.name.trim(),
           description: form.description.trim() || null,

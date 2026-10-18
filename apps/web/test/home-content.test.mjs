@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { heroDuration, visibleHomeSlides } from '../app/utils/home-slides.ts';
+import { heroImage } from '../app/utils/hero-image.ts';
 import { moscowInput, pickupDate } from '../app/utils/pickup.ts';
 import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
@@ -15,6 +16,16 @@ test('the real carousel timer respects reading time and is bounded, independentl
   assert.equal(heroDuration({ title: 'Рынок', text: Array(29).fill('слово').join(' ') }), 9000);
   assert.equal(heroDuration({ title: 'Рынок', text: Array(100).fill('слово').join(' ') }), 25000);
   assert.equal(heroDuration({ title: 'Рынок', text: '' }, true), 15000);
+});
+
+test('hero variants preserve the full frame, cover width and custom image URLs', () => {
+  const image = heroImage('/images/hero/hero-0.webp', 1100.5);
+  assert.equal(image.sizes, '1101px');
+  assert.equal(image.width, 1672); assert.equal(image.height, 941);
+  assert.match(image.srcset, /hero-0.webp 1672w/);
+  assert.match(image.avifSrcset, /hero-0-1672.avif 1672w/);
+  for (const path of [null, undefined, '/uploads/products/custom.webp', 'https://example.test/hero-0.webp', '/images/hero/hero-0.webp?v=2'])
+    assert.equal(heroImage(path), undefined);
 });
 
 test('SSR and hydration use the same order; expired offers are omitted even when refreshing fails', () => {
@@ -46,12 +57,12 @@ test('the carousel renders and switches each slide title, description, image and
       position: 'center', eyebrow: 'Доставка', buttonLabel: 'Условия доставки', to: '/delivery' },
   ]);
   const context = { ref, computed, watch: () => {}, onMounted: () => {}, onBeforeUnmount: () => {},
-    useHomeSlides: async () => ({ slides }), useAsset: () => value => value, heroDuration,
+    useHomeSlides: async () => ({ slides }), useAsset: () => value => value, heroDuration, heroImage,
     setTimeout: () => 1, clearTimeout: () => {} };
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
   const scope = await new AsyncFunction(...Object.keys(context), code + `
     return { activeSlide, featureSlide, compact, heroSlides, activeIndex, slideCount, paused, hovered, focused,
-      asset, changeSlide, startSwipe, endSwipe, cancelSwipe, leaveFocus };`)(...Object.values(context));
+      asset, responsiveImage, changeSlide, startSwipe, endSwipe, cancelSwipe, leaveFocus };`)(...Object.values(context));
   const template = compileTemplate({ source: descriptor.template.content, filename: 'HeroCarousel.vue', id: 'hero-test' });
   assert.deepEqual(template.errors, []);
   const compiled = ts.transpileModule(template.code, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;

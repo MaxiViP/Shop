@@ -1,0 +1,8 @@
+# Reference policy included in deploy/shop-api.service; not a separate drop-in.
+# Acceptance renders the actual API unit into new disposable fixture paths.
+# Target installation still requires verified roots and separate approval.
+[Service]
+PrivatePIDs=yes
+ReadOnlyPaths=/var/lib/korzinamarket/uploads/product-variants
+ReadOnlyPaths=/var/lib/korzinamarket/uploads/.product-image-state
+InaccessiblePaths=/var/lib/korzinamarket-image-runner

@@ -1,0 +1,9 @@
+[Unit]
+Description=Manual reference retaining the image runner deployment fence %i
+# This target must be started explicitly before inspection. It has no install target.
+Wants=shop-image-runner@%i.service
+After=shop-image-runner@%i.service
+RefuseManualStop=yes
+IgnoreOnIsolate=yes
+StopWhenUnneeded=no
+# Retain the service/FD store after stop, SIGKILL and OOM. Release is separate operator recovery.

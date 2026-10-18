@@ -21,6 +21,7 @@ import { HitsService } from '../src/admin/hits.service.js';
 import { SeasonsCtrl } from '../src/admin/seasons.ctrl.js';
 import { SeasonsService } from '../src/admin/seasons.service.js';
 import { ProductCtrl } from '../src/product/product.ctrl.js';
+import { ImageRegistry } from '../src/product/image-registry.js';
 import { ProductService } from '../src/product/product.service.js';
 
 type Cards = { items: { id: number; isHit: boolean; isSeasonal: boolean }[]; nextCursor: string | null; total: number };
@@ -45,6 +46,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Manual hits and market presets / iso
     const module = await Test.createTestingModule({
       controllers: [AdminProductsCtrl, HitsCtrl, SeasonsCtrl, ProductCtrl],
       providers: [AdminProductsService, ImagesService, HitsService, SeasonsService, ProductService, AdminGuard,
+        { provide: ImageRegistry, useValue: new ImageRegistry({ enabled: false }) },
         { provide: DbService, useValue: db },
         { provide: AuthService, useValue: { me: async (role: string) => ['USER', 'SELLER', 'ADMIN'].includes(role)
           ? { id: actorId, role, phone: '+79990000001' } : null } }],
