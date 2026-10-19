@@ -1,0 +1,19 @@
+name: Deploy script checks
+on:
+  pull_request:
+    paths: ['deploy/**', '.github/workflows/deploy-checks.yml']
+  push:
+    branches: [main]
+    paths: ['deploy/**', '.github/workflows/deploy-checks.yml']
+permissions:
+  contents: read
+jobs:
+  release-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: bash -n deploy/deploy.sh
+      - run: node --test deploy/test-release.mjs

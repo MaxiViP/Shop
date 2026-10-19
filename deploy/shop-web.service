@@ -7,11 +7,11 @@ After=network.target shop-api.service
 Type=simple
 User=shop
 Group=shop
-WorkingDirectory=/opt/korzinamarket
+WorkingDirectory=/opt/korzinamarket/current
 EnvironmentFile=/etc/korzinamarket/web.env
 Environment=NITRO_HOST=127.0.0.1
 Environment=NITRO_PORT=3000
-ExecStart=/usr/bin/node /opt/korzinamarket/apps/web/.output/server/index.mjs
+ExecStart=/usr/bin/node /opt/korzinamarket/current/apps/web/.output/server/index.mjs
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30
