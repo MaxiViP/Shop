@@ -81,3 +81,37 @@ it('fails availability in legacy shared-bot mode', () => {
   vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', process.env.TELEGRAM_CUSTOMER_BOT_TOKEN!);
   expect(new CustomerNotificationService().available).toBe(false);
 });
+
+it('opens authoritative payment details directly and distinguishes goods due from the delivery-inclusive total', async () => {
+  await new CustomerNotificationService().send('12345', { event: { type: 'PAYMENT_READY' },
+    order: { id: 7, publicId: '11111111-1111-4111-8111-111111111111', type: 'DELIVERY',
+      finalSubtotal: 100000, finalTotal: 105000, deliveryPrice: 15000, promoCodeSnapshot: 'SAVE',
+      finalPromoDiscount: 10000, payment: { amount: 90000, status: 'AWAITING' }, delivery: null },
+    issue: null, message: null });
+  const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+  expect(body.text).toContain('К переводу за товары: 900');
+  expect(body.text).toContain('Поступление денег подтвердит продавец');
+  expect(body.reply_markup.inline_keyboard[0][0]).toMatchObject({ text: '💳 Открыть оплату', style: 'primary' });
+  expect(body.reply_markup.inline_keyboard[0][0].callback_data).toMatch(/^s:p:/);
+  expect(body.text).not.toContain('Я оплатил');
+});
+it('completed orders offer quick shopping through a read-only entry and never repeat a mutation', async () => {
+  await new CustomerNotificationService().send('12345', { event: { type: 'ORDER_COMPLETED' },
+    order: { id: 7, publicId: '11111111-1111-4111-8111-111111111111', finalSubtotal: 50000, finalTotal: 50000, delivery: null },
+    issue: null, message: null });
+  const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+  expect(body.text).toContain('по текущим ценам');
+  expect(body.reply_markup.inline_keyboard[0][0].web_app.url).toBe(
+    'https://shop.example/telegram?returnTo=' + encodeURIComponent('/quick-shop'));
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('a fully covered order never asks the buyer to transfer money', async () => {
+  await new CustomerNotificationService().send('12345', { event: { type: 'PAYMENT_RECEIVED' },
+    order: { id: 7, publicId: '11111111-1111-4111-8111-111111111111', type: 'PICKUP',
+      finalSubtotal: 50000, finalTotal: 0, payment: { amount: 0, status: 'PAID' }, delivery: null },
+    issue: null, message: null });
+  const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+  expect(body.text).toContain('Перевод за товары не требуется');
+  expect(body.reply_markup.inline_keyboard.flat().some((button: { callback_data?: string }) =>
+    button.callback_data?.startsWith('s:p:'))).toBe(false);
+});

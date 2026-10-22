@@ -1,9 +1,16 @@
+export { reviewSnapshot } from '../staff/review.js';
 import { HttpException } from '@nestjs/common';
 import { z } from 'zod';
 import { clean, money } from './staff-bot.js';
 
-export type Flow = 'ITEM' | 'EXTRA' | 'DELIVERY' | 'CANCEL';
+export type ReviewFlow = 'RESET_ITEM' | 'REMOVE_EXTRA' | 'FINISH_ASSEMBLY' | 'REOPEN' | 'PAYMENT';
+export type Flow = 'ITEM' | 'EXTRA' | 'DELIVERY' | 'CANCEL' | ReviewFlow;
+export const isReviewFlow = (action: string): action is ReviewFlow =>
+  ['RESET_ITEM', 'REMOVE_EXTRA', 'FINISH_ASSEMBLY', 'REOPEN', 'PAYMENT'].includes(action);
+export const reviewCallback = { RESET_ITEM: 'ry', REMOVE_EXTRA: 'xy', FINISH_ASSEMBLY: 'fy', REOPEN: 'by', PAYMENT: 'py' } as const;
+
 export const flowPayload = z.object({
+  snapshot: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   title: z.string().max(120).optional(), quantity: z.number().int().optional(),
   unitPrice: z.number().int().optional(), comment: z.string().max(1000).optional(),
   extraId: z.number().int().positive().optional(), version: z.number().int().positive().optional(),
@@ -18,13 +25,17 @@ export function flowPrompt(action: string, step: string, data: FlowPayload, orde
   unit?: string): string {
   if (step === 'CONFIRM') {
     if (action === 'EXTRA') return 'Сохранить доп. позицию?\n' + clean(data.title, 120) +
-      ' · ' + data.quantity + ' × ' + money(data.unitPrice);
+      ' · ' + data.quantity + ' × ' + money(data.unitPrice) +
+      (data.comment ? '\nКомментарий: ' + clean(data.comment, 500) : '');
     if (action === 'CANCEL') return 'Отменить заказ #' + orderId + '?\nПричина: ' + clean(data.reason, 500);
-    if (action === 'DELIVERY') return 'Оформить доставку OTHER?\nКурьер: ' +
-      clean(data.courierName, 100) + '\nЦена: ' + money(data.price);
+    if (action === 'DELIVERY') return 'Оформить доставку своим курьером?\nКурьер: ' +
+      clean(data.courierName, 100) + '\nТелефон: ' + clean(data.courierPhone, 30) +
+      '\nЦена: ' + money(data.price) +
+      (data.trackingUrl ? '\nОтслеживание: ' + clean(data.trackingUrl, 500) : '') +
+      (data.externalOrderId ? '\nНомер доставки: ' + clean(data.externalOrderId, 100) : '');
   }
   if (action === 'ITEM' && step === 'qty') return unit === 'GRAM'
-    ? 'Введите фактический вес целым числом граммов.'
+    ? 'Введите фактический вес: целые граммы (1024) или вес с единицей (1,024 кг).'
     : 'Введите фактическое количество целым числом.';
   if (action === 'CANCEL' && step === 'reason') return 'Причина отмены (1–1000 символов).';
   const prompts: Record<string, Record<string, string>> = {

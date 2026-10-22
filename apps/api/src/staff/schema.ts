@@ -18,6 +18,8 @@ export const itemSchema = z.discriminatedUnion('status', [
   }),
 ]);
 
+export const itemQuoteSchema = itemSchema.options[0];
+
 export const itemPriceSchema = z.object({
   sellerPrice: z.number().int().min(1).max(100_000_000),
   reason: z.string().trim().max(500).optional(),

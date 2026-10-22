@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -21,6 +22,7 @@ import { extraSchema, editExtraSchema, cancelExtraSchema } from './extra.js';
 import {
   deliverySchema,
   itemSchema,
+  itemQuoteSchema,
   itemPriceSchema,
   type DeliveryInput,
   type ItemInput,
@@ -215,6 +217,15 @@ export class StaffCtrl {
     body: ItemInput,
   ) {
     return this.staff.item(id, itemId, body, request.user.id, staffActor(request.user));
+  }
+
+  @Post(':id/items/:itemId/quote')
+  @Header('Cache-Control', 'private, no-store')
+  itemQuote(@Req() request: AuthRequest,
+    @Param('id', { schema: idSchema }) id: number,
+    @Param('itemId', { schema: idSchema }) itemId: number,
+    @Body({ schema: itemQuoteSchema }) body: z.infer<typeof itemQuoteSchema>) {
+    return this.staff.itemQuote(id, itemId, body, staffActor(request.user));
   }
 
   @Patch(':id/items/:itemId/price')

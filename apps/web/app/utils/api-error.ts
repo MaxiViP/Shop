@@ -37,6 +37,10 @@ export function apiError(error: unknown) {
   }
 
   if (typeof value.message === 'string') {
+    if (/^(Failed to fetch|fetch failed|Load failed|NetworkError(?: when attempting to fetch resource\.)?)$/i.test(value.message) ||
+      /^\[[A-Z]+\] .*: <no response>/.test(value.message)) {
+      return 'Не удалось получить ответ сервера. Проверьте подключение к интернету.'
+    }
     return messages[value.message] ?? value.message
   }
 

@@ -15,6 +15,19 @@ function retryAfter(body: unknown): number | undefined {
     ? seconds : undefined;
 }
 
+// Only definite edit rejections can be reconciled. A transport timeout never
+// proves an edit failed, so it must not trigger a second message.
+function editState(method: BotMethod, body: unknown): 'unchanged' | 'uneditable' | undefined {
+  if (!['editMessageText', 'editMessageReplyMarkup'].includes(method) || !body ||
+    typeof body !== 'object' || !('ok' in body) || body.ok !== false ||
+    !('error_code' in body) || body.error_code !== 400 ||
+    !('description' in body) || typeof body.description !== 'string') return;
+  const description = body.description.toLowerCase();
+  if (/^bad request: message is not modified(?:$|:)/.test(description)) return 'unchanged';
+  if (method === 'editMessageText' && ['bad request: message to edit not found',
+    "bad request: message can't be edited"].includes(description)) return 'uneditable';
+}
+
 // One destination is selected before sending. A failed gateway request must NEVER
 // fall back to Telegram: the first request may already have reached the bot.
 function destination(token: string, method: BotMethod): string | null {
@@ -45,7 +58,7 @@ async function request(
   method: BotMethod,
   payload: object,
   timeout: number,
-): Promise<{ ok: boolean; result?: unknown; failure?: Exclude<DeliveryStatus, 'sent'>; retryAfter?: number }> {
+): Promise<{ ok: boolean; result?: unknown; failure?: Exclude<DeliveryStatus, 'sent'>; retryAfter?: number; unchanged?: boolean; uneditable?: boolean }> {
   if (!token) return { ok: false, failure: 'rejected' };
   const url = destination(token, method);
   if (!url) return { ok: false, failure: 'rejected' };
@@ -63,6 +76,12 @@ async function request(
         const body: unknown = await response.json().catch(() => null);
         return { ok: false, failure: 'retryable', retryAfter: retryAfter(body) };
       }
+      if (response.status === 400) {
+        const body: unknown = await response.json().catch(() => null);
+        const edit = editState(method, body);
+        if (edit === 'unchanged') return { ok: true, unchanged: true };
+        return { ok: false, failure: 'rejected', ...(edit === 'uneditable' ? { uneditable: true } : {}) };
+      }
       await response.body?.cancel();
       return { ok: false, failure: response.status === 403 ? 'blocked' :
         response.status >= 400 && response.status < 500 ? 'rejected' : 'unknown' };
@@ -71,6 +90,9 @@ async function request(
     if (!body || typeof body !== 'object' || !('ok' in body) || body.ok !== true) {
       const code = body && typeof body === 'object' && 'error_code' in body ? body.error_code : null;
       if (code === 429) return { ok: false, failure: 'retryable', retryAfter: retryAfter(body) };
+      const edit = editState(method, body);
+      if (edit === 'unchanged') return { ok: true, unchanged: true };
+      if (edit === 'uneditable') return { ok: false, failure: 'rejected', uneditable: true };
       return { ok: false, failure: code === 403 ? 'blocked' :
         typeof code === 'number' && Number.isInteger(code) && code >= 400 && code < 500 ? 'rejected' : 'unknown' };
     }
@@ -98,8 +120,15 @@ export async function botMessage(
   token: string,
   method: 'sendMessage' | 'editMessageText',
   payload: object,
+  timeout = 7000,
 ): Promise<boolean> {
-  const response = await request(token, method, payload, 7000);
+  const response = await request(token, method, payload, timeout);
+  if (response.unchanged) return true;
+  if (response.uneditable && method === 'editMessageText' && 'chat_id' in payload && 'text' in payload) {
+    const { message_id: _messageId, inline_message_id: _inlineId, ...message } = payload as Record<string, unknown>;
+    const sent = await request(token, 'sendMessage', message, timeout);
+    return sent.ok && sentMessageId(sent.result) !== null;
+  }
   return response.ok && sentMessageId(response.result) !== null;
 }
 

@@ -1,4 +1,4 @@
-import { variableWeight } from '../product/sale.js';
+import { priceUnit, variableWeight } from '../product/sale.js';
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import type { StaffTelegramSession } from '../db/gen/client.js';
@@ -7,8 +7,9 @@ import { DbService } from '../db/db.service.js';
 import { StaffService } from '../staff/staff.service.js';
 import { deliverySchema } from '../staff/schema.js';
 import { extraSchema } from '../staff/extra.js';
-import { positiveQty, rublesToKopecks, staffConfirmData, staffData, type StaffMessage } from './staff-bot.js';
-import { flowPayload, flowPrompt, flowError, knownFlowError, uncertainMutation,
+import { clean, money, positiveQty, quantity, rublesToKopecks, staffConfirmData, staffData, weightGrams, type StaffMessage } from './staff-bot.js';
+import { canReview, reviewView } from './staff-bot-view.js';
+import { isReviewFlow, reviewSnapshot, flowPayload, flowPrompt, flowError, knownFlowError, uncertainMutation,
   type Flow, type FlowPayload } from './staff-flow.js';
 import { TelegramService } from './telegram.service.js';
 
@@ -75,7 +76,7 @@ export class StaffBotFlowService {
   }
 
   async input(message: StaffMessage, identityId: number, actor: StaffActor):
-    Promise<{ orderId: number; dashboardMessageId: number | null } | null> {
+    Promise<{ orderId: number; dashboardMessageId: number | null; itemId: number } | null> {
     const session = await this.db.staffTelegramSession.findUnique({ where: { identityId } });
     if (!session || session.step === 'COMMITTING' || session.step === 'CONFIRM') return null;
     if (await this.expired(session, message.chat.id)) return null;
@@ -94,21 +95,23 @@ export class StaffBotFlowService {
   }
 
   private async processInput(message: StaffMessage, actor: StaffActor,
-    session: StaffTelegramSession): Promise<{ orderId: number; dashboardMessageId: number | null } | null> {
+    session: StaffTelegramSession): Promise<{ orderId: number; dashboardMessageId: number | null; itemId: number } | null> {
     const text = message.text?.trim() ?? '';
     const chatId = message.chat.id;
     const payload = flowPayload.parse(session.payload);
     if (session.action === 'ITEM' && session.step === 'qty' && session.itemId) {
-      const actualQty = positiveQty(text);
-      if (!actualQty) return this.retry(chatId, session, 'Введите положительное целое количество.');
       const order = await this.staff.get(session.orderId);
       const item = order.items.find(value => value.id === session.itemId);
       if (!item || order.status !== 'ASSEMBLING' || item.status !== 'PENDING')
         throw new ConflictException('STALE_ITEM');
       if (variableWeight(item)) throw new ConflictException('Взвесьте каждый экземпляр в заказе на сайте.');
+      const actualQty = item.unit === 'GRAM' ? weightGrams(text) : positiveQty(text);
+      if (!actualQty) return this.retry(chatId, session, item.unit === 'GRAM'
+        ? 'Введите целые граммы, например 1024, или вес с единицей: 1,024 кг.'
+        : 'Введите положительное целое количество.');
       const committed = await this.commit(session, () => this.staff.item(session.orderId, item.id,
         { status: 'PICKED', actualQty }, actor.userId, actor));
-      return committed ? { orderId: session.orderId, dashboardMessageId: session.dashboardMessageId } : null;
+      return committed ? { orderId: session.orderId, dashboardMessageId: session.dashboardMessageId, itemId: item.id } : null;
     }
     if (session.action === 'CANCEL' && session.step === 'reason') {
       if (!text || text.length > 1000)
@@ -207,15 +210,29 @@ export class StaffBotFlowService {
 
   private async present(chatId: number, session: StaffTelegramSession, retryPrompt?: string): Promise<boolean> {
     const data = flowPayload.parse(session.payload);
+    if (isReviewFlow(session.action)) {
+      const order = await this.staff.get(session.orderId);
+      const view = data.snapshot === reviewSnapshot(order)
+        ? reviewView(order, session.action, data, session.confirmationCode ?? '', session.itemId)
+        : { text: 'Заказ #' + session.orderId + ' изменился после проверки. Откройте его и проверьте действие заново.',
+          keyboard: { inline_keyboard: [[{ text: 'К актуальному заказу', callback_data: staffData(session.orderId, 'zb') }]] } };
+      if (session.dashboardMessageId)
+        await this.telegram.editStaff(chatId, session.dashboardMessageId, view.text, view.keyboard);
+      else await this.telegram.sendStaff(chatId, view.text, view.keyboard);
+      return true;
+    }
     let unit: string | undefined;
+    let itemContext = '';
     if (session.action === 'ITEM') {
       const order = await this.staff.get(session.orderId);
       const item = order.items.find(value => value.id === session.itemId);
       if (!item || order.status !== 'ASSEMBLING' || item.status !== 'PENDING')
         throw new ConflictException('STALE_ITEM');
       unit = item.unit;
+      itemContext = clean(item.productName, 120) + '\nЗаказано: ' + quantity(item.qty, item.unit) +
+        '\nЦена: ' + money(item.price) + ' / ' + quantity(item.priceQty, priceUnit(item)) + '\n\n';
     }
-    const prompt = retryPrompt ?? flowPrompt(session.action, session.step, data, session.orderId, unit);
+    const prompt = itemContext + (retryPrompt ?? flowPrompt(session.action, session.step, data, session.orderId, unit));
     if (session.step === 'CONFIRM') {
       const action = session.action === 'EXTRA' ? 'xs' : session.action === 'DELIVERY' ? 'ds' : 'zy';
       if (!session.confirmationCode) return false;
@@ -265,7 +282,7 @@ export class StaffBotFlowService {
   }
 
   async finish(identityId: number, actor: StaffActor, orderId: number,
-    action: 'CANCEL' | 'EXTRA' | 'DELIVERY', confirmationCode?: string): Promise<boolean> {
+    action: Exclude<Flow, 'ITEM'>, confirmationCode?: string): Promise<boolean> {
     const session = await this.db.staffTelegramSession.findUnique({ where: { identityId } });
     if (!session || session.action !== action || session.step !== 'CONFIRM' ||
       session.orderId !== orderId || !confirmationCode || session.confirmationCode !== confirmationCode ||
@@ -273,6 +290,21 @@ export class StaffBotFlowService {
     const payload = flowPayload.safeParse(session.payload);
     if (!payload.success) throw new BadRequestException('INVALID_FLOW');
     const data = payload.data;
+    if (isReviewFlow(action)) {
+      if (!data.snapshot) throw new BadRequestException('INVALID_FLOW');
+      return this.commit(session, async () => {
+        const order = await this.staff.get(orderId);
+        if (reviewSnapshot(order) !== data.snapshot || !canReview(order, action, session.itemId, data))
+          throw new ConflictException('STALE_REVIEW');
+        if (action === 'RESET_ITEM' && session.itemId)
+          return this.staff.item(orderId, session.itemId, { status: 'PENDING' }, actor.userId, actor, data.snapshot);
+        if (action === 'REMOVE_EXTRA')
+          return this.staff.extra(orderId, actor.userId, null, data.extraId, data.version, actor, data.snapshot);
+        if (action === 'FINISH_ASSEMBLY') return this.staff.finishAssembly(orderId, actor, data.snapshot);
+        if (action === 'PAYMENT') return this.staff.confirmPayment(orderId, actor.userId, undefined, actor, data.snapshot);
+        return this.staff.reopen(orderId, actor, data.snapshot);
+      });
+    }
     if (action === 'CANCEL') {
       if (!data.reason) throw new BadRequestException('INVALID_FLOW');
       return this.commit(session, () => this.staff.cancel(orderId, actor.userId, actor.role, data.reason, actor));

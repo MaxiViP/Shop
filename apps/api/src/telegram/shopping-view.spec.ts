@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException } from '@nestjs/common';
 import type { CustomerTelegramSession } from '../db/gen/client.js';
-import { checkoutScreen, paymentScreen } from './shopping-view.js';
+import type { CartService } from '../cart/cart.service.js';
+import { checkoutScreen, paymentScreen, clearCartScreen, shoppingHelpScreen } from './shopping-view.js';
 import type { CustomerOrder } from './customer-view.js';
 import { shoppingAction } from './shopping-callback.js';
 import { customerError } from './customer-error.js';
@@ -33,16 +34,14 @@ describe('customer payment display', () => {
   beforeEach(() => vi.stubEnv('ORDER_SITE_URL', 'https://shop.example'));
   afterEach(() => vi.unstubAllEnvs());
   it.each(['SBP', 'CARD_TRANSFER', 'QR'] as const)(
-    'shows configured %s and reports that exact method',
+    'shows configured %s without requiring a payment report',
     (method) => {
       const screen = paymentScreen(order(), method);
       expect(screen.text).toContain('Оплата заказа №7');
       expect(screen.text).toContain('123,45');
-      expect(callbacks(screen).map(shoppingAction)).toContainEqual({
-        kind: 'paid',
-        publicId,
-        method,
-      });
+      expect(callbacks(screen).some(value => shoppingAction(value)?.kind === 'paid')).toBe(false);
+      expect(screen.text).toContain('После перевода ничего подтверждать не нужно');
+      expect(screen.keyboard.inline_keyboard.flat().some(button => button.text.includes('Я оплатил'))).toBe(false);
       expect(callbacks(screen).join()).not.toContain('fixture');
       expect(
         screen.keyboard.inline_keyboard.flat().filter((b) => 'url' in b),
@@ -62,7 +61,7 @@ describe('customer payment display', () => {
         expect(screen.text).toContain('Повторно переводить');
     },
   );
-  it('hides report when amount mismatches the finalized goods total or methods are unavailable', () => {
+  it('keeps reports hidden for changed totals and handles unconfigured payment methods', () => {
     const changed = order();
     changed.finalSubtotal = 999;
     expect(
@@ -136,6 +135,42 @@ describe('checkout presentation', () => {
       expect(screen.text).not.toContain(s.id);
     }
   });
+  it('shows a complete checkout summary with explicit creation and separate field edits', () => {
+    const s = session('CONFIRM');
+    s.payload = { ...s.payload as object, type: 'DELIVERY', customerName: 'Покупатель', customerPhone: '+79990000007',
+      address: { city: 'Москва', street: 'Тестовая', house: '1' }, fulfillmentMode: 'ASAP' };
+    const basket = { revision: (s.payload as { cartRevision: string }).cartRevision, token: 'a'.repeat(64),
+      valid: true, subtotal: 32000, goodsTotal: 32000, promo: null, delivery: { eligible: false },
+      items: [{ qty: 1000, product: { name: 'Помидоры', unit: 'GRAM' }, lineTotal: 32000 }] } as unknown as Awaited<ReturnType<CartService['get']>>;
+    const screen = checkoutScreen(s, basket);
+    if (!('keyboard' in screen)) throw new Error('Expected confirmation');
+    for (const value of ['Проверьте заказ', 'Москва', '+79990000007', '1 кг', '320 ₽', 'Как можно скорее'])
+      expect(screen.text).toContain(value);
+    const buttons = screen.keyboard.inline_keyboard.flat();
+    expect(buttons.find(button => button.text === '✅ Создать заказ')).toMatchObject({ style: 'success' });
+    expect(buttons.map(button => 'callback_data' in button ? shoppingAction(button.callback_data) : null))
+      .toEqual(expect.arrayContaining(['edit_name', 'edit_phone', 'edit_type', 'edit_address', 'edit_time'].map(choice => ({
+        kind: 'flow', revision: s.id, choice,
+      }))));
+    expect(buttons.find(button => button.text === 'Отмена')).toMatchObject({ style: 'danger' });
+    expect(screen.text).not.toContain('a'.repeat(64));
+    expect(screen.text).not.toContain(s.id);
+    const changed = checkoutScreen(s, { ...basket, revision: randomUUID() });
+    expect('keyboard' in changed && changed.keyboard.inline_keyboard.flat().some(button => button.text === '✅ Создать заказ')).toBe(false);
+  });
+  it('shows the real preorder slots and does not suggest ASAP while it is unavailable', () => {
+    const offer = { queueLength: 0, position: 1, wait: { min: 0, max: 0 }, estimatedAssemblyMinutes: 25,
+      assemblyConcurrency: 1, showScheduledOffer: false, peakModeActive: false, preorderRequired: true,
+      preparationStartsAt: null, market: { isOpen: false, timezone: 'Europe/Moscow', today: '2026-10-22',
+        openTime: '09:00', closeTime: '21:00', nextOpenAt: null },
+      slots: [{ at: '2099-01-01T12:00:00.000Z', reserved: 0, capacity: 1 }] };
+    const screen = checkoutScreen(session('TIME'), null, offer);
+    expect('prompt' in screen && screen.prompt).toContain('Сейчас доступен предзаказ');
+    expect('prompt' in screen && screen.prompt).toContain('Ближайшие свободные слоты');
+    expect('prompt' in screen && screen.prompt).not.toContain('«-» — как можно скорее');
+    const full = checkoutScreen(session('TIME'), null, { ...offer, slots: [] });
+    expect('prompt' in full && full.prompt).toContain('Свободных интервалов пока нет');
+  });
   it('only passes explicit safe business messages to the user', () => {
     expect(
       customerError(new BadRequestException('opaque provider body'), true),
@@ -150,4 +185,48 @@ describe('checkout presentation', () => {
       ),
     ).toBe('Доставка временно недоступна.');
   });
+});
+
+
+it('payment display distinguishes free delivery and offers an authoritative refresh and seller help', () => {
+  const free = { ...order(), deliveryPrice: 0 };
+  const screen = paymentScreen(free, 'SBP');
+  expect(screen.text).toContain('Доставка: бесплатно');
+  expect(screen.text).not.toContain('оплачивается отдельно');
+  expect(callbacks(screen)).toContain('s:p:' + publicId.replaceAll('-', '') + ':SBP');
+  expect(screen.keyboard.inline_keyboard.flat().some(button => button.text === '💬 Вопрос по оплате')).toBe(true);
+});
+
+it('a canceled order never shows bank details even if the stored payment is still awaiting', () => {
+  const screen = paymentScreen({ ...order(), status: 'CANCELED' }, 'SBP');
+  expect(screen.text).toContain('Оплата пока недоступна');
+  expect(screen.text).not.toContain('fixture phone');
+  expect(screen.text).not.toContain('К оплате за товары');
+});
+
+it('clear confirmation preserves unknown whole-item estimates and explains existing orders are safe', () => {
+  const basket = { revision: publicId, goodsTotal: null, items: [{ productId: 1 }] } as unknown as Awaited<ReturnType<CartService['get']>>;
+  const screen = clearCartScreen(basket);
+  expect(screen.text).toContain('после взвешивания');
+  expect(screen.text).toContain('Уже оформленные заказы сохранятся');
+  expect(callbacks(screen).map(shoppingAction)).toContainEqual({ kind: 'clearConfirmed', revision: publicId });
+});
+
+it('help explains monetary, whole-item and conversation boundaries within one Telegram message', () => {
+  const screen = shoppingHelpScreen();
+  expect(screen.text.length).toBeLessThan(4096);
+  for (const phrase of ['Целые экземпляры', '/cancel', 'только текущий ввод', 'фото и отметки']) {
+    expect(screen.text).toContain(phrase);
+  }
+});
+
+
+it('offers delivery-comment editing separately and preserves the previous comment in the prompt', () => {
+  const session = { id: publicId, step: 'COMMENT', promptMessageId: null,
+    payload: { cartRevision: publicId, quoteToken: 'a'.repeat(64), type: 'DELIVERY',
+      address: { city: 'Москва', street: 'Тестовая', house: '1', comment: 'Не звонить в домофон' } } } as unknown as CustomerTelegramSession;
+  const screen = checkoutScreen(session, null);
+  expect('prompt' in screen && screen.prompt).toContain('Сейчас: Не звонить в домофон');
+  expect('prompt' in screen && screen.prompt).toContain('заменит только комментарий');
+  expect('prompt' in screen && screen.prompt).toContain('убрать его');
 });

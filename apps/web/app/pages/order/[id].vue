@@ -14,6 +14,7 @@
         <strong>{{ knownMoney(order.finalTotal ?? order.total, 'Не рассчитано') }}</strong>
       </div>
     </header>
+    <UButton v-if="auth.user?.role === 'USER' && order.status !== 'CANCELED'" :to="{ path: '/quick-shop', query: { orderId: order.id } }" color="neutral" variant="outline" icon="i-lucide-rotate-ccw">Повторить этот заказ</UButton>
 
     <OrderProgress :status="order.status" :type="order.type" />
     <section v-if="['NEW', 'CONFIRMED'].includes(order.status)" class="order-queue" aria-live="polite">

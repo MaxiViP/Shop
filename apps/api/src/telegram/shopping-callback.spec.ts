@@ -1,5 +1,5 @@
 import { shoppingAction, shoppingData } from './shopping-callback.js';
-import { checkoutInput, checkoutPayload } from './checkout.js';
+import { afterType, afterText, checkoutInput, checkoutPayload } from './checkout.js';
 const revision = '12345678-1234-4234-8234-123456789abc';
 describe('shopping callback boundary', () => {
   it.each(['catalog', 'cart', 'resume', 'help'])('accepts command %s', (kind) =>
@@ -11,12 +11,21 @@ describe('shopping callback boundary', () => {
     ['l', 2147483647, 10000],
     ['v', 2147483647, 1000000],
     ['a', revision, 2147483647, 1000000],
+    ['a', revision, 2147483647, 1000000, 'GRAM'],
     ['+', revision, 2147483647],
     ['-', revision, 1],
     ['x', revision, 1],
     ['z', revision],
+    ['y', revision],
     ['b', revision],
     ['f', revision, 'confirm'],
+    ['f', revision, 'edit_address'],
+    ['f', revision, 'edit_comment'],
+    ['f', revision, 'edit_name'],
+    ['f', revision, 'edit_phone'],
+    ['f', revision, 'edit_type'],
+    ['f', revision, 'edit_time'],
+    ['f', revision, 'edit_done'],
     ['p', revision, 'CARD_TRANSFER'],
     ['r', revision, 'SBP'],
   ])('roundtrips maximum bounded callback %s', (...parts) => {
@@ -40,8 +49,16 @@ describe('shopping callback boundary', () => {
     shoppingData('r', revision, 'CASH'),
     'x'.repeat(65),
     shoppingData('a', revision, 2147483648, 1),
+    shoppingData('a', revision, 1, 1, 'MONEY'),
+    shoppingData('a', revision, 1, 1, ''),
+    shoppingData('v', 1, 1, 'GRAM'),
   ])('rejects malformed callback without coercion', (data) => {
     expect(shoppingAction(data)).toBeNull();
+  });
+  it('carries the displayed quantity unit so old buttons cannot silently change sale units', () => {
+    expect(shoppingAction(shoppingData('a', revision, 7, 2, 'PIECE'))).toEqual({
+      kind: 'add', productId: 7, qty: 2, revision, quantityUnit: 'PIECE',
+    });
   });
 });
 describe('checkout input uses domain fields', () => {
@@ -51,6 +68,17 @@ describe('checkout input uses domain fields', () => {
       quoteToken: 'a'.repeat(64),
       type: 'DELIVERY',
     });
+  it('returns edited contact fields directly to confirmation when the remaining data is valid', () => {
+    const data = { ...payload(), customerName: 'Покупатель', customerPhone: '+79990000007',
+      address: { city: 'Москва', street: 'Тестовая', house: '1' }, fulfillmentMode: 'ASAP' as const };
+    expect(afterType(data)).toBe('CONFIRM');
+    expect(afterText('NAME', data)).toBe('CONFIRM');
+    expect(afterText('PHONE', data)).toBe('CONFIRM');
+    expect(afterText('COMMENT', data)).toBe('CONFIRM');
+    expect(afterType({ ...data, address: undefined })).toBe('ADDRESS');
+    expect(afterType({ ...data, fulfillmentMode: undefined })).toBe('TIME');
+    expect(afterType({ ...data, customerPhone: undefined })).toBe('PHONE');
+  });
   it('normalizes only order contact phone without adding account fields', () => {
     const input = checkoutInput('PHONE', '8 (999) 123-45-67', payload());
     expect(input.customerPhone).toBe('+79991234567');
@@ -74,4 +102,11 @@ describe('checkout input uses domain fields', () => {
     expect(() => checkoutInput('NAME', 'x'.repeat(101), payload())).toThrow();
     expect(() => checkoutInput('CONFIRM', 'yes', payload())).toThrow();
   });
+});
+
+
+it('keeps legacy clear as a safe confirmation request and requires a distinct confirmed callback', () => {
+  expect(shoppingAction(shoppingData('z', revision))).toEqual({ kind: 'clear', revision });
+  expect(shoppingAction(shoppingData('y', revision))).toEqual({ kind: 'clearConfirmed', revision });
+  expect(shoppingAction(shoppingData('y', revision, 1))).toBeNull();
 });

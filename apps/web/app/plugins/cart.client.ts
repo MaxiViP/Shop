@@ -3,6 +3,7 @@ import { watch } from "vue";
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
 import { decodeCart, type CartItem, type ServerCartChange, type ServerCartSnapshot } from "~/utils/cart";
+import type { RepeatCartResponse } from "~/types/quick-shop";
 
 const key = "cart";
 const mergeWarning = "Не удалось перенести гостевую корзину. Её товары сохранены в браузере; повторите вход или обновите страницу.";
@@ -15,6 +16,7 @@ export default defineNuxtPlugin((app) => {
     get: () => api<ServerCartSnapshot>("/cart"),
     change: (body: ServerCartChange & { revision: string }) =>
       api<ServerCartSnapshot>("/cart/change", { method: "POST", body }),
+    repeat: body => api<RepeatCartResponse>("/cart/repeat", { method: "POST", body }),
   });
 
   let started = false;
@@ -116,7 +118,7 @@ export default defineNuxtPlugin((app) => {
       void activate();
       return;
     }
-    if (/^\/(cart|catalog|product)(\/|$)/.test(window.location.pathname))
+    if (/^\/(cart|catalog|product|quick-shop)(\/|$)/.test(window.location.pathname))
       refreshWhenActive();
   });
 });

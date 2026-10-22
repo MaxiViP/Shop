@@ -31,12 +31,12 @@ export const decisionCodes = {
   p: 'ACCEPT_REPLACEMENT', c: 'CANCEL_ORDER',
 } as const;
 export type DecisionCode = keyof typeof decisionCodes;
-type View = 'o' | 'q' | 'm' | 'w';
+type View = 'o' | 'q' | 'm' | 'w' | 'n' | 't';
 export type CustomerAction =
-  | { kind: 'menu' | 'current' | 'attention' | 'cancel' }
-  | { kind: 'orders'; page: number }
+  | { kind: 'menu' | 'current' | 'cancel' | 'verify_phone' }
+  | { kind: 'orders' | 'attention'; page: number }
   | { kind: View; publicId: string; page: number }
-  | { kind: 'd'; publicId: string; issueId: number; version: number; action: typeof decisionCodes[DecisionCode] };
+  | { kind: 'd'; publicId: string; issueId: number; version: number; action: typeof decisionCodes[DecisionCode]; confirmed?: true };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 function integer(value: string, max = 2147483647): number | null {
@@ -51,33 +51,38 @@ function expand(value: string): string | null {
 }
 export function customerAction(data: string): CustomerAction | null {
   if (Buffer.byteLength(data, 'utf8') > 64) return null;
-  if (data === 'menu' || data === 'current' || data === 'attention' || data === 'cancel')
-    return { kind: data };
+  if (data === 'menu' || data === 'current' || data === 'cancel' || data === 'verify_phone') return { kind: data };
+  if (data === 'attention') return { kind: 'attention', page: 0 };
   if (data === 'orders') return { kind: 'orders', page: 0 };
   if (data.startsWith('order:') && uuid.test(data.slice(6)))
     return { kind: 'o', publicId: data.slice(6), page: 0 };
   const parts = data.split(':');
   if (parts[0] !== 'c') return null;
-  if (parts[1] === 'l' && parts.length === 3) {
+  if ((parts[1] === 'l' || parts[1] === 'n') && parts.length === 3) {
     const page = integer(parts[2]!, 10000);
-    return page === null ? null : { kind: 'orders', page };
+    return page === null ? null : { kind: parts[1] === 'n' ? 'attention' : 'orders', page };
   }
   const publicId = expand(parts[2] ?? '');
   if (!publicId) return null;
-  if (['o', 'q', 'm', 'w'].includes(parts[1]!) && parts.length === 4) {
+  if (['o', 'q', 'm', 'w', 'n', 't'].includes(parts[1]!) && parts.length === 4) {
     const page = integer(parts[3]!);
     return page === null ? null : { kind: parts[1] as View, publicId, page };
   }
-  if (parts[1] !== 'd' || parts.length !== 6) return null;
+  if (!['d', 'y'].includes(parts[1]!) || parts.length !== 6) return null;
   const issueId = integer(parts[3]!);
   const version = integer(parts[4]!);
   const code = parts[5]!;
-  if (!issueId || !version || !Object.hasOwn(decisionCodes, code)) return null;
-  return { kind: 'd', publicId, issueId, version, action: decisionCodes[code as DecisionCode] };
+  if (!issueId || !version || !Object.hasOwn(decisionCodes, code) || (parts[1] === 'y' && code !== 'c')) return null;
+  return { kind: 'd', publicId, issueId, version, action: decisionCodes[code as DecisionCode],
+    ...(parts[1] === 'y' ? { confirmed: true as const } : {}) };
 }
 export function customerView(kind: View, publicId: string, page = 0) {
   return 'c:' + kind + ':' + publicId.replaceAll('-', '') + ':' + page.toString(36);
 }
 export function customerDecision(publicId: string, issueId: number, version: number, code: DecisionCode) {
   return 'c:d:' + publicId.replaceAll('-', '') + ':' + issueId.toString(36) + ':' + version.toString(36) + ':' + code;
+}
+
+export function customerConfirmCancellation(publicId: string, issueId: number, version: number) {
+  return customerDecision(publicId, issueId, version, 'c').replace('c:d:', 'c:y:');
 }

@@ -14,7 +14,7 @@ import { customerBotToken } from './bot-config.js';
 import { phone } from '../common/phone.js';
 import { customerAction, customerUpdate, customerView, type CustomerAction } from './customer-callback.js';
 import {
-  activeStatuses, amount, date, issueCard, orderCard, orderStatus, short, webAppUrl,
+  activeStatuses, amount, date, issueCard, orderCard, orderStatus, webAppUrl, customerMenu, customerOnboardingMenu, cancelOrderScreen,
   type Button, type Screen,
 } from './customer-view.js';
 
@@ -116,57 +116,56 @@ export class CustomerUpdateService {
     }, 3000)) this.logger.warn('Customer Telegram answer failed');
   }
   private async menu(target: Target, identity: Identity) {
-    const attention = await this.db.order.findFirst({
-      where: { userId: identity.userId, OR: [
-        { customerUnread: { gt: 0 } },
-        { issues: { some: { status: 'WAITING_CUSTOMER' } } },
-      ] }, select: { id: true },
-    });
-    const current = await this.db.order.findFirst({where:{userId:identity.userId,status:{in:activeStatuses}},select:{id:true}});
-    const profile = webAppUrl('/profile'), catalog = webAppUrl('/catalog');
-    const links: Button[] = [
-      ...(profile ? [{ text: 'Профиль', web_app: { url: profile } }] : []),
-      ...(catalog ? [{ text: 'Каталог на сайте', web_app: { url: catalog } }] : []),
-    ];
-    return this.show(target, {
-      text: 'Привет, ' + short(identity.user.name || identity.firstName || 'покупатель', 80) +
-        '!\nВы вошли в KorzinaMarket через Telegram.\nВыбирайте продукты, оформляйте заказ и общайтесь с продавцом.',
-      keyboard: { inline_keyboard: [
-        [{ text: '🛍 Каталог', callback_data: 'catalog' }, { text: '🛒 Корзина', callback_data: 'cart' }],
-        ...(current ? [[{ text: 'Текущий заказ', callback_data: 'current' }]] : []),
-        [{ text: '📦 Мои заказы', callback_data: 'orders' }],
-        ...(attention ? [[{ text: '💬 Сообщения / Вопросы', callback_data: 'attention' }]] : []),
-        ...(links.length ? [links] : []),
-        [{ text: 'ℹ️ Помощь', callback_data: 'help' }],
-      ] },
-    });
+    const [question, unread, current, cartLabel] = await Promise.all([
+      this.db.order.findFirst({
+        where: { userId: identity.userId, status: 'ASSEMBLING', assemblyFinalizedAt: null,
+          issues: { some: { status: 'WAITING_CUSTOMER' } },
+          OR: [{ payment: null }, { payment: { is: { status: { notIn: ['REPORTED', 'PAID'] } } } }] },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: { id: true, customerUnread: true, issues: { where: { status: 'WAITING_CUSTOMER' }, select: { id: true } } },
+      }),
+      this.db.order.findFirst({ where: { userId: identity.userId, customerUnread: { gt: 0 } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { id: true, customerUnread: true, issues: { where: { status: 'WAITING_CUSTOMER' }, select: { id: true } } } }),
+      this.db.order.findFirst({ where: { userId: identity.userId, status: { in: activeStatuses } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, status: true } }),
+      this.shop.cartLabel(identity),
+    ]);
+    return this.show(target, customerMenu(identity, { attention: question ?? unread, current, cartLabel }));
   }
   private async list(target: Target, identity: Identity, page = 0, attention = false) {
     const rows = await this.db.order.findMany({
       where: { userId: identity.userId, ...(attention ? { OR: [
-        { customerUnread: { gt: 0 } }, { issues: { some: { status: 'WAITING_CUSTOMER' as const } } },
+        { customerUnread: { gt: 0 } }, { status: 'ASSEMBLING', assemblyFinalizedAt: null, issues: { some: { status: 'WAITING_CUSTOMER' as const } } },
       ] } : {}) },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: page * 5, take: 6,
       select: {
         id: true, publicId: true, status: true, total: true, finalTotal: true, createdAt: true,
+        assemblyFinalizedAt: true, payment: { select: { status: true } },
         customerUnread: true, issues: { where: { status: 'WAITING_CUSTOMER' }, select: { id: true } },
       },
     });
-    const visible = rows.slice(0, 5);
+    const visible = rows.slice(0, 5).map(order => ({ ...order, pending: order.status === 'ASSEMBLING' &&
+      !order.assemblyFinalizedAt && !['PAID', 'REPORTED'].includes(order.payment?.status ?? '') ? order.issues.length : 0 }));
     const buttons: Button[][] = visible.map(order => [{
-      text: '№' + order.id + (order.issues.length ? ' · Требуется решение' :
+      text: '№' + order.id + (order.pending ? ' · Требуется решение' :
         order.customerUnread ? ' · Есть обновления в чате' : ' · ' + orderStatus[order.status]),
-      callback_data: customerView(attention ? order.issues.length ? 'q' : 'm' : 'o', order.publicId),
+      callback_data: customerView(attention ? order.pending ? 'q' : 'm' : 'o', order.publicId),
     }]);
-    if (!attention) buttons.push([
-      ...(page ? [{ text: '← Новее', callback_data: 'c:l:' + (page - 1).toString(36) }] : []),
-      ...(rows.length > 5 && page < 10000 ? [{ text: 'Ранее →', callback_data: 'c:l:' + (page + 1).toString(36) }] : []),
-    ].filter(Boolean));
-    buttons.push([{ text: 'Меню', callback_data: 'menu' }]);
+    const prefix = attention ? 'c:n:' : 'c:l:';
+    buttons.push([
+      ...(page ? [{ text: '← Новее', callback_data: prefix + (page - 1).toString(36) }] : []),
+      ...(rows.length > 5 && page < 10000 ? [{ text: 'Ранее →', callback_data: prefix + (page + 1).toString(36) }] : []),
+    ]);
+    if (attention) buttons.push([{ text: '🔄 Обновить очередь', callback_data: 'attention' }]);
+    buttons.push([{ text: '🛍 В магазин', callback_data: 'catalog' }, { text: 'Меню', callback_data: 'menu' }]);
     return this.show(target, {
-      text: (attention ? 'Сообщения и вопросы по заказам' : 'Ваши заказы') + '\n\n' +
+      text: (attention ? '❗ Сообщения и вопросы по заказам' : '📦 Ваши заказы') +
+        (page ? ' · страница ' + (page + 1) : '') + '\n\n' +
         (visible.map(order => '№' + order.id + ' · ' + orderStatus[order.status] + '\n' +
-          amount(order.finalTotal ?? order.total) + ' · ' + date(order.createdAt)).join('\n\n') ||
+          amount(order.finalTotal ?? order.total) + ' · ' + date(order.createdAt) +
+          (order.pending ? '\n❗ Вопросов: ' + order.pending : '') +
+          (order.customerUnread ? '\n💬 Непрочитанных обновлений: ' + order.customerUnread : '')).join('\n\n') ||
           (attention ? 'Новых вопросов и сообщений нет.' : 'Здесь пока нет заказов.')),
       keyboard: { inline_keyboard: buttons.filter(row => row.length) },
     });
@@ -177,24 +176,46 @@ export class CustomerUpdateService {
     const coordination = await this.coordination.view({ publicId, userId: identity.userId });
     return this.show(target, issueCard(order, coordination.issues, page));
   }
-  private async messages(target: Target, identity: Identity, publicId: string, before = 0) {
+  private async decisionCard(target: Target, identity: Identity, publicId: string, afterIssueId: number, feedback: string) {
+    const order = await this.orders.get(publicId, identity.userId);
+    const coordination = await this.coordination.view({ publicId, userId: identity.userId });
+    const waiting = coordination.issues.filter(issue => issue.status === 'WAITING_CUSTOMER' && issue.actions.length);
+    const next = waiting.findIndex(issue => issue.id > afterIssueId);
+    const screen = waiting.length ? issueCard(order, coordination.issues, next < 0 ? 0 : next) : orderCard(order);
+    return this.show(target, { ...screen, text: feedback + '\n\n' + screen.text });
+  }
+  private async messages(target: Target, identity: Identity, publicId: string, cursor = 0, direction: 'before' | 'after' | 'latest' = 'before') {
     const actor = { publicId, userId: identity.userId };
-    // One complete domain message fits even at the 2,000-character chat limit.
-    const result = await this.coordination.messages(actor, { limit: 1, ...(before ? { before } : {}) });
-    const last = result.messages[0];
+    // One full domain message fits even at the 2,000-character chat limit.
+    const result = await this.coordination.messages(actor, { limit: 1,
+      ...(cursor && direction !== 'latest' ? { [direction]: cursor } : {}) });
+    const unreadFirst = !cursor && direction !== 'latest';
+    const revision = unreadFirst && !result.unreadMessage ? result.unreadRevision : null;
+    const last = unreadFirst ? result.unreadMessage ?? revision?.message ?? result.messages[0] : result.messages[0];
     const authors = { CUSTOMER: 'Вы', SELLER: 'Продавец', ADMIN: 'Продавец', SYSTEM: 'Заказ' };
+    const url = last ? webAppUrl('/order/' + publicId + '?chatMessage=' + last.id + '#order-chat') : undefined;
+    const skippedUnread = last && result.unreadMessage && last.id > result.unreadMessage.id;
     const ok = await this.show(target, {
       text: 'Заказ №' + result.orderId + ' · Сообщения\n\n' +
-        (last ? authors[last.authorType] + ' · ' + date(last.createdAt) + '\n' + (last.text || (last.image ? '📷 Фото по заказу' : '')) + (last.image ? '\n📷 Фото доступно в заказе на сайте.' : '') : 'Сообщений пока нет.'),
+        (last ? (revision ? '🖍 Продавец обновил подпись к фото.\n' : '') + authors[last.authorType] + ' · ' + date(last.createdAt) + '\n' +
+          (last.revisionText || last.text || (last.image ? '📷 Фото по заказу' : '')) +
+          (last.image ? '\n\n📷 Фото и отметки доступны на сайте.' : '') +
+          (revision ? '\nПросмотр фото на сайте снимет индикатор обновления.' : '') : cursor ? 'Больше сообщений в этом направлении нет.' : 'Сообщений пока нет.') +
+        (skippedUnread ? '\n\nЕсть более ранние непрочитанные сообщения. Нажмите «Читать непрочитанные».' : ''),
       keyboard: { inline_keyboard: [
-        ...(last && result.hasMore ? [[{ text: '← Предыдущее', callback_data: customerView('m', publicId, last.id) }]] : []),
-        [{ text: 'Последнее / Обновить', callback_data: customerView('m', publicId) }],
+        ...(last && (last.image || revision) && url ? [[{ text: '📷 Открыть фото и отметки', web_app: { url } }]] : []),
+        ...(last ? [[
+          { text: '← Предыдущее', callback_data: customerView('m', publicId, last.id) },
+          { text: 'Следующее →', callback_data: customerView('n', publicId, last.id) },
+        ]] : []),
+        [{ text: '📨 Читать непрочитанные / Обновить', callback_data: customerView('m', publicId) }],
+        [{ text: 'К последнему сообщению', callback_data: customerView('t', publicId) }],
         [{ text: 'Написать продавцу', callback_data: customerView('w', publicId) }],
-        [{ text: '← К заказу', callback_data: customerView('o', publicId) }],
-        [{ text: 'Меню', callback_data: 'menu' }],
+        [{ text: '← К заказу', callback_data: customerView('o', publicId) }, { text: 'Меню', callback_data: 'menu' }],
       ] },
     });
-    if (ok && last) await this.coordination.read(actor, last.id);
+    // Do not skip unseen messages or acknowledge an unseen photo revision.
+    if (ok && last && !revision && !skippedUnread) await this.coordination.read(actor, last.id);
   }
   private async prompt(target: Target, identity: Identity, publicId: string) {
     const session = await this.coordination.reserveReply({ publicId, userId: identity.userId }, identity.id);
@@ -255,9 +276,10 @@ export class CustomerUpdateService {
     if (action.kind !== 'w' && action.kind !== 'd') await this.cancel(identity);
     switch (action.kind) {
       case 'menu':
-      case 'cancel': return this.menu(target, identity);
+      case 'cancel':
+      case 'verify_phone': return this.menu(target, identity);
       case 'orders': return this.list(target, identity, action.page);
-      case 'attention': return this.list(target, identity, 0, true);
+      case 'attention': return this.list(target, identity, action.page, true);
       case 'current': {
         const order = await this.db.order.findFirst({
           where: { userId: identity.userId, status: { in: activeStatuses } },
@@ -269,13 +291,37 @@ export class CustomerUpdateService {
       case 'o': return this.card(target, identity, action.publicId, action.page);
       case 'q': return this.card(target, identity, action.publicId, action.page, true);
       case 'm': return this.messages(target, identity, action.publicId, action.page);
+      case 'n': return this.messages(target, identity, action.publicId, action.page, 'after');
+      case 't': return this.messages(target, identity, action.publicId, 0, 'latest');
       case 'w': return this.prompt(target, identity, action.publicId);
-      case 'd':
-        await this.coordination.decide({ publicId: action.publicId, userId: identity.userId }, action.issueId, {
-          version: action.version, action: action.action,
-        });
+      case 'd': {
+        if (action.action === 'CANCEL_ORDER' && !action.confirmed) {
+          const order = await this.orders.get(action.publicId, identity.userId);
+          const state = await this.coordination.view({ publicId: action.publicId, userId: identity.userId });
+          const issue = state.issues.find(issue => issue.id === action.issueId && issue.version === action.version &&
+            issue.status === 'WAITING_CUSTOMER' && issue.actions.includes('CANCEL_ORDER'));
+          if (!issue) return this.decisionCard(target, identity, action.publicId, 0, 'Ситуация изменилась. Проверьте актуальные вопросы.');
+          return this.show(target, cancelOrderScreen(order, issue));
+        }
+        try {
+          await this.coordination.decide({ publicId: action.publicId, userId: identity.userId }, action.issueId, {
+            version: action.version, action: action.action,
+          });
+        } catch (error) {
+          if (error instanceof HttpException && error.getStatus() === 409)
+            await this.decisionCard(target, identity, action.publicId, 0, 'Ситуация изменилась. Ниже — актуальные данные; проверьте их перед ответом.');
+          throw error;
+        }
         await this.cancel(identity);
-        return this.card(target, identity, action.publicId);
+        const feedback = {
+          ACCEPT_ACTUAL: '✅ Фактическое количество принято.',
+          REQUEST_REDUCE: 'Запрос передан продавцу. Фактическое количество пока не согласовано.',
+          REMOVE_ITEM: 'Товар убран. Остальной заказ сохраняется.',
+          ACCEPT_REPLACEMENT: '✅ Замена принята. Продавец продолжит сборку.',
+          CANCEL_ORDER: 'Заказ отменён.',
+        }[action.action];
+        return this.decisionCard(target, identity, action.publicId, action.issueId, feedback);
+      }
     }
   }
 
@@ -298,7 +344,7 @@ export class CustomerUpdateService {
       const shopping = shoppingAction(callback?.data ?? command?.slice(1) ?? '');
       shoppingRequest = Boolean(shopping);
       const extra = command === '/current' ? {kind:'current' as const} :
-        command === '/messages' ? {kind:'attention' as const} : null;
+        command === '/messages' ? {kind:'attention' as const, page: 0} : null;
       if (callback && !action && !shopping) { ack = 'Некорректная кнопка'; return; }
       const identity = command === '/start' ? await this.start(sender) :
         await this.db.telegramIdentity.findUnique({
@@ -336,7 +382,11 @@ export class CustomerUpdateService {
       }
       if (!identity.phoneVerified || !identity.phoneNumber) {
         await this.cancel(identity);
-        await this.requestPhone(chat.id);
+        if (action?.kind === 'menu' || action?.kind === 'cancel')
+          await this.show(target, customerOnboardingMenu(identity));
+        else if (shopping && ['catalog', 'categories', 'products', 'product', 'help'].includes(shopping.kind))
+          await this.shop.handle(target, identity, shopping, true);
+        else await this.requestPhone(chat.id);
         return;
       }
       if (shopping?.kind === 'resume') await this.resume(target, identity);
@@ -348,6 +398,8 @@ export class CustomerUpdateService {
       else if (action) await this.action(target, identity, action);
       else if (message?.text && !message.text.startsWith('/'))
         await this.reply({ chatId: chat.id }, identity, message.text, message.reply_to_message?.message_id);
+      else if (message?.text) await this.show(target, { text: 'Команда не найдена. Откройте меню или помощь, чтобы продолжить.',
+        keyboard: { inline_keyboard: [[{ text: 'Меню', callback_data: 'menu' }, { text: 'Помощь', callback_data: 'help' }]] } });
     } catch (error) {
       const status = error instanceof HttpException ? error.getStatus() : 500;
       ack = status === 404 ? 'Заказ недоступен' :

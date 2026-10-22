@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { defineStore } from "pinia";
 import type { FavoriteListResponse, ProductListItem } from "~/types/product";
 import { useAuthStore } from "~/stores/auth";
@@ -13,6 +13,12 @@ export const useFavoritesStore = defineStore("favorites", () => {
   const pendingIds = ref<number[]>([]);
   const loadedUserId = ref<number | null>(null);
   let syncPromise: Promise<void> | null = null;
+  let loadSequence = 0;
+  let ownerSequence = 0;
+  let mutationSequence = 0;
+  const mutations = new Map<number, number>();
+
+  watch(() => auth.user?.id, clearServer, { flush: "sync" });
 
   const ids = computed(() =>
     auth.loggedIn
@@ -46,6 +52,11 @@ export const useFavoritesStore = defineStore("favorites", () => {
   }
 
   function clearServer() {
+    loadSequence++;
+    ownerSequence++;
+    syncPromise = null;
+    pendingIds.value = [];
+    mutations.clear();
     serverIds.value = [];
     serverItems.value = [];
     loadedUserId.value = null;
@@ -59,18 +70,32 @@ export const useFavoritesStore = defineStore("favorites", () => {
     }
     if (!force && loadedUserId.value === userId) return;
 
+    const sequence = ++loadSequence;
+    const mutation = mutationSequence;
+    const pending = [...pendingIds.value];
     const api = useApiClient();
     const result = await api<FavoriteListResponse>("/favorites");
-    serverItems.value = result.items;
-    serverIds.value = result.items.map(({ id }) => id);
+    if (auth.user?.id !== userId || sequence !== loadSequence) return;
+    const changed = new Set([...pending, ...pendingIds.value]);
+    for (const [id, version] of mutations) {
+      if (version > mutation) changed.add(id);
+    }
+    // Preserve local changes made while this server snapshot was in flight.
+    serverItems.value = [
+      ...serverItems.value.filter(({ id }) => changed.has(id)),
+      ...result.items.filter(({ id }) => !changed.has(id)),
+    ];
+    serverIds.value = serverItems.value.map(({ id }) => id);
     loadedUserId.value = userId;
   }
 
   async function syncAfterLogin() {
-    if (!auth.user) return;
+    const userId = auth.user?.id;
+    if (!userId) return;
     if (syncPromise) return syncPromise;
 
-    syncPromise = (async () => {
+    const owner = ownerSequence;
+    const promise = (async () => {
       const api = useApiClient();
       const productIds = [...guestIds.value];
 
@@ -81,13 +106,17 @@ export const useFavoritesStore = defineStore("favorites", () => {
         });
       }
 
+      if (owner !== ownerSequence || auth.user?.id !== userId) return;
       await load(true);
-      if (productIds.length) clearGuest();
+      if (owner === ownerSequence && auth.user?.id === userId && productIds.length) {
+        clearGuest();
+      }
     })().finally(() => {
-      syncPromise = null;
+      if (syncPromise === promise) syncPromise = null;
     });
 
-    return syncPromise;
+    syncPromise = promise;
+    return promise;
   }
 
   async function toggle(product: ProductListItem) {
@@ -106,11 +135,14 @@ export const useFavoritesStore = defineStore("favorites", () => {
 
     if (pending(product.id)) return;
 
-    const previousGuest = [...guestIds.value];
-    const previousIds = [...serverIds.value];
-    const previousItems = [...serverItems.value];
+    const userId = auth.user?.id;
+    const owner = ownerSequence;
+    const previousGuest = guestIds.value.includes(product.id);
+    const previousId = serverIds.value.includes(product.id);
+    const previousItem = serverItems.value.find(({ id }) => id === product.id);
     const wasFavorite = has(product.id);
     pendingIds.value = [...pendingIds.value, product.id];
+    mutations.set(product.id, ++mutationSequence);
 
     if (wasFavorite) {
       serverIds.value = serverIds.value.filter((id) => id !== product.id);
@@ -129,12 +161,20 @@ export const useFavoritesStore = defineStore("favorites", () => {
         method: wasFavorite ? "DELETE" : "POST",
       });
     } catch (error) {
-      guestIds.value = previousGuest;
-      serverIds.value = previousIds;
-      serverItems.value = previousItems;
+      if (owner === ownerSequence && auth.user?.id === userId) {
+        guestIds.value = guestIds.value.filter((id) => id !== product.id);
+        serverIds.value = serverIds.value.filter((id) => id !== product.id);
+        serverItems.value = serverItems.value.filter(({ id }) => id !== product.id);
+        if (previousGuest) guestIds.value = [...guestIds.value, product.id];
+        if (previousId) serverIds.value = [...serverIds.value, product.id];
+        if (previousItem) serverItems.value = [previousItem, ...serverItems.value];
+      }
       throw error;
     } finally {
-      pendingIds.value = pendingIds.value.filter((id) => id !== product.id);
+      if (owner === ownerSequence && auth.user?.id === userId) {
+        mutations.set(product.id, ++mutationSequence);
+        pendingIds.value = pendingIds.value.filter((id) => id !== product.id);
+      }
     }
   }
 

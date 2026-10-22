@@ -1,6 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import type { ProductListItem } from "~/types/product";
+import type { RepeatCartResponse } from "~/types/quick-shop";
 import { compatibleQuantityUnit, variableWeight } from '../utils/sale.ts';
 import {
   cartKey,
@@ -23,6 +24,7 @@ export const useCartStore = defineStore("cart", () => {
   let serverApi: {
     get: () => Promise<ServerCartSnapshot>;
     change: (body: ServerCartChange & { revision: string }) => Promise<ServerCartSnapshot>;
+    repeat?: (body: { revision: string; orderId?: number }) => Promise<RepeatCartResponse>;
   } | null = null;
   let queue: Promise<void> = Promise.resolve();
   const restored = ref(false);
@@ -254,6 +256,29 @@ export const useCartStore = defineStore("cart", () => {
     });
   }
 
+  function repeatServer(orderId?: number): Promise<RepeatCartResponse | null> {
+    const userId = serverOwner.value;
+    if (mode.value !== "server" || userId === null || !serverApi?.repeat)
+      return Promise.resolve(null);
+    const api = serverApi, repeat = api.repeat!;
+    return enqueue(async () => {
+      if (mode.value !== "server" || serverOwner.value !== userId ||
+          !restored.value || !serverRevision.value) return null;
+      serverBusy.value = true;
+      try {
+        const result = await repeat({ revision: serverRevision.value, ...(orderId ? { orderId } : {}) });
+        return applyServer(result.cart, userId) ? result : null;
+      } catch {
+        // Never replay a mutation after an unknown response. Refresh only;
+        // the next explicit action uses the acknowledged server revision.
+        try { applyServer(await api.get(), userId); } catch { /* Keep last known cart. */ }
+        return null;
+      } finally {
+        serverBusy.value = false;
+      }
+    });
+  }
+
   return {
     items,
     mode,
@@ -266,6 +291,7 @@ export const useCartStore = defineStore("cart", () => {
     applyServer,
     refreshServer,
     changeServer,
+    repeatServer,
     count,
     qty,
     total,

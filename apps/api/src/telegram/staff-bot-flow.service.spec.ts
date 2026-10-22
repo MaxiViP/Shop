@@ -1,3 +1,5 @@
+import { reviewSnapshot, type ReviewFlow } from './staff-flow.js';
+import type { OrderView } from './staff-bot-view.js';
 import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import type { StaffTelegramSession } from '../db/gen/client.js';
 import type { DbService } from '../db/db.service.js';
@@ -39,6 +41,8 @@ function setup() {
     get: vi.fn(async () => ({ status: 'ASSEMBLING',
       items: [{ id: 8, status: 'PENDING', unit: 'GRAM' }] })),
     item: vi.fn(async () => ({})), extra: vi.fn(async () => ({})),
+    finishAssembly: vi.fn(async () => ({})), reopen: vi.fn(async () => ({})),
+    confirmPayment: vi.fn(async () => ({})),
     delivery: vi.fn(async () => ({})), cancel: vi.fn(async () => ({})),
   };
   const telegram = {
@@ -64,7 +68,8 @@ describe('durable STAFF Telegram input sessions', () => {
     await s.flow.start(3, 123, 44, 6, 8, 'ITEM', 'qty');
     await s.flow.input(s.reply('742', 79), 3, { userId: 7, role: 'SELLER' });
     expect(s.staff.item).not.toHaveBeenCalled();
-    await s.flow.input(s.reply('742'), 3, { userId: 7, role: 'SELLER' });
+    const saved = await s.flow.input(s.reply('742'), 3, { userId: 7, role: 'SELLER' });
+    expect(saved).toEqual({ orderId: 6, dashboardMessageId: 44, itemId: 8 });
     expect(s.staff.item).toHaveBeenCalledExactlyOnceWith(6, 8,
       { status: 'PICKED', actualQty: 742 }, 7, { userId: 7, role: 'SELLER' });
     expect(s.session).toBeNull();
@@ -78,6 +83,15 @@ describe('durable STAFF Telegram input sessions', () => {
     expect(s.staff.item).not.toHaveBeenCalled();
     await s.flow.input(s.reply('2'), 3, { userId: 7, role: 'SELLER' });
     expect(s.staff.item).toHaveBeenCalledWith(6, 8, { status: 'PICKED', actualQty: 2 }, 7, { userId: 7, role: 'SELLER' });
+  });
+
+  it('accepts explicit kg only for GRAM and keeps item/session binding', async () => {
+    const s = setup();
+    await s.flow.start(3, 123, 44, 6, 8, 'ITEM', 'qty');
+    await s.flow.input(s.reply('1,024 кг'), 3, { userId: 7, role: 'SELLER' });
+    expect(s.staff.item).toHaveBeenCalledWith(6, 8, { status: 'PICKED', actualQty: 1024 }, 7,
+      { userId: 7, role: 'SELLER' });
+    expect(s.session).toBeNull();
   });
   it('expires a session without mutating an order', async () => {
     const s = setup();
@@ -429,4 +443,88 @@ it('invalidates an ITEM prompt if the item changed before the claim', async () =
   expect(s.session).toMatchObject({ step: 'qty', promptMessageId: null });
   await s.flow.input(old, 3, actor);
   expect(s.staff.item).not.toHaveBeenCalled();
+});
+
+
+function reviewFixture(action: ReviewFlow): OrderView {
+  const ready = action === 'REOPEN' || action === 'PAYMENT';
+  return { id: 6, status: ready ? 'READY' : 'ASSEMBLING', type: 'PICKUP',
+    customerName: 'Покупатель', customerPhone: '+79990000000',
+    assemblyFinalizedAt: ready ? new Date('2026-10-22T08:00:00Z') : null,
+    updatedAt: new Date('2026-10-22T08:00:00Z'), subtotal: 42000, total: 42000,
+    finalTotal: ready ? 44520 : null, finalSubtotal: ready ? 44520 : null,
+    items: [{ id: 8, productName: 'Картофель', status: 'PICKED', unit: 'GRAM', qty: 700,
+      actualQty: 742, price: 60000, priceQty: 1000, total: 42000, actualTotal: 44520 }],
+    issues: [], extras: [{ id: 10, title: 'Упаковка', status: 'ACTIVE', version: 3,
+      quantity: 1, unitPrice: 1000, amount: 1000 }],
+    payment: ready ? { status: 'REPORTED', amount: 44520, method: 'SBP' } : null,
+    delivery: null,
+  } as unknown as OrderView;
+}
+const reviewCases = [
+  ['RESET_ITEM', 'item'], ['REMOVE_EXTRA', 'extra'], ['FINISH_ASSEMBLY', 'finishAssembly'],
+  ['REOPEN', 'reopen'], ['PAYMENT', 'confirmPayment'],
+] as const;
+async function openReview(s: ReturnType<typeof setup>, action: ReviewFlow) {
+  const order = reviewFixture(action);
+  if (action === 'REOPEN') order.payment!.status = 'AWAITING';
+  s.staff.get.mockImplementation(async () => order);
+  const payload = { snapshot: reviewSnapshot(order), ...(action === 'REMOVE_EXTRA' ? { extraId: 10, version: 3 } : {}) };
+  expect(await s.flow.start(3, 123, 44, 6, action === 'RESET_ITEM' ? 8 : null, action, 'CONFIRM', payload)).toBe(true);
+  return { order, payload, code: s.session!.confirmationCode! };
+}
+
+describe('durable STAFF reviews and atomic domain preconditions', () => {
+  it.each(reviewCases)('%s renders a read-only review and claims concurrent confirmations once', async (action, method) => {
+    const s = setup(); const { payload, code } = await openReview(s, action);
+    expect(s.staff[method]).not.toHaveBeenCalled();
+    expect(s.telegram.editStaff).toHaveBeenCalledWith(123, 44, expect.stringContaining('Заказ #6'), expect.any(Object));
+    const result = await Promise.all([s.flow.finish(3, actor, 6, action, code), s.flow.finish(3, actor, 6, action, code)]);
+    expect(result.sort()).toEqual([false, true]);
+    expect(s.staff[method]).toHaveBeenCalledTimes(1);
+    expect(s.staff[method].mock.calls[0]?.at(-1)).toBe(payload.snapshot);
+    expect(s.session).toBeNull();
+  });
+  it.each(reviewCases)('%s refuses a changed snapshot before any domain mutation', async (action, method) => {
+    const s = setup(); const { order, code } = await openReview(s, action);
+    order.items[0]!.actualQty = 744;
+    await expect(s.flow.finish(3, actor, 6, action, code)).rejects.toBeInstanceOf(ConflictException);
+    expect(s.staff[method]).not.toHaveBeenCalled();
+    expect(s.session?.step).toBe('CONFIRM');
+    expect(s.session?.confirmationCode).not.toBe(code);
+    await s.restart().resume(3, 123);
+    expect(s.telegram.editStaff.mock.calls.at(-1)?.[2]).toContain('изменился после проверки');
+    expect(JSON.stringify(s.telegram.editStaff.mock.calls.at(-1)?.[3])).not.toContain(':ry:');
+  });
+  it.each(reviewCases)('%s preserves an uncertain mutation and never replays it after restart', async (action, method) => {
+    const s = setup(); const { code } = await openReview(s, action);
+    const logger = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+    try {
+      s.staff[method].mockRejectedValueOnce(new Error('synthetic lost commit response'));
+      await expect(s.flow.finish(3, actor, 6, action, code)).rejects.toThrow();
+      expect(s.session?.step).toBe('COMMITTING');
+      await s.restart().resume(3, 123);
+      expect(await s.flow.cancel(3)).toBe(false);
+      expect(await s.flow.finish(3, actor, 6, action, code)).toBe(false);
+      expect(s.staff[method]).toHaveBeenCalledTimes(1);
+    } finally { logger.mockRestore(); }
+  });
+  it('rotates a review confirmation on resume and refuses an old or foreign order code', async () => {
+    const s = setup(); const { code } = await openReview(s, 'RESET_ITEM');
+    await s.restart().resume(3, 123);
+    expect(s.session?.confirmationCode).not.toBe(code);
+    expect(await s.flow.finish(3, actor, 6, 'RESET_ITEM', code)).toBe(false);
+    expect(await s.flow.finish(3, actor, 7, 'RESET_ITEM', s.session!.confirmationCode!)).toBe(false);
+    expect(s.staff.item).not.toHaveBeenCalled();
+  });
+  it('keeps a review durable if its first Telegram edit fails', async () => {
+    const s = setup(); const order = reviewFixture('RESET_ITEM');
+    s.staff.get.mockImplementation(async () => order);
+    s.telegram.editStaff.mockRejectedValueOnce(new Error('synthetic edit failure'));
+    await expect(s.flow.start(3, 123, 44, 6, 8, 'RESET_ITEM', 'CONFIRM', { snapshot: reviewSnapshot(order) })).rejects.toThrow();
+    expect(s.session).toMatchObject({ action: 'RESET_ITEM', step: 'CONFIRM' });
+    await s.restart().resume(3, 123);
+    expect(s.telegram.editStaff).toHaveBeenCalledTimes(2);
+    expect(s.staff.item).not.toHaveBeenCalled();
+  });
 });

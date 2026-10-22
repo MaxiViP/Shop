@@ -10,6 +10,7 @@ import { CartService } from '../cart/cart.service.js';
 import { OrderService } from '../order/order.service.js';
 import { orderSchema, addressSchema } from '../order/schema.js';
 import { checkoutLimits } from '../order/limits.js';
+import { phone } from '../common/phone.js';
 import {
   checkoutPayload,
   checkoutStep,
@@ -72,33 +73,52 @@ export class CustomerCheckoutService {
         checkoutPayload.safeParse(previous.payload).data?.cartRevision ===
           cartRevision
       )
-        return previous;
+        return previous.step === 'CONFIRM'
+          ? this.advance(db, identity, previous, 'CONFIRM', checkoutPayload.parse(previous.payload))
+          : previous;
       const user = await db.user.findUniqueOrThrow({
         where: { id: identity.userId },
-        select: { name: true, phone: true },
+        select: { name: true, phone: true, telegramIdentity: { select: { phoneNumber: true, phoneVerified: true } } },
       });
       const last = await db.order.findFirst({
-        where: { userId: identity.userId },
+        where: { userId: identity.userId, status: { not: 'CANCELED' } },
         orderBy: { createdAt: 'desc' },
-        select: { customerName: true, customerPhone: true },
+        select: { type: true },
       });
       const address = await db.address.findFirst({
         where: { userId: identity.userId },
         orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
-        select: { id: true },
       });
-      const name = orderSchema.shape.customerName.safeParse(
-        user.name || last?.customerName,
-      );
+      const name = orderSchema.shape.customerName.safeParse(user.name);
+      let ownPhone: string | undefined;
+      try {
+        const value = user.phone || (user.telegramIdentity?.phoneVerified ? user.telegramIdentity.phoneNumber : null);
+        if (value) ownPhone = phone(value);
+      } catch { /* Incomplete profile uses the normal PHONE step. */ }
       const data: CheckoutPayload = {
         cartRevision,
         quoteToken: cart.token,
         ...(name.success ? { customerName: name.data } : {}),
-        ...(user.phone || last?.customerPhone
-          ? { customerPhone: user.phone || last!.customerPhone }
-          : {}),
+        ...(ownPhone ? { customerPhone: ownPhone } : {}),
         ...(address ? { addressId: address.id } : {}),
       };
+      let step = 'TYPE';
+      const saved = addressSchema.safeParse(address ? Object.fromEntries(
+        Object.entries(address).map(([key, value]) => [key, value === null ? undefined : value]),
+      ) : undefined);
+      if (name.success && ownPhone && last && (last.type === 'PICKUP' || saved.success)) {
+        data.type = last.type;
+        data.fulfillmentMode = 'ASAP';
+        if (last.type === 'DELIVERY' && saved.success) data.address = saved.data;
+        try { step = await this.confirmationStep(db, identity, data); }
+        catch (error) {
+          if (!(error instanceof BadRequestException)) throw error;
+          // A disabled method or an unmet delivery minimum needs a fresh choice.
+          delete data.type;
+          delete data.address;
+          delete data.fulfillmentMode;
+        }
+      }
       await db.customerTelegramSession.deleteMany({
         where: { identityId: identity.id },
       });
@@ -106,12 +126,33 @@ export class CustomerCheckoutService {
         data: {
           identityId: identity.id,
           action: 'CHECKOUT',
-          step: 'TYPE',
+          step,
           payload: checkoutPayload.parse(data),
           expiresAt: new Date(Date.now() + 30 * 60000),
         },
       });
     });
+  }
+  private async confirmationStep(db: Prisma.TransactionClient, identity: CustomerIdentity, data: CheckoutPayload) {
+    const cart = await this.cart.getIn(db, identity.userId);
+    if (cart.revision !== data.cartRevision || !cart.valid || !cart.token) throw stale();
+    const input = orderSchema.safeParse({ ...data, items: cart.items });
+    if (!input.success) throw new BadRequestException('Проверьте данные заказа и время получения.');
+    checkoutLimits(input.data.type, cart.subtotal,
+      await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } }));
+    data.quoteToken = cart.token;
+    const offer = await this.orders.offer();
+    const scheduled = data.fulfillmentMode === 'SCHEDULED';
+    const available = scheduled
+      ? Boolean(data.scheduledFor && Date.parse(data.scheduledFor) > Date.now() &&
+          offer.slots.some(slot => Date.parse(slot.at) === Date.parse(data.scheduledFor!)))
+      : !offer.preorderRequired;
+    if (!available) {
+      delete data.fulfillmentMode;
+      delete data.scheduledFor;
+      return 'TIME';
+    }
+    return 'CONFIRM';
   }
   private async advance(
     db: Prisma.TransactionClient,
@@ -120,22 +161,7 @@ export class CustomerCheckoutService {
     step: string,
     data: CheckoutPayload,
   ) {
-    if (step === 'CONFIRM') {
-      const cart = await this.cart.getIn(db, identity.userId);
-      if (cart.revision !== data.cartRevision || !cart.valid || !cart.token)
-        throw stale();
-      const input = orderSchema.safeParse({ ...data, items: cart.items });
-      if (!input.success)
-        throw new BadRequestException(
-          'Проверьте данные заказа и время получения.',
-        );
-      checkoutLimits(
-        input.data.type,
-        cart.subtotal!,
-        await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } }),
-      );
-      data.quoteToken = cart.token;
-    }
+    if (step === 'CONFIRM') step = await this.confirmationStep(db, identity, data);
     return db.customerTelegramSession.update({
       where: { id: session.id },
       data: {
@@ -161,6 +187,7 @@ export class CustomerCheckoutService {
         (choice === 'pickup' || choice === 'delivery')
       ) {
         data.type = choice === 'pickup' ? 'PICKUP' : 'DELIVERY';
+        if (data.type === 'PICKUP') delete data.address;
         return this.advance(db, identity, session, afterType(data), data);
       }
       if (session.step === 'ADDRESS' && choice === 'saved' && data.addressId) {
@@ -176,20 +203,25 @@ export class CustomerCheckoutService {
             ]),
           ),
         );
-        return this.advance(db, identity, session, 'TIME', data);
+        return this.advance(db, identity, session, afterType(data), data);
       }
       if (session.step === 'ADDRESS' && choice === 'new') {
         delete data.address;
         return this.advance(db, identity, session, 'CITY', data);
       }
-      if (session.step === 'CONFIRM' && choice === 'edit') {
-        delete data.customerName;
-        delete data.customerPhone;
-        delete data.address;
-        delete data.scheduledFor;
-        delete data.fulfillmentMode;
-        return this.advance(db, identity, session, 'TYPE', data);
+      if (session.step === 'CONFIRM') {
+        if (choice === 'edit' || choice === 'edit_type')
+          return this.advance(db, identity, session, 'TYPE', data);
+        if (choice === 'edit_name') return this.advance(db, identity, session, 'NAME', data);
+        if (choice === 'edit_phone') return this.advance(db, identity, session, 'PHONE', data);
+        if (choice === 'edit_address' && data.type === 'DELIVERY')
+          return this.advance(db, identity, session, 'ADDRESS', data);
+        if (choice === 'edit_comment' && data.type === 'DELIVERY')
+          return this.advance(db, identity, session, 'COMMENT', data);
+        if (choice === 'edit_time') return this.advance(db, identity, session, 'TIME', data);
       }
+      if (choice === 'edit_done' && (session.step === 'TYPE' || session.step === 'ADDRESS'))
+        return this.advance(db, identity, session, 'CONFIRM', data);
       throw stale();
     });
   }
@@ -264,6 +296,11 @@ export class CustomerCheckoutService {
       const data = checkoutPayload
         .required({ type: true, customerName: true, customerPhone: true })
         .parse(session.payload);
+      const offer = await this.orders.offer();
+      if ((data.fulfillmentMode ?? 'ASAP') === 'ASAP' ? offer.preorderRequired :
+        !data.scheduledFor || Date.parse(data.scheduledFor) <= Date.now() ||
+          !offer.slots.some(slot => Date.parse(slot.at) === Date.parse(data.scheduledFor!)))
+        throw stale();
       // Validate all fields again (including future time); cart supplies authoritative items.
       const input = {
         ...data,

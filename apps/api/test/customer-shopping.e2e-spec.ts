@@ -257,9 +257,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
         s.id,
         type === 'PICKUP' ? 'pickup' : 'delivery',
       );
-      expect(s.step).toBe('PHONE'); // Telegram metadata phone never silently becomes an order contact.
-      s = await bind(f);
-      s = await checkout.reply(f.actor, '+79990000002', s.promptMessageId!);
+      // The verified own Telegram phone is a valid checkout default; another recipient is edited explicitly.
+      expect(checkoutPayload.parse(s.payload).customerPhone).toBe(f.identity.phoneNumber);
+      expect(s.step).toBe(type === 'DELIVERY' ? 'ADDRESS' : 'TIME');
       if (type === 'DELIVERY') {
         await db.address.create({
           data: {
@@ -541,7 +541,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await expect(checkout.confirm(other.actor, s.id)).rejects.toThrow();
       expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
     });
-    it('reuses only owned saved address and account contact; no Telegram phone auto-fill', async () => {
+    it('reuses only owned saved address and prefers own account contact over verified Telegram defaults', async () => {
       const f = await fixture();
       await db.user.update({
         where: { id: f.user.id },
@@ -657,17 +657,17 @@ describe.skipIf(!process.env.DATABASE_URL)(
       fetcher.mockRejectedValueOnce(new Error('unknown prompt'));
       await bot().handle(cb(f.telegramId, shoppingData('f', s.id, 'pickup')));
       s = await session(f);
-      expect(s).toMatchObject({ step: 'PHONE', promptMessageId: null });
-      await bot().handle(text(f.telegramId, '+79990000002', 987));
+      expect(s).toMatchObject({ step: 'TIME', promptMessageId: null });
+      await bot().handle(text(f.telegramId, '-', 987));
       expect((await session(f)).id).toBe(s.id);
       await bot().handle(text(f.telegramId, '/resume'));
       const next = await session(f);
       expect(next.id).not.toBe(s.id);
       expect(next.promptMessageId).not.toBeNull();
       await bot().handle(
-        text(f.telegramId, '+79990000002', next.promptMessageId!),
+        text(f.telegramId, '-', next.promptMessageId!),
       );
-      expect((await session(f)).step).toBe('TIME');
+      expect((await session(f)).step).toBe('CONFIRM');
     });
     it('/menu cancels abandoned CHECKOUT input before displaying the inline home menu', async () => {
       const f = await fixture(), c = await add(f);
@@ -675,19 +675,19 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const type = await session(f);
       await bot().handle(cb(f.telegramId, shoppingData('f', type.id, 'pickup')));
       const pending = await session(f);
-      expect(pending.step).toBe('PHONE');
+      expect(pending.step).toBe('TIME');
       expect(pending.promptMessageId).not.toBeNull();
       const prompt = sent().find(message => message.text?.includes('Нажмите «Ответить»'));
-      expect(prompt?.reply_markup?.force_reply).toBeUndefined();
+      expect(prompt?.reply_markup?.force_reply).toBe(true);
       expect(JSON.stringify(sent())).not.toContain('"keyboard"');
       expect(prompt?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
-        .toEqual(['menu']);
+        .toEqual(['cancel', 'menu']);
       await bot().handle(text(f.telegramId, '/menu'));
       expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity.id } })).toBeNull();
       const menu = sent().findLast(message => message.text?.startsWith('Привет,'));
       expect(menu?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
         .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
-      await bot().handle(text(f.telegramId, '+79990000002', pending.promptMessageId!));
+      await bot().handle(text(f.telegramId, '-', pending.promptMessageId!));
       expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
       expect((await cart.get(f.user.id)).items).toHaveLength(1);
       expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity.id } })).toBeNull();
@@ -700,7 +700,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const pending = await session(f);
       await bot().handle(text(f.telegramId, command));
       expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity.id } })).toBeNull();
-      await bot().handle(text(f.telegramId, '+79990000002', pending.promptMessageId!));
+      await bot().handle(text(f.telegramId, '-', pending.promptMessageId!));
       expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
     });
     it('completed CHECKOUT exposes menu and has no active text session', async () => {
@@ -845,6 +845,43 @@ describe.skipIf(!process.env.DATABASE_URL)(
       ).toBe('AWAITING');
       expect(telegram.notifyPaymentReported).not.toHaveBeenCalled();
     });
+    it('browse-only onboarding permits public catalog and help but protects cart and checkout until self-contact', async () => {
+      const f = await fixture();
+      await db.telegramIdentity.update({ where: { id: f.identity.id }, data: { phoneVerified: false, phoneNumber: null } });
+      const initialCarts = await db.cart.count({ where: { userId: f.user.id } });
+      await bot().handle(text(f.telegramId, '/menu'));
+      await bot().handle(text(f.telegramId, '/catalog'));
+      await bot().handle(text(f.telegramId, '/help'));
+      await bot().handle(cb(f.telegramId, shoppingData('l', f.category.id, 0)));
+      await bot().handle(cb(f.telegramId, shoppingData('v', f.product.id, f.product.min)));
+      const preview = sent().find(message => message.text?.includes('Для корзины и оформления подтвердите'));
+      expect(preview?.text).toContain('500 г');
+      expect(preview?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === 'verify_phone')).toBe(true);
+      expect(preview?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data?.startsWith('s:a:'))).toBe(false);
+      await bot().handle(cb(f.telegramId, shoppingData('a', randomUUID(), f.product.id, f.product.min, f.product.unit)));
+      await bot().handle(text(f.telegramId, '/cart'));
+      expect(await db.cart.count({ where: { userId: f.user.id } })).toBe(initialCarts);
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+      expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity.id } })).toBeNull();
+      expect((await db.telegramIdentity.findUniqueOrThrow({ where: { id: f.identity.id } })).phoneVerified).toBe(false);
+    });
+    it('clear requires an explicit current-revision confirmation and cannot affect an already created order', async () => {
+      const f = await fixture(), draft = await ready(f);
+      const order = await checkout.confirm(f.actor, draft.id);
+      const beforeOrder = await db.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: true } });
+      const basket = await add(f);
+      await bot().handle(cb(f.telegramId, shoppingData('z', basket.revision)));
+      expect((await cart.get(f.user.id)).revision).toBe(basket.revision);
+      expect((await cart.get(f.user.id)).items).toHaveLength(1);
+      expect(sent().some(message => message.text?.includes('Очистить корзину?'))).toBe(true);
+      const changed = await cart.change(f.user.id, basket.revision, { kind: 'plus', productId: f.product.id });
+      await bot().handle(cb(f.telegramId, shoppingData('y', basket.revision)));
+      expect((await cart.get(f.user.id)).revision).toBe(changed.revision);
+      await bot().handle(cb(f.telegramId, shoppingData('z', changed.revision)));
+      await Promise.all([1, 2].map(() => bot().handle(cb(f.telegramId, shoppingData('y', changed.revision)))));
+      expect((await cart.get(f.user.id)).items).toHaveLength(0);
+      expect(await db.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: true } })).toEqual(beforeOrder);
+    });
     it('all customer commands retain private-chat and actor equality enforcement', async () => {
       const f = await fixture();
       await add(f);
@@ -883,7 +920,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await bot().handle(
         cb(f.telegramId, shoppingData('v', f.product.id, f.product.min)),
       );
-      const screen = sent().find((x) => x.text?.includes('Выбрано:'));
+      const screen = sent().find((x) => x.text?.includes('Добавить ещё:'));
       expect(screen?.text).toContain('500 г');
       expect(screen?.reply_markup?.inline_keyboard?.flat().find(button => button.text === 'Фото и описание')?.web_app?.url)
         .toBe('https://shop.example/telegram?returnTo=' + encodeURIComponent('/product/' + f.product.slug));
@@ -944,28 +981,26 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect((await cart.get(f.user.id)).items[0]!.qty).toBe(1000);
     });
     it('checkout later prompt UNKNOWN retains payload and duplicate replies advance once', async () => {
-      const f = await fixture(),
-        c = await add(f);
+      const f = await fixture(), c = await add(f);
       let s = await checkout.start(f.actor, c.revision);
-      s = await checkout.choose(f.actor, s.id, 'pickup');
+      s = await checkout.choose(f.actor, s.id, 'delivery');
+      s = await checkout.choose(f.actor, s.id, 'new');
+      expect(s.step).toBe('CITY');
       s = await bind(f);
       fetcher.mockRejectedValueOnce(new Error('lost next prompt'));
-      await bot().handle(
-        text(f.telegramId, '+79990000002', s.promptMessageId!),
-      );
+      await bot().handle(text(f.telegramId, 'Москва', s.promptMessageId!));
       const waiting = await session(f);
-      expect(waiting).toMatchObject({ step: 'TIME', promptMessageId: null });
-      expect(checkoutPayload.parse(waiting.payload).customerPhone).toBe(
-        '+79990000002',
-      );
+      expect(waiting).toMatchObject({ step: 'STREET', promptMessageId: null });
+      expect(checkoutPayload.parse(waiting.payload)).toMatchObject({ customerPhone: f.identity.phoneNumber, address: { city: 'Москва' } });
       await bot().handle(text(f.telegramId, '/resume'));
       const resumed = await session(f);
       const replies = await Promise.allSettled([
-        checkout.reply(f.actor, '-', resumed.promptMessageId!),
-        checkout.reply(f.actor, '-', resumed.promptMessageId!),
+        checkout.reply(f.actor, 'Тестовая улица', resumed.promptMessageId!),
+        checkout.reply(f.actor, 'Тестовая улица', resumed.promptMessageId!),
       ]);
       expect(replies.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
-      expect((await session(f)).step).toBe('CONFIRM');
+      expect((await session(f)).step).toBe('HOUSE');
+      expect(checkoutPayload.parse((await session(f)).payload).address?.street).toBe('Тестовая улица');
       expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
     });
     it('simultaneous resumes with delayed responses leave only the newest exact checkout prompt active', async () => {
@@ -991,9 +1026,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await first;
       expect(await session(f)).toEqual(current);
       await expect(
-        checkout.reply(f.actor, '+79990000002', 76543),
+        checkout.reply(f.actor, '-', 76543),
       ).rejects.toThrow();
-      expect((await session(f)).step).toBe('PHONE');
+      expect((await session(f)).step).toBe('TIME');
     });
     it('checkout reservation already exists when its initial presentation fails', async () => {
       const f = await fixture(),
@@ -1325,10 +1360,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
       let s = await ready(f, 'DELIVERY');
       s = await checkout.choose(f.actor, s.id, 'edit');
       s = await checkout.choose(f.actor, s.id, 'pickup');
-      for (const value of ['Pickup customer', '+79990000002', '-']) {
-        s = await bind(f);
-        s = await checkout.reply(f.actor, value, s.promptMessageId!);
-      }
+      expect(s.step).toBe('CONFIRM');
+      s = await checkout.choose(f.actor, s.id, 'edit_name');
+      s = await bind(f);
+      s = await checkout.reply(f.actor, 'Pickup customer', s.promptMessageId!);
+      s = await checkout.choose(f.actor, s.id, 'edit_phone');
+      s = await bind(f);
+      s = await checkout.reply(f.actor, '+79990000002', s.promptMessageId!);
       const o = await checkout.confirm(f.actor, s.id);
       const row = await db.order.findUniqueOrThrow({ where: { id: o.id } });
       for (const field of [

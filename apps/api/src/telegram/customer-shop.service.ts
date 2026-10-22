@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,10 +10,11 @@ import { CartService } from '../cart/cart.service.js';
 import { OrderService } from '../order/order.service.js';
 import { cartProductSelect, cartQuantityValid } from '../order/cart-quote.js';
 import { customerProduct } from '../product/select.js';
-import { goodsLine } from '../order/pricing.js';
+import { requestedLine } from '../order/pricing.js';
 import { manualQuantity } from '../order/assembly.js';
+import { priceUnit, variableWeight } from '../product/sale.js';
 import { CustomerCheckoutService } from './customer-checkout.service.js';
-import { checkoutScreen, paymentScreen } from './shopping-view.js';
+import { checkoutScreen, paymentScreen, clearCartScreen, shoppingHelpScreen } from './shopping-view.js';
 import {
   customerShow,
   customerPrompt,
@@ -35,6 +37,8 @@ const navigation: Button[][] = [
     { text: 'Меню', callback_data: 'menu' },
   ],
 ];
+type Basket = Awaited<ReturnType<CartService['get']>>;
+const estimate = (value: number | null) => value === null ? 'после взвешивания' : '≈ ' + amount(value);
 
 @Injectable()
 export class CustomerShopService {
@@ -44,6 +48,13 @@ export class CustomerShopService {
     private readonly checkout: CustomerCheckoutService,
     private readonly orders: OrderService,
   ) {}
+
+  async cartLabel(identity: CustomerIdentity): Promise<string> {
+    const basket = await this.cart.get(identity.userId);
+    return basket.items.length
+      ? '🛒 Корзина · ' + basket.items.length + ' поз. · ' + estimate(basket.goodsTotal)
+      : '🛒 Корзина пуста';
+  }
 
   private async categories(target: CustomerTarget, page = 0) {
     const rows = await this.db.category.findMany({
@@ -94,7 +105,7 @@ export class CustomerShopService {
     })).map(customerProduct);
     const buttons: Button[][] = rows.slice(0, 6).map((p) => [
       {
-        text: short(p.name, 45) + ' · ' + amount(p.price),
+        text: short(p.name, 35) + ' · ' + amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)),
         callback_data: shoppingData('v', p.id, p.min),
       },
     ]);
@@ -121,7 +132,7 @@ export class CustomerShopService {
               ' — ' +
               amount(p.price) +
               ' / ' +
-              quantity(p.priceQty, p.unit),
+              quantity(p.priceQty, priceUnit(p)),
           )
           .join('\n') || 'Товаров пока нет.'),
       keyboard: {
@@ -139,6 +150,9 @@ export class CustomerShopService {
     identity: CustomerIdentity,
     productId: number,
     qty: number,
+    savedBasket?: Basket,
+    addedQty?: number,
+    browsingOnly = false,
   ) {
     const source = await this.db.product.findFirst({
       where: { id: productId, active: true, category: { active: true } },
@@ -148,14 +162,30 @@ export class CustomerShopService {
     const p = customerProduct(source);
     if (!cartQuantityValid(qty, p.min, p.step))
       throw new BadRequestException('Проверьте количество товара');
-    const basket = await this.cart.get(identity.userId);
+    if (browsingOnly) {
+      const url = webAppUrl('/product/' + encodeURIComponent(p.slug));
+      return customerShow(target, {
+        text: short(p.name, 180) + '\nЦена: ' + amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)) +
+          '\nОт ' + quantity(p.min, p.unit) + ' · шаг ' + quantity(p.step, p.unit) +
+          '\nВыбрано: ' + quantity(qty, p.unit) + ' · ' + estimate(requestedLine({ ...p, qty })) +
+          '\n\nДля корзины и оформления подтвердите свой номер Telegram.',
+        keyboard: { inline_keyboard: [
+          [{ text: '📱 Подтвердить номер и начать покупки', callback_data: 'verify_phone', style: 'primary' }],
+          ...(url ? [[{ text: 'Фото и описание', web_app: { url } }]] : []),
+          [{ text: '← К товарам', callback_data: shoppingData('l', p.categoryId, 0) }, { text: 'Меню', callback_data: 'menu' }],
+        ] },
+      });
+    }
+    const basket = savedBasket ?? await this.cart.get(identity.userId);
+    const inCart = basket.items.find(item => item.productId === productId);
+    const canAdd = !inCart || inCart.status === 'AVAILABLE';
     const productUrl = webAppUrl('/product/' + encodeURIComponent(p.slug));
     const down = manualQuantity(qty, p, -1),
       up = manualQuantity(qty, p, 1);
     const controls: Button[] = [];
     if (down !== null)
       controls.push({
-        text: '−',
+        text: '−' + quantity(p.step, p.unit),
         callback_data: shoppingData('v', p.id, down),
       });
     controls.push({
@@ -163,31 +193,52 @@ export class CustomerShopService {
       callback_data: shoppingData('v', p.id, qty),
     });
     if (up !== null)
-      controls.push({ text: '+', callback_data: shoppingData('v', p.id, up) });
+      controls.push({ text: '+' + quantity(p.step, p.unit), callback_data: shoppingData('v', p.id, up) });
+    const quick = [p.portionQty, p.portionQty * 2].filter(value =>
+      Number.isSafeInteger(value) && value > 0 && value <= 1_000_000 && value % p.step === 0 &&
+      canAdd &&
+      (inCart?.qty ?? 0) + value <= 1_000_000 &&
+      (inCart ? true : cartQuantityValid(value, p.min, p.step)) &&
+      (!variableWeight(p) || (inCart?.qty ?? 0) + value <= 100),
+    ).flatMap(value => {
+      try {
+        return [{ text: '+' + quantity(value, p.unit) + ' · ' + estimate(requestedLine({ ...p, qty: value })),
+          callback_data: shoppingData('a', basket.revision, p.id, value, p.unit) }];
+      } catch (error) {
+        if (!(error instanceof BadRequestException)) throw error;
+        return [];
+      }
+    });
     return customerShow(target, {
       text:
+        (addedQty ? '✅ Добавлено: +' + quantity(addedQty, p.unit) + ' · ' +
+          estimate(requestedLine({ ...(inCart?.product ?? p), qty: addedQty })) + '\n\n' : '') +
         short(p.name, 180) +
         '\nЦена: ' +
         amount(p.price) +
         ' / ' +
-        quantity(p.priceQty, p.unit) +
+        quantity(p.priceQty, priceUnit(p)) +
         '\nОт ' +
         quantity(p.min, p.unit) +
         ' · шаг ' +
         quantity(p.step, p.unit) +
-        '\nВыбрано: ' +
+        '\nДобавить ещё: ' +
         quantity(qty, p.unit) +
-        '\nПредварительно: ≈ ' +
-        amount(goodsLine(p.price, qty, p.priceQty)),
+        ' · ' + estimate(requestedLine({ ...p, qty })) +
+        '\n\nВ корзине этого товара: ' + quantity(inCart?.qty ?? 0, inCart?.quantityUnit ?? p.unit) +
+        (inCart ? ' · ' + estimate(inCart.lineTotal) : '') +
+        (!canAdd ? '\n⚠️ Условия товара изменились. Удалите старую позицию из корзины и выберите количество заново.' : '') +
+        '\nВся корзина: ' + basket.items.length + ' поз. · ' + estimate(basket.goodsTotal),
       keyboard: {
         inline_keyboard: [
+          ...(quick.length ? [quick] : []),
           controls,
-          [
+          ...(canAdd ? [[
             {
-              text: '➕ В корзину',
-              callback_data: shoppingData('a', basket.revision, p.id, qty),
+              text: '➕ Добавить ' + quantity(qty, p.unit),
+              callback_data: shoppingData('a', basket.revision, p.id, qty, p.unit),
             },
-          ],
+          ]] : []),
           ...(productUrl ? [[{ text: 'Фото и описание', web_app: { url: productUrl } }]] : []),
           [
             {
@@ -195,7 +246,8 @@ export class CustomerShopService {
               callback_data: shoppingData('l', p.categoryId, 0),
             },
           ],
-          ...navigation,
+          [{ text: '🛒 ' + basket.items.length + ' поз. · ' + estimate(basket.goodsTotal), callback_data: 'cart' },
+            { text: 'Меню', callback_data: 'menu' }],
         ],
       },
     });
@@ -208,9 +260,9 @@ export class CustomerShopService {
       item.product
         ? short(item.product.name, 120) +
           '\n' +
-          quantity(item.qty, item.product.unit) +
-          ' · ≈ ' +
-          amount(item.lineTotal) +
+          quantity(item.qty, item.quantityUnit ?? item.product.unit) +
+          ' · ' +
+          estimate(item.lineTotal) +
           (item.status === 'AVAILABLE'
             ? ''
             : '\n⚠️ Проверьте количество / стоимость')
@@ -226,10 +278,10 @@ export class CustomerShopService {
         },
       ],
       [
-        ...(item.product
+        ...(item.product && item.status === 'AVAILABLE'
           ? [
               {
-                text: '−',
+                text: '−' + quantity(item.product.step, item.product.unit),
                 callback_data: shoppingData(
                   '-',
                   basket.revision,
@@ -237,7 +289,7 @@ export class CustomerShopService {
                 ),
               },
               {
-                text: '+',
+                text: '+' + quantity(item.product.step, item.product.unit),
                 callback_data: shoppingData(
                   '+',
                   basket.revision,
@@ -279,11 +331,12 @@ export class CustomerShopService {
     ]);
     return customerShow(target, {
       text:
-        '🛒 Корзина\n\n' +
+        '🛒 Корзина' + (basket.items.length ? ' · ' + basket.items.length + ' поз.' : '') +
+        (basket.items.length > 5 ? ' · страница ' + (page + 1) + ' из ' + Math.ceil(basket.items.length / 5) : '') + '\n\n' +
         (lines.join('\n\n') || 'Корзина пуста.') +
         (basket.items.length
-          ? '\n\nПредварительно: ≈ ' +
-            amount(basket.subtotal) +
+          ? '\n\nТовары предварительно: ' +
+            estimate(basket.subtotal) +
             (basket.promo ? '\nПромокод: ' + basket.promo.code + ' · скидка ' + amount(basket.promo.discount) +
               '\nЗа товары после скидки: ' + amount(basket.goodsTotal) : '') +
             '\nТочная сумма весовых товаров — после сборки.'
@@ -333,7 +386,10 @@ export class CustomerShopService {
     target: CustomerTarget,
     identity: CustomerIdentity,
     action: ShoppingAction,
+    browsingOnly = false,
   ) {
+    if (browsingOnly && !['catalog', 'categories', 'products', 'product', 'help'].includes(action.kind))
+      throw new BadRequestException('Для покупок подтвердите свой номер Telegram.');
     switch (action.kind) {
       case 'catalog':
         return this.categories(target);
@@ -342,20 +398,28 @@ export class CustomerShopService {
       case 'products':
         return this.products(target, action.categoryId, action.page);
       case 'product':
-        return this.product(target, identity, action.productId, action.qty);
+        return this.product(target, identity, action.productId, action.qty, undefined, undefined, browsingOnly);
       case 'cart':
         return this.basket(target, identity);
       case 'basket':
         return this.basket(target, identity, action.page);
-      case 'add':
+      case 'add': {
+        const basket = await this.cart.change(identity.userId, action.revision, action);
+        return this.product(target, identity, action.productId, action.qty, basket, action.qty);
+      }
+      case 'clear': {
+        const basket = await this.cart.get(identity.userId);
+        if (basket.revision !== action.revision) throw new ConflictException('Корзина уже изменилась. Откройте её заново.');
+        return customerShow(target, clearCartScreen(basket));
+      }
       case 'plus':
       case 'minus':
       case 'remove':
-      case 'clear':
+      case 'clearConfirmed':
         await this.cart.change(
           identity.userId,
           action.revision,
-          action.kind === 'clear' ? { kind: 'clear' } : action,
+          action.kind === 'clearConfirmed' ? { kind: 'clear' } : action,
         );
         return this.basket(target, identity);
       case 'checkout':
@@ -378,8 +442,9 @@ export class CustomerShopService {
             text:
               '✅ Заказ создан\nЗаказ №' +
               order.id +
-              '\nПредварительная сумма товаров: ≈ ' +
-              amount(order.subtotal),
+              '\nПредварительная сумма товаров: ' +
+              estimate(order.subtotal) +
+              '\n\nОткройте заказ, чтобы следить за сборкой, отвечать на вопросы и увидеть итоговую сумму.',
             keyboard: {
               inline_keyboard: [
                 [
@@ -415,10 +480,7 @@ export class CustomerShopService {
         );
         return this.payment(target, identity, action.publicId, action.method);
       case 'help':
-        return customerShow(target, {
-          text: 'Покупки в KorzinaMarket\n/catalog — каталог\n/cart — корзина и оформление\n/orders — заказы\n/current — текущий заказ\n/messages — вопросы и сообщения\n/resume — продолжить ввод\n/cancel — отменить ввод\n\nВес и итог уточняются после сборки. После перевода нажмите «Я оплатил» — продавец проверит деньги. По заказу можно написать продавцу.',
-          keyboard: { inline_keyboard: navigation },
-        });
+        return customerShow(target, shoppingHelpScreen());
       case 'resume':
         return;
     }

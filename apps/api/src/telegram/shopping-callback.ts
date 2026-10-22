@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { SaleUnit } from '../product/sale.js';
 const id = z.number().int().positive().max(2147483647);
 const page = z.number().int().min(0).max(10000);
 const qty = z.number().int().positive().max(1000000);
@@ -27,15 +28,17 @@ export type ShoppingAction =
   | { kind: 'categories' | 'basket'; page: number }
   | { kind: 'products'; categoryId: number; page: number }
   | { kind: 'product'; productId: number; qty: number }
-  | { kind: 'add'; productId: number; qty: number; revision: string }
+  | { kind: 'add'; productId: number; qty: number; revision: string; quantityUnit?: SaleUnit }
   | { kind: 'plus' | 'minus' | 'remove'; productId: number; revision: string }
   | { kind: 'clear'; revision: string }
+  | { kind: 'clearConfirmed'; revision: string }
   | { kind: 'checkout'; revision: string }
   | {
       kind: 'flow';
       revision: string;
       choice:
-        'pickup' | 'delivery' | 'saved' | 'new' | 'confirm' | 'edit' | 'cancel';
+        'pickup' | 'delivery' | 'saved' | 'new' | 'confirm' | 'edit' | 'cancel' |
+        'edit_name' | 'edit_phone' | 'edit_type' | 'edit_address' | 'edit_comment' | 'edit_time' | 'edit_done';
     }
   | {
       kind: 'pay' | 'paid';
@@ -51,8 +54,8 @@ export function shoppingAction(data: string): ShoppingAction | null {
     data === 'help'
   )
     return { kind: data };
-  const [prefix, action, a, b, c, ...extra] = data.split(':');
-  if (prefix !== 's' || extra.length) return null;
+  const [prefix, action, a, b, c, unit, ...extra] = data.split(':');
+  if (prefix !== 's' || extra.length || (unit !== undefined && action !== 'a')) return null;
   const rev = expand(a);
   if ((action === 'c' || action === 'k') && b === undefined) {
     const p = number(a, page);
@@ -73,10 +76,12 @@ export function shoppingAction(data: string): ShoppingAction | null {
     return productId && q ? { kind: 'product', productId, qty: q } : null;
   }
   if (action === 'a') {
+    if (unit !== undefined && !['GRAM', 'PIECE', 'BUNCH', 'PACK'].includes(unit)) return null;
     const productId = number(b, id),
       q = number(c, qty);
     return rev && productId && q
-      ? { kind: 'add', productId, qty: q, revision: rev }
+      ? { kind: 'add', productId, qty: q, revision: rev,
+          ...(unit ? { quantityUnit: unit as SaleUnit } : {}) }
       : null;
   }
   if (['+', '-', 'x'].includes(action ?? '') && c === undefined) {
@@ -89,8 +94,8 @@ export function shoppingAction(data: string): ShoppingAction | null {
         }
       : null;
   }
-  if ((action === 'z' || action === 'b') && b === undefined && rev)
-    return { kind: action === 'z' ? 'clear' : 'checkout', revision: rev };
+  if (['z', 'y', 'b'].includes(action ?? '') && b === undefined && rev)
+    return { kind: action === 'z' ? 'clear' : action === 'y' ? 'clearConfirmed' : 'checkout', revision: rev };
   if (
     action === 'f' &&
     c === undefined &&
@@ -103,6 +108,13 @@ export function shoppingAction(data: string): ShoppingAction | null {
       'confirm',
       'edit',
       'cancel',
+      'edit_name',
+      'edit_phone',
+      'edit_type',
+      'edit_address',
+      'edit_comment',
+      'edit_time',
+      'edit_done',
     ].includes(b ?? '')
   )
     return {

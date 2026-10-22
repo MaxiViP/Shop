@@ -3,7 +3,7 @@ import { DbService } from '../db/db.service.js';
 import type { OrderStatus } from '../db/gen/client.js';
 import { newOrderMessage, telegramOrderSelect } from './message.js';
 import { orderKeyboard } from './callback.js';
-import { botRequest, botSendMessageId, type BotMethod } from './bot-api.js';
+import { botMessage, botRequest, botSendMessageId, type BotMethod } from './bot-api.js';
 import { staffBotToken, staffWebhookSecret, validWebhookSecret, staffPageUrl } from './bot-config.js';
 
 @Injectable()
@@ -48,11 +48,11 @@ export class TelegramService {
   }
 
   async editStaff(chatId: number, messageId: number, text: string, replyMarkup: object): Promise<void> {
-    await this.request('editMessageText', {
+    if (this.token && !await botMessage(this.token, 'editMessageText', {
       chat_id: chatId, message_id: messageId, text,
       reply_markup: replyMarkup,
       link_preview_options: { is_disabled: true },
-    }, 'Telegram staff dashboard update failed', 3000);
+    }, 3000)) this.logger.warn('Telegram staff dashboard update failed');
   }
 
   staffOrderUrl(orderId: number): string | undefined { return this.orderUrl(orderId); }

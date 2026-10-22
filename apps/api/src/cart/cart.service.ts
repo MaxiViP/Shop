@@ -13,7 +13,7 @@ import { orderSchema, type OrderInput } from '../order/schema.js';
 import { cartProductSelect, cartQuantityValid } from '../order/cart-quote.js';
 import { manualQuantity } from '../order/assembly.js';
 import { customerProduct } from '../product/select.js';
-import { compatibleQuantityUnit, variableWeight, type SaleUnit } from '../product/sale.js';
+import { compatibleQuantityUnit, priceUnit, saleModel, variableWeight, type SaleModel, type SaleUnit } from '../product/sale.js';
 
 type CartQuantity = { productId: number; qty: number; quantityUnit?: SaleUnit; weightMinGrams?: number | null; weightMaxGrams?: number | null };
 
@@ -155,7 +155,8 @@ export class CartService {
     });
   }
 
-  merge(userId: number, revision: string, items: CartQuantity[]) {
+  merge(userId: number, revision: string, items: CartQuantity[],
+    expectedSales?: { productId: number; unit: SaleUnit; priceUnit: SaleUnit; saleModel: SaleModel }[]) {
     return this.db.$transaction(async (db) => {
       const cart = await this.locked(db, userId);
       if (cart.revision !== revision)
@@ -176,12 +177,16 @@ export class CartService {
         await db.$queryRaw`SELECT id FROM "Product" WHERE id = ANY(${ids}::int[]) ORDER BY id FOR SHARE`;
         const products = await db.product.findMany({
           where: { ...orderableProductWhere, id: { in: ids } },
-          select: { id: true, min: true, step: true, unit: true, priceUnit: true },
+          select: { id: true, min: true, step: true, unit: true, priceUnit: true, saleModel: true },
         });
         for (const item of additions) {
           const product = products.find((row) => row.id === item.productId);
           if (!product || !cartQuantityValid(item.qty, product.min, product.step))
             throw new BadRequestException('Проверьте доступность и количество товаров');
+          const expected = expectedSales?.find(value => value.productId === item.productId);
+          if (expected && (expected.unit !== product.unit || expected.priceUnit !== priceUnit(product) ||
+            expected.saleModel !== saleModel(product)))
+            throw new ConflictException('Способ продажи изменился. Повторите проверку состава заказа.');
           if (!compatibleQuantityUnit(item.quantityUnit, product) || (variableWeight(product) && item.qty > 100))
             throw new BadRequestException('Выберите число целых экземпляров заново');
           if ((item.weightMinGrams != null || item.weightMaxGrams != null) && !variableWeight(product) ||

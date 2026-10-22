@@ -1,5 +1,6 @@
 <template>
-  <UContainer v-if="order" class="workspace">
+  <OrderWeigh v-if="order && weighId" :order="order" :item-id="weighId" :reload="reloadWeigh" />
+  <UContainer v-else-if="order" class="workspace">
     <header class="workspace__bar">
       <div class="workspace__identity">
         <div class="workspace__heading">
@@ -179,6 +180,7 @@
       <header class="stage__head">
         <p class="stage__number">Этап 2</p>
         <h2 class="stage__title">Сборка</h2>
+        <UButton v-if="order.status === 'ASSEMBLING' && weighStartId" variant="soft" icon="i-lucide-scale" :to="{ path: route.path, query: { ...route.query, weigh: String(weighStartId) }, hash: '#assembly' }">Компактная сборка</UButton>
       </header>
 
       <UAlert
@@ -587,6 +589,7 @@ import { qtyText } from '~/utils/qty'
 import { variableWeight, needsWeightApproval, approvedItemWeight, actualQuantity, priceUnit } from '~/utils/sale'
 import { pickupTime } from '~/utils/pickup'
 import { focusedAssemblyItem } from '~/utils/assembly'
+import { nextWeighItem } from '~/utils/weigh'
 
 interface DeliveryForm {
   provider: DeliveryProvider
@@ -629,7 +632,19 @@ if (error.value || !data.value) {
   })
 }
 
+// Preserve the last order when a recovery read fails; compact assembly must
+// know whether refresh succeeded before allowing another mutation.
+async function reloadWeigh() {
+  const owner = auth.user?.id;
+  const snapshot = await api<StaffOrderDetail>(`/staff/orders/${id}`, { retry: 0 });
+  if (auth.user?.id === owner) data.value = snapshot;
+}
+
 const order = computed(() => data.value!)
+const weighId = computed(() => {
+  const value = route.query.weigh;
+  return typeof value === 'string' && /^[1-9]\d{0,9}$/.test(value) && Number(value) <= 2147483647 ? Number(value) : null;
+})
 const clock = ref(Date.now())
 let dueTimer: ReturnType<typeof setInterval> | undefined
 onMounted(() => { dueTimer = setInterval(() => { clock.value = Date.now() }, 30_000) })
@@ -686,6 +701,7 @@ watch(
 const pending = computed(
   () => order.value.items.filter((item) => item.status === 'PENDING').length,
 )
+const weighStartId = computed(() => nextWeighItem(order.value.items, order.value.issues, 0))
 const openItemId = computed(() => focusedAssemblyItem(
   order.value.items, order.value.status === 'ASSEMBLING', expandedItem.value,
 ))

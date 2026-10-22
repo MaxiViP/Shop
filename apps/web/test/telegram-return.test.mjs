@@ -8,7 +8,7 @@ const order = "/order/11111111-1111-4111-8111-111111111111";
 test("only exact local CUSTOMER paths survive returnTo validation", () => {
   for (const target of ["/", "/catalog", "/catalog/vegetables", "/product/apple",
     "/product/green-grapes", order, "/orders", "/profile", "/cart",
-    "/favorites", "/delivery"])
+    "/favorites", "/delivery", "/quick-shop"])
     assert.equal(telegramReturnTo(target), target);
   for (const target of [null, ["https://evil.example"], "https://evil.example",
     "//evil.example", "javascript:alert(1)", "/\\evil", "/%2F%2Fevil",

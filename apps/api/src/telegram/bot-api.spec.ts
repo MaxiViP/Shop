@@ -178,3 +178,52 @@ it('retains seven-second delivery deadlines and the explicit short callback dead
   await botRequest(customer, 'answerCallbackQuery', {}, 3000);
   expect(timeout.mock.calls).toEqual([[7000], [7000], [7000], [3000]]);
 });
+
+it.each([400, 200])('acknowledges a definite unchanged edit with HTTP %s without sending another card', async status => {
+  fetcher.mockImplementation(async () => Response.json({ ok: false, error_code: 400,
+    description: 'Bad Request: message is not modified: specified new message content and reply markup are exactly the same' }, { status }));
+  expect(await botMessage(customer, 'editMessageText', { chat_id: 123, message_id: 91, text: 'fixture' })).toBe(true);
+  expect(await botRequest(customer, 'editMessageReplyMarkup', { chat_id: 123, message_id: 91 })).toBe(true);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(fetcher.mock.calls.every(([url]) => String(url).includes('/editMessage'))).toBe(true);
+});
+it.each(['message to edit not found', "message can't be edited"])('recovers a definitely unavailable card (%s) with one fresh card on the same gateway', async reason => {
+  vi.stubEnv('TELEGRAM_CUSTOMER_GATEWAY_URL', gateway);
+  fetcher.mockResolvedValueOnce(Response.json({ ok: false, error_code: 400,
+    description: 'Bad Request: ' + reason }, { status: 400 }));
+  const keyboard = { inline_keyboard: [[{ text: 'Меню', callback_data: 'menu' }]] };
+  expect(await botMessage(customer, 'editMessageText', {
+    chat_id: 123, message_id: 91, text: 'Актуальный заказ', reply_markup: keyboard,
+  })).toBe(true);
+  expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+    gateway + '/v1/customer/editMessageText', gateway + '/v1/customer/sendMessage',
+  ]);
+  expect(JSON.parse(String(fetcher.mock.calls[1]![1]!.body))).toEqual({
+    chat_id: 123, text: 'Актуальный заказ', reply_markup: keyboard,
+  });
+});
+it.each(['unknown', 'other-400', 'server-500', 'false-unchanged'] as const)(
+  'never creates a second card for %s edit outcomes', async kind => {
+    if (kind === 'unknown') fetcher.mockRejectedValueOnce(new Error('network'));
+    else fetcher.mockResolvedValueOnce(Response.json({ ok: false, error_code: 400,
+      description: kind === 'other-400' ? 'Bad Request: message text is empty' :
+        kind === 'false-unchanged' ? 'Bad Request: message is not modified by this user' :
+          'Bad Request: message to edit not found' }, { status: kind === 'server-500' ? 500 : 400 }));
+    expect(await botMessage(customer, 'editMessageText', { chat_id: 123, message_id: 91, text: 'fixture' })).toBe(false);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  },
+);
+it('does not treat an unchanged-message error as a successful send or delivery', async () => {
+  fetcher.mockImplementation(async () => Response.json({ ok: false, error_code: 400,
+    description: 'Bad Request: message is not modified' }, { status: 400 }));
+  expect(await botMessage(customer, 'sendMessage', { chat_id: 123, text: 'fixture' })).toBe(false);
+  expect(await botDelivery(customer, { chat_id: 123, text: 'fixture' })).toBe('rejected');
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it('does not repeat a fresh card whose recovery delivery has an unknown outcome', async () => {
+  fetcher.mockResolvedValueOnce(Response.json({ ok: false, error_code: 400,
+    description: 'Bad Request: message to edit not found' }, { status: 400 }));
+  fetcher.mockRejectedValueOnce(new Error('network'));
+  expect(await botMessage(customer, 'editMessageText', { chat_id: 123, message_id: 91, text: 'fixture' })).toBe(false);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});

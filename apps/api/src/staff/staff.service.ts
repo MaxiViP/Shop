@@ -20,7 +20,7 @@ import {
   goodsSum,
 } from '../order/pricing.js';
 import { checkIssues, syncIssue, issueSummary, compositionQty, compositionItem, compositionMoney } from '../order/coordination.js';
-import { priceUnit, variableWeight } from '../product/sale.js';
+import { needsWeightApproval, priceUnit, variableWeight } from '../product/sale.js';
 import { cancelOrder, restoreOrder, restoreProblem, cancellationHistory } from '../order/cancel.js';
 import { inAppEvent, telegramEvent } from '../order/outbox.js';
 import { NotificationService } from '../order/notification.service.js';
@@ -33,6 +33,7 @@ import { adminPriceRecipients } from './price.js';
 import { effectiveQueue, QueueService } from '../order/queue.js';
 import { customerPrice, SERVICE_MARKUP_PERCENT } from '../product/pricing.js';
 import { assertMarketTime } from '../admin/shop-hours.js';
+import { assertStaffReview } from './review.js';
 
 const lastPriceChange = { orderBy: { id: 'desc' }, take: 1,
   select: { sellerPrice: true, newPrice: true } } satisfies Prisma.OrderItemPriceChangeFindManyArgs;
@@ -245,11 +246,44 @@ export class StaffService {
       restoreProblem: restoreProblem(order, order.cancellations[0]) };
   }
 
-  async item(orderId: number, itemId: number, data: ItemInput, userId: number | null = null, actor?: StaffActor) {
+  async itemQuote(orderId: number, itemId: number,
+    data: Extract<ItemInput, { status: 'PICKED' }>, actor: StaffActor) {
+    assertStaffActor(actor, actor.userId);
+    const order = await this.db.order.findUnique({ where: { id: orderId }, select: {
+      status: true, assemblyFinalizedAt: true, weightToleranceBps: true,
+      payment: { select: { status: true } },
+      items: { where: { id: itemId } },
+      issues: { where: { orderItemId: itemId }, select: {
+        replacementItemId: true, status: true, resolution: true,
+      } },
+    } });
+    if (!order) throw new NotFoundException('Заказ не найден');
+    if (order.status !== 'ASSEMBLING' || order.assemblyFinalizedAt ||
+      ['REPORTED', 'PAID'].includes(order.payment?.status ?? ''))
+      throw new ConflictException('Заказ сейчас не собирается');
+    const item = order.items[0];
+    if (!item) throw new NotFoundException('Позиция не найдена');
+    if (item.status !== 'PENDING') throw new ConflictException('Сначала верните позицию в сборку');
+    const issue = order.issues[0];
+    if (issue?.replacementItemId || (issue?.status === 'RESOLVED' && issue.resolution === 'REMOVE_ITEM'))
+      throw new ConflictException('Исходный товар уже заменён или удалён из заказа');
+    const weighed = { ...item, actualQty: data.actualQty, pieceWeights: data.pieceWeights ?? null,
+      actualWeightGrams: data.pieceWeights?.reduce((sum, weight) => sum + weight, 0) ?? null };
+    const actualTotal = pickedLine(weighed);
+    return {
+      actualQty: data.actualQty, actualWeightGrams: weighed.actualWeightGrams,
+      actualTotal, quantityDelta: data.actualQty - item.qty,
+      amountDelta: item.total === null ? null : actualTotal - item.total,
+      requiresApproval: needsWeightApproval(weighed, order.weightToleranceBps),
+    };
+  }
+
+  async item(orderId: number, itemId: number, data: ItemInput, userId: number | null = null, actor?: StaffActor, expectedReview?: string) {
     assertStaffActor(actor, userId);
     let changed = false;
     const saved = await this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, orderId);
+      await assertStaffReview(db, orderId, expectedReview);
 
       if (
         order.status !== 'ASSEMBLING' ||
@@ -473,9 +507,10 @@ export class StaffService {
     return this.transition(id, 'CONFIRMED', 'ASSEMBLING', undefined, actor);
   }
 
-  async finishAssembly(id: number, actor?: StaffActor) {
+  async finishAssembly(id: number, actor?: StaffActor, expectedReview?: string) {
     const saved = await this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, id);
+      await assertStaffReview(db, id, expectedReview);
 
       if (
         order.assemblyFinalizedAt &&
@@ -566,9 +601,10 @@ export class StaffService {
     return this.transition(id, 'READY', 'COMPLETED', 'PICKUP', actor);
   }
 
-  async reopen(id: number, actor?: StaffActor) {
+  async reopen(id: number, actor?: StaffActor, expectedReview?: string) {
     const result = await this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, id);
+      await assertStaffReview(db, id, expectedReview);
       if (
         order.status !== 'READY' ||
         (order.payment &&
@@ -602,10 +638,11 @@ export class StaffService {
     return result;
   }
 
-  async confirmPayment(id: number, userId: number, type?: OrderType, actor?: StaffActor) {
+  async confirmPayment(id: number, userId: number, type?: OrderType, actor?: StaffActor, expectedReview?: string) {
     assertStaffActor(actor, userId);
     const result = await this.db.$transaction(async (db) => {
       const order = await this.lockedOrder(db, id);
+      await assertStaffReview(db, id, expectedReview);
       if (type && order.type !== type) throw new ConflictException('Неверный способ получения заказа');
       if (order.payment?.status === 'PAID') return order.payment;
       if (
@@ -634,11 +671,12 @@ export class StaffService {
     return result;
   }
 
-  async extra(orderId: number, userId: number, data: ExtraInput | null, id?: number, version?: number, actor?: StaffActor) {
+  async extra(orderId: number, userId: number, data: ExtraInput | null, id?: number, version?: number, actor?: StaffActor, expectedReview?: string) {
     assertStaffActor(actor, userId);
     let changed = false;
     const result = await this.db.$transaction(async db => {
       const order = await this.lockedOrder(db, orderId);
+      await assertStaffReview(db, orderId, expectedReview);
       if (order.status !== 'ASSEMBLING' || order.assemblyFinalizedAt || ['PAID', 'REPORTED'].includes(order.payment?.status ?? ''))
         throw new ConflictException('Услуги можно менять только во время сборки до оплаты');
       const current = id ? await db.orderExtra.findFirst({ where: { id, orderId } }) : null;

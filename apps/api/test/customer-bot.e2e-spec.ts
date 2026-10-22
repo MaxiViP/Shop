@@ -21,7 +21,7 @@ import { CustomerShopService } from '../src/telegram/customer-shop.service.js';
 import { CustomerUpdateService } from '../src/telegram/customer-update.service.js';
 import { CustomerNotificationService } from '../src/telegram/customer-notification.service.js';
 import type { BotDelivery } from '../src/telegram/bot-api.js';
-import { customerDecision, customerView } from '../src/telegram/customer-callback.js';
+import { customerDecision, customerConfirmCancellation, customerView } from '../src/telegram/customer-callback.js';
 
 // Migrations and real concurrency in a disposable schema, only on a loopback DB.
 describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
@@ -173,22 +173,29 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     expect(await db.user.count()).toBe(beforeUsers + 1);
     expect(await db.telegramIdentity.count()).toBe(beforeIdentities + 1);
     const request = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as {
-      text?: string; reply_markup?: { keyboard?: { request_contact?: boolean }[][] };
+      text?: string; reply_markup?: { keyboard?: { request_contact?: boolean }[][]; inline_keyboard?: { callback_data?: string }[][] };
     };
-    expect(request.text).toContain('Для доставки нужен ваш номер телефона');
-    expect(request.reply_markup?.keyboard?.[0]?.[0]?.request_contact).toBe(true);
+    expect(request.text).toContain('Посмотрите продукты и цены в каталоге');
+    expect(request.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
+      .toEqual(expect.arrayContaining(['catalog', 'verify_phone', 'help']));
+    expect(request.reply_markup?.keyboard).toBeUndefined();
+    await makeBot().handle(callback(telegramId, 'verify_phone'));
+    const contactRequest = fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as {
+      reply_markup?: { keyboard?: { request_contact?: boolean }[][] };
+    }).find(body => body.reply_markup?.keyboard);
+    expect(contactRequest?.reply_markup?.keyboard?.[0]?.[0]?.request_contact).toBe(true);
     await makeBot().handle(contact(telegramId, '8 (999) 123-45-67'));
     expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: identity.id } }))
       .toMatchObject({ phoneNumber: '+79991234567', phoneVerified: true, userId: user.id });
-    const removal = JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body)) as {
+    const removal = fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as {
       reply_markup?: { remove_keyboard?: boolean };
-    };
-    expect(removal.reply_markup?.remove_keyboard).toBe(true);
-    const payload = JSON.parse(String(fetcher.mock.calls[2]?.[1]?.body)) as {
+    }).find(body => body.reply_markup?.remove_keyboard);
+    expect(removal?.reply_markup?.remove_keyboard).toBe(true);
+    const payload = JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body)) as {
       reply_markup?: { inline_keyboard?: { text: string; callback_data?: string; web_app?: { url: string } }[][] };
     };
     const buttons = payload.reply_markup?.inline_keyboard?.flat();
-    expect(buttons).toHaveLength(6);
+    expect(buttons?.length).toBeGreaterThanOrEqual(6);
     expect(buttons?.map(button => button.callback_data))
       .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
     expect(buttons?.map(button => button.text))
@@ -413,10 +420,10 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     const promptBody = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as {
       reply_markup?: { force_reply?: boolean; keyboard?: unknown; inline_keyboard?: { callback_data?: string }[][] };
     };
-    expect(promptBody.reply_markup?.force_reply).toBeUndefined();
+    expect(promptBody.reply_markup?.force_reply).toBe(true);
     expect(promptBody.reply_markup?.keyboard).toBeUndefined();
     expect(promptBody.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
-      .toEqual(['menu']);
+      .toEqual(['cancel', 'menu']);
     await makeBot().handle(text(f.telegramId, '/menu'));
     expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity!.id } })).toBeNull();
     const menu = JSON.parse(String(fetcher.mock.calls.at(-1)?.[1]?.body)) as {
@@ -516,6 +523,13 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
   ] as const)('Telegram %s shares website coordination state', async (code, resolution, status) => {
     const f = await waiting();
     await makeBot().handle(callback(f.telegramId, customerDecision(f.order.publicId, f.issue.id, f.issue.version, code)));
+    if (code === 'c') {
+      expect((await coordination.view(f.actor)).issues[0]).toMatchObject({ status: 'WAITING_CUSTOMER', resolution: null });
+      expect((await orders.get(f.order.publicId, f.user.id)).status).toBe('ASSEMBLING');
+      const confirmation = customerConfirmCancellation(f.order.publicId, f.issue.id, f.issue.version);
+      expect(fetcher.mock.calls.map(([, init]) => String(init?.body)).some(body => body.includes(confirmation))).toBe(true);
+      await makeBot().handle(callback(f.telegramId, confirmation));
+    }
     const view = await coordination.view(f.actor);
     expect(view.issues[0]).toMatchObject({ status, resolution });
     const item = (await orders.get(f.order.publicId, f.user.id)).items[0]!;

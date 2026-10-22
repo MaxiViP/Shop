@@ -105,16 +105,16 @@ export function afterType(data: CheckoutPayload): CheckoutStep {
     ? 'NAME'
     : !data.customerPhone
       ? 'PHONE'
-      : data.type === 'DELIVERY'
+      : data.type === 'DELIVERY' && !addressSchema.safeParse(data.address).success
         ? 'ADDRESS'
-        : 'TIME';
+        : data.fulfillmentMode ? 'CONFIRM' : 'TIME';
 }
 export function afterText(
   step: CheckoutStep,
   data: CheckoutPayload,
 ): CheckoutStep {
   if (step === 'NAME') return afterType(data);
-  if (step === 'PHONE') return data.type === 'DELIVERY' ? 'ADDRESS' : 'TIME';
+  if (step === 'PHONE' || step === 'COMMENT') return afterType(data);
   if (step === 'TIME') return 'CONFIRM';
   return checkoutSteps[checkoutSteps.indexOf(step) + 1] ?? 'CONFIRM';
 }
