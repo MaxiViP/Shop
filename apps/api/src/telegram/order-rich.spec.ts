@@ -66,6 +66,62 @@ it('does not call missing goods or pending decisions completed assembly', () => 
     else expect(data).not.toContain('✅ Собрано:');
   }
 });
+it('keeps pending and missing goods separate from picked assembly progress', () => {
+  const changed = { ...order, status: 'ASSEMBLING', assemblyFinalizedAt: null, finalTotal: null, finalSubtotal: null, payment: null,
+    items: [order.items[0]!, { ...order.items[1]!, status: 'PENDING', actualQty: null, actualTotal: null },
+      { ...order.items[1]!, id: 3, status: 'MISSING', actualQty: 0, actualTotal: 0 }] } as CustomerOrder;
+  for (const screen of [orderCard(changed), dashboard(changed as unknown as OrderView)]) {
+    const data = JSON.stringify(richMessage(screen));
+    expect(data).toContain('🧺 Собрано: 1 из 3');
+    expect(data).toContain('Осталось: 1 · Нет в наличии: 1');
+    expect(data).not.toContain('✅ Собрано:');
+  }
+});
+it.each([
+  ['NEW', 'Ожидайте подтверждения', 'подтвердите приём'],
+  ['CONFIRMED', 'Заказ подтверждён', 'начните сборку'],
+  ['ASSEMBLING', 'Продавец собирает заказ', 'соберите'],
+  ['READY', 'Заказ собран', 'выдайте оплаченный заказ'],
+  ['DELIVERING', 'Заказ в пути', 'после вручения покупателю'],
+  ['COMPLETED', 'Заказ завершён', 'Заказ выполнен'],
+  ['CANCELED', 'Заказ отменён', 'Заказ отменён'],
+] as const)('keeps CUSTOMER and STAFF next actions truthful for %s', (status, customerNext, staffNext) => {
+  const finalized = ['READY', 'DELIVERING', 'COMPLETED'].includes(status);
+  const changed = { ...order, status,
+    ...(status === 'DELIVERING' ? { type: 'DELIVERY', delivery: { provider: 'OTHER', status: 'PICKED_UP' } } : {}),
+    assemblyFinalizedAt: finalized ? order.assemblyFinalizedAt : null,
+    finalTotal: finalized ? order.finalTotal : null, finalSubtotal: finalized ? order.finalSubtotal : null,
+    payment: finalized ? order.payment : status === 'CANCELED' ? { ...order.payment!, status: 'CANCELED' } : null,
+    items: finalized ? order.items : order.items.map(item => ({ ...item, status: 'PENDING', actualQty: null, actualTotal: null })),
+  } as CustomerOrder;
+  const customer = orderCard(changed), staff = dashboard(changed as unknown as OrderView);
+  for (const [screen, next] of [[customer, customerNext], [staff, staffNext]] as const) {
+    expect(validScreen(screen)).toBe(true);
+    const data = JSON.stringify(richMessage(screen));
+    expect(data).toContain(next);
+    expect(fallbackHtml(screen.text, screen.fallback)).toContain(next);
+    if (!finalized) expect(data).not.toContain('✅ Оплата получена');
+    if (status === 'CANCELED') {
+      expect(data).toContain('❌ Оплата отменена');
+      expect(data).toContain('Отменённый платёж за товары:');
+      expect(data).not.toContain('К оплате за товары:');
+      expect(screen.keyboard.inline_keyboard.flat().some(button => /Подтвердить|Начать сборку|Заказ выдан|Доставлен|Отменить заказ/.test(button.text))).toBe(false);
+    }
+  }
+});
+it.each([
+  ['AWAITING', '⏳ Ожидаем оплату'], ['REPORTED', '⚠️ Требуется проверить оплату'],
+  ['PAID', '✅ Оплата получена'], ['CANCELED', '❌ Оплата отменена'],
+] as const)('separates %s payment from confirmed receipts in both renderers', (status, label) => {
+  const changed = { ...order, payment: { ...order.payment!, status } };
+  for (const screen of [orderCard(changed), dashboard(changed as unknown as OrderView)]) {
+    const data = JSON.stringify(richMessage(screen));
+    expect(data).toContain(label);
+    expect(fallbackHtml(screen.text, screen.fallback)).toContain(label);
+    if (status !== 'PAID') expect(data).not.toContain('✅ Оплата получена');
+    if (status === 'CANCELED') expect(data).not.toContain('К оплате за товары:');
+  }
+});
 it('bounds long names and large order pages in both representations', () => {
   const huge = { ...order, customerName: 'Я'.repeat(2000), comment: '<script>'.repeat(1000),
     items: Array.from({ length: 1000 }, (_, id) => ({ ...order.items[0]!, id: id + 1, productName: '<x>'.repeat(1000) })) };

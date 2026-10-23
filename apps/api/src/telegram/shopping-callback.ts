@@ -3,10 +3,29 @@ import type { SaleUnit } from '../product/sale.js';
 const id = z.number().int().positive().max(2147483647);
 const page = z.number().int().min(0).max(10000);
 const qty = z.number().int().positive().max(1000000);
+const unitCodes: Record<SaleUnit, string> = { GRAM: 'g', PIECE: 'p', BUNCH: 'b', PACK: 'k' };
+function quantityUnit(value: string | undefined): SaleUnit | null {
+  switch (value) {
+    case 'GRAM': case 'g': return 'GRAM';
+    case 'PIECE': case 'p': return 'PIECE';
+    case 'BUNCH': case 'b': return 'BUNCH';
+    case 'PACK': case 'k': return 'PACK';
+    default: return null;
+  }
+}
 function number(value: string | undefined, schema: z.ZodNumber) {
   if (!value || !/^(0|[1-9a-z][0-9a-z]{0,5})$/.test(value)) return null;
   const result = schema.safeParse(Number.parseInt(value, 36));
   return result.success ? result.data : null;
+}
+function shopContext(value: string | undefined, page: number): ShopContext | null {
+  if (value === 'k' || value === 'q' || value === 'c') return { page, origin: value === 'k' ? 'basket' : value === 'q' ? 'quick' : 'category' };
+  const categoryId = value?.startsWith('c') ? number(value.slice(1), id) : null;
+  return categoryId ? { page, origin: 'category', categoryId } : null;
+}
+function contextCode(context: ShopContext) {
+  return context.origin === 'basket' ? 'k' : context.origin === 'quick' ? 'q' :
+    'c' + (context.categoryId === undefined ? '' : context.categoryId.toString(36));
 }
 export const compact = (value: string) => value.replaceAll('-', '');
 export function expand(value: string | undefined) {
@@ -73,18 +92,19 @@ export function shoppingAction(data: string): ShoppingAction | null {
   }
   if (parts[0] === 's' && ['o', 'd'].includes(parts[1] ?? '') && parts.length === 5) {
     const productId = number(parts[2], id), p = number(parts[3], page), origin = parts[4];
-    return productId && p !== null && ['c', 'k', 'q'].includes(origin ?? '') ? {
-      kind: parts[1] === 'o' ? 'open' : 'details', productId, page: p, origin: origin === 'k' ? 'basket' : origin === 'q' ? 'quick' : 'category',
+    const context = p === null ? null : shopContext(origin, p);
+    return productId && context ? {
+      kind: parts[1] === 'o' ? 'open' : 'details', productId, ...context,
     } : null;
   }
   if (parts[0] === 's' && parts[1] === 'u' && parts.length === 8) {
     const revision = expand(parts[2]), productId = number(parts[3], id), value = parts[4] ?? '';
     const delta = /^[pm]/.test(value) ? number(value.slice(1), qty) : null;
-    const unit = parts[5], p = number(parts[6], page), origin = parts[7];
-    return revision && productId && delta && p !== null && ['c', 'k', 'q'].includes(origin ?? '') &&
-      ['GRAM', 'PIECE', 'BUNCH', 'PACK'].includes(unit ?? '') ? {
+    const unit = quantityUnit(parts[5]), p = number(parts[6], page), origin = parts[7];
+    const context = p === null ? null : shopContext(origin, p);
+    return revision && productId && delta && context && unit ? {
         kind: 'adjust', productId, delta: value[0] === 'm' ? -delta : delta, revision,
-        quantityUnit: unit as SaleUnit, page: p, origin: origin === 'k' ? 'basket' : origin === 'q' ? 'quick' : 'category',
+        quantityUnit: unit, ...context,
       } : null;
   }
   const [prefix, action, a, b, c, unit, ...extra] = data.split(':');
@@ -178,11 +198,11 @@ export const shoppingData = (action: string, ...values: (number | string)[]) =>
     )
     .join(':');
 
-export type ShopContext = { page: number; origin: 'category' | 'basket' | 'quick' };
+export type ShopContext = { page: number; origin: 'category' | 'basket' | 'quick'; categoryId?: number };
 export function productData(productId: number, context: ShopContext, details = false) {
-  return shoppingData(details ? 'd' : 'o', productId, context.page, context.origin === 'basket' ? 'k' : context.origin === 'quick' ? 'q' : 'c');
+  return shoppingData(details ? 'd' : 'o', productId, context.page, contextCode(context));
 }
 export function adjustData(revision: string, productId: number, delta: number, unit: SaleUnit, context: ShopContext) {
   return shoppingData('u', revision, productId, (delta < 0 ? 'm' : 'p') + Math.abs(delta).toString(36),
-    unit, context.page, context.origin === 'basket' ? 'k' : context.origin === 'quick' ? 'q' : 'c');
+    context.origin === 'category' && context.categoryId !== undefined ? unitCodes[unit] : unit, context.page, contextCode(context));
 }

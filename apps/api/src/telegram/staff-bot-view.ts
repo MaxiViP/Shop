@@ -370,7 +370,10 @@ export function dashboard(order: OrderView, url?: string): TelegramScreen & { ke
     rich: orderRich(order, { title: lines[0]!, person: clean(order.customerName, 100), next: nextStaffAction(order), sellerActions: order.issues.filter(issue => sellerIssueItem(order, issue)).length,
       details: [clean(order.customerPhone, 40), ...(order.type === 'DELIVERY' ? [clean(formatAddress(order), 200)] : []),
         ...(order.comment ? [clean(order.comment, 300)] : []), ...(order.delivery ? ['Доставка: ' + deliveryText[order.delivery.status]] : [])],
-      items: [...order.items.slice(0, 5).map(item => clean(item.productName, 160) + ' · ' + quantity(item.qty, item.unit) + ' · ' + itemStatusText[item.status]),
+      items: [...order.items.slice(0, 5).map(item => clean(item.productName, 160) + '\nЗаказано: ' + quantity(item.qty, item.unit) + ' · ' + itemStatusText[item.status] +
+        (item.status === 'PICKED' && item.actualQty != null ? '\nСобрано: ' + quantity(item.actualQty, item.unit) +
+          (variableWeight(item) && item.actualWeightGrams != null ? '\nФактический вес: ' + quantity(item.actualWeightGrams, 'GRAM') : '') +
+          (item.actualTotal != null ? '\nФактически за товар: ' + money(item.actualTotal) : '') : '')),
         ...(order.items.length > 5 ? ['Ещё позиций: ' + (order.items.length - 5) + '. Откройте позиции заказа.'] : []),
         ...order.extras.filter(extra => extra.status === 'ACTIVE').slice(0, 5).map(extra => clean(extra.title, 160) + ' · ' + money(extra.amount))] }),
   };

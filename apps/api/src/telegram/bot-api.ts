@@ -58,7 +58,7 @@ async function request(
   method: BotMethod,
   payload: object,
   timeout: number,
-  photo?: Uint8Array,
+  photo?: Uint8Array | ReadonlyMap<string, Uint8Array>,
 ): Promise<{ ok: boolean; result?: unknown; failure?: Exclude<DeliveryStatus, 'sent'>; retryAfter?: number; unchanged?: boolean; uneditable?: boolean; confirmed?: boolean }> {
   if (!token) return { ok: false, failure: 'rejected' };
   const url = destination(token, method);
@@ -67,7 +67,8 @@ async function request(
     const form = photo ? new FormData() : null;
     if (form && photo) {
       for (const [key, value] of Object.entries(payload)) form.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
-      form.set('photo', new Blob([new Uint8Array(photo)], { type: 'image/jpeg' }), 'photo.jpg');
+      const uploads = photo instanceof Uint8Array ? new Map([['photo', photo]]) : photo;
+      for (const [name, bytes] of uploads) form.set(name, new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' }), name + '.jpg');
     }
     const response = await fetch(url, {
       method: 'POST',
@@ -118,7 +119,7 @@ export type BotOutcome =
   | { status: 'unchanged' }
   | { status: 'rejected'; confirmed?: boolean; uneditable?: boolean }
   | { status: 'blocked' | 'unknown' | 'retryable' };
-export async function botExchange(token: string, method: 'sendMessage' | 'sendRichMessage' | 'editMessageText', payload: object, photo?: Uint8Array): Promise<BotOutcome> {
+export async function botExchange(token: string, method: 'sendMessage' | 'sendRichMessage' | 'editMessageText', payload: object, photo?: Uint8Array | ReadonlyMap<string, Uint8Array>): Promise<BotOutcome> {
   const result = await request(token, method, payload, 7000, photo);
   if (result.unchanged) return { status: 'unchanged' };
   if (result.ok) {
@@ -135,6 +136,7 @@ function receivedPhotos(rich: unknown): string[] {
   if (!rich || typeof rich !== 'object' || !('blocks' in rich) || !Array.isArray(rich.blocks)) return [];
   const ids: string[] = [];
   for (const block of rich.blocks as unknown[]) {
+    if (block && typeof block === 'object' && 'type' in block && ['collage', 'details'].includes(String(block.type))) { ids.push(...receivedPhotos(block)); continue; }
     if (!block || typeof block !== 'object' || !('type' in block) || block.type !== 'photo' || !('photo' in block) || !Array.isArray(block.photo)) continue;
     const largest: unknown = block.photo.at(-1);
     if (largest && typeof largest === 'object' && 'file_id' in largest && typeof largest.file_id === 'string' && /^[A-Za-z0-9_-]{1,1024}$/.test(largest.file_id)) ids.push(largest.file_id);

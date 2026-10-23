@@ -180,3 +180,48 @@ it('uploads one local JPEG in multipart, and never retries after an unknown uplo
   expect(photo).toBeInstanceOf(File);
   expect((photo as File).type).toBe('image/jpeg');
 });
+
+const galleryScreen = (count = 8): TelegramScreen => ({ ...screen, rich: { blocks: [
+  { type: 'heading', size: 2, text: 'Фрукты' },
+  ...Array.from({ length: Math.ceil(count / 2) }, (_, row) => ({ type: 'collage' as const,
+    blocks: Array.from({ length: Math.min(2, count - row * 2) }, (_, col) => ({ type: 'photo' as const,
+      photo: { type: 'photo' as const, media: 'https://shop.example/uploads/products/gallery-' + (row * 2 + col) + '.webp' } })) })),
+] } });
+it('uploads all 8 nested gallery photos once, caches returned IDs per bot and preserves their tree order', async () => {
+  vi.mocked(localPhoto).mockImplementation(async url => url.startsWith('https:') ? new Uint8Array([255, 216, 255, 217]) : undefined);
+  const received = Array.from({ length: 4 }, (_, row) => ({ type: 'collage', blocks: Array.from({ length: 2 }, (_, col) => ({ type: 'photo', photo: [{ file_id: 'gallery-' + (row * 2 + col) }] })) }));
+  fetcher.mockResolvedValueOnce(Response.json({ ok: true, result: { message_id: 92, rich_message: { blocks: received } } }));
+  const value = galleryScreen();
+  await deliverScreen('customer', { chatId: 123 }, value);
+  const form = fetcher.mock.calls[0]![1]!.body as FormData;
+  expect(form).toBeInstanceOf(FormData);
+  expect([...form.values()].filter(value => value instanceof File)).toHaveLength(8);
+  const sent = JSON.parse(String(form.get('rich_message')));
+  expect(sent.blocks[1].blocks[0].photo.media).toBe('attach://photo');
+  expect(sent.blocks[4].blocks[1].photo.media).toBe('attach://photo7');
+  await deliverScreen('customer', { chatId: 123, messageId: 92 }, value);
+  expect(body(1).rich_message.blocks[1].blocks[0].photo.media).toBe('gallery-0');
+  expect(body(1).rich_message.blocks[4].blocks[1].photo.media).toBe('gallery-7');
+  await deliverScreen('staff', { chatId: 124 }, value);
+  expect(fetcher.mock.calls[2]![1]!.body).toBeInstanceOf(FormData);
+  // A thumbnail cache entry must never downgrade the first full product photograph.
+  await deliverScreen('customer', { chatId: 123 }, { ...screen, rich: { blocks: [{ type: 'photo', photo: { type: 'photo', media: 'https://shop.example/uploads/products/gallery-0.webp' } }] } });
+  expect(fetcher.mock.calls[3]![1]!.body).toBeInstanceOf(FormData);
+  vi.mocked(localPhoto).mockImplementation(async () => undefined);
+});
+it.each(['missing', 'rejected', 'unknown'] as const)('degrades a %s gallery safely and retains all selection callbacks', async failure => {
+  const value = galleryScreen(2);
+  vi.mocked(localPhoto).mockImplementation(async url => failure === 'missing' && url.endsWith('gallery-1.webp') ? undefined : new Uint8Array([255,216,255,217]));
+  if (failure === 'rejected') fetcher.mockResolvedValueOnce(reject());
+  if (failure === 'unknown') fetcher.mockRejectedValueOnce(new Error('lost gallery reply'));
+  const result = await deliverScreen('customer', { chatId: 123, messageId: 92 }, value);
+  expect(fetcher).toHaveBeenCalledTimes(failure === 'rejected' ? 2 : 1);
+  if (failure === 'unknown') expect(result).toEqual({ status: 'unknown' });
+  else {
+    const payload = body(failure === 'rejected' ? 1 : 0);
+    expect(JSON.stringify(payload)).not.toContain('collage');
+    expect(payload.rich_message.blocks.at(-1).buttons).toEqual(screen.keyboard.inline_keyboard[0]);
+    expect(payload.message_id).toBe(92);
+  }
+  vi.mocked(localPhoto).mockImplementation(async () => undefined);
+});

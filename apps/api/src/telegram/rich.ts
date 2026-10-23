@@ -13,6 +13,7 @@ export type InputRichBlock =
   | { type: 'buttons'; buttons: RichMessageButton[]; align?: 'left' | 'center' | 'right' }
   | { type: 'table'; cells: Cell[][]; is_compact?: true }
   | { type: 'details'; summary: RichText; blocks: InputRichBlock[]; is_open?: true }
+  | { type: 'collage'; blocks: InputRichBlock[] }
   | { type: 'photo'; photo: { type: 'photo'; media: string }; caption?: { text: RichText } };
 export type InputRichMessage = { blocks: InputRichBlock[]; skip_entity_detection?: boolean };
 export type TelegramScreen = { text: string; keyboard: TelegramKeyboard; rich?: InputRichMessage; fallback?: RichText[]; mediaReason?: 'no_image' | 'invalid_url' };

@@ -40,7 +40,10 @@ export function orderRich(order: Summary, content: { title: string; person: stri
     paragraph([bold(order.type === 'PICKUP' ? '🛍 Самовывоз' : '🚚 Доставка'), ...(content.person ? [' · ' + content.person] : [])]),
     heading(order.finalTotal != null ? 'ИТОГО: ' + money(order.finalTotal) : 'Предварительно: ' + (order.total == null ? 'уточняется' : '≈ ' + money(order.total))),
     paragraph([bold(paymentLabel(order.payment)), '\n', bold(progressLabel(order))]),
-    ...(order.payment ? [paragraph((order.payment.status === 'PAID' ? 'Подтверждено за товары: ' : 'К оплате за товары: ') + money(order.payment.amount))] : []),
+    ...(order.status === 'ASSEMBLING' ? [paragraph('Осталось: ' + order.items.filter(item => item.status === 'PENDING').length +
+      ' · Нет в наличии: ' + order.items.filter(item => item.status === 'MISSING').length)] : []),
+    ...(order.payment ? [paragraph((order.payment.status === 'PAID' ? 'Подтверждено за товары: ' :
+      order.payment.status === 'CANCELED' ? 'Отменённый платёж за товары: ' : 'К оплате за товары: ') + money(order.payment.amount))] : []),
     ...(mismatch ? [paragraph(marked('⚠️ Сумма платежа отличается от итоговой стоимости товаров: ' + money(order.payment!.amount) + ' / ' + money(due)))] : []),
     paragraph(marked(content.next)),
     ...(waiting || seller ? [paragraph(bold('Требуется решение: покупателю ' + waiting + ' · продавцу ' + seller))] : []),

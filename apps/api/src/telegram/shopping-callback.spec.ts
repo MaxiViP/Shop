@@ -1,4 +1,4 @@
-import { shoppingAction, shoppingData } from './shopping-callback.js';
+import { adjustData, productData, shoppingAction, shoppingData } from './shopping-callback.js';
 import { afterType, afterText, checkoutInput, checkoutPayload } from './checkout.js';
 const revision = '12345678-1234-4234-8234-123456789abc';
 describe('shopping callback boundary', () => {
@@ -59,6 +59,32 @@ describe('shopping callback boundary', () => {
     expect(shoppingAction(shoppingData('a', revision, 7, 2, 'PIECE'))).toEqual({
       kind: 'add', productId: 7, qty: 2, revision, quantityUnit: 'PIECE',
     });
+  });
+  it.each(['GRAM', 'PIECE', 'BUNCH', 'PACK'] as const)('roundtrips category context and maximum %s mutations in 63 bytes', unit => {
+    const context = { page: 10000, origin: 'category' as const, categoryId: 2147483647 };
+    for (const delta of [-1000000, 1000000]) {
+      const data = adjustData(revision, 2147483647, delta, unit, context);
+      expect(Buffer.byteLength(data)).toBeLessThanOrEqual(63);
+      expect(shoppingAction(data)).toEqual({ kind: 'adjust', revision, productId: 2147483647, delta, quantityUnit: unit, ...context });
+    }
+    for (const details of [false, true]) {
+      const data = productData(2147483647, context, details);
+      expect(Buffer.byteLength(data)).toBeLessThanOrEqual(64);
+      expect(shoppingAction(data)).toEqual({ kind: details ? 'details' : 'open', productId: 2147483647, ...context });
+    }
+  });
+  it.each(['category', 'basket', 'quick'] as const)('preserves existing %s callbacks with no category ID', origin => {
+    const context = { page: 9, origin };
+    expect(shoppingAction(productData(17, context))).toEqual({ kind: 'open', productId: 17, ...context });
+    expect(shoppingAction(adjustData(revision, 17, -2, 'BUNCH', context)))
+      .toEqual({ kind: 'adjust', productId: 17, delta: -2, quantityUnit: 'BUNCH', revision, ...context });
+  });
+  it.each(['c0', 'c01', 'c-1', 'c+1', 'czzzzzz', 'c1000000', 'c1:extra', 'c__proto__', 'x1'])('rejects malformed category context %s', origin => {
+    expect(shoppingAction('s:o:h:0:' + origin)).toBeNull();
+    expect(shoppingAction(shoppingData('u', revision, 17, 'p1', 'g', 0, 'c2').replace(/:c2$/, ':' + origin))).toBeNull();
+  });
+  it.each(['__proto__', 'constructor', 'G', 'w', ''])('rejects unknown compact quantity unit %s', unit => {
+    expect(shoppingAction(shoppingData('u', revision, 17, 'p1', unit, 0, 'c2'))).toBeNull();
   });
 });
 describe('checkout input uses domain fields', () => {

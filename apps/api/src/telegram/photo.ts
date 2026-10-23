@@ -7,7 +7,7 @@ import { mediaDiagnostic } from './media.js';
 
 const prepared = new Map<string, Promise<Uint8Array>>();
 // Telegram-only in-memory JPEG derivative. Never modifies source WebP or image-runner state.
-export async function localPhoto(url: string, root = productUploadRoot): Promise<Uint8Array | undefined> {
+export async function localPhoto(url: string, root = productUploadRoot, thumbnail = false): Promise<Uint8Array | undefined> {
   if (!productPhoto(url)) return;
   const match = /^\/uploads\/products\/([A-Za-z0-9_-]{1,128}\.(?:webp|png|jpe?g))$/.exec(new URL(url).pathname);
   if (!match) return;
@@ -15,7 +15,7 @@ export async function localPhoto(url: string, root = productUploadRoot): Promise
     const base = await realpath(root), file = resolve(base, match[1]!);
     const info = await lstat(file);
     if (!info.isFile() || info.size < 1 || info.size > 5 * 1024 * 1024 || !(await realpath(file)).startsWith(base + sep)) return;
-    const key = file + ':' + info.mtimeMs + ':' + info.size;
+    const key = file + ':' + info.mtimeMs + ':' + info.size + ':' + thumbnail;
     let task = prepared.get(key);
     if (!task) {
       task = (async () => {
@@ -24,9 +24,10 @@ export async function localPhoto(url: string, root = productUploadRoot): Promise
         const image = sharp(source, { limitInputPixels: 25_000_000, failOn: 'warning' });
         const meta = await image.metadata();
         if ((meta.pages ?? 1) !== 1) throw new Error('PHOTO_PAGES');
-        const jpeg = await image.rotate().resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true })
-          .flatten({ background: '#ffffff' }).jpeg({ quality: 85 }).toBuffer();
-        if (jpeg.length > 1024 * 1024) throw new Error('PHOTO_LIMIT');
+        const size = thumbnail ? 320 : 1280;
+        const jpeg = await image.rotate().resize({ width: size, height: size, fit: thumbnail ? 'contain' : 'inside', withoutEnlargement: true, background: '#ffffff' })
+          .flatten({ background: '#ffffff' }).jpeg({ quality: thumbnail ? 80 : 85 }).toBuffer();
+        if (jpeg.length > (thumbnail ? 192 : 1024) * 1024) throw new Error('PHOTO_LIMIT');
         return new Uint8Array(jpeg);
       })();
       prepared.set(key, task);

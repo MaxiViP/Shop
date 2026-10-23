@@ -73,6 +73,39 @@ it('does not retry a multipart request after an unknown upstream outcome', async
   expect((await fetch(origin + '/v1/customer/sendRichMessage', { method: 'POST', body: photoForm() })).status).toBe(502);
   expect(upstream).toHaveBeenCalledTimes(1);
 });
+function galleryForm(count = 8) {
+  const form = photoForm(), blocks = [];
+  for (let index = 0; index < count; index++) {
+    const name = index ? 'photo' + index : 'photo';
+    form.set(name, new Blob([new Uint8Array([255,216,255,217])], { type: 'image/jpeg' }), name + '.jpg');
+    blocks.push({ type: 'photo', photo: { type: 'photo', media: 'attach://' + name } });
+  }
+  form.set('rich_message', JSON.stringify({ blocks: [{ type: 'collage', blocks }] }));
+  return form;
+}
+it.each(['sendRichMessage', 'editMessageText'])('relays 8 bounded gallery JPEGs for %s without changing order', async method => {
+  await start(); const form = galleryForm();
+  expect((await fetch(origin + '/v1/customer/' + method, { method: 'POST', body: form })).status).toBe(200);
+  expect(upstream).toHaveBeenCalledTimes(1);
+  const init = upstream.mock.calls[0]![1]!;
+  const forwarded = await new Response(init.body as Uint8Array<ArrayBuffer>, { headers: init.headers }).formData();
+  expect(forwarded.get('rich_message')).toBe(form.get('rich_message'));
+  expect([...forwarded.values()].filter(value => value instanceof File)).toHaveLength(8);
+});
+it.each(['ninth', 'unreferenced', 'missing', 'duplicate-reference', 'bad-second-jpeg', 'deep', 'many-blocks'] as const)('rejects malformed gallery %s before contacting Telegram', async failure => {
+  await start(); const form = galleryForm();
+  if (failure === 'ninth') form.set('photo8', new Blob([new Uint8Array([255,216,255,217])], { type: 'image/jpeg' }), 'photo8.jpg');
+  if (failure === 'missing') form.delete('photo7');
+  if (failure === 'bad-second-jpeg') form.set('photo1', new Blob(['bad'], { type: 'image/jpeg' }), 'photo1.jpg');
+  const rich = JSON.parse(String(form.get('rich_message')));
+  if (failure === 'unreferenced') rich.blocks[0].blocks.pop();
+  if (failure === 'duplicate-reference') rich.blocks[0].blocks[7].photo.media = 'attach://photo';
+  if (failure === 'deep') for (let index = 0; index < 6; index++) rich.blocks = [{ type: 'collage', blocks: rich.blocks }];
+  if (failure === 'many-blocks') rich.blocks.push(...Array.from({ length: 40 }, () => ({ type: 'paragraph', text: 'x' })));
+  form.set('rich_message', JSON.stringify(rich));
+  expect((await fetch(origin + '/v1/customer/sendRichMessage', { method: 'POST', body: form })).status).toBe(400);
+  expect(upstream).not.toHaveBeenCalled();
+});
 afterEach(async () => {
   vi.restoreAllMocks();
   if (server) {

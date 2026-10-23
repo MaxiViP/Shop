@@ -14,7 +14,7 @@ import { customerProduct } from '../product/select.js';
 import { requestedLine } from '../order/pricing.js';
 import { orderableProductWhere } from '../product/select.js';
 import { pageInfo } from './page.js';
-import { bold, heading, paragraph, richTable, productPhoto, type InputRichBlock } from './rich.js';
+import { bold, heading, paragraph, richTable, productPhoto, type InputRichBlock, type RichText } from './rich.js';
 import { priceUnit, saleModel, variableWeight } from '../product/sale.js';
 import { CustomerCheckoutService } from './customer-checkout.service.js';
 import { checkoutScreen, paymentScreen, clearCartScreen, shoppingHelpScreen } from './shopping-view.js';
@@ -41,9 +41,33 @@ const navigation: Button[][] = [
 ];
 type Basket = Awaited<ReturnType<CartService['get']>>;
 const estimate = (value: number | null) => value === null ? 'после взвешивания' : '≈ ' + amount(value);
-function stepEstimate(product: NonNullable<Basket['items'][number]['product']>) {
-  try { return estimate(requestedLine({ ...product, qty: product.step })); }
-  catch (error) { if (error instanceof BadRequestException) return 'стоимость уточняется'; throw error; }
+function productCount(count: number) {
+  const last = count % 10, hundred = count % 100;
+  return count + ' ' + (last === 1 && hundred !== 11 ? 'товар' :
+    last >= 2 && last <= 4 && (hundred < 12 || hundred > 14) ? 'товара' : 'товаров');
+}
+function cartFeedback(before: Basket, after: Basket, productId: number): string {
+  const old = before.items.find(item => item.productId === productId);
+  const saved = after.items.find(item => item.productId === productId);
+  if (old && !saved) return '🗑 Удалён: ' + short(old.product?.name ?? 'Товар', 180);
+  const updated = '✅ Количество обновлено\nСтоимость пересчитана';
+  const priced = saved?.product;
+  if (!saved || !priced || saved.status !== 'AVAILABLE' || (old && (old.status !== 'AVAILABLE' || !old.product ||
+    (old.quantityUnit ?? old.product.unit) !== (saved.quantityUnit ?? priced.unit) ||
+    old.product.unit !== priced.unit || old.product.price !== priced.price || old.product.priceQty !== priced.priceQty ||
+    old.product.priceStatus !== priced.priceStatus || priceUnit(old.product) !== priceUnit(priced) ||
+    saleModel(old.product) !== saleModel(priced) || old.product.estimatedWeightGrams !== priced.estimatedWeightGrams))) return updated;
+  const deltaQty = saved.qty - (old?.qty ?? 0);
+  // Both totals come from acknowledged CartService quotes. Never price a requested step here.
+  if (!deltaQty || saved.lineTotal === null || (old && old.lineTotal === null)) return updated;
+  const deltaAmount = saved.lineTotal - (old?.lineTotal ?? 0);
+  if ((deltaQty > 0 && deltaAmount < 0) || (deltaQty < 0 && deltaAmount > 0)) return updated;
+  const sign = deltaQty > 0 ? '+' : '−';
+  const approximate = priced.unit === 'GRAM' || variableWeight(priced) || priced.priceStatus !== 'SOURCE';
+  const delta = sign + quantity(Math.abs(deltaQty), saved.quantityUnit ?? priced.unit) + ' · ' +
+    sign + (approximate ? '≈ ' : '') + amount(Math.abs(deltaAmount));
+  return old ? (deltaQty > 0 ? '✅ ' : '➖ ') + delta :
+    '✅ Добавлен: ' + short(priced.name, 180) + '\n' + delta;
 }
 
 @Injectable()
@@ -118,18 +142,30 @@ export class CustomerShopService {
       const categoryPage = categories.length <= 48 ? 0 : Math.floor(Math.max(0, categories.findIndex(row => row.id === categoryId)) / 24);
       return { rows, info, total, categoryPage };
     }, { isolationLevel: 'RepeatableRead' });
-    const context: ShopContext = { page: info.page, origin: 'category' };
-    const buttons: Button[][] = rows.map(p => [{
-      text: short(p.name, 42) + ' · ' + amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)),
-      callback_data: productData(p.id, context),
-    }]);
+    const context: ShopContext = { page: info.page, origin: 'category', categoryId };
+    const buttons: Button[][] = [];
+    const names = rows.map(p => short(p.name, 30));
+    const photos = rows.map(p => p.images.map(image => productPhoto(image.url)).find(photo => photo !== undefined));
+    const gallery: InputRichBlock[] = [];
+    for (let index = 0; index < rows.length; index += 2) {
+      const pair = rows.slice(index, index + 2).map(p => ({
+        text: (names.filter(name => name === short(p.name, 30)).length > 1 ? short(p.name, 24) + ' · №' + p.id : short(p.name, 30)) +
+          ' · ' + amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)),
+        callback_data: productData(p.id, context),
+      }));
+      buttons.push(pair);
+      // Keep every product selectable; a missing photo degrades the whole page, never shifts the grid.
+      if (photos.every(photo => photo !== undefined)) gallery.push({ type: 'collage', blocks: photos.slice(index, index + 2).filter(photo => photo !== undefined) });
+      gallery.push({ type: 'buttons', buttons: pair });
+    }
     const nav: Button[] = [];
     if (info.page) nav.push({ text: '← Предыдущие товары', callback_data: shoppingData('l', categoryId, info.page - 1) });
     if (info.page + 1 < info.pages) nav.push({ text: 'Следующие товары →', callback_data: shoppingData('l', categoryId, info.page + 1) });
+    const title = short(category.name, 100);
+    const summary = total ? 'Товары ' + info.first + '–' + info.last + ' из ' + total : 'Товаров пока нет.';
     return customerShow(target, {
-      text: short(category.name, 100) + '\n\n' + info.label + '\n' +
-        (total ? 'Показаны товары ' + info.first + '–' + info.last + ' из ' + total : 'Товаров пока нет.') + '\n\n' +
-        rows.map(p => short(p.name, 90) + ' · ' + amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p))).join('\n'),
+      text: title + '\n\n' + summary + (info.pages > 1 ? '\n' + info.label : ''),
+      rich: { blocks: [heading(title), paragraph(summary + (info.pages > 1 ? '\n' + info.label : '')), ...gallery] },
       keyboard: { inline_keyboard: [...buttons, ...(nav.length ? [nav] : []),
         [{ text: '← Категории', callback_data: shoppingData('c', categoryPage) }], ...navigation] },
     });
@@ -146,7 +182,7 @@ export class CustomerShopService {
     const p = { ...customerProduct(source), ...inCart?.product }, context = options.context ?? { page: 0, origin: 'category' as const };
     const photo = p.images.map(image => productPhoto(image.url)).find(value => value !== undefined);
     const back = { text: context.origin === 'basket' ? '← К корзине' : context.origin === 'quick' ? '← К моим продуктам' : '← К товарам',
-      callback_data: context.origin === 'basket' ? shoppingData('k', context.page) : context.origin === 'quick' ? shoppingData('q', context.page) : shoppingData('l', p.categoryId, context.page) };
+      callback_data: context.origin === 'basket' ? shoppingData('k', context.page) : context.origin === 'quick' ? shoppingData('q', context.page) : shoppingData('l', context.categoryId ?? p.categoryId, context.page) };
     const rules = 'От ' + quantity(p.min, p.unit) + ' · шаг ' + quantity(p.step, p.unit);
     const price = amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p));
     const hint = (qty: number) => {
@@ -202,7 +238,7 @@ export class CustomerShopService {
   }
   private async adjust(target: CustomerTarget, identity: CustomerIdentity, action: Extract<ShoppingAction, { kind: 'adjust' }>) {
     const before = await this.cart.get(identity.userId);
-    const context: ShopContext = { page: action.page, origin: action.origin };
+    const context: ShopContext = { page: action.page, origin: action.origin, ...(action.categoryId === undefined ? {} : { categoryId: action.categoryId }) };
     if (before.revision !== action.revision) {
       await this.product(target, identity, action.productId, { basket: before, context,
         feedback: 'Корзина уже изменилась. Ниже — актуальное количество. Старое действие не применено.' });
@@ -226,16 +262,7 @@ export class CustomerShopService {
       } catch { /* Keep the old card; its revision remains fenced by CartService. */ }
       throw error;
     }
-    const saved = basket.items.find(item => item.productId === action.productId);
-    const samePrice = !old?.product || !saved?.product || (old.product.price === saved.product.price && old.product.priceQty === saved.product.priceQty &&
-      priceUnit(old.product) === priceUnit(saved.product) && saleModel(old.product) === saleModel(saved.product) &&
-      old.product.estimatedWeightGrams === saved.product.estimatedWeightGrams);
-    const known = (!old || old.lineTotal !== null) && (!saved || saved.lineTotal !== null);
-    const deltaAmount = known && samePrice ? Math.abs((saved?.lineTotal ?? 0) - (old?.lineTotal ?? 0)) : null;
-    const priced = old?.product ?? saved?.product;
-    const approximate = priced && (priced.unit === 'GRAM' || variableWeight(priced) || priced.priceStatus !== 'SOURCE');
-    const feedback = (action.delta > 0 ? '✅ Добавлено ' : '➖ Убрано ') + quantity(Math.abs(action.delta), action.quantityUnit) +
-      (deltaAmount !== null ? ' · ' + (approximate ? '≈ ' : '') + amount(deltaAmount) : ' · стоимость уточняется');
+    const feedback = cartFeedback(before, basket, action.productId);
     if (context.origin === 'basket') return this.basket(target, identity, context.page, basket, feedback);
     return this.product(target, identity, action.productId, { basket, context, feedback });
   }
@@ -243,19 +270,20 @@ export class CustomerShopService {
     const basket = saved ?? await this.cart.get(identity.userId);
     page = Math.min(page, Math.max(0, Math.ceil(basket.items.length / 5) - 1));
     const visible = basket.items.slice(page * 5, page * 5 + 5);
-    const lines = visible.map((item) =>
-      item.product
-        ? short(item.product.name, 300) +
-          '\n' +
-          quantity(item.qty, item.quantityUnit ?? item.product.unit) +
-          ' · ' +
-          estimate(item.lineTotal) + '\nШаг: ' + quantity(item.product.step, item.product.unit) + ' · ' +
-          stepEstimate(item.product) +
-          (item.status === 'AVAILABLE'
-            ? ''
-            : '\n⚠️ Проверьте количество / стоимость')
-        : 'Товар больше недоступен',
-    );
+    const itemInfo = visible.map((item) => {
+      const p = item.product;
+      const unit = item.quantityUnit ?? p?.unit;
+      return { label: unit === 'GRAM' ? '⚖️ В корзине: ' : 'В корзине: ', qty: unit ? quantity(item.qty, unit) : 'уточняется',
+        total: estimate(item.lineTotal), step: p ? 'Шаг покупки: ' + quantity(p.step, p.unit) : '',
+        warning: item.status === 'AVAILABLE' ? '' : '⚠️ Проверьте количество / стоимость' };
+    });
+    const itemLines = itemInfo.map((info): RichText[] => [[info.label, bold(info.qty)], ['За товар: ', bold(info.total)],
+      ...[info.step, info.warning].filter(Boolean)]);
+    const lines = visible.map((item, index) => {
+      const info = itemInfo[index]!;
+      return [short(item.product?.name ?? 'Товар больше недоступен', 300), info.label + info.qty,
+        'За товар: ' + info.total, info.step, info.warning].filter(Boolean).join('\n');
+    });
     const buttons: Button[][] = visible.map(item => {
       const p = item.product, available = p && item.status === 'AVAILABLE';
       const context = { page, origin: 'basket' as const };
@@ -295,26 +323,34 @@ export class CustomerShopService {
       { text: 'Продолжить покупки', callback_data: 'catalog' },
       { text: 'Меню', callback_data: 'menu' },
     ]);
+    const pageLabel = basket.items.length > 5 ? pageInfo(basket.items.length, page, 5).label : '';
+    const total = 'Итого предварительно: ' + estimate(basket.goodsTotal);
+    const promo = basket.promo ? 'Промокод: ' + basket.promo.code + ' · скидка ' + amount(basket.promo.discount) +
+      '\nДо скидки: ' + estimate(basket.subtotal) : '';
+    const footer = basket.items.some(item => item.product?.unit === 'GRAM' || item.product && variableWeight(item.product))
+      ? 'Точная сумма весовых товаров — после сборки.' : '';
     return customerShow(target, {
-      rich: { blocks: [heading('🛒 Ваша корзина'), paragraph(basket.items.length + ' поз. · ' + estimate(basket.goodsTotal) + '\n' + pageInfo(basket.items.length, page, 5).label),
+      rich: { blocks: [heading('🛒 Ваша корзина'), paragraph(productCount(basket.items.length)),
+        ...(basket.items.length ? [paragraph(['Итого предварительно: ', bold(estimate(basket.goodsTotal))])] : []),
+        ...(pageLabel ? [paragraph(pageLabel)] : []),
         ...(feedback ? [paragraph(feedback)] : []),
-        ...visible.flatMap((item, index): InputRichBlock[] => [paragraph([bold(short(item.product?.name ?? 'Товар больше недоступен', 300)), '\n', lines[index]!.split('\n').slice(1).join('\n')]), { type: 'buttons', buttons: itemRows[index]! }]),
+        ...visible.flatMap((item, index): InputRichBlock[] => [{ type: 'divider' },
+          ...(!item.product || item.product.name !== itemRows[index]![0]!.text ? [paragraph(short(item.product?.name ?? 'Товар больше недоступен', 300))] : []),
+          paragraph(itemLines[index]!.flatMap((line, lineIndex): RichText[] => [...(lineIndex ? ['\n'] : []), line])),
+          { type: 'buttons', buttons: itemRows[index]! }]),
         ...(!visible.length ? [paragraph('Корзина пуста.')] : []),
-        ...(basket.promo ? [paragraph('Промокод: ' + basket.promo.code + ' · скидка ' + amount(basket.promo.discount) + '\nЗа товары после скидки: ' + amount(basket.goodsTotal))] : []),
+        ...(promo ? [paragraph(promo)] : []), ...(footer ? [paragraph(footer)] : []),
       ] },
+      fallback: [bold('🛒 Ваша корзина'), productCount(basket.items.length), ...(basket.items.length ? [['Итого предварительно: ', bold(estimate(basket.goodsTotal))]] : []),
+        ...[pageLabel, feedback].filter((line): line is string => Boolean(line)),
+        ...visible.flatMap((item, index): RichText[] => ['', bold(short(item.product?.name ?? 'Товар больше недоступен', 300)), ...itemLines[index]!]),
+        ...(!visible.length ? ['Корзина пуста.'] : []), ...[promo, footer].filter(Boolean)],
       text:
-        '🛒 Ваша корзина' + (basket.items.length ? ' · ' + basket.items.length + ' поз.' : '') +
-        '\n' + pageInfo(basket.items.length, page, 5).label +
-        (basket.items.length ? '\nПредварительно: ' + estimate(basket.goodsTotal) : '') +
+        '🛒 Ваша корзина\n' + productCount(basket.items.length) + (pageLabel ? '\n' + pageLabel : '') +
+        (basket.items.length ? '\n' + total : '') +
         (feedback ? '\n\n' + feedback : '') + '\n\n' +
         (lines.join('\n\n') || 'Корзина пуста.') +
-        (basket.items.length
-          ? '\n\nТовары предварительно: ' +
-            estimate(basket.subtotal) +
-            (basket.promo ? '\nПромокод: ' + basket.promo.code + ' · скидка ' + amount(basket.promo.discount) +
-              '\nЗа товары после скидки: ' + amount(basket.goodsTotal) : '') +
-            '\nТочная сумма весовых товаров — после сборки.'
-          : ''),
+        (promo ? '\n\n' + promo : '') + (footer ? '\n\n' + footer : ''),
       keyboard: { inline_keyboard: buttons },
     });
   }
@@ -390,8 +426,10 @@ export class CustomerShopService {
           (result.skipped.length ? '. Пропущено: ' + result.skipped.length + '. Уже выбранные количества сохранены.' : '. Проверьте состав перед оформлением.'));
       }
       case 'add': {
+        const before = await this.cart.get(identity.userId);
         const basket = await this.cart.change(identity.userId, action.revision, action);
-        return this.product(target, identity, action.productId, { basket, feedback: '✅ Добавлено ' + quantity(action.qty, action.quantityUnit ?? basket.items.find(item => item.productId === action.productId)?.product?.unit ?? 'GRAM') });
+        return this.product(target, identity, action.productId, { basket, feedback: before.revision === action.revision
+          ? cartFeedback(before, basket, action.productId) : '✅ Количество обновлено\nСтоимость пересчитана' });
       }
       case 'clear': {
         const basket = await this.cart.get(identity.userId);
@@ -402,12 +440,15 @@ export class CustomerShopService {
       case 'minus':
       case 'remove':
       case 'clearConfirmed': {
+        const before = action.kind === 'clearConfirmed' ? null : await this.cart.get(identity.userId);
         const basket = await this.cart.change(
           identity.userId,
           action.revision,
           action.kind === 'clearConfirmed' ? { kind: 'clear' } : action,
         );
-        return this.basket(target, identity, action.kind === 'remove' ? action.page ?? 0 : 0, basket);
+        return this.basket(target, identity, action.kind === 'remove' ? action.page ?? 0 : 0, basket,
+          before && action.kind !== 'clearConfirmed' ? before.revision === action.revision
+            ? cartFeedback(before, basket, action.productId) : '✅ Количество обновлено\nСтоимость пересчитана' : undefined);
       }
       case 'checkout':
         return this.present(

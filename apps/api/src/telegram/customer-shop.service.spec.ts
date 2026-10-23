@@ -64,8 +64,8 @@ it('keeps the product open after adding and uses the returned cart revision and 
   await s.service.handle(target, identity, { kind: 'add', productId: 11, qty: 250, revision, quantityUnit: 'GRAM' });
   expect(s.cart.change).toHaveBeenCalledWith(7, revision,
     { kind: 'add', productId: 11, qty: 250, revision, quantityUnit: 'GRAM' });
-  expect(s.cart.get).not.toHaveBeenCalled();
-  expect(screen().text).toContain('✅ Добавлено 250 г');
+  expect(s.cart.get).toHaveBeenCalledWith(7);
+  expect(screen().text).toContain('✅ +250 г · +≈ 80 ₽');
   expect(screen().text).toContain('В корзине этого товара: 750 г · ≈ 240 ₽');
   const adds = screen().keyboard.inline_keyboard.flat().flatMap(button => {
     if (!('callback_data' in button)) return [];
@@ -113,7 +113,8 @@ it('labels cart mutations with their weight step and preserves the explicit remo
   await s.service.handle(target, identity, { kind: 'cart' });
   expect(screen().keyboard.inline_keyboard.flat().map(button => button.text))
     .toEqual(expect.arrayContaining(['−', '+', '✕']));
-  expect(screen().text).toContain('Шаг: 250 г · ≈ 80 ₽');
+  expect(screen().text).toContain('Шаг покупки: 250 г');
+  expect(screen().text).not.toContain('≈ 80 ₽');
 });
 
 it('uses the authoritative cart value in the main menu, including unknown weighted totals', async () => {

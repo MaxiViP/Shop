@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { canReview, extraPage, nextStaffAction, reviewView, staffHelp, workOverview, assemblyProgress, assemblyView, dashboard, issuePage, itemPage, itemView, nextAssemblyItem, staffWeighUrl, type OrderView } from './staff-bot-view.js';
+import { richMessage } from './rich.js';
 
 function fixture(): OrderView {
   return {
@@ -250,6 +251,19 @@ function premiumFixture(): OrderView {
 }
 
 describe('STAFF clear actions, reviews and bounded pages', () => {
+  it('distinguishes requested quantities from confirmed actual weight and cost in Rich item details', () => {
+    const order = premiumFixture();
+    const data = JSON.stringify(richMessage(dashboard(order)));
+    expect(data).toContain('Виноград\\nЗаказано: 500 г · собран\\nСобрано: 524 г\\nФактически за товар: 167,68 ₽');
+    Object.assign(order.items[3]!, { unit: 'PIECE', priceUnit: 'GRAM', saleModel: 'WHOLE_VARIABLE_WEIGHT',
+      qty: 2, actualQty: 2, actualWeightGrams: 1500, actualTotal: 48000 });
+    const whole = JSON.stringify(richMessage(dashboard(order)));
+    expect(whole).toContain('Заказано: 2 шт. · собран\\nСобрано: 2 шт.\\nФактический вес: 1,5 кг\\nФактически за товар: 480 ₽');
+    Object.assign(order.items[3]!, { status: 'MISSING', actualQty: 0, actualTotal: 0 });
+    const missing = JSON.stringify(richMessage(dashboard(order)));
+    expect(missing).not.toContain('Фактический вес: 1,5 кг');
+    expect(missing).not.toContain('Фактически за товар: 0 ₽');
+  });
   it('prioritizes a received buyer correction over unrelated pending goods', () => {
     expect(nextStaffAction(premiumFixture())).toBe('Далее: исправьте Виноград.');
     const order = premiumFixture();

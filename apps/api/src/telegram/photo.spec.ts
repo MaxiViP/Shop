@@ -31,3 +31,11 @@ it('treats absent, invalid and oversized sources as unavailable', async () => {
   await writeFile(join(root, 'oversized.webp'), Buffer.alloc(5 * 1024 * 1024 + 1));
   expect(await localPhoto('https://shop.example/uploads/products/oversized.webp', root)).toBeUndefined();
 });
+it('keeps square gallery JPEGs small and separate from full product preparations', async () => {
+  await writeFile(join(root, 'gallery.webp'), await sharp({ create: { width: 1800, height: 900, channels: 3, background: '#12a080' } }).webp().toBuffer());
+  const url = 'https://shop.example/uploads/products/gallery.webp';
+  const thumbnail = await localPhoto(url, root, true), full = await localPhoto(url, root);
+  const meta = await sharp(thumbnail!).metadata();
+  expect(meta.width).toBe(320); expect(meta.height).toBe(320); expect(meta.format).toBe('jpeg');
+  expect(thumbnail!.length).toBeLessThanOrEqual(192 * 1024); expect(thumbnail).not.toBe(full);
+});

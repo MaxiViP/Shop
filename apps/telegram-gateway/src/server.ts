@@ -13,6 +13,24 @@ class InputError extends Error {
   constructor(readonly status: number) { super('GATEWAY_INPUT'); }
 }
 
+function attachments(blocks: unknown[], names: string[], state = { count: 0 }, depth = 0): void {
+  if (depth > 4) throw new InputError(400);
+  for (const block of blocks) {
+    if (++state.count > 40 || !block || typeof block !== 'object' || !('type' in block)) throw new InputError(400);
+    if (block.type === 'photo') {
+      if (!('photo' in block) || !block.photo || typeof block.photo !== 'object' || !('media' in block.photo) || typeof block.photo.media !== 'string') throw new InputError(400);
+      if (block.photo.media.startsWith('attach://')) {
+        const name = block.photo.media.slice(9);
+        if (!/^photo[1-7]?$/.test(name)) throw new InputError(400);
+        names.push(name);
+      }
+    } else if (block.type === 'collage' || block.type === 'details') {
+      if (!('blocks' in block) || !Array.isArray(block.blocks)) throw new InputError(400);
+      attachments(block.blocks, names, state, depth + 1);
+    }
+  }
+}
+
 function reply(response: ServerResponse, status: number, body: string) {
   if (response.destroyed) return;
   response.writeHead(status, {
@@ -49,19 +67,23 @@ async function payload(request: IncomingMessage, method: string): Promise<{ body
     try { form = await new Response(bytes, { headers: { 'Content-Type': contentType } }).formData(); }
     catch { throw new InputError(400); }
     const keys = [...form.keys()];
-    if (keys.length !== new Set(keys).size || keys.some(key => !['chat_id', 'message_id', 'rich_message', 'photo'].includes(key)) ||
+    if (keys.length !== new Set(keys).size || keys.some(key => !['chat_id', 'message_id', 'rich_message'].includes(key) && !/^photo[1-7]?$/.test(key)) ||
         !/^[1-9]\d{0,15}$/.test(String(form.get('chat_id'))) ||
         (method === 'editMessageText' && !/^[1-9]\d{0,9}$/.test(String(form.get('message_id'))))) throw new InputError(400);
-    const photo = form.get('photo'), rich = form.get('rich_message');
-    if (!photo || typeof photo === 'string' || photo.type !== 'image/jpeg' || photo.size < 3 || photo.size > 1024 * 1024 ||
-        typeof rich !== 'string' || Buffer.byteLength(rich) > 48 * 1024) throw new InputError(400);
-    const magic = new Uint8Array(await photo.slice(0, 2).arrayBuffer());
-    if (magic[0] !== 255 || magic[1] !== 216) throw new InputError(400);
+    const files = keys.filter(key => /^photo[1-7]?$/.test(key)), rich = form.get('rich_message');
+    if (!files.length || typeof rich !== 'string' || Buffer.byteLength(rich) > 48 * 1024) throw new InputError(400);
+    for (const name of files) {
+      const photo = form.get(name);
+      if (!photo || typeof photo === 'string' || photo.type !== 'image/jpeg' || photo.size < 3 || photo.size > 1024 * 1024) throw new InputError(400);
+      const magic = new Uint8Array(await photo.slice(0, 2).arrayBuffer());
+      if (magic[0] !== 255 || magic[1] !== 216) throw new InputError(400);
+    }
     let value: unknown;
     try { value = JSON.parse(rich); } catch { throw new InputError(400); }
-    if (!value || typeof value !== 'object' || !('blocks' in value) || !Array.isArray(value.blocks) || value.blocks.length > 40 ||
-        value.blocks.filter((block: unknown) => block && typeof block === 'object' && 'type' in block && block.type === 'photo' &&
-          'photo' in block && block.photo && typeof block.photo === 'object' && 'media' in block.photo && block.photo.media === 'attach://photo').length !== 1) throw new InputError(400);
+    if (!value || typeof value !== 'object' || !('blocks' in value) || !Array.isArray(value.blocks)) throw new InputError(400);
+    const names: string[] = [];
+    attachments(value.blocks, names);
+    if (names.length !== files.length || names.length !== new Set(names).size || names.some(name => !files.includes(name))) throw new InputError(400);
     return { body: bytes, contentType };
   }
   const text = Buffer.from(bytes).toString('utf8');
