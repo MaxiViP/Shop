@@ -84,6 +84,7 @@ function galleryForm(count = 8) {
   return form;
 }
 it.each(['sendRichMessage', 'editMessageText'])('relays 8 bounded gallery JPEGs for %s without changing order', async method => {
+  const timeout = vi.spyOn(AbortSignal, 'timeout');
   await start(); const form = galleryForm();
   expect((await fetch(origin + '/v1/customer/' + method, { method: 'POST', body: form })).status).toBe(200);
   expect(upstream).toHaveBeenCalledTimes(1);
@@ -91,6 +92,7 @@ it.each(['sendRichMessage', 'editMessageText'])('relays 8 bounded gallery JPEGs 
   const forwarded = await new Response(init.body as Uint8Array<ArrayBuffer>, { headers: init.headers }).formData();
   expect(forwarded.get('rich_message')).toBe(form.get('rich_message'));
   expect([...forwarded.values()].filter(value => value instanceof File)).toHaveLength(8);
+  expect(timeout).toHaveBeenCalledWith(25000);
 });
 it.each(['ninth', 'unreferenced', 'missing', 'duplicate-reference', 'bad-second-jpeg', 'deep', 'many-blocks'] as const)('rejects malformed gallery %s before contacting Telegram', async failure => {
   await start(); const form = galleryForm();

@@ -113,7 +113,7 @@ async function upstreamBody(response: Response): Promise<string> {
   } finally { reader.releaseLock(); }
 }
 
-export function createGateway({ tokens, fetcher = fetch, timeoutMs = 5000 }: Options) {
+export function createGateway({ tokens, fetcher = fetch, timeoutMs }: Options) {
   // No legacy token fallback at this boundary. Each path has an explicit bot identity.
   const configured = { customer: tokens.customer?.trim() ?? '', staff: tokens.staff?.trim() ?? '' };
   async function handle(request: IncomingMessage, response: ServerResponse) {
@@ -143,7 +143,7 @@ export function createGateway({ tokens, fetcher = fetch, timeoutMs = 5000 }: Opt
       reply(response, error instanceof InputError ? error.status : 400, '{"ok":false,"error":"INVALID_REQUEST"}');
       return;
     }
-    const signal = AbortSignal.timeout(timeoutMs);
+    const signal = AbortSignal.timeout(timeoutMs ?? (input.contentType.toLowerCase().startsWith('multipart/') ? 25000 : 5000));
     try {
       // Exactly one attempt. Neither exceptions nor downstream disconnects trigger a resend.
       const upstream = await fetcher('https://api.telegram.org/bot' + token + '/' + method, {

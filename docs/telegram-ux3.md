@@ -22,6 +22,8 @@ Use existing local optimized product photographs only. Gallery derivatives are i
 
 Gateway multipart remains limited to2MiB total and1MiB per JPEG, now allowing at most8 files. It validates JPEG signatures, unique names, exact attachment references and bounded block depth/count. JSON limits and single upstream attempt are unchanged.
 
+Multipart uploads have a bounded25second gateway timeout and30second API timeout. Cached JSON requests retain their existing5/7second limits. An upload timeout remains UNKNOWN and is never automatically replayed.
+
 If any gallery source is missing/invalid/unreadable, the entire media grid degrades to named selection controls; products never shift into another product's slot. A confirmed Telegram rejection permits cached-ID recovery, Rich without media, then escaped HTML. Timeouts/unknown outcomes never trigger a resend or business mutation replay. Product-card media failure does not prevent shopping.
 
 ## Orders

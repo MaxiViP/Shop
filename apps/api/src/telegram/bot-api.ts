@@ -120,7 +120,9 @@ export type BotOutcome =
   | { status: 'rejected'; confirmed?: boolean; uneditable?: boolean }
   | { status: 'blocked' | 'unknown' | 'retryable' };
 export async function botExchange(token: string, method: 'sendMessage' | 'sendRichMessage' | 'editMessageText', payload: object, photo?: Uint8Array | ReadonlyMap<string, Uint8Array>): Promise<BotOutcome> {
-  const result = await request(token, method, payload, 7000, photo);
+  // Uploading a gallery needs a larger bounded window than cached JSON edits.
+  // Leave margin over the gateway's 25s upload timeout so UNKNOWN stays observable.
+  const result = await request(token, method, payload, photo ? 30000 : 7000, photo);
   if (result.unchanged) return { status: 'unchanged' };
   if (result.ok) {
     const messageId = sentMessageId(result.result);

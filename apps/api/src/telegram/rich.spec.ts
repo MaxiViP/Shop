@@ -168,6 +168,7 @@ it('preserves semantic bold fallback, marked literals and notices without HTML i
   expect(JSON.stringify(richMessage(updated))).toContain('✅ Изменено <b>');
 });
 it('uploads one local JPEG in multipart, and never retries after an unknown upload result', async () => {
+  const timeout = vi.spyOn(AbortSignal, 'timeout');
   const prepared = vi.mocked(localPhoto);
   prepared.mockResolvedValueOnce(new Uint8Array([255, 216, 255, 217]));
   fetcher.mockRejectedValueOnce(new Error('Lost upload response'));
@@ -179,6 +180,8 @@ it('uploads one local JPEG in multipart, and never retries after an unknown uplo
   const photo = (form as FormData).get('photo');
   expect(photo).toBeInstanceOf(File);
   expect((photo as File).type).toBe('image/jpeg');
+  expect(timeout).toHaveBeenCalledWith(30000);
+  timeout.mockRestore();
 });
 
 const galleryScreen = (count = 8): TelegramScreen => ({ ...screen, rich: { blocks: [
