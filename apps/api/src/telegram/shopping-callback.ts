@@ -26,10 +26,14 @@ export function expand(value: string | undefined) {
 export type ShoppingAction =
   | { kind: 'catalog' | 'cart' | 'resume' | 'help' }
   | { kind: 'categories' | 'basket'; page: number }
+  | { kind: 'quick'; page: number }
+  | { kind: 'repeat'; revision: string; orderId: number }
   | { kind: 'products'; categoryId: number; page: number }
   | { kind: 'product'; productId: number; qty: number }
+  | ({ kind: 'open' | 'details'; productId: number } & ShopContext)
+  | ({ kind: 'adjust'; productId: number; delta: number; quantityUnit: SaleUnit; revision: string } & ShopContext)
   | { kind: 'add'; productId: number; qty: number; revision: string; quantityUnit?: SaleUnit }
-  | { kind: 'plus' | 'minus' | 'remove'; productId: number; revision: string }
+  | { kind: 'plus' | 'minus' | 'remove'; productId: number; revision: string; page?: number }
   | { kind: 'clear'; revision: string }
   | { kind: 'clearConfirmed'; revision: string }
   | { kind: 'checkout'; revision: string }
@@ -54,6 +58,35 @@ export function shoppingAction(data: string): ShoppingAction | null {
     data === 'help'
   )
     return { kind: data };
+  const parts = data.split(':');
+  if (parts[0] === 's' && parts[1] === 'x' && parts.length === 5) {
+    const revision = expand(parts[2]), productId = number(parts[3], id), p = number(parts[4], page);
+    return revision && productId && p !== null ? { kind: 'remove', revision, productId, page: p } : null;
+  }
+  if (parts[0] === 's' && parts[1] === 'q' && parts.length === 3) {
+    const p = number(parts[2], page);
+    return p === null ? null : { kind: 'quick', page: p };
+  }
+  if (parts[0] === 's' && parts[1] === 'e' && parts.length === 4) {
+    const revision = expand(parts[2]), orderId = number(parts[3], id);
+    return revision && orderId ? { kind: 'repeat', revision, orderId } : null;
+  }
+  if (parts[0] === 's' && ['o', 'd'].includes(parts[1] ?? '') && parts.length === 5) {
+    const productId = number(parts[2], id), p = number(parts[3], page), origin = parts[4];
+    return productId && p !== null && ['c', 'k', 'q'].includes(origin ?? '') ? {
+      kind: parts[1] === 'o' ? 'open' : 'details', productId, page: p, origin: origin === 'k' ? 'basket' : origin === 'q' ? 'quick' : 'category',
+    } : null;
+  }
+  if (parts[0] === 's' && parts[1] === 'u' && parts.length === 8) {
+    const revision = expand(parts[2]), productId = number(parts[3], id), value = parts[4] ?? '';
+    const delta = /^[pm]/.test(value) ? number(value.slice(1), qty) : null;
+    const unit = parts[5], p = number(parts[6], page), origin = parts[7];
+    return revision && productId && delta && p !== null && ['c', 'k', 'q'].includes(origin ?? '') &&
+      ['GRAM', 'PIECE', 'BUNCH', 'PACK'].includes(unit ?? '') ? {
+        kind: 'adjust', productId, delta: value[0] === 'm' ? -delta : delta, revision,
+        quantityUnit: unit as SaleUnit, page: p, origin: origin === 'k' ? 'basket' : origin === 'q' ? 'quick' : 'category',
+      } : null;
+  }
   const [prefix, action, a, b, c, unit, ...extra] = data.split(':');
   if (prefix !== 's' || extra.length || (unit !== undefined && action !== 'a')) return null;
   const rev = expand(a);
@@ -144,3 +177,12 @@ export const shoppingData = (action: string, ...values: (number | string)[]) =>
       typeof value === 'number' ? value.toString(36) : compact(value),
     )
     .join(':');
+
+export type ShopContext = { page: number; origin: 'category' | 'basket' | 'quick' };
+export function productData(productId: number, context: ShopContext, details = false) {
+  return shoppingData(details ? 'd' : 'o', productId, context.page, context.origin === 'basket' ? 'k' : context.origin === 'quick' ? 'q' : 'c');
+}
+export function adjustData(revision: string, productId: number, delta: number, unit: SaleUnit, context: ShopContext) {
+  return shoppingData('u', revision, productId, (delta < 0 ? 'm' : 'p') + Math.abs(delta).toString(36),
+    unit, context.page, context.origin === 'basket' ? 'k' : context.origin === 'quick' ? 'q' : 'c');
+}

@@ -1,3 +1,4 @@
+import { QuickShopService } from '../src/cart/quick-shop.service.js';
 import 'dotenv/config';
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
@@ -66,7 +67,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const cart = new CartService(typed, domainOrders);
       const checkout = new CustomerCheckoutService(typed, cart, domainOrders);
       return new CustomerUpdateService(typed, coordination, domainOrders,
-        new CustomerShopService(typed, cart, checkout, domainOrders), checkout);
+        new CustomerShopService(typed, cart, checkout, domainOrders, new QuickShopService(typed, cart)), checkout);
     };
     const post = (path: string, body: Record<string, unknown>, cookie?: string) => {
       const value = request(app.getHttpServer())
@@ -304,7 +305,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await bot.handle({ message: { message_id: 1, from: actor, chat, text: '/start' } });
         expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: preservedIdentity } }))
           .toMatchObject({ customerBotStartedAt: expect.any(Date), customerBotBlockedAt: null });
-        expect(calls[0]).toContain('request_contact');
+        expect(calls[0]).toContain('verify_phone');
+        await bot.handle({ callback_query: { id: 'verify-own-contact', from: actor,
+          message: { message_id: 1, chat }, data: 'verify_phone' } });
+        expect(calls.join(' ')).toContain('request_contact');
         await bot.handle({ message: { message_id: 2, from: actor, chat,
           contact: { phone_number: '8 (999) 123-45-67', user_id: actor.id } } });
         expect(await db.telegramIdentity.findUniqueOrThrow({ where: { id: preservedIdentity } }))
@@ -344,7 +348,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         connected: true, username: 'old', firstName: 'Test', lastName: null,
         photoUrl: 'https://example.test/first.webp', phoneNumber: '+79991234567', phoneVerified: true,
       });
-      expect(Object.keys(me.body).sort()).toEqual(['id', 'name', 'phone', 'role', 'telegram', 'verifiedAt']);
+      expect(Object.keys(me.body).sort()).toEqual(['id', 'name', 'ownedPoints', 'phone', 'role', 'telegram', 'verifiedAt']);
       expect(JSON.stringify(me.body)).not.toMatch(/telegramUserId|telegramIdentity|tokenHash/);
       expect(me.body.telegram).not.toHaveProperty('id');
       const updated = await telegram.miniApp(raw(telegramId, { photo_url: 'https://example.test/new.webp' }));

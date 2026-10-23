@@ -34,7 +34,7 @@ GET /health returns only {"ok":true}, including when tokens are absent.
 It does not test Telegram, credentials or the tunnel.
 
 POST /v1/customer/<method> and POST /v1/staff/<method> accept only:
-sendMessage, answerCallbackQuery, editMessageReplyMarkup, editMessageText.
+sendMessage, sendRichMessage, answerCallbackQuery, editMessageReplyMarkup, editMessageText.
 No incoming URL contains a token; no arbitrary destination or method is allowed.
 The gateway has no webhook routes.
 

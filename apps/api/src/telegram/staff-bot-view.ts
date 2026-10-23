@@ -276,18 +276,16 @@ export function workOverview(counts: Record<'new' | 'confirmed' | 'assembly' | '
     'Новые: ' + counts.new + ' · подтверждены: ' + counts.confirmed,
     'В сборке: ' + counts.assembly + ' · готовы: ' + counts.ready + ' · доставляются: ' + counts.delivery,
     'Нужно вам: ' + counts.seller + ' · ждём покупателя: ' + counts.customer,
-    'Начните с вопросов покупателей, затем принимайте новые заказы и продолжайте сборку.',
-    'Очереди идут от старых заказов к новым. Один заказ может находиться в нескольких очередях.',
-    'Открыть номер: /order 123 или #123. Справка: /help.',
+    'Вопросы покупателей — в первую очередь. /order 123 — открыть заказ.',
   ].join('\n'), keyboard: { inline_keyboard: [
-    [{ text: '❗ Нужно вам · ' + counts.seller, callback_data: staffQueueData('seller') }],
+    [{ text: '❗ Нужно вам · ' + counts.seller, callback_data: staffQueueData('seller'), ...(counts.seller ? { style: 'primary' as const } : {}) }],
     [{ text: '🆕 Новые · ' + counts.new, callback_data: staffQueueData('new') },
       { text: '🧺 В работе · ' + (counts.confirmed + counts.assembly), callback_data: staffQueueData('assembly') }],
     [{ text: '✅ Готовы · ' + counts.ready, callback_data: staffQueueData('ready') },
       { text: '🚚 Доставляются · ' + counts.delivery, callback_data: staffQueueData('delivery') }],
     [{ text: '⏳ Ждём покупателя · ' + counts.customer, callback_data: staffQueueData('customer') }],
     [{ text: 'Все активные заказы', callback_data: staffQueueData('all') }],
-    [{ text: '🔄 Обновить обзор', callback_data: 'sw' }],
+    [{ text: '🔄 Обновить', callback_data: 'sw' }, { text: 'Помощь', callback_data: 'sh' }],
   ] } };
 }
 

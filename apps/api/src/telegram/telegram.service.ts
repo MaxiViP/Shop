@@ -3,8 +3,10 @@ import { DbService } from '../db/db.service.js';
 import type { OrderStatus } from '../db/gen/client.js';
 import { newOrderMessage, telegramOrderSelect } from './message.js';
 import { orderKeyboard } from './callback.js';
-import { botMessage, botRequest, botSendMessageId, type BotMethod } from './bot-api.js';
+import { botRequest, botSendMessageId, type BotMethod } from './bot-api.js';
 import { staffBotToken, staffWebhookSecret, validWebhookSecret, staffPageUrl } from './bot-config.js';
+import { deliverScreen } from './delivery.js';
+import type { TelegramKeyboard } from './rich.js';
 
 @Injectable()
 export class TelegramService {
@@ -31,11 +33,10 @@ export class TelegramService {
     return this.callbacksAvailable && userId === chatId && this.chatIds.includes(String(userId));
   }
 
-  async sendStaff(chatId: number, text: string, replyMarkup?: object): Promise<void> {
-    await this.request('sendMessage', {
-      chat_id: chatId, text, link_preview_options: { is_disabled: true },
-      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-    }, 'Telegram staff send failed');
+  async sendStaff(chatId: number, text: string, replyMarkup?: TelegramKeyboard): Promise<number | null> {
+    const result = await deliverScreen('staff', { chatId }, { text, keyboard: replyMarkup ?? { inline_keyboard: [] } });
+    if (result.status !== 'sent' && result.status !== 'unchanged') this.logger.warn('Telegram staff send failed');
+    return result.status === 'sent' ? result.messageId : null;
   }
 
   async promptStaff(chatId: number, text: string): Promise<number | null> {
@@ -47,12 +48,10 @@ export class TelegramService {
     return id;
   }
 
-  async editStaff(chatId: number, messageId: number, text: string, replyMarkup: object): Promise<void> {
-    if (this.token && !await botMessage(this.token, 'editMessageText', {
-      chat_id: chatId, message_id: messageId, text,
-      reply_markup: replyMarkup,
-      link_preview_options: { is_disabled: true },
-    }, 3000)) this.logger.warn('Telegram staff dashboard update failed');
+  async editStaff(chatId: number, messageId: number, text: string, replyMarkup: TelegramKeyboard): Promise<number | null> {
+    const result = await deliverScreen('staff', { chatId, messageId }, { text, keyboard: replyMarkup });
+    if (result.status !== 'sent' && result.status !== 'unchanged') this.logger.warn('Telegram staff dashboard update failed');
+    return result.status === 'sent' ? result.messageId : result.status === 'unchanged' ? messageId : null;
   }
 
   staffOrderUrl(orderId: number): string | undefined { return this.orderUrl(orderId); }

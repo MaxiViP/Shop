@@ -15,6 +15,8 @@ import { parseStaffAction, parseStaffQueue, staffData, staffQueueData, staffUpda
 import { activeStatuses, assemblyView, canQuickConfirm, canReview, dashboard, extraPage, issuePage, itemPage, itemView, staffHelp, workOverview, statusText,
   type Keyboard } from './staff-bot-view.js';
 import { TelegramService } from './telegram.service.js';
+import { serialUpdate } from './updates.js';
+import { pageInfo } from './page.js';
 
 type Identity = { id: number; userId: number; user: { role: 'USER' | 'SELLER' | 'ADMIN'; ownedPoints?: { marketPointId: number }[] } };
 
@@ -37,7 +39,17 @@ export class StaffBotService {
         'Некорректная кнопка');
       return;
     }
-    const { message, callback_query: callback } = parsed.data;
+    const callback = parsed.data.callback_query, message = parsed.data.message;
+    const from = callback?.from ?? message?.from, chat = callback?.message.chat ?? message?.chat;
+    if (!chat || !from || chat.type !== 'private' || chat.id !== from.id || !this.telegram.canManagePrivate(from.id, chat.id)) {
+      if (callback) await this.telegram.answerCallbackQuery(callback.id, 'Нет доступа');
+      return;
+    }
+    await serialUpdate('staff', chat.id, parsed.data.update_id,
+      () => this.process(parsed.data));
+  }
+  private async process(update: ReturnType<typeof staffUpdate.parse>): Promise<void> {
+    const { message, callback_query: callback } = update;
     if (!message && !callback) return;
     const from = callback?.from ?? message?.from;
     const chat = callback?.message.chat ?? message?.chat;
@@ -158,9 +170,16 @@ export class StaffBotService {
     const queueStatuses = { new: ['NEW'], assembly: ['CONFIRMED', 'ASSEMBLING'], ready: ['READY'], delivery: ['DELIVERING'] } as const;
     const statusFilter = filter in queueStatuses ? { status: { in: [...queueStatuses[filter as keyof typeof queueStatuses]] } } : active;
     const issueFilter = filter === 'seller' ? sellerIssue : filter === 'customer' ? customerIssue : null;
-    const [found, sellerCount, customerCount] = await Promise.all([
-      this.db.order.findMany({
-        where: { ...statusFilter, ...(issueFilter ? { issues: { some: issueFilter } } : {}) },
+    const where = { ...statusFilter, ...(issueFilter ? { issues: { some: issueFilter } } : {}) };
+    const [sellerCount, customerCount] = await Promise.all([
+      this.db.order.count({ where: { ...active, issues: { some: sellerIssue } } }),
+      this.db.order.count({ where: { ...active, issues: { some: customerIssue } } }),
+    ]);
+    const total = filter === 'seller' ? sellerCount : filter === 'customer' ? customerCount : await this.db.order.count({ where });
+    const info = pageInfo(total, page, 12);
+    page = info.page;
+    const found = await this.db.order.findMany({
+        where,
         take: 13, skip: page * 12, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         select: { id: true, status: true, customerName: true, type: true,
           issues: { where: issueFilter ?? { OR: [sellerIssue, customerIssue] }, take: 3,
@@ -168,14 +187,12 @@ export class StaffBotService {
               resolution: true, replacementItemId: true,
               replacementItem: { select: { id: true, status: true, productName: true } },
               orderItem: { select: { productName: true } } } } },
-      }),
-      this.db.order.count({ where: { ...active, issues: { some: sellerIssue } } }),
-      this.db.order.count({ where: { ...active, issues: { some: customerIssue } } }),
-    ]);
+      });
+    if (!found.length && page) return this.orders(chatId, messageId, filter, 0);
     const orders = found.slice(0, 12);
     const labels = { all: 'Активные заказы', seller: 'Нужно вам', customer: 'Ждём покупателя',
       new: 'Новые заказы', assembly: 'Подтверждены и в сборке', ready: 'Готовы к выдаче и доставке', delivery: 'Доставляются' };
-    const lines = [labels[filter] + ' · страница ' + (page + 1),
+    const lines = [labels[filter] + '\n' + info.label,
       'Заказов: нужно вам ' + sellerCount + ' · ждём покупателя ' + customerCount];
     const rows: Keyboard['inline_keyboard'] = [[
       { text: 'Все', callback_data: staffQueueData('all') },
@@ -224,6 +241,11 @@ export class StaffBotService {
   }
 
   private async callback(callback: StaffCallback, identity: Identity): Promise<string> {
+    if (callback.data === 'sh') {
+      const view = staffHelp();
+      await this.render(callback.message.chat.id, callback.message.message_id, view.text, view.keyboard);
+      return 'Помощь';
+    }
     if (callback.data === 'sw') {
       await this.overview(callback.message.chat.id, callback.message.message_id);
       return 'Обзор обновлён';

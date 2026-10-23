@@ -12,6 +12,7 @@ import { canReview, reviewView } from './staff-bot-view.js';
 import { isReviewFlow, reviewSnapshot, flowPayload, flowPrompt, flowError, knownFlowError, uncertainMutation,
   type Flow, type FlowPayload } from './staff-flow.js';
 import { TelegramService } from './telegram.service.js';
+import type { TelegramKeyboard } from './rich.js';
 
 const expires = () => new Date(Date.now() + 15 * 60_000);
 const revision = () => randomBytes(8).toString('hex');
@@ -216,10 +217,7 @@ export class StaffBotFlowService {
         ? reviewView(order, session.action, data, session.confirmationCode ?? '', session.itemId)
         : { text: 'Заказ #' + session.orderId + ' изменился после проверки. Откройте его и проверьте действие заново.',
           keyboard: { inline_keyboard: [[{ text: 'К актуальному заказу', callback_data: staffData(session.orderId, 'zb') }]] } };
-      if (session.dashboardMessageId)
-        await this.telegram.editStaff(chatId, session.dashboardMessageId, view.text, view.keyboard);
-      else await this.telegram.sendStaff(chatId, view.text, view.keyboard);
-      return true;
+      return this.presentScreen(chatId, session, view.text, view.keyboard);
     }
     let unit: string | undefined;
     let itemContext = '';
@@ -236,14 +234,12 @@ export class StaffBotFlowService {
     if (session.step === 'CONFIRM') {
       const action = session.action === 'EXTRA' ? 'xs' : session.action === 'DELIVERY' ? 'ds' : 'zy';
       if (!session.confirmationCode) return false;
-      const keyboard = { inline_keyboard: [
-        [{ text: '✅ Подтвердить', callback_data: staffConfirmData(session.orderId, action, session.confirmationCode) }],
+      const keyboard: TelegramKeyboard = { inline_keyboard: [
+        [{ text: '✅ Подтвердить', callback_data: staffConfirmData(session.orderId, action, session.confirmationCode),
+          style: session.action === 'CANCEL' ? 'danger' : 'success' }],
         [{ text: '↩️ Назад к заказу', callback_data: staffData(session.orderId, 'zb') }],
       ] };
-      if (session.dashboardMessageId)
-        await this.telegram.editStaff(chatId, session.dashboardMessageId, prompt, keyboard);
-      else await this.telegram.sendStaff(chatId, prompt, keyboard);
-      return true;
+      return this.presentScreen(chatId, session, prompt, keyboard);
     }
     const promptMessageId = await this.telegram.promptStaff(chatId, prompt +
       '\nОтветьте на это сообщение. /resume — повторить запрос, /cancel — отменить ввод.');
@@ -253,6 +249,16 @@ export class StaffBotFlowService {
       where: { ...match(session), expiresAt: { gt: new Date() } },
       data: { promptMessageId },
     })).count === 1;
+  }
+
+  private async presentScreen(chatId: number, session: StaffTelegramSession, text: string, keyboard: TelegramKeyboard): Promise<boolean> {
+    const id = session.dashboardMessageId
+      ? await this.telegram.editStaff(chatId, session.dashboardMessageId, text, keyboard)
+      : await this.telegram.sendStaff(chatId, text, keyboard);
+    if (!id) return false;
+    if (id === session.dashboardMessageId) return true;
+    // Bind the replacement only if the displayed flow still owns this exact revision.
+    return (await this.db.staffTelegramSession.updateMany({ where: match(session), data: { dashboardMessageId: id } })).count === 1;
   }
 
   private async commit(session: StaffTelegramSession, mutation: () => Promise<unknown>): Promise<boolean> {

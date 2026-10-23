@@ -30,5 +30,5 @@ it('recovers an explicitly deleted buyer card without replaying any domain actio
     text: 'Актуальный заказ', keyboard: { inline_keyboard: [[{ text: 'Меню', callback_data: 'menu' }]] },
   })).toBe(true);
   expect(fetcher.mock.calls).toHaveLength(2);
-  expect(fetcher.mock.calls.every(([, options]) => !JSON.parse(String(options?.body)).parse_mode)).toBe(true);
+  expect(fetcher.mock.calls.every(([, options]) => JSON.parse(String(options?.body)).parse_mode === 'HTML')).toBe(true);
 });

@@ -47,8 +47,8 @@ function setup() {
   };
   const telegram = {
     promptStaff: vi.fn<() => Promise<number | null>>(async () => nextPrompt++),
-    sendStaff: vi.fn(async () => {}),
-    editStaff: vi.fn(async () => {}),
+    sendStaff: vi.fn(async () => 44),
+    editStaff: vi.fn(async () => 44),
   };
   const restart = () => new StaffBotFlowService(db, staff as unknown as StaffService,
     telegram as unknown as TelegramService);

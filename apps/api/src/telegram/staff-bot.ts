@@ -14,6 +14,7 @@ const callback = z.object({
   message: z.object({ message_id: id, chat }),
 });
 export const staffUpdate = z.object({
+  update_id: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
   message: message.optional(), callback_query: callback.optional(),
 });
 export type StaffMessage = z.infer<typeof message>;

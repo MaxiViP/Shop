@@ -4,13 +4,15 @@ import { CoordinationService } from '../order/coordination.service.js';
 import { OrderService } from '../order/order.service.js';
 import { chatSchema } from '../order/coordination.schema.js';
 import { botMessage, botRequest } from './bot-api.js';
-import type { CustomerTelegramSession, UserRole } from '../db/gen/client.js';
+import type { CustomerTelegramSession, UserRole, Prisma } from '../db/gen/client.js';
 import { customerShow, customerPrompt } from './customer-send.js';
 import { CustomerShopService } from './customer-shop.service.js';
 import { CustomerCheckoutService } from './customer-checkout.service.js';
 import { customerError } from './customer-error.js';
 import { shoppingAction } from './shopping-callback.js';
 import { customerBotToken } from './bot-config.js';
+import { serialUpdate } from './updates.js';
+import { pageInfo } from './page.js';
 import { phone } from '../common/phone.js';
 import { customerAction, customerUpdate, customerView, type CustomerAction } from './customer-callback.js';
 import {
@@ -133,11 +135,14 @@ export class CustomerUpdateService {
     ]);
     return this.show(target, customerMenu(identity, { attention: question ?? unread, current, cartLabel }));
   }
-  private async list(target: Target, identity: Identity, page = 0, attention = false) {
+  private async list(target: Target, identity: Identity, page = 0, attention = false): Promise<boolean> {
+    const where = { userId: identity.userId, ...(attention ? { OR: [
+      { customerUnread: { gt: 0 } }, { status: 'ASSEMBLING', assemblyFinalizedAt: null, issues: { some: { status: 'WAITING_CUSTOMER' as const } } },
+    ] } : {}) } satisfies Prisma.OrderWhereInput;
+    const info = pageInfo(await this.db.order.count({ where }), page, 5);
+    page = info.page;
     const rows = await this.db.order.findMany({
-      where: { userId: identity.userId, ...(attention ? { OR: [
-        { customerUnread: { gt: 0 } }, { status: 'ASSEMBLING', assemblyFinalizedAt: null, issues: { some: { status: 'WAITING_CUSTOMER' as const } } },
-      ] } : {}) },
+      where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: page * 5, take: 6,
       select: {
         id: true, publicId: true, status: true, total: true, finalTotal: true, createdAt: true,
@@ -145,6 +150,7 @@ export class CustomerUpdateService {
         customerUnread: true, issues: { where: { status: 'WAITING_CUSTOMER' }, select: { id: true } },
       },
     });
+    if (!rows.length && page) return this.list(target, identity, 0, attention);
     const visible = rows.slice(0, 5).map(order => ({ ...order, pending: order.status === 'ASSEMBLING' &&
       !order.assemblyFinalizedAt && !['PAID', 'REPORTED'].includes(order.payment?.status ?? '') ? order.issues.length : 0 }));
     const buttons: Button[][] = visible.map(order => [{
@@ -161,7 +167,7 @@ export class CustomerUpdateService {
     buttons.push([{ text: '🛍 В магазин', callback_data: 'catalog' }, { text: 'Меню', callback_data: 'menu' }]);
     return this.show(target, {
       text: (attention ? '❗ Сообщения и вопросы по заказам' : '📦 Ваши заказы') +
-        (page ? ' · страница ' + (page + 1) : '') + '\n\n' +
+        '\n' + info.label + '\n\n' +
         (visible.map(order => '№' + order.id + ' · ' + orderStatus[order.status] + '\n' +
           amount(order.finalTotal ?? order.total) + ' · ' + date(order.createdAt) +
           (order.pending ? '\n❗ Вопросов: ' + order.pending : '') +
@@ -203,15 +209,15 @@ export class CustomerUpdateService {
           (revision ? '\nПросмотр фото на сайте снимет индикатор обновления.' : '') : cursor ? 'Больше сообщений в этом направлении нет.' : 'Сообщений пока нет.') +
         (skippedUnread ? '\n\nЕсть более ранние непрочитанные сообщения. Нажмите «Читать непрочитанные».' : ''),
       keyboard: { inline_keyboard: [
+        [{ text: '📨 Читать непрочитанные / Обновить', callback_data: customerView('m', publicId), style: 'primary' }],
+        [{ text: 'Написать продавцу', callback_data: customerView('w', publicId) }],
         ...(last && (last.image || revision) && url ? [[{ text: '📷 Открыть фото и отметки', web_app: { url } }]] : []),
         ...(last ? [[
           { text: '← Предыдущее', callback_data: customerView('m', publicId, last.id) },
           { text: 'Следующее →', callback_data: customerView('n', publicId, last.id) },
         ]] : []),
-        [{ text: '📨 Читать непрочитанные / Обновить', callback_data: customerView('m', publicId) }],
-        [{ text: 'К последнему сообщению', callback_data: customerView('t', publicId) }],
-        [{ text: 'Написать продавцу', callback_data: customerView('w', publicId) }],
-        [{ text: '← К заказу', callback_data: customerView('o', publicId) }, { text: 'Меню', callback_data: 'menu' }],
+        [{ text: 'К последнему сообщению', callback_data: customerView('t', publicId) },
+          { text: '← К заказу', callback_data: customerView('o', publicId) }],
       ] },
     });
     // Do not skip unseen messages or acknowledge an unseen photo revision.
@@ -328,7 +334,15 @@ export class CustomerUpdateService {
   async handle(body: unknown) {
     const parsed = customerUpdate.safeParse(body);
     if (!parsed.success) return;
-    const { message, callback_query: callback } = parsed.data;
+    const callback = parsed.data.callback_query, message = parsed.data.message;
+    const chat = callback?.message?.chat ?? message?.chat;
+    const from = callback?.from ?? message?.from;
+    if (!chat || !from || chat.type !== 'private' || chat.id !== from.id) return;
+    await serialUpdate('customer', chat.id, parsed.data.update_id,
+      () => this.process(parsed.data));
+  }
+  private async process(update: ReturnType<typeof customerUpdate.parse>) {
+    const { message, callback_query: callback } = update;
     const sender = callback?.from ?? message?.from;
     const chat = callback?.message?.chat ?? message?.chat;
     if (!sender || !chat || chat.type !== 'private' || chat.id !== sender.id) return;
@@ -384,7 +398,7 @@ export class CustomerUpdateService {
         await this.cancel(identity);
         if (action?.kind === 'menu' || action?.kind === 'cancel')
           await this.show(target, customerOnboardingMenu(identity));
-        else if (shopping && ['catalog', 'categories', 'products', 'product', 'help'].includes(shopping.kind))
+        else if (shopping && ['catalog', 'categories', 'products', 'product', 'open', 'details', 'help'].includes(shopping.kind))
           await this.shop.handle(target, identity, shopping, true);
         else await this.requestPhone(chat.id);
         return;
@@ -392,7 +406,8 @@ export class CustomerUpdateService {
       if (shopping?.kind === 'resume') await this.resume(target, identity);
       else if (shopping) {
         if (shopping.kind !== 'checkout' && shopping.kind !== 'flow') await this.cancel(identity);
-        await this.shop.handle(target, identity, shopping);
+        const displayed = await this.shop.handle(target, identity, shopping);
+        if (displayed === false) ack = 'Не удалось обновить экран. /cart — актуальная корзина.';
       }
       else if (extra) await this.action(target, identity, extra);
       else if (action) await this.action(target, identity, action);

@@ -10,7 +10,7 @@ export type Button = { style?: 'success' | 'primary' | 'danger' } & (
   { text: string; callback_data: string } | { text: string; url: string } |
   { text: string; web_app: { url: string } });
 export type Keyboard = { inline_keyboard: Button[][] };
-export type Screen = { text: string; keyboard: Keyboard };
+export type Screen = { text: string; keyboard: Keyboard; rich?: import('./rich.js').InputRichMessage };
 export type CustomerOrder = Awaited<ReturnType<OrderService['get']>>;
 export type CustomerIssue = Awaited<ReturnType<CoordinationService['view']>>['issues'][number];
 export const activeStatuses: OrderStatus[] = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY', 'DELIVERING'];
@@ -75,28 +75,22 @@ export function customerMenu(
   data: CustomerMenuData,
 ): Screen {
   const { attention, current, cartLabel } = data;
-  const quick = webAppUrl('/quick-shop'), profile = webAppUrl('/profile');
-  const catalog = webAppUrl('/catalog'), favorites = webAppUrl('/favorites');
   const questions = attention?.issues?.length ?? 0;
   return {
-    text: 'Привет, ' + short(identity.user.name || identity.firstName || 'покупатель', 80) + '!\n' +
+    text: 'KorzinaMarket\nПривет, ' + short(identity.user.name || identity.firstName || 'покупатель', 80) + '!\n' +
       (attention ? questions
         ? '❗ По заказу №' + attention.id + ' ждём ваше решение. Откройте вопросы, чтобы продолжить сборку.\n\n'
         : '💬 По заказу №' + attention.id + ' есть непрочитанные обновления.\n\n' : '') +
       (current ? '📦 Заказ №' + current.id + ' · ' + orderStatus[current.status] + '\n\n' : '') +
-      'Привычные продукты, повтор заказа и покупки прямо в чате.\nВес и итоговая стоимость уточняются после сборки.',
+      'Свежие продукты с московского рынка — прямо в чате.',
     keyboard: { inline_keyboard: [
       ...(attention ? [[{ text: questions ? '❗ Нужен ваш ответ' : '💬 Непрочитанные сообщения', callback_data: 'attention', style: 'primary' as const }]] : []),
       ...(current ? [[{ text: '📦 Заказ №' + current.id + ' · ' + orderStatus[current.status], callback_data: 'current' }]] : []),
+      [{ text: '🛍 Каталог', callback_data: 'catalog', style: 'primary' }],
       [{ text: cartLabel, callback_data: 'cart' }],
-      ...(quick ? [[{ text: '⚡ Быстрые покупки / Повторить заказ', web_app: { url: quick } }]] : []),
-      [{ text: '🛍 Каталог', callback_data: 'catalog' }, { text: '📦 Мои заказы', callback_data: 'orders' }],
-      ...((favorites || profile) ? [[
-        ...(favorites ? [{ text: '❤️ Избранное', web_app: { url: favorites } }] : []),
-        ...(profile ? [{ text: 'Профиль', web_app: { url: profile } }] : []),
-      ]] : []),
-      ...(catalog ? [[{ text: 'Каталог на сайте', web_app: { url: catalog } }]] : []),
-      [{ text: 'ℹ️ Как всё устроено', callback_data: 'help' }],
+      [{ text: '⚡ Быстрые покупки', callback_data: shoppingData('q', 0) }],
+      [{ text: '📦 История', callback_data: 'orders' }, { text: '💬 Связь с продавцом', callback_data: 'current' }],
+      [{ text: 'Помощь', callback_data: 'help' }],
     ] },
   };
 }

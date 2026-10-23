@@ -1,0 +1,120 @@
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { deliverScreen } from './delivery.js';
+import { richEnabled } from './rich-policy.js';
+import { fallbackHtml, productPhoto, richMessage, validScreen, type TelegramScreen } from './rich.js';
+import { adjustData, productData, shoppingAction } from './shopping-callback.js';
+import { serialUpdate } from './updates.js';
+import { pageInfo } from './page.js';
+
+const screen: TelegramScreen = { text: 'Укроп <рынок>\nЦена: 165 ₽\n\n& без <script>тегов</script>',
+  keyboard: { inline_keyboard: [[{ text: '+1 · 165 ₽', callback_data: 'fixture', style: 'success' }]] } };
+const fetcher = vi.fn<typeof fetch>();
+let directory: string, config: string;
+beforeEach(async () => {
+  directory = await mkdtemp(join(tmpdir(), 'tg-rich-')); config = join(directory, 'policy.json');
+  vi.stubEnv('TELEGRAM_RICH_CONFIG_FILE', config);
+  vi.stubEnv('TELEGRAM_CUSTOMER_BOT_TOKEN', randomUUID()); vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', randomUUID());
+  vi.stubEnv('TELEGRAM_CUSTOMER_GATEWAY_URL', ''); vi.stubEnv('TELEGRAM_STAFF_GATEWAY_URL', '');
+  vi.stubGlobal('fetch', fetcher); fetcher.mockReset().mockImplementation(async () => Response.json({ ok: true, result: { message_id: 92 } }));
+  await writeFile(config, JSON.stringify({ enabled: true, customer: ['123'], staff: ['124'] }));
+});
+afterEach(async () => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); await rm(directory, { recursive: true, force: true }); });
+const body = (index = 0) => JSON.parse(String(fetcher.mock.calls[index]?.[1]?.body));
+const reject = (description = 'Bad Request: invalid rich message') => Response.json({ ok: false, error_code: 400, description }, { status: 400 });
+
+it('renders native Rich blocks and buttons, with no HTML interpretation of user text', () => {
+  const rich = richMessage(screen);
+  expect(rich.blocks[0]).toEqual({ type: 'heading', size: 2, text: 'Укроп <рынок>' });
+  expect(JSON.stringify(rich)).toContain('<script>'); // Literal structured text, never an html/markdown field.
+  expect(rich).not.toHaveProperty('html'); expect(rich).not.toHaveProperty('markdown');
+  expect(rich.blocks.at(-1)).toMatchObject({ type: 'buttons', buttons: [{ style: 'success' }] });
+  expect(fallbackHtml(screen.text)).toContain('&lt;script&gt;');
+  expect(fallbackHtml(screen.text)).not.toContain('<script>');
+});
+it('supports distinct allowlists, an immediate off switch and fails closed for missing/malformed config', async () => {
+  expect(await richEnabled('customer', 123)).toBe(true); expect(await richEnabled('staff', 123)).toBe(false);
+  await writeFile(config, '{"enabled":false}'); expect(await richEnabled('customer', 123)).toBe(false);
+  await writeFile(config, 'invalid'); expect(await richEnabled('customer', 123)).toBe(false);
+  await rm(config); expect(await richEnabled('customer', 123)).toBe(false);
+});
+it('sends and edits a Rich screen with the confirmed current message ID', async () => {
+  expect(await deliverScreen('customer', { chatId: 123 }, screen)).toEqual({ status: 'sent', messageId: 92 });
+  expect(String(fetcher.mock.calls[0]?.[0])).toMatch(/\/sendRichMessage$/);
+  expect(body()).toHaveProperty('rich_message.blocks'); expect(body()).not.toHaveProperty('text');
+  await deliverScreen('customer', { chatId: 123, messageId: 92 }, screen);
+  expect(String(fetcher.mock.calls[1]?.[0])).toMatch(/\/editMessageText$/); expect(body(1).message_id).toBe(92);
+});
+it('uses escaped HTML and inline buttons for a chat outside the Rich allowlist', async () => {
+  await deliverScreen('customer', { chatId: 125 }, screen);
+  expect(body()).toMatchObject({ parse_mode: 'HTML', reply_markup: screen.keyboard });
+  expect(body().text).toContain('&lt;рынок&gt;'); expect(body()).not.toHaveProperty('rich_message');
+});
+it('falls back only after a confirmed Rich rejection, preserving the same edit target', async () => {
+  fetcher.mockResolvedValueOnce(reject());
+  expect(await deliverScreen('customer', { chatId: 123, messageId: 91 }, screen)).toEqual({ status: 'sent', messageId: 92 });
+  expect(fetcher).toHaveBeenCalledTimes(2); expect(body(1)).toMatchObject({ message_id: 91, parse_mode: 'HTML' });
+});
+it.each([500, 502, 504, 429, 403])('never falls back or resends after HTTP %s', async status => {
+  fetcher.mockResolvedValueOnce(new Response('{}', { status }));
+  const result = await deliverScreen('customer', { chatId: 123 }, screen);
+  expect(result.status).not.toBe('sent'); expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it.each(['transport', 'malformed', 'missing-id'])('retains UNKNOWN for %s instead of sending again', async failure => {
+  if (failure === 'transport') fetcher.mockRejectedValueOnce(new Error('timeout'));
+  if (failure === 'malformed') fetcher.mockResolvedValueOnce(new Response('not-json'));
+  if (failure === 'missing-id') fetcher.mockResolvedValueOnce(Response.json({ ok: true, result: {} }));
+  expect(await deliverScreen('customer', { chatId: 123 }, screen)).toEqual({ status: 'unknown' });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('handles unchanged edits as success without creating a new card', async () => {
+  fetcher.mockResolvedValueOnce(reject('Bad Request: message is not modified'));
+  expect(await deliverScreen('customer', { chatId: 123, messageId: 91 }, screen)).toEqual({ status: 'unchanged' });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('replaces a definitely uneditable card and returns its new ID', async () => {
+  fetcher.mockResolvedValueOnce(reject('Bad Request: message to edit not found'));
+  expect(await deliverScreen('customer', { chatId: 123, messageId: 91 }, screen)).toEqual({ status: 'sent', messageId: 92 });
+  expect(body(1)).not.toHaveProperty('message_id'); expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it('retries a definitely rejected photo as a Rich card without photo, once', async () => {
+  fetcher.mockResolvedValueOnce(reject('Bad Request: failed to get HTTP URL content'));
+  const withPhoto: TelegramScreen = { ...screen, rich: { blocks: [{ type: 'photo', photo: { type: 'photo', media: 'https://shop.example/uploads/products/fixture.webp' } }, { type: 'paragraph', text: 'Укроп' }] } };
+  await deliverScreen('customer', { chatId: 123 }, withPhoto);
+  expect(body(0).rich_message.blocks.some((block: { type: string }) => block.type === 'photo')).toBe(true);
+  expect(body(1).rich_message.blocks.some((block: { type: string }) => block.type === 'photo')).toBe(false);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it('accepts shop product media only, with no credentials, query parameters or external URLs', () => {
+  vi.stubEnv('ORDER_SITE_URL', 'https://shop.example');
+  expect(productPhoto('/uploads/products/fixture.webp')).toMatchObject({ photo: { media: 'https://shop.example/uploads/products/fixture.webp' } });
+  for (const url of ['https://evil.example/image.jpg', '/api/auth/me', '/uploads/products/x?token=secret', 'javascript:alert(1)']) expect(productPhoto(url)).toBeUndefined();
+});
+it('validates callback bytes, keyboard width and payload size', () => {
+  expect(validScreen(screen)).toBe(true);
+  expect(validScreen({ ...screen, keyboard: { inline_keyboard: [[{ text: 'bad', callback_data: 'я'.repeat(33) }]] } })).toBe(false);
+  expect(validScreen({ ...screen, keyboard: { inline_keyboard: [Array(9).fill(screen.keyboard.inline_keyboard[0]![0]!)] } })).toBe(false);
+});
+it('round-trips the largest immediate quantity callbacks with page and origin inside 64 bytes', () => {
+  for (const origin of ['category','basket','quick'] as const) for (const delta of [-1000000,1000000]) {
+    const data = adjustData('11111111-1111-4111-8111-111111111111', 2147483647, delta, 'PIECE', { page: 10000, origin });
+    expect(Buffer.byteLength(data)).toBeLessThanOrEqual(64);
+    expect(shoppingAction(data)).toMatchObject({ kind: 'adjust', delta, quantityUnit: 'PIECE', page: 10000, origin });
+    expect(shoppingAction(productData(2147483647, { page: 10000, origin }))).toMatchObject({ kind: 'open', page: 10000, origin });
+  }
+});
+it('clamps empty and removed pages rather than showing an out-of-range page', () => {
+  expect(pageInfo(37, 1, 8)).toMatchObject({ page: 1, pages: 5, first: 9, last: 16 });
+  expect(pageInfo(3, 9999, 8)).toMatchObject({ page: 0, pages: 1 });
+  expect(pageInfo(0, 9999, 8)).toMatchObject({ page: 0, first: 0, last: 0 });
+});
+it('serializes presentation per bot/chat and deduplicates a repeated Telegram update', async () => {
+  const chat = 700000 + Math.floor(Math.random() * 100000), gate = Promise.withResolvers<void>(), order: number[] = [];
+  const first = serialUpdate('customer', chat, 1, async () => { order.push(1); await gate.promise; order.push(2); });
+  const duplicate = serialUpdate('customer', chat, 1, async () => { order.push(99); });
+  const second = serialUpdate('customer', chat, 2, async () => { order.push(3); });
+  await Promise.resolve(); expect(order).not.toContain(3); gate.resolve(); await Promise.all([first, duplicate, second]);
+  expect(order).toEqual([1, 2, 3]);
+});

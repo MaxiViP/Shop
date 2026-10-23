@@ -11,6 +11,7 @@ const from = z.object({
 });
 const chat = z.object({ id: actorId, type: z.string() });
 export const customerUpdate = z.object({
+  update_id: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
   message: z.object({
     message_id: messageId, from, chat,
     text: z.string().max(4096).optional(),

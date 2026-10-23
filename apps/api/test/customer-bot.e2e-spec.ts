@@ -1,3 +1,4 @@
+import { QuickShopService } from '../src/cart/quick-shop.service.js';
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
@@ -42,7 +43,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     const cart = new CartService(typed, orders);
     const checkout = new CustomerCheckoutService(typed, cart, orders);
     return new CustomerUpdateService(typed, coordination, orders,
-      new CustomerShopService(typed, cart, checkout, orders), checkout);
+      new CustomerShopService(typed, cart, checkout, orders, new QuickShopService(typed, cart)), checkout);
   };
   const callback = (actorId: number, data: string) => ({
     callback_query: { id: 'callback-fixture', data, from: { id: actorId, is_bot: false },
@@ -199,7 +200,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     expect(buttons?.map(button => button.callback_data))
       .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
     expect(buttons?.map(button => button.text))
-      .toEqual(expect.arrayContaining(['Профиль', 'Каталог на сайте']));
+      .toEqual(expect.arrayContaining(['🛍 Каталог', '⚡ Быстрые покупки', '📦 История']));
     const beforeShopping = fetcher.mock.calls.length;
     for (const command of ['/catalog', '/cart', '/orders'])
       await makeBot().handle(text(telegramId, command));
@@ -391,7 +392,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
       text?: string; reply_markup?: { inline_keyboard?: { callback_data?: string }[][] };
     });
     expect(screens.some(screen => screen.text?.includes('Сообщения') &&
-      screen.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === 'menu'))).toBe(true);
+      screen.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === customerView('o', f.order.publicId)))).toBe(true);
   });
   it('expired session and random or wrong-prompt messages cannot post', async () => {
     const f = await fixture();
@@ -472,7 +473,8 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     });
     const opening = makeBot().handle(callback(f.telegramId, customerView('w', f.order.publicId)));
     await waiting;
-    await makeBot().handle(text(f.telegramId, '/cancel'));
+    // A different process may cancel the durable reservation while delivery waits.
+    await db.customerTelegramSession.deleteMany({ where: { identityId: f.identity!.id } });
     release(Response.json({ ok: true, result: { message_id: ++messageSequence } }));
     await opening;
     expect(await db.customerTelegramSession.count({ where: { identityId: f.identity!.id } })).toBe(0);

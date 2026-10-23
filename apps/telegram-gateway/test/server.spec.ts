@@ -24,6 +24,18 @@ const send = (path = '/v1/customer/sendMessage', body = '{"chat_id":123,"text":"
 beforeEach(() => {
   upstream.mockReset().mockImplementation(async () => Response.json({ ok: true, result: { message_id: 37 } }));
 });
+it.each(['customer', 'staff'])('relays %s Rich send and edit exactly once without changing the block payload', async bot => {
+  await start();
+  const rich_message = { blocks: [{ type: 'heading', size: 2, text: 'Fixture' },
+    { type: 'buttons', buttons: [{ text: '+1', callback_data: 'fixture', style: 'success' }] }] };
+  for (const method of ['sendRichMessage', 'editMessageText']) {
+    const body = JSON.stringify({ chat_id: 123, ...(method === 'editMessageText' ? { message_id: 37 } : {}), rich_message });
+    const response = await send('/v1/' + bot + '/' + method, body);
+    expect(response.status).toBe(200);
+    expect(upstream.mock.calls.at(-1)?.[1]?.body).toBe(body);
+  }
+  expect(upstream).toHaveBeenCalledTimes(2);
+});
 afterEach(async () => {
   vi.restoreAllMocks();
   if (server) {

@@ -50,6 +50,7 @@ function setup(linked = true) {
       }),
     },
     order: {
+      count: vi.fn().mockResolvedValue(100),
       findMany: vi.fn().mockResolvedValue([order]),
       findFirst: vi.fn().mockResolvedValue(order),
     },
@@ -106,11 +107,9 @@ describe('customer cabinet', () => {
     expect(sent()[0]?.text).toContain('Привет, Maksim!');
     const buttons = sent()[0]?.reply_markup?.inline_keyboard?.flat();
     expect(buttons?.map(button => button.callback_data)).toEqual(expect.arrayContaining(['current', 'orders', 'attention']));
-    expect(buttons?.map(button => button.web_app?.url)).toContain('https://shop.example/telegram?returnTo=%2Fprofile');
-    expect(buttons?.map(button => button.web_app?.url)).toContain('https://shop.example/telegram?returnTo=%2Fcatalog');
+    expect(buttons?.map(button => button.callback_data)).toContain('catalog');
     expect(buttons?.[0]).toMatchObject({ callback_data: 'attention', style: 'primary' });
-    expect(buttons?.find(button => button.web_app?.url.includes('%2Fquick-shop'))).toEqual({ text: '⚡ Быстрые покупки / Повторить заказ',
-      web_app: { url: 'https://shop.example/telegram?returnTo=%2Fquick-shop' } });
+    expect(buttons?.find(button => button.callback_data === 's:q:0')).toEqual({ text: '⚡ Быстрые покупки', callback_data: 's:q:0' });
     expect(buttons?.find(button => button.callback_data === 'cart')?.text).toBe('🛒 Корзина · 2 поз. · ≈ 320 ₽');
     expect(buttons?.map(button => button.url).filter(Boolean)).toEqual([]);
   });
@@ -519,7 +518,7 @@ describe('customer premium flows', () => {
     expect(db.order.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
       where: expect.objectContaining({ userId: 7, OR: expect.any(Array) }), skip: 5, take: 6,
     }));
-    expect(sent()[2]?.text).toContain('страница 2');
+    expect(sent()[2]?.text).toContain('Страница 2 из 20');
     expect(sent()[2]?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data)).toContain('c:n:0');
   });
   it('opens the oldest unread message instead of acknowledging unseen older messages', async () => {

@@ -214,7 +214,8 @@ it('prioritizes actionable questions above the current order, cart and shopping 
   expect(card.text).toContain('ждём ваше решение');
   expect(card.keyboard.inline_keyboard[0]?.[0]).toMatchObject({ callback_data: 'attention', style: 'primary' });
   expect(card.keyboard.inline_keyboard[1]?.[0]).toMatchObject({ callback_data: 'current' });
-  expect(card.keyboard.inline_keyboard[2]?.[0]).toMatchObject({ callback_data: 'cart' });
+  expect(card.keyboard.inline_keyboard[2]?.[0]).toMatchObject({ callback_data: 'catalog' });
+  expect(card.keyboard.inline_keyboard[3]?.[0]).toMatchObject({ callback_data: 'cart' });
 });
 
 it('onboarding exposes browsing and help without claiming an order session is ready', () => {

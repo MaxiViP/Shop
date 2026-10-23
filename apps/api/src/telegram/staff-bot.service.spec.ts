@@ -36,7 +36,7 @@ function setup(role: 'SELLER' | 'ADMIN' | 'USER' = 'SELLER') {
     issues: [] as { orderItemId: number; status: string; orderItem: { productName: string };
       resolution?: string | null; replacementItemId?: number | null;
       replacementItem?: { id: number; status: string; productName: string } | null }[] }]);
-  const count = vi.fn(async () => 0);
+  const count = vi.fn(async () => 48);
   const db = { staffTelegramIdentity: { findUnique: findIdentity, update: updateIdentity },
     order: { findMany, count } } as unknown as DbService;
   const staff = {

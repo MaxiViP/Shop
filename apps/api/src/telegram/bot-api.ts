@@ -1,6 +1,6 @@
 import { customerBotToken, staffBotToken } from './bot-config.js';
 
-const methods = ['sendMessage', 'answerCallbackQuery', 'editMessageReplyMarkup', 'editMessageText'] as const;
+const methods = ['sendMessage', 'sendRichMessage', 'answerCallbackQuery', 'editMessageReplyMarkup', 'editMessageText'] as const;
 export type BotMethod = typeof methods[number];
 
 type DeliveryStatus = 'sent' | 'rejected' | 'blocked' | 'retryable' | 'unknown';
@@ -58,7 +58,7 @@ async function request(
   method: BotMethod,
   payload: object,
   timeout: number,
-): Promise<{ ok: boolean; result?: unknown; failure?: Exclude<DeliveryStatus, 'sent'>; retryAfter?: number; unchanged?: boolean; uneditable?: boolean }> {
+): Promise<{ ok: boolean; result?: unknown; failure?: Exclude<DeliveryStatus, 'sent'>; retryAfter?: number; unchanged?: boolean; uneditable?: boolean; confirmed?: boolean }> {
   if (!token) return { ok: false, failure: 'rejected' };
   const url = destination(token, method);
   if (!url) return { ok: false, failure: 'rejected' };
@@ -76,11 +76,11 @@ async function request(
         const body: unknown = await response.json().catch(() => null);
         return { ok: false, failure: 'retryable', retryAfter: retryAfter(body) };
       }
-      if (response.status === 400) {
+      if (response.status === 400 || response.status === 404) {
         const body: unknown = await response.json().catch(() => null);
         const edit = editState(method, body);
         if (edit === 'unchanged') return { ok: true, unchanged: true };
-        return { ok: false, failure: 'rejected', ...(edit === 'uneditable' ? { uneditable: true } : {}) };
+        return { ok: false, failure: 'rejected', confirmed: confirmedRejection(body), ...(edit === 'uneditable' ? { uneditable: true } : {}) };
       }
       await response.body?.cancel();
       return { ok: false, failure: response.status === 403 ? 'blocked' :
@@ -92,14 +92,36 @@ async function request(
       if (code === 429) return { ok: false, failure: 'retryable', retryAfter: retryAfter(body) };
       const edit = editState(method, body);
       if (edit === 'unchanged') return { ok: true, unchanged: true };
-      if (edit === 'uneditable') return { ok: false, failure: 'rejected', uneditable: true };
+      if (edit === 'uneditable') return { ok: false, failure: 'rejected', uneditable: true, confirmed: true };
       return { ok: false, failure: code === 403 ? 'blocked' :
-        typeof code === 'number' && Number.isInteger(code) && code >= 400 && code < 500 ? 'rejected' : 'unknown' };
+        typeof code === 'number' && Number.isInteger(code) && code >= 400 && code < 500 ? 'rejected' : 'unknown', confirmed: confirmedRejection(body) };
     }
     return { ok: true, result: 'result' in body ? body.result : undefined };
   } catch {
     return { ok: false, failure: 'unknown' };
   }
+}
+
+function confirmedRejection(body: unknown): boolean {
+  return Boolean(body && typeof body === 'object' && 'ok' in body && body.ok === false &&
+    'error_code' in body && [400, 404].includes(Number(body.error_code)) &&
+    'description' in body && typeof body.description === 'string');
+}
+export type BotOutcome =
+  | { status: 'sent'; messageId: number; rich?: true }
+  | { status: 'unchanged' }
+  | { status: 'rejected'; confirmed?: boolean; uneditable?: boolean }
+  | { status: 'blocked' | 'unknown' | 'retryable' };
+export async function botExchange(token: string, method: 'sendMessage' | 'sendRichMessage' | 'editMessageText', payload: object): Promise<BotOutcome> {
+  const result = await request(token, method, payload, 7000);
+  if (result.unchanged) return { status: 'unchanged' };
+  if (result.ok) {
+    const messageId = sentMessageId(result.result);
+    const rich = result.result && typeof result.result === 'object' && 'rich_message' in result.result && result.result.rich_message;
+    return messageId ? { status: 'sent', messageId, ...(rich ? { rich: true as const } : {}) } : { status: 'unknown' };
+  }
+  return result.failure === 'rejected' ? { status: 'rejected', confirmed: result.confirmed, uneditable: result.uneditable }
+    : { status: result.failure ?? 'unknown' };
 }
 
 function sentMessageId(result: unknown): number | null {

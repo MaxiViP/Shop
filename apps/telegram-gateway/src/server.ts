@@ -4,7 +4,7 @@ export const host = '127.0.0.1';
 export const port = 18080;
 export const bodyLimit = 64 * 1024;
 const responseLimit = 256 * 1024;
-const methods = new Set(['sendMessage', 'answerCallbackQuery', 'editMessageReplyMarkup', 'editMessageText']);
+const methods = new Set(['sendMessage', 'sendRichMessage', 'answerCallbackQuery', 'editMessageReplyMarkup', 'editMessageText']);
 type Tokens = { customer?: string; staff?: string };
 type Options = { tokens: Tokens; fetcher?: typeof fetch; timeoutMs?: number };
 

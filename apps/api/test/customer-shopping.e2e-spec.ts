@@ -1,3 +1,4 @@
+import { QuickShopService } from '../src/cart/quick-shop.service.js';
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
@@ -18,7 +19,7 @@ import { CustomerCheckoutService } from '../src/telegram/customer-checkout.servi
 import { CustomerShopService } from '../src/telegram/customer-shop.service.js';
 import { CustomerUpdateService } from '../src/telegram/customer-update.service.js';
 import { checkoutPayload } from '../src/telegram/checkout.js';
-import { shoppingData } from '../src/telegram/shopping-callback.js';
+import { shoppingData, shoppingAction, productData, adjustData } from '../src/telegram/shopping-callback.js';
 import { customerView } from '../src/telegram/customer-callback.js';
 
 describe.skipIf(!process.env.DATABASE_URL)(
@@ -46,6 +47,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     let messageId = 100;
     type Sent = {
       text?: string;
+      parse_mode?: string;
       reply_markup?: {
         force_reply?: boolean;
         inline_keyboard?: {
@@ -58,7 +60,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
     };
     const sent = () =>
       fetcher.mock.calls.map(
-        ([, init]) => JSON.parse(String(init?.body)) as Sent,
+        ([, init]) => {
+          const value = JSON.parse(String(init?.body)) as Sent;
+          // Assert visible semantics here; raw escaping/Rich payloads have dedicated transport tests.
+          if (value.parse_mode === 'HTML' && value.text) value.text = value.text.replace(/<\/?b>/g, '')
+            .replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&amp;', '&');
+          return value;
+        },
       );
     const bot = () => {
       const typed = db as unknown as DbService;
@@ -67,7 +75,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         typed,
         coordination,
         orders,
-        new CustomerShopService(typed, cart, flow, orders),
+        new CustomerShopService(typed, cart, flow, orders, new QuickShopService(typed, cart)),
         flow,
       );
     };
@@ -308,6 +316,49 @@ describe.skipIf(!process.env.DATABASE_URL)(
       return o;
     }
 
+    it('native immediate buttons keep 0 → 1 → 3 → 2 → 4 across card/basket and deduplicate one Telegram update', async () => {
+      const f = await fixture('BUNCH');
+      await db.product.update({ where: { id: f.product.id }, data: {
+        name: 'Укроп', price: 15000, serviceMarkupPercent: 10, saleModel: 'BUNCH', priceUnit: 'BUNCH',
+      } });
+      const handler = bot(), context = { page: 2, origin: 'category' as const };
+      const button = (delta: number) => {
+        const candidates = sent().flatMap(screen => screen.reply_markup?.inline_keyboard?.flat() ?? []).reverse();
+        const found = candidates.find(button => {
+          const action = shoppingAction(button.callback_data ?? '');
+          return action?.kind === 'adjust' && action.productId === f.product.id && action.delta === delta;
+        });
+        if (!found?.callback_data) throw new Error('Immediate action not rendered');
+        return found.callback_data;
+      };
+      await handler.handle(cb(f.telegramId, productData(f.product.id, context)));
+      let sequence = 1000000 + f.user.id * 10;
+      for (const [delta, expected] of [[1, 1], [2, 3], [-1, 2], [2, 4]] as const) {
+        const update = { ...cb(f.telegramId, button(delta)), update_id: sequence++ };
+        await Promise.all([handler.handle(update), handler.handle(update)]);
+        const stored = await cart.get(f.user.id);
+        expect(stored.items[0]?.qty).toBe(expected);
+        expect(stored.items[0]?.lineTotal).toBe(expected * 16500);
+      }
+      await handler.handle(cb(f.telegramId, 'cart'));
+      await handler.handle(cb(f.telegramId, productData(f.product.id, context)));
+      expect((await cart.get(f.user.id)).items[0]?.qty).toBe(4);
+      expect(sent().at(-2)?.text).toContain('4 пучка');
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+    });
+    it('lost native-adjust response reads committed PostgreSQL state and never repeats the write', async () => {
+      const f = await fixture('BUNCH'), handler = bot();
+      const current = await cart.get(f.user.id), original = cart.change.bind(cart);
+      const write = vi.spyOn(cart, 'change').mockImplementationOnce(async (...args) => {
+        await original(...args); throw new Error('Lost response after cart commit');
+      });
+      const update = { ...cb(f.telegramId, adjustData(current.revision, f.product.id, 2, 'BUNCH', { page: 0, origin: 'category' })),
+        update_id: 2000000 + f.user.id };
+      await handler.handle(update); await handler.handle(update);
+      expect(write).toHaveBeenCalledTimes(1);
+      expect((await cart.get(f.user.id)).items[0]?.qty).toBe(2);
+      expect(sent().some(screen => screen.text?.includes('Корзина перечитана'))).toBe(true);
+    });
     it('creates one user-owned cart and never shares it with another user', async () => {
       const a = await fixture(),
         b = await fixture();
@@ -640,7 +691,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
         cb(f.telegramId, customerView('w', o.publicId)),
       );
       await started;
-      await bot().handle(text(f.telegramId, '/cancel'));
+      // Simulate cancellation by a second process while delivery is in flight.
+      await db.customerTelegramSession.deleteMany({ where: { identityId: f.identity.id } });
       release(Response.json({ ok: true, result: { message_id: 98765 } }));
       await opening;
       expect(
@@ -684,7 +736,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         .toEqual(['cancel', 'menu']);
       await bot().handle(text(f.telegramId, '/menu'));
       expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity.id } })).toBeNull();
-      const menu = sent().findLast(message => message.text?.startsWith('Привет,'));
+      const menu = sent().findLast(message => message.text?.startsWith('KorzinaMarket'));
       expect(menu?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
         .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
       await bot().handle(text(f.telegramId, '-', pending.promptMessageId!));
@@ -854,7 +906,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await bot().handle(text(f.telegramId, '/help'));
       await bot().handle(cb(f.telegramId, shoppingData('l', f.category.id, 0)));
       await bot().handle(cb(f.telegramId, shoppingData('v', f.product.id, f.product.min)));
-      const preview = sent().find(message => message.text?.includes('Для корзины и оформления подтвердите'));
+      const preview = sent().find(message => message.text?.includes('Для покупок подтвердите'));
       expect(preview?.text).toContain('500 г');
       expect(preview?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === 'verify_phone')).toBe(true);
       expect(preview?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data?.startsWith('s:a:'))).toBe(false);
@@ -920,15 +972,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await bot().handle(
         cb(f.telegramId, shoppingData('v', f.product.id, f.product.min)),
       );
-      const screen = sent().find((x) => x.text?.includes('Добавить ещё:'));
+      const screen = sent().find((x) => x.text?.includes('В корзине этого товара:'));
       expect(screen?.text).toContain('500 г');
-      expect(screen?.reply_markup?.inline_keyboard?.flat().find(button => button.text === 'Фото и описание')?.web_app?.url)
-        .toBe('https://shop.example/telegram?returnTo=' + encodeURIComponent('/product/' + f.product.slug));
+      const details = screen?.reply_markup?.inline_keyboard?.flat().find(button => button.text === '📷 Фото и описание');
+      expect(shoppingAction(details?.callback_data ?? '')).toMatchObject({ kind: 'details', productId: f.product.id });
       expect(
         screen?.reply_markup?.inline_keyboard
           ?.flat()
           .some(
-            (b) => b.callback_data === shoppingData('v', f.product.id, 1000),
+            (b) => {
+              const action = shoppingAction(b.callback_data ?? '');
+              return action?.kind === 'adjust' && action.productId === f.product.id && action.delta === 1000;
+            },
           ),
       ).toBe(true);
       await db.category.update({
@@ -1020,11 +1075,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
       });
       const first = bot().handle(text(f.telegramId, '/resume'));
       await started;
-      await bot().handle(text(f.telegramId, '/resume'));
-      const current = await session(f);
+      const second = bot().handle(text(f.telegramId, '/resume'));
       release(Response.json({ ok: true, result: { message_id: 76543 } }));
-      await first;
-      expect(await session(f)).toEqual(current);
+      await Promise.all([first, second]);
+      expect((await session(f)).promptMessageId).not.toBe(76543);
       await expect(
         checkout.reply(f.actor, '-', 76543),
       ).rejects.toThrow();
