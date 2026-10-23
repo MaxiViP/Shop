@@ -58,17 +58,23 @@ async function request(
   method: BotMethod,
   payload: object,
   timeout: number,
+  photo?: Uint8Array,
 ): Promise<{ ok: boolean; result?: unknown; failure?: Exclude<DeliveryStatus, 'sent'>; retryAfter?: number; unchanged?: boolean; uneditable?: boolean; confirmed?: boolean }> {
   if (!token) return { ok: false, failure: 'rejected' };
   const url = destination(token, method);
   if (!url) return { ok: false, failure: 'rejected' };
   try {
+    const form = photo ? new FormData() : null;
+    if (form && photo) {
+      for (const [key, value] of Object.entries(payload)) form.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+      form.set('photo', new Blob([new Uint8Array(photo)], { type: 'image/jpeg' }), 'photo.jpg');
+    }
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      ...(form ? {} : { headers: { 'Content-Type': 'application/json' } }),
       redirect: 'error',
       signal: AbortSignal.timeout(timeout),
-      body: JSON.stringify(payload),
+      body: form ?? JSON.stringify(payload),
     });
     if (!response.ok) {
       if (response.status === 429) {
@@ -112,8 +118,8 @@ export type BotOutcome =
   | { status: 'unchanged' }
   | { status: 'rejected'; confirmed?: boolean; uneditable?: boolean }
   | { status: 'blocked' | 'unknown' | 'retryable' };
-export async function botExchange(token: string, method: 'sendMessage' | 'sendRichMessage' | 'editMessageText', payload: object): Promise<BotOutcome> {
-  const result = await request(token, method, payload, 7000);
+export async function botExchange(token: string, method: 'sendMessage' | 'sendRichMessage' | 'editMessageText', payload: object, photo?: Uint8Array): Promise<BotOutcome> {
+  const result = await request(token, method, payload, 7000, photo);
   if (result.unchanged) return { status: 'unchanged' };
   if (result.ok) {
     const messageId = sentMessageId(result.result);

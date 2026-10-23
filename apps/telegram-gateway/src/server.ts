@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 export const host = '127.0.0.1';
 export const port = 18080;
 export const bodyLimit = 64 * 1024;
+export const uploadLimit = 2 * 1024 * 1024;
 const responseLimit = 256 * 1024;
 const methods = new Set(['sendMessage', 'sendRichMessage', 'answerCallbackQuery', 'editMessageReplyMarkup', 'editMessageText']);
 type Tokens = { customer?: string; staff?: string };
@@ -24,25 +25,50 @@ function reply(response: ServerResponse, status: number, body: string) {
   response.end(body);
 }
 
-async function payload(request: IncomingMessage): Promise<string> {
-  if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '') ||
+async function payload(request: IncomingMessage, method: string): Promise<{ body: string | Uint8Array<ArrayBuffer>; contentType: string }> {
+  const contentType = request.headers['content-type'] ?? '';
+  const multipart = /^multipart\/form-data;\s*boundary=(?:[A-Za-z0-9_-]{1,70}|"[A-Za-z0-9_-]{1,70}")$/i.test(contentType);
+  if ((!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(contentType) && !multipart) ||
+      (multipart && !['sendRichMessage', 'editMessageText'].includes(method)) ||
       (request.headers['content-encoding'] && request.headers['content-encoding'] !== 'identity'))
     throw new InputError(415);
+  const limit = multipart ? uploadLimit : bodyLimit;
   const length = request.headers['content-length'];
-  if (length && Number(length) > bodyLimit) throw new InputError(413);
+  if (length && Number(length) > limit) throw new InputError(413);
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request.iterator({ destroyOnReturn: false })) {
     if (!Buffer.isBuffer(chunk)) throw new InputError(400);
     size += chunk.length;
-    if (size > bodyLimit) throw new InputError(413);
+    if (size > limit) throw new InputError(413);
     chunks.push(chunk);
   }
-  const text = Buffer.concat(chunks).toString('utf8');
+  const bytes = new Uint8Array(Buffer.concat(chunks));
+  if (multipart) {
+    let form: FormData;
+    try { form = await new Response(bytes, { headers: { 'Content-Type': contentType } }).formData(); }
+    catch { throw new InputError(400); }
+    const keys = [...form.keys()];
+    if (keys.length !== new Set(keys).size || keys.some(key => !['chat_id', 'message_id', 'rich_message', 'photo'].includes(key)) ||
+        !/^[1-9]\d{0,15}$/.test(String(form.get('chat_id'))) ||
+        (method === 'editMessageText' && !/^[1-9]\d{0,9}$/.test(String(form.get('message_id'))))) throw new InputError(400);
+    const photo = form.get('photo'), rich = form.get('rich_message');
+    if (!photo || typeof photo === 'string' || photo.type !== 'image/jpeg' || photo.size < 3 || photo.size > 1024 * 1024 ||
+        typeof rich !== 'string' || Buffer.byteLength(rich) > 48 * 1024) throw new InputError(400);
+    const magic = new Uint8Array(await photo.slice(0, 2).arrayBuffer());
+    if (magic[0] !== 255 || magic[1] !== 216) throw new InputError(400);
+    let value: unknown;
+    try { value = JSON.parse(rich); } catch { throw new InputError(400); }
+    if (!value || typeof value !== 'object' || !('blocks' in value) || !Array.isArray(value.blocks) || value.blocks.length > 40 ||
+        value.blocks.filter((block: unknown) => block && typeof block === 'object' && 'type' in block && block.type === 'photo' &&
+          'photo' in block && block.photo && typeof block.photo === 'object' && 'media' in block.photo && block.photo.media === 'attach://photo').length !== 1) throw new InputError(400);
+    return { body: bytes, contentType };
+  }
+  const text = Buffer.from(bytes).toString('utf8');
   let value: unknown;
   try { value = JSON.parse(text); } catch { throw new InputError(400); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new InputError(400);
-  return text;
+  return { body: text, contentType: 'application/json' };
 }
 
 async function upstreamBody(response: Response): Promise<string> {
@@ -89,8 +115,8 @@ export function createGateway({ tokens, fetcher = fetch, timeoutMs = 5000 }: Opt
       reply(response, 503, '{"ok":false,"error":"BOT_UNAVAILABLE"}');
       return;
     }
-    let body: string;
-    try { body = await payload(request); }
+    let input: Awaited<ReturnType<typeof payload>>;
+    try { input = await payload(request, method); }
     catch (error) {
       reply(response, error instanceof InputError ? error.status : 400, '{"ok":false,"error":"INVALID_REQUEST"}');
       return;
@@ -99,8 +125,8 @@ export function createGateway({ tokens, fetcher = fetch, timeoutMs = 5000 }: Opt
     try {
       // Exactly one attempt. Neither exceptions nor downstream disconnects trigger a resend.
       const upstream = await fetcher('https://api.telegram.org/bot' + token + '/' + method, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body, redirect: 'error', signal,
+        method: 'POST', headers: { 'Content-Type': input.contentType },
+        body: input.body, redirect: 'error', signal,
       });
       const text = await upstreamBody(upstream);
       // Preserve Telegram bodies/statuses, but never relay a credential even if echoed upstream.

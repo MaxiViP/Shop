@@ -3,6 +3,7 @@ import { customerBotToken, staffBotToken } from './bot-config.js';
 import { richEnabled, type BotKind } from './rich-policy.js';
 import { fallbackHtml, richMessage, validScreen, type TelegramScreen } from './rich.js';
 import { mediaDiagnostic, rememberPhotos, reusePhotos } from './media.js';
+import { localPhoto } from './photo.js';
 
 export type ScreenTarget = { chatId: number; messageId?: number };
 export async function deliverScreen(bot: BotKind, target: ScreenTarget, screen: TelegramScreen): Promise<BotOutcome> {
@@ -20,7 +21,12 @@ export async function deliverScreen(bot: BotKind, target: ScreenTarget, screen: 
     const rich = richMessage(screen);
     const original = rich.blocks;
     rich.blocks = reusePhotos(bot, original);
-    const send = () => botExchange(token, edit ? 'editMessageText' : 'sendRichMessage', { ...common, rich_message: rich });
+    const send = async () => {
+      const block = rich.blocks.find(block => block.type === 'photo');
+      const photo = block?.type === 'photo' ? await localPhoto(block.photo.media) : undefined;
+      const message = photo ? { ...rich, blocks: rich.blocks.map(value => value === block ? { ...block, photo: { type: 'photo' as const, media: 'attach://photo' } } : value) } : rich;
+      return botExchange(token, edit ? 'editMessageText' : 'sendRichMessage', { ...common, rich_message: message }, photo);
+    };
     result = await send();
     // Only a confirmed Telegram rejection permits a different representation.
     if (result.status === 'rejected' && result.confirmed && !result.uneditable) {

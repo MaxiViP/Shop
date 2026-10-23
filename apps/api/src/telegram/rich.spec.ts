@@ -6,6 +6,8 @@ import { deliverScreen } from './delivery.js';
 import { richEnabled } from './rich-policy.js';
 import { bold, marked, fallbackHtml, productPhoto, richMessage, validScreen, screenNotice, type TelegramScreen } from './rich.js';
 import { Logger } from '@nestjs/common';
+import { localPhoto } from './photo.js';
+vi.mock('./photo.js', () => ({ localPhoto: vi.fn(async () => undefined) }));
 import { adjustData, productData, shoppingAction } from './shopping-callback.js';
 import { serialUpdate } from './updates.js';
 import { pageInfo } from './page.js';
@@ -164,4 +166,17 @@ it('preserves semantic bold fallback, marked literals and notices without HTML i
   expect(fallback).toContain('✅ Изменено &lt;b&gt;');
   expect(fallback).not.toContain('<script>');
   expect(JSON.stringify(richMessage(updated))).toContain('✅ Изменено <b>');
+});
+it('uploads one local JPEG in multipart, and never retries after an unknown upload result', async () => {
+  const prepared = vi.mocked(localPhoto);
+  prepared.mockResolvedValueOnce(new Uint8Array([255, 216, 255, 217]));
+  fetcher.mockRejectedValueOnce(new Error('Lost upload response'));
+  const result = await deliverScreen('customer', { chatId: 123 }, { ...screen, rich: { blocks: [{ type: 'photo', photo: { type: 'photo', media: 'https://shop.example/uploads/products/upload.webp' } }] } });
+  expect(result).toEqual({ status: 'unknown' }); expect(fetcher).toHaveBeenCalledTimes(1);
+  const form = fetcher.mock.calls[0]![1]!.body;
+  expect(form).toBeInstanceOf(FormData);
+  expect((form as FormData).get('rich_message')).toContain('attach://photo');
+  const photo = (form as FormData).get('photo');
+  expect(photo).toBeInstanceOf(File);
+  expect((photo as File).type).toBe('image/jpeg');
 });
