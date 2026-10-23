@@ -24,9 +24,11 @@ export async function localPhoto(url: string, root = productUploadRoot, thumbnai
         const image = sharp(source, { limitInputPixels: 25_000_000, failOn: 'warning' });
         const meta = await image.metadata();
         if ((meta.pages ?? 1) !== 1) throw new Error('PHOTO_PAGES');
-        const size = thumbnail ? 320 : 1280;
-        const jpeg = await image.rotate().resize({ width: size, height: size, fit: thumbnail ? 'contain' : 'inside', withoutEnlargement: true, background: '#ffffff' })
-          .flatten({ background: '#ffffff' }).jpeg({ quality: thumbnail ? 80 : 85 }).toBuffer();
+        // Aspect ratio, rather than JPEG resolution, controls the height offered to Telegram's collage layout.
+        // Contain preserves the entire product; full product cards keep their existing proportions.
+        const jpeg = await image.rotate().resize({ width: thumbnail ? 640 : 1280, height: thumbnail ? 480 : 1280,
+          fit: thumbnail ? 'contain' : 'inside', withoutEnlargement: true, background: '#ffffff' })
+          .flatten({ background: '#ffffff' }).jpeg({ quality: 85 }).toBuffer();
         if (jpeg.length > (thumbnail ? 192 : 1024) * 1024) throw new Error('PHOTO_LIMIT');
         return new Uint8Array(jpeg);
       })();

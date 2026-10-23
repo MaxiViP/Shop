@@ -8,10 +8,6 @@ import { customerShow } from './customer-send.js';
 import { shoppingAction } from './shopping-callback.js';
 import { richMessage, validScreen } from './rich.js';
 import { mapPhotos } from './media.js';
-import { gallerySheet } from './sheet.js';
-import { richEnabled } from './rich-policy.js';
-vi.mock('./rich-policy.js', () => ({ richEnabled: vi.fn(async () => true) }));
-vi.mock('./sheet.js', () => ({ gallerySheet: vi.fn(async () => ({ key: 'sheet:fixture', data: new Uint8Array([255,216,255,217]) })) }));
 
 vi.mock('./customer-send.js', () => ({ customerShow: vi.fn(async () => true) }));
 const target = { chatId: 123 }, identity = { id: 1, userId: 2 };
@@ -40,7 +36,7 @@ it.each([0, 1, 8, 17])('shows %s products without a duplicate text list or singl
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
   const value = screen(), rich = richMessage(value), photos: string[] = [];
   mapPhotos(rich.blocks, photo => { photos.push(photo.photo.media); return photo; });
-  expect(photos).toHaveLength(total ? 1 : 0);
+  expect(photos).toHaveLength(Math.min(total, 8));
   expect(value.text).not.toContain('Товар 100');
   expect(value.text.includes('Страница')).toBe(total > 8);
   expect(validScreen(value)).toBe(true);
@@ -49,31 +45,12 @@ it.each([0, 1, 8, 17])('shows %s products without a duplicate text list or singl
     .filter(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'open');
   expect(selection).toHaveLength(Math.min(total, 8)); // Embedded controls are not appended again.
 });
-it.each([{ images: [] }, { images: [{ url: 'https://evil.example/private.jpg', alt: '' }] }])('keeps the original slot and button when a photograph is absent or invalid', async ({ images }) => {
+it.each([{ images: [] }, { images: [{ url: 'https://evil.example/private.jpg', alt: '' }] }])('uses every original button when a photo is absent or invalid', async ({ images }) => {
   const { db, service } = setup(8, 103);
   if (images.length) db.product.findMany.mockResolvedValueOnce(Array.from({ length: 8 }, (_, i) => ({ ...product(i + 100), images: i === 3 ? images : product(i + 100).images })));
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
   expect(screen().rich!.blocks.some(block => block.type === 'collage')).toBe(false);
-  expect(vi.mocked(gallerySheet).mock.calls.at(-1)![0][3]).toMatchObject({ id: 103, image: undefined });
   expect(screen().keyboard.inline_keyboard.flat().filter(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'open')).toHaveLength(8);
-});
-it('uses numbered Rich buttons matching sheet order without repeating caption names and prices', async () => {
-  const { service } = setup(8);
-  await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
-  const selection = richMessage(screen()).blocks.filter(block => block.type === 'buttons').flatMap(block => block.buttons)
-    .filter(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'open');
-  expect(selection.map(button => button.text)).toEqual(['1','2','3','4','5','6','7','8']);
-  expect(selection.map(button => 'callback_data' in button ? shoppingAction(button.callback_data) : null)).toEqual(
-    Array.from({ length: 8 }, (_, index) => ({ kind: 'open', productId: 100 + index, origin: 'category', categoryId: 3, page: 0 })));
-  expect(screen().media!.keyboard.inline_keyboard.slice(0, 3).map(row => row.length)).toEqual([3,3,2]);
-  expect(JSON.stringify(richMessage(screen()))).not.toContain('110 ₽');
-});
-it('does not prepare or expose the new sheet outside the Rich allowlist', async () => {
-  vi.mocked(richEnabled).mockResolvedValueOnce(false);
-  const { service } = setup(8);
-  await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
-  expect(gallerySheet).not.toHaveBeenCalled(); expect(screen().media).toBeUndefined();
-  expect(screen().keyboard.inline_keyboard[0]![0]!.text).toContain('Товар 100');
 });
 it('binds each selection to its real ID and retains the page even if catalog ordering changes', async () => {
   const { service, db } = setup(25);
@@ -95,4 +72,28 @@ it('disambiguates identical truncated names with stable product identifiers', as
   const [first, second] = screen().keyboard.inline_keyboard[0]!;
   expect(first!.text).not.toBe(second!.text);
   expect(first!.text).toContain('№101'); expect(second!.text).toContain('№102');
+});
+it('places each pair of uncaptioned photos directly above its named and priced product buttons', async () => {
+  const { service } = setup(8);
+  await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
+  const blocks = richMessage(screen()).blocks;
+  for (let row = 0; row < 4; row++) {
+    const collage = blocks[2 + row * 2], buttons = blocks[3 + row * 2];
+    expect(collage).toMatchObject({ type: 'collage', blocks: [{ type: 'photo' }, { type: 'photo' }] });
+    if (collage?.type !== 'collage' || buttons?.type !== 'buttons') throw new Error('Missing gallery row');
+    expect(collage.blocks).toEqual([0, 1].map(col => ({ type: 'photo', photo: { type: 'photo',
+      media: 'https://shop.example/uploads/products/item-' + (100 + row * 2 + col) + '.webp' } })));
+    expect(buttons.buttons.map(button => button.text)).toEqual([0, 1].map(col => 'Товар ' + (100 + row * 2 + col) + ' · 110 ₽ / 1 шт.'));
+    expect(buttons.buttons.map(button => 'callback_data' in button ? shoppingAction(button.callback_data) : null)).toEqual(
+      [0, 1].map(col => ({ kind: 'open', productId: 100 + row * 2 + col, origin: 'category', categoryId: 3, page: 0 })));
+  }
+});
+it('refreshes button prices without baking text into or replacing the product photograph', async () => {
+  const { service, db } = setup(2);
+  await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
+  const initial = screen();
+  db.product.findMany.mockResolvedValueOnce([product(100), { ...product(101), price: 12500 }]);
+  await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
+  expect(screen().keyboard.inline_keyboard[0]![1]!.text).toBe('Товар 101 · 125 ₽ / 1 шт.');
+  expect(screen().rich!.blocks.filter(block => block.type === 'collage')).toEqual(initial.rich!.blocks.filter(block => block.type === 'collage'));
 });

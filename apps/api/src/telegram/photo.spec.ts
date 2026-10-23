@@ -31,11 +31,26 @@ it('treats absent, invalid and oversized sources as unavailable', async () => {
   await writeFile(join(root, 'oversized.webp'), Buffer.alloc(5 * 1024 * 1024 + 1));
   expect(await localPhoto('https://shop.example/uploads/products/oversized.webp', root)).toBeUndefined();
 });
-it('keeps square gallery JPEGs small and separate from full product preparations', async () => {
+it('changes gallery geometry to 4:3 while keeping the full product preparation separate', async () => {
   await writeFile(join(root, 'gallery.webp'), await sharp({ create: { width: 1800, height: 900, channels: 3, background: '#12a080' } }).webp().toBuffer());
   const url = 'https://shop.example/uploads/products/gallery.webp';
   const thumbnail = await localPhoto(url, root, true), full = await localPhoto(url, root);
   const meta = await sharp(thumbnail!).metadata();
-  expect(meta.width).toBe(320); expect(meta.height).toBe(320); expect(meta.format).toBe('jpeg');
+  expect(meta.width).toBe(640); expect(meta.height).toBe(480); expect(meta.format).toBe('jpeg');
+  expect(meta.height! / meta.width!).toBe(0.75); // 25% lower than a square at the same rendered width.
+  expect(await sharp(full!).metadata()).toMatchObject({ width: 1280, height: 640 });
   expect(thumbnail!.length).toBeLessThanOrEqual(192 * 1024); expect(thumbnail).not.toBe(full);
+});
+it.each([[1200, 1200], [1200, 1800], [1800, 900]])('preserves the entire %sx%s product inside a landscape gallery frame', async (width, height) => {
+  const source = await sharp({ create: { width, height, channels: 3, background: '#12a080' } }).webp().toBuffer();
+  await writeFile(join(root, 'contained.webp'), source);
+  const photo = await localPhoto('https://shop.example/uploads/products/contained.webp', root, true);
+  const { data, info } = await sharp(photo!).raw().toBuffer({ resolveWithObject: true });
+  expect(info).toMatchObject({ width: 640, height: 480 });
+  const green = (x: number, y: number) => data[(y * info.width + x) * info.channels + 1]!;
+  // A wide image touches both horizontal edges; square/portrait images touch both vertical edges.
+  const edges = width / height >= 4 / 3 ? [[1, 240], [638, 240]] : [[320, 1], [320, 478]];
+  for (const [x, y] of edges) expect(green(x!, y!)).toBeLessThan(220);
+  expect(data[0]).toBeGreaterThan(240); // Contain padding, not a crop or stretched product.
+  expect(await readFile(join(root, 'contained.webp'))).toEqual(source);
 });

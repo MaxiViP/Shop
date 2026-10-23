@@ -12,8 +12,6 @@ import { OrderService } from '../order/order.service.js';
 import { cartProductSelect, cartQuantityValid } from '../order/cart-quote.js';
 import { customerProduct } from '../product/select.js';
 import { requestedLine } from '../order/pricing.js';
-import { gallerySheet } from './sheet.js';
-import { richEnabled } from './rich-policy.js';
 import { orderableProductWhere } from '../product/select.js';
 import { pageInfo } from './page.js';
 import { bold, heading, paragraph, richTable, productPhoto, type InputRichBlock, type RichText } from './rich.js';
@@ -147,10 +145,8 @@ export class CustomerShopService {
     const context: ShopContext = { page: info.page, origin: 'category', categoryId };
     const buttons: Button[][] = [];
     const names = rows.map(p => short(p.name, 30));
-    const sheet = rows.length && await richEnabled('customer', target.chatId) ? await gallerySheet(rows.map(p => ({ id: p.id, name: p.name,
-      price: amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)),
-      image: p.images.map(image => productPhoto(image.url)).find(photo => photo?.type === 'photo')?.photo.media }))) : undefined;
-    const choices: Button[][] = [];
+    const photos = rows.map(p => p.images.map(image => productPhoto(image.url)).find(photo => photo !== undefined));
+    const gallery: InputRichBlock[] = [];
     for (let index = 0; index < rows.length; index += 2) {
       const pair = rows.slice(index, index + 2).map(p => ({
         text: (names.filter(name => name === short(p.name, 30)).length > 1 ? short(p.name, 24) + ' · №' + p.id : short(p.name, 30)) +
@@ -158,22 +154,20 @@ export class CustomerShopService {
         callback_data: productData(p.id, context),
       }));
       buttons.push(pair);
+      // Keep every product selectable; a missing photo degrades the whole page, never shifts the grid.
+      if (photos.every(photo => photo !== undefined)) gallery.push({ type: 'collage', blocks: photos.slice(index, index + 2).filter(photo => photo !== undefined) });
+      gallery.push({ type: 'buttons', buttons: pair });
     }
-    for (let index = 0; index < rows.length; index += 3) choices.push(rows.slice(index, index + 3).map((p, offset) => ({
-      text: String(index + offset + 1), callback_data: productData(p.id, context),
-    })));
     const nav: Button[] = [];
     if (info.page) nav.push({ text: '← Предыдущие товары', callback_data: shoppingData('l', categoryId, info.page - 1) });
     if (info.page + 1 < info.pages) nav.push({ text: 'Следующие товары →', callback_data: shoppingData('l', categoryId, info.page + 1) });
     const title = short(category.name, 100);
     const summary = total ? 'Товары ' + info.first + '–' + info.last + ' из ' + total : 'Товаров пока нет.';
-    const controls: Button[][] = [...(nav.length ? [nav] : []), [{ text: '← Категории', callback_data: shoppingData('c', categoryPage) }], ...navigation];
     return customerShow(target, {
       text: title + '\n\n' + summary + (info.pages > 1 ? '\n' + info.label : ''),
-      rich: { blocks: [heading(title), paragraph(summary + (info.pages > 1 ? '\n' + info.label : '')),
-        ...(sheet ? [{ type: 'photo' as const, photo: { type: 'photo' as const, media: sheet.key } }] : [])] },
-      ...(sheet ? { media: { ...sheet, keyboard: { inline_keyboard: [...choices, ...controls] } } } : {}),
-      keyboard: { inline_keyboard: [...buttons, ...controls] },
+      rich: { blocks: [heading(title), paragraph(summary + (info.pages > 1 ? '\n' + info.label : '')), ...gallery] },
+      keyboard: { inline_keyboard: [...buttons, ...(nav.length ? [nav] : []),
+        [{ text: '← Категории', callback_data: shoppingData('c', categoryPage) }], ...navigation] },
     });
   }
   private async product(target: CustomerTarget, identity: CustomerIdentity, productId: number,

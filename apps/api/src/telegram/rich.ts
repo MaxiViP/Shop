@@ -16,8 +16,7 @@ export type InputRichBlock =
   | { type: 'collage'; blocks: InputRichBlock[] }
   | { type: 'photo'; photo: { type: 'photo'; media: string }; caption?: { text: RichText } };
 export type InputRichMessage = { blocks: InputRichBlock[]; skip_entity_detection?: boolean };
-export type TelegramScreen = { text: string; keyboard: TelegramKeyboard; rich?: InputRichMessage; fallback?: RichText[]; mediaReason?: 'no_image' | 'invalid_url';
-  media?: { key: string; data: Uint8Array; keyboard: TelegramKeyboard } };
+export type TelegramScreen = { text: string; keyboard: TelegramKeyboard; rich?: InputRichMessage; fallback?: RichText[]; mediaReason?: 'no_image' | 'invalid_url' };
 
 export const bold = (text: string): RichText => ({ type: 'bold', text });
 export const marked = (text: string): RichText => ({ type: 'marked', text });
@@ -50,7 +49,7 @@ export function richMessage(screen: TelegramScreen): InputRichMessage {
   const blocks = screen.rich?.blocks ?? [heading(title), ...(rest.some(Boolean) ? [{ type: 'divider' as const }] : []),
     ...rest.join('\n').split('\n\n').filter(Boolean).map(text => paragraph(emphasis(text)))];
   const embedded = new Set(blocks.filter(block => block.type === 'buttons').map(block => JSON.stringify(block.buttons)));
-  return { blocks: [...blocks, ...(screen.media?.keyboard ?? screen.keyboard).inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row))).map(buttons => ({
+  return { blocks: [...blocks, ...screen.keyboard.inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row))).map(buttons => ({
     type: 'buttons' as const, buttons,
   }))], skip_entity_detection: true };
 }
@@ -65,7 +64,7 @@ function emphasis(text: string): RichText {
   return parts.length ? parts : text;
 }
 export function validScreen(screen: TelegramScreen): boolean {
-  const rows = [...screen.keyboard.inline_keyboard, ...(screen.media?.keyboard.inline_keyboard ?? [])];
+  const rows = screen.keyboard.inline_keyboard;
   return screen.text.length > 0 && screen.text.length <= 4096 && rows.length <= 32 && rows.every(row => row.length <= 8 && row.every(button => {
     if (!button.text || button.text.length > 180) return false;
     if ('callback_data' in button) return Buffer.byteLength(button.callback_data) > 0 && Buffer.byteLength(button.callback_data) <= 64;
