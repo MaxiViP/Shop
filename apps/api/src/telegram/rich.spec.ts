@@ -190,6 +190,32 @@ const galleryScreen = (count = 8): TelegramScreen => ({ ...screen, rich: { block
     blocks: Array.from({ length: Math.min(2, count - row * 2) }, (_, col) => ({ type: 'photo' as const,
       photo: { type: 'photo' as const, media: 'https://shop.example/uploads/products/gallery-' + (row * 2 + col) + '.webp' } })) })),
 ] } });
+it.each(['success', 'rejected', 'unknown'] as const)('keeps sheet selection safe for %s delivery and falls back to named controls', async outcome => {
+  const media = { key: 'sheet:' + randomUUID(), data: new Uint8Array([255,216,255,217]),
+    keyboard: { inline_keyboard: [[{ text: '1', callback_data: 'fixture' }]] } };
+  const value: TelegramScreen = { ...screen, media, rich: { blocks: [{ type: 'photo', photo: { type: 'photo', media: media.key } }] } };
+  if (outcome === 'rejected') fetcher.mockResolvedValueOnce(reject());
+  if (outcome === 'unknown') fetcher.mockRejectedValueOnce(new Error('lost sheet reply'));
+  const result = await deliverScreen('customer', { chatId: 123 }, value);
+  const form = fetcher.mock.calls[0]![1]!.body as FormData;
+  expect(form).toBeInstanceOf(FormData); expect(form.get('rich_message')).toContain('attach://photo');
+  expect(form.get('rich_message')).toContain('"text":"1"'); expect(form.get('rich_message')).not.toContain('+1 ·');
+  expect(fetcher).toHaveBeenCalledTimes(outcome === 'rejected' ? 2 : 1);
+  if (outcome === 'rejected') expect(body(1).rich_message.blocks.at(-1).buttons).toEqual(screen.keyboard.inline_keyboard[0]);
+  if (outcome === 'unknown') expect(result.status).toBe('unknown');
+});
+it('reuses a confirmed sheet file_id and uploads again when the current price/image key changes', async () => {
+  const make = (key: string): TelegramScreen => ({ ...screen,
+    media: { key, data: new Uint8Array([255,216,255,217]), keyboard: { inline_keyboard: [[{ text: '1', callback_data: 'fixture' }]] } },
+    rich: { blocks: [{ type: 'photo', photo: { type: 'photo', media: key } }] } });
+  const first = make('sheet:' + randomUUID());
+  fetcher.mockResolvedValueOnce(Response.json({ ok: true, result: { message_id: 92, rich_message: { blocks: [{ type: 'photo', photo: [{ file_id: 'confirmed-sheet' }] }] } } }));
+  await deliverScreen('customer', { chatId: 123 }, first);
+  await deliverScreen('customer', { chatId: 123, messageId: 92 }, first);
+  expect(body(1).rich_message.blocks[0].photo.media).toBe('confirmed-sheet');
+  await deliverScreen('customer', { chatId: 123, messageId: 92 }, make('sheet:' + randomUUID()));
+  expect(fetcher.mock.calls[2]![1]!.body).toBeInstanceOf(FormData);
+});
 it('uploads all 8 nested gallery photos once, caches returned IDs per bot and preserves their tree order', async () => {
   vi.mocked(localPhoto).mockImplementation(async url => url.startsWith('https:') ? new Uint8Array([255, 216, 255, 217]) : undefined);
   const received = Array.from({ length: 4 }, (_, row) => ({ type: 'collage', blocks: Array.from({ length: 2 }, (_, col) => ({ type: 'photo', photo: [{ file_id: 'gallery-' + (row * 2 + col) }] })) }));

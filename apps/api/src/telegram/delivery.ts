@@ -28,7 +28,7 @@ export async function deliverScreen(bot: BotKind, target: ScreenTarget, screen: 
       let missingGalleryPhoto = false;
       // Bounded page (8 images), sequential local preparation; never fetch a remote gallery URL.
       for (const source of sources) {
-        const photo = await localPhoto(source.media, undefined, source.thumbnail);
+        const photo = source.media === screen.media?.key ? screen.media.data : await localPhoto(source.media, undefined, source.thumbnail);
         if (photo) uploads.set(source.thumbnail + ':' + source.media, photo);
         else if (source.thumbnail && /^https?:/.test(source.media)) missingGalleryPhoto = true;
       }
@@ -54,7 +54,7 @@ export async function deliverScreen(bot: BotKind, target: ScreenTarget, screen: 
         }
         if (result.status === 'rejected' && result.confirmed && !result.uneditable) {
           mediaDiagnostic('fallback_used');
-          rich.blocks = withoutPhotos(rich.blocks);
+          rich.blocks = screen.media ? richMessage({ ...screen, media: undefined, rich: { blocks: withoutPhotos(screen.rich?.blocks ?? []) } }).blocks : withoutPhotos(rich.blocks);
           result = await send();
         }
       }

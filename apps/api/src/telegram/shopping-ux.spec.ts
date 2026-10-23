@@ -216,7 +216,7 @@ it.each(['GRAM', 'PIECE', 'BUNCH', 'PACK'] as const)('renders a compact four-but
     min: step, step, priceQty: step };
   const s = setup(source, step);
   await s.service.basket(target, identity);
-  const row = screen().keyboard.inline_keyboard[0]!;
+  const row = screen().keyboard.inline_keyboard.find(row => row.some(button => button.text === '✕'))!;
   expect(row.map(button => button.text)).toEqual([expect.stringContaining('…'), '−', '+', '✕']);
   expect(row.map(button => button.style)).toEqual(['primary', undefined, 'success', 'danger']);
   expect(row[0]!.text.length).toBeLessThanOrEqual(16);
@@ -236,7 +236,7 @@ it.each(['GRAM', 'PIECE', 'BUNCH', 'PACK'] as const)('renders a compact four-but
 it('disables a decrease that would cross min instead of silently removing more than one step', async () => {
   const s = setup({ ...dill, min: 3, step: 1 }, 3);
   await s.service.basket(target, identity);
-  expect(screen().keyboard.inline_keyboard[0]![1]).toEqual({ text: '−', disabled: {} });
+  expect(screen().keyboard.inline_keyboard.find(row => row.some(button => button.text === '✕'))![1]).toEqual({ text: '−', disabled: {} });
   await s.service.handle(target, identity, { kind: 'open', productId: 11, page: 0, origin: 'category' });
   expect(actions().some(action => action?.kind === 'adjust' && action.delta < 0)).toBe(false);
 });
@@ -255,7 +255,8 @@ it('separates basket total, signed change and current line while keeping one pro
     min: 500, step: 100, priceQty: 1000, price: 198000 }, 1000);
   await s.service.basket(target, identity);
   await s.service.handle(target, identity, adjustment(100));
-  expect(screen().text).toContain('1 товар\nИтого предварительно: ≈ 2\u00a0178 ₽');
+  expect(screen().text).toContain('1 товар');
+  expect(screen().text).toMatch(/ИТОГО ПРЕДВАРИТЕЛЬНО\n≈ 2\u00a0178 ₽$/);
   expect(screen().text).toContain('✅ +100 г · +≈ 198 ₽');
   expect(screen().text).toContain('⚖️ В корзине: 1,1 кг\nЗа товар: ≈ 2\u00a0178 ₽\nШаг покупки: 100 г');
   expect(screen().text).not.toContain('Товары предварительно:');
@@ -271,6 +272,7 @@ it('separates basket total, signed change and current line while keeping one pro
   expect(html).toContain('За товар: <b>≈ 2\u00a0178 ₽</b>');
   await s.service.handle(target, identity, adjustment(-100));
   expect(screen().text).toContain('➖ −100 г · −≈ 198 ₽');
+  expect(screen().text).toMatch(/ИТОГО ПРЕДВАРИТЕЛЬНО\n≈ 1\u00a0980 ₽$/);
   expect(screen().text).not.toContain('✅ +100 г');
   expect(screen().text).toContain('⚖️ В корзине: 1 кг');
   await s.service.basket(target, identity);

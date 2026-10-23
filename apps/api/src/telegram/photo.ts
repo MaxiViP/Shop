@@ -15,7 +15,7 @@ export async function localPhoto(url: string, root = productUploadRoot, thumbnai
     const base = await realpath(root), file = resolve(base, match[1]!);
     const info = await lstat(file);
     if (!info.isFile() || info.size < 1 || info.size > 5 * 1024 * 1024 || !(await realpath(file)).startsWith(base + sep)) return;
-    const key = file + ':' + info.mtimeMs + ':' + info.size + ':' + thumbnail;
+    const key = file + ':' + info.mtimeMs + ':' + info.ctimeMs + ':' + info.size + ':' + thumbnail;
     let task = prepared.get(key);
     if (!task) {
       task = (async () => {

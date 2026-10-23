@@ -12,6 +12,8 @@ import { OrderService } from '../order/order.service.js';
 import { cartProductSelect, cartQuantityValid } from '../order/cart-quote.js';
 import { customerProduct } from '../product/select.js';
 import { requestedLine } from '../order/pricing.js';
+import { gallerySheet } from './sheet.js';
+import { richEnabled } from './rich-policy.js';
 import { orderableProductWhere } from '../product/select.js';
 import { pageInfo } from './page.js';
 import { bold, heading, paragraph, richTable, productPhoto, type InputRichBlock, type RichText } from './rich.js';
@@ -145,8 +147,10 @@ export class CustomerShopService {
     const context: ShopContext = { page: info.page, origin: 'category', categoryId };
     const buttons: Button[][] = [];
     const names = rows.map(p => short(p.name, 30));
-    const photos = rows.map(p => p.images.map(image => productPhoto(image.url)).find(photo => photo !== undefined));
-    const gallery: InputRichBlock[] = [];
+    const sheet = rows.length && await richEnabled('customer', target.chatId) ? await gallerySheet(rows.map(p => ({ id: p.id, name: p.name,
+      price: amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)),
+      image: p.images.map(image => productPhoto(image.url)).find(photo => photo?.type === 'photo')?.photo.media }))) : undefined;
+    const choices: Button[][] = [];
     for (let index = 0; index < rows.length; index += 2) {
       const pair = rows.slice(index, index + 2).map(p => ({
         text: (names.filter(name => name === short(p.name, 30)).length > 1 ? short(p.name, 24) + ' · №' + p.id : short(p.name, 30)) +
@@ -154,20 +158,22 @@ export class CustomerShopService {
         callback_data: productData(p.id, context),
       }));
       buttons.push(pair);
-      // Keep every product selectable; a missing photo degrades the whole page, never shifts the grid.
-      if (photos.every(photo => photo !== undefined)) gallery.push({ type: 'collage', blocks: photos.slice(index, index + 2).filter(photo => photo !== undefined) });
-      gallery.push({ type: 'buttons', buttons: pair });
     }
+    for (let index = 0; index < rows.length; index += 3) choices.push(rows.slice(index, index + 3).map((p, offset) => ({
+      text: String(index + offset + 1), callback_data: productData(p.id, context),
+    })));
     const nav: Button[] = [];
     if (info.page) nav.push({ text: '← Предыдущие товары', callback_data: shoppingData('l', categoryId, info.page - 1) });
     if (info.page + 1 < info.pages) nav.push({ text: 'Следующие товары →', callback_data: shoppingData('l', categoryId, info.page + 1) });
     const title = short(category.name, 100);
     const summary = total ? 'Товары ' + info.first + '–' + info.last + ' из ' + total : 'Товаров пока нет.';
+    const controls: Button[][] = [...(nav.length ? [nav] : []), [{ text: '← Категории', callback_data: shoppingData('c', categoryPage) }], ...navigation];
     return customerShow(target, {
       text: title + '\n\n' + summary + (info.pages > 1 ? '\n' + info.label : ''),
-      rich: { blocks: [heading(title), paragraph(summary + (info.pages > 1 ? '\n' + info.label : '')), ...gallery] },
-      keyboard: { inline_keyboard: [...buttons, ...(nav.length ? [nav] : []),
-        [{ text: '← Категории', callback_data: shoppingData('c', categoryPage) }], ...navigation] },
+      rich: { blocks: [heading(title), paragraph(summary + (info.pages > 1 ? '\n' + info.label : '')),
+        ...(sheet ? [{ type: 'photo' as const, photo: { type: 'photo' as const, media: sheet.key } }] : [])] },
+      ...(sheet ? { media: { ...sheet, keyboard: { inline_keyboard: [...choices, ...controls] } } } : {}),
+      keyboard: { inline_keyboard: [...buttons, ...controls] },
     });
   }
   private async product(target: CustomerTarget, identity: CustomerIdentity, productId: number,
@@ -303,15 +309,10 @@ export class CustomerShopService {
     if ((page + 1) * 5 < basket.items.length)
       nav.push({ text: 'Следующие →', callback_data: shoppingData('k', page + 1) });
     if (nav.length) buttons.push(nav);
+    const checkout: Button[] = basket.items.length && basket.valid ? [{ text: '✅ Оформить заказ', style: 'success',
+      callback_data: shoppingData('b', basket.revision) }] : [];
     if (basket.items.length) {
-      if (basket.valid)
-        buttons.push([
-          {
-            text: '✅ Оформить заказ',
-            style: 'success',
-            callback_data: shoppingData('b', basket.revision),
-          },
-        ]);
+      if (checkout.length) buttons.push(checkout);
       buttons.push([
         {
           text: 'Очистить корзину',
@@ -324,14 +325,14 @@ export class CustomerShopService {
       { text: 'Меню', callback_data: 'menu' },
     ]);
     const pageLabel = basket.items.length > 5 ? pageInfo(basket.items.length, page, 5).label : '';
-    const total = 'Итого предварительно: ' + estimate(basket.goodsTotal);
+    const total = estimate(basket.goodsTotal);
+    const totalTitle = 'ИТОГО ПРЕДВАРИТЕЛЬНО';
     const promo = basket.promo ? 'Промокод: ' + basket.promo.code + ' · скидка ' + amount(basket.promo.discount) +
       '\nДо скидки: ' + estimate(basket.subtotal) : '';
     const footer = basket.items.some(item => item.product?.unit === 'GRAM' || item.product && variableWeight(item.product))
       ? 'Точная сумма весовых товаров — после сборки.' : '';
     return customerShow(target, {
       rich: { blocks: [heading('🛒 Ваша корзина'), paragraph(productCount(basket.items.length)),
-        ...(basket.items.length ? [paragraph(['Итого предварительно: ', bold(estimate(basket.goodsTotal))])] : []),
         ...(pageLabel ? [paragraph(pageLabel)] : []),
         ...(feedback ? [paragraph(feedback)] : []),
         ...visible.flatMap((item, index): InputRichBlock[] => [{ type: 'divider' },
@@ -339,19 +340,22 @@ export class CustomerShopService {
           paragraph(itemLines[index]!.flatMap((line, lineIndex): RichText[] => [...(lineIndex ? ['\n'] : []), line])),
           { type: 'buttons', buttons: itemRows[index]! }]),
         ...(!visible.length ? [paragraph('Корзина пуста.')] : []),
-        ...(promo ? [paragraph(promo)] : []), ...(footer ? [paragraph(footer)] : []),
+        ...(nav.length ? [{ type: 'buttons' as const, buttons: nav }] : []),
+        ...(basket.items.length ? [{ type: 'divider' as const }, ...(footer ? [paragraph(footer)] : []), ...(promo ? [paragraph(promo)] : []),
+          { type: 'heading' as const, size: 3 as const, text: bold(totalTitle) }, { type: 'heading' as const, size: 2 as const, text: bold(total) },
+          ...(checkout.length ? [{ type: 'buttons' as const, buttons: checkout }] : [])] : []),
       ] },
-      fallback: [bold('🛒 Ваша корзина'), productCount(basket.items.length), ...(basket.items.length ? [['Итого предварительно: ', bold(estimate(basket.goodsTotal))]] : []),
+      fallback: [bold('🛒 Ваша корзина'), productCount(basket.items.length),
         ...[pageLabel, feedback].filter((line): line is string => Boolean(line)),
         ...visible.flatMap((item, index): RichText[] => ['', bold(short(item.product?.name ?? 'Товар больше недоступен', 300)), ...itemLines[index]!]),
-        ...(!visible.length ? ['Корзина пуста.'] : []), ...[promo, footer].filter(Boolean)],
+        ...(!visible.length ? ['Корзина пуста.'] : ['', ...[footer, promo].filter(Boolean), '', bold(totalTitle), bold(total)])],
       text:
         '🛒 Ваша корзина\n' + productCount(basket.items.length) + (pageLabel ? '\n' + pageLabel : '') +
-        (basket.items.length ? '\n' + total : '') +
         (feedback ? '\n\n' + feedback : '') + '\n\n' +
         (lines.join('\n\n') || 'Корзина пуста.') +
-        (promo ? '\n\n' + promo : '') + (footer ? '\n\n' + footer : ''),
-      keyboard: { inline_keyboard: buttons },
+        (footer ? '\n\n' + footer : '') + (promo ? '\n\n' + promo : '') + (basket.items.length ? '\n\n' + totalTitle + '\n' + total : ''),
+      // HTML cannot interleave text and inline rows; put checkout first, directly below the total.
+      keyboard: { inline_keyboard: checkout.length ? [checkout, ...buttons.filter(row => row !== checkout)] : buttons },
     });
   }
   async present(

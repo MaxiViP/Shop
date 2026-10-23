@@ -7,6 +7,7 @@ import { CustomerShopService } from './customer-shop.service.js';
 import type { CustomerCheckoutService } from './customer-checkout.service.js';
 import { customerShow } from './customer-send.js';
 import { shoppingAction } from './shopping-callback.js';
+import { fallbackHtml, richMessage, bold } from './rich.js';
 
 vi.mock('./customer-send.js', () => ({ customerShow: vi.fn().mockResolvedValue(true), customerPrompt: vi.fn() }));
 const revision = '11111111-1111-4111-8111-111111111111';
@@ -30,6 +31,40 @@ function setup(source = product, qty = 500, lineTotal: number | null = 16000) {
 const screen = () => vi.mocked(customerShow).mock.calls.at(-1)![1];
 beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('ORDER_SITE_URL', 'https://shop.example'); });
 afterEach(() => vi.unstubAllEnvs());
+
+it('puts the whole discounted cart total last on every page, directly before checkout in Rich and HTML', async () => {
+  const s = setup();
+  const basket = { ...s.basket, items: Array.from({ length: 6 }, (_, index) => ({ ...s.basket.items[0]!, productId: index + 1,
+    product: { ...s.basket.items[0]!.product!, name: 'Товар ' + index } })),
+    subtotal: 60000, goodsTotal: 53999, promo: { code: 'SAVE', discount: 6001 } } as Basket;
+  s.cart.get.mockResolvedValue(basket);
+  for (const page of [0, 1]) {
+    await s.service.basket(target, identity, page);
+    const value = screen(), blocks = richMessage(value).blocks;
+    const total = blocks.findIndex(block => block.type === 'heading' && JSON.stringify(block.text) === JSON.stringify(bold('≈ 539,99 ₽')));
+    expect(total).toBeGreaterThan(0);
+    expect(blocks[total - 1]).toMatchObject({ type: 'heading', size: 3, text: bold('ИТОГО ПРЕДВАРИТЕЛЬНО') });
+    expect(blocks[total]).toMatchObject({ type: 'heading', size: 2 });
+    expect(blocks[total + 1]).toMatchObject({ type: 'buttons', buttons: [{ text: '✅ Оформить заказ' }] });
+    expect(blocks.slice(0, total).some(block => block.type === 'buttons' && block.buttons.some(button => button.text === '✕'))).toBe(true);
+    expect(value.text).toMatch(/^🛒 Ваша корзина\n6 товаров\nСтраница/);
+    expect(value.text.match(/ИТОГО ПРЕДВАРИТЕЛЬНО/g)).toHaveLength(1);
+    expect(value.text).toMatch(/ИТОГО ПРЕДВАРИТЕЛЬНО\n≈ 539,99 ₽$/);
+    expect(value.text).toContain('скидка 60,01 ₽'); expect(value.text).toContain('До скидки: ≈ 600 ₽');
+    expect(fallbackHtml(value.text, value.fallback)).toMatch(/<b>ИТОГО ПРЕДВАРИТЕЛЬНО<\/b>\n<b>≈ 539,99 ₽<\/b>$/);
+    expect(value.keyboard.inline_keyboard[0]).toMatchObject([{ text: '✅ Оформить заказ' }]);
+  }
+});
+it('does not fabricate an unknown total or offer checkout for invalid or empty baskets', async () => {
+  const s = setup();
+  s.cart.get.mockResolvedValueOnce({ ...s.basket, goodsTotal: null, valid: false });
+  await s.service.basket(target, identity);
+  expect(screen().text).toMatch(/ИТОГО ПРЕДВАРИТЕЛЬНО\nпосле взвешивания$/);
+  expect(screen().keyboard.inline_keyboard.flat().some(button => button.text === '✅ Оформить заказ')).toBe(false);
+  s.cart.get.mockResolvedValueOnce({ ...s.basket, items: [], goodsTotal: 0 });
+  await s.service.basket(target, identity);
+  expect(screen().text).not.toContain('ИТОГО'); expect(screen().text).not.toContain('0 ₽');
+});
 
 it('keeps a stale cart quantity in its stored unit and offers removal instead of invalid steps', async () => {
   const s = setup({ ...product, unit: 'PIECE', saleModel: 'WHOLE_VARIABLE_WEIGHT', min: 1, step: 1, portionQty: 1 });
