@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { deliverScreen } from './delivery.js';
 import { richEnabled } from './rich-policy.js';
-import { fallbackHtml, productPhoto, richMessage, validScreen, type TelegramScreen } from './rich.js';
+import { bold, marked, fallbackHtml, productPhoto, richMessage, validScreen, screenNotice, type TelegramScreen } from './rich.js';
+import { Logger } from '@nestjs/common';
 import { adjustData, productData, shoppingAction } from './shopping-callback.js';
 import { serialUpdate } from './updates.js';
 import { pageInfo } from './page.js';
@@ -117,4 +118,50 @@ it('serializes presentation per bot/chat and deduplicates a repeated Telegram up
   const second = serialUpdate('customer', chat, 2, async () => { order.push(3); });
   await Promise.resolve(); expect(order).not.toContain(3); gate.resolve(); await Promise.all([first, duplicate, second]);
   expect(order).toEqual([1, 2, 3]);
+});
+
+it('reuses only confirmed Telegram photo file_ids on subsequent edits and keeps photo after +/-', async () => {
+  const path = 'https://shop.example/uploads/products/' + randomUUID() + '.webp';
+  const photoScreen: TelegramScreen = { ...screen, rich: { blocks: [{ type: 'photo', photo: { type: 'photo', media: path } }] } };
+  fetcher.mockResolvedValueOnce(Response.json({ ok: true, result: { message_id: 92, rich_message: { blocks: [{ type: 'photo', photo: [{ file_id: 'small', width: 10 }, { file_id: 'confirmed-file', width: 1000 }] }] } } }));
+  await deliverScreen('customer', { chatId: 123 }, photoScreen);
+  await deliverScreen('customer', { chatId: 123, messageId: 92 }, photoScreen);
+  expect(body(0).rich_message.blocks[0].photo.media).toBe(path);
+  expect(body(1).rich_message.blocks[0].photo.media).toBe('confirmed-file');
+});
+it('does not retry media or fallback after a lost response with a photo', async () => {
+  const photoScreen: TelegramScreen = { ...screen, rich: { blocks: [{ type: 'photo', photo: { type: 'photo', media: 'https://shop.example/uploads/' + randomUUID() } }] } };
+  fetcher.mockRejectedValueOnce(new Error('timeout'));
+  expect(await deliverScreen('customer', { chatId: 123 }, photoScreen)).toEqual({ status: 'unknown' });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('recovers a definitely rejected cached file_id through the original public URL, without retrying an unknown result', async () => {
+  const path = 'https://shop.example/uploads/' + randomUUID();
+  const photoScreen: TelegramScreen = { ...screen, rich: { blocks: [{ type: 'photo', photo: { type: 'photo', media: path } }] } };
+  fetcher.mockResolvedValueOnce(Response.json({ ok: true, result: { message_id: 92, rich_message: { blocks: [{ type: 'photo', photo: [{ file_id: 'cached-test' }] }] } } }));
+  await deliverScreen('customer', { chatId: 123 }, photoScreen);
+  fetcher.mockResolvedValueOnce(reject('Bad Request: wrong file identifier')).mockRejectedValueOnce(new Error('lost reply'));
+  expect(await deliverScreen('customer', { chatId: 123, messageId: 92 }, photoScreen)).toEqual({ status: 'unknown' });
+  expect(fetcher).toHaveBeenCalledTimes(3);
+  expect(body(1).rich_message.blocks[0].photo.media).toBe('cached-test');
+  expect(body(2).rich_message.blocks[0].photo.media).toBe(path);
+});
+it('emits only fixed diagnostic codes when media is rejected and text fallback is used', async () => {
+  const log = vi.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
+  try {
+    fetcher.mockResolvedValueOnce(reject()).mockResolvedValueOnce(reject());
+    await deliverScreen('customer', { chatId: 123 }, { ...screen, mediaReason: 'invalid_url', rich: { blocks: [{ type: 'photo', photo: { type: 'photo', media: 'https://shop.example/uploads/' + randomUUID() } }] } });
+    expect(log.mock.calls.flat()).toEqual(expect.arrayContaining(['invalid_url', 'media_rejected', 'fallback_used']));
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/https|123|secret/);
+    expect(body(2)).toHaveProperty('parse_mode', 'HTML');
+  } finally { log.mockRestore(); }
+});
+it('preserves semantic bold fallback, marked literals and notices without HTML injection', () => {
+  const value: TelegramScreen = { ...screen, text: 'ИТОГО <x>\nДоставка', fallback: [bold('ИТОГО <x>'), marked('Доставка')], rich: { blocks: [{ type: 'paragraph', text: marked('<script>') }] } };
+  const updated = screenNotice(value, '✅ Изменено <b>');
+  const fallback = fallbackHtml(updated.text, updated.fallback);
+  expect(fallback).toContain('<b>ИТОГО &lt;x&gt;</b>');
+  expect(fallback).toContain('✅ Изменено &lt;b&gt;');
+  expect(fallback).not.toContain('<script>');
+  expect(JSON.stringify(richMessage(updated))).toContain('✅ Изменено <b>');
 });

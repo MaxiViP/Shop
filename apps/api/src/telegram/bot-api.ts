@@ -108,7 +108,7 @@ function confirmedRejection(body: unknown): boolean {
     'description' in body && typeof body.description === 'string');
 }
 export type BotOutcome =
-  | { status: 'sent'; messageId: number; rich?: true }
+  | { status: 'sent'; messageId: number; rich?: true; photoFileIds?: string[] }
   | { status: 'unchanged' }
   | { status: 'rejected'; confirmed?: boolean; uneditable?: boolean }
   | { status: 'blocked' | 'unknown' | 'retryable' };
@@ -118,10 +118,22 @@ export async function botExchange(token: string, method: 'sendMessage' | 'sendRi
   if (result.ok) {
     const messageId = sentMessageId(result.result);
     const rich = result.result && typeof result.result === 'object' && 'rich_message' in result.result && result.result.rich_message;
-    return messageId ? { status: 'sent', messageId, ...(rich ? { rich: true as const } : {}) } : { status: 'unknown' };
+    const photoFileIds = receivedPhotos(rich);
+    return messageId ? { status: 'sent', messageId, ...(rich ? { rich: true as const } : {}), ...(photoFileIds.length ? { photoFileIds } : {}) } : { status: 'unknown' };
   }
   return result.failure === 'rejected' ? { status: 'rejected', confirmed: result.confirmed, uneditable: result.uneditable }
     : { status: result.failure ?? 'unknown' };
+}
+
+function receivedPhotos(rich: unknown): string[] {
+  if (!rich || typeof rich !== 'object' || !('blocks' in rich) || !Array.isArray(rich.blocks)) return [];
+  const ids: string[] = [];
+  for (const block of rich.blocks as unknown[]) {
+    if (!block || typeof block !== 'object' || !('type' in block) || block.type !== 'photo' || !('photo' in block) || !Array.isArray(block.photo)) continue;
+    const largest: unknown = block.photo.at(-1);
+    if (largest && typeof largest === 'object' && 'file_id' in largest && typeof largest.file_id === 'string' && /^[A-Za-z0-9_-]{1,1024}$/.test(largest.file_id)) ids.push(largest.file_id);
+  }
+  return ids;
 }
 
 function sentMessageId(result: unknown): number | null {

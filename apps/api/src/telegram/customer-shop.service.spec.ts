@@ -16,7 +16,7 @@ const identity = { userId: 7, id: 3 };
 const product = { id: 11, name: 'Помидоры розовые', slug: 'pink-tomatoes', price: 32000,
   serviceMarkupPercent: 0, priceQty: 1000, unit: 'GRAM', priceUnit: 'GRAM',
   saleModel: 'WEIGHT_LOOSE', min: 250, step: 250, portionQty: 500, estimatedWeightGrams: null as number | null,
-  marketPoint: null, categoryId: 2, active: true };
+  marketPoint: null, categoryId: 2, active: true, images: [] };
 type Basket = Awaited<ReturnType<CartService['get']>>;
 function setup(source = product, qty = 500, lineTotal: number | null = 16000) {
   const basket = { revision, items: [{ productId: source.id, qty, product: source,
@@ -40,7 +40,7 @@ it('keeps a stale cart quantity in its stored unit and offers removal instead of
   expect(screen().text).toContain('500 г');
   expect(screen().text).not.toContain('500 шт.');
   const buttons = screen().keyboard.inline_keyboard.flat();
-  expect(buttons.some(button => button.text === 'Удалить')).toBe(true);
+  expect(buttons.some(button => button.text === '✕')).toBe(true);
   expect(buttons.some(button => button.text === '+1 шт.')).toBe(false);
 });
 
@@ -53,7 +53,7 @@ it('shows acknowledged cart quantity and immediate priced step controls without 
   expect(screen().text).toContain('Вся корзина: 1 поз. · ≈ 160 ₽');
   const buttons = screen().keyboard.inline_keyboard.flat();
   expect(buttons.map(button => button.text)).toContain('+250 г · ≈ 80 ₽');
-  expect(buttons.map(button => button.text)).toContain('+500 г · ≈ 160 ₽');
+  expect(buttons.map(button => button.text)).not.toContain('+500 г · ≈ 160 ₽');
   expect(buttons.every(button => !button.text.startsWith('➕ Добавить'))).toBe(true);
 });
 
@@ -112,7 +112,8 @@ it('labels cart mutations with their weight step and preserves the explicit remo
   const s = setup();
   await s.service.handle(target, identity, { kind: 'cart' });
   expect(screen().keyboard.inline_keyboard.flat().map(button => button.text))
-    .toEqual(expect.arrayContaining(['−250 г', '+250 г · ≈ 80 ₽', 'Удалить']));
+    .toEqual(expect.arrayContaining(['−', '+', '✕']));
+  expect(screen().text).toContain('Шаг: 250 г · ≈ 80 ₽');
 });
 
 it('uses the authoritative cart value in the main menu, including unknown weighted totals', async () => {

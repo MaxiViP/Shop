@@ -17,6 +17,7 @@ import { activeStatuses, assemblyView, canQuickConfirm, canReview, dashboard, ex
 import { TelegramService } from './telegram.service.js';
 import { serialUpdate } from './updates.js';
 import { pageInfo } from './page.js';
+import type { TelegramScreen } from './rich.js';
 
 type Identity = { id: number; userId: number; user: { role: 'USER' | 'SELLER' | 'ADMIN'; ownedPoints?: { marketPointId: number }[] } };
 
@@ -224,7 +225,7 @@ export class StaffBotService {
   private async order(chatId: number, messageId: number | null, orderId: number): Promise<void> {
     const order = await this.staff.get(orderId);
     const view = dashboard(order, this.telegram.staffOrderUrl(orderId));
-    await this.render(chatId, messageId, view.text, view.keyboard);
+    await this.render(chatId, messageId, view.text, view.keyboard, view);
   }
 
   private async assembly(chatId: number, messageId: number | null, orderId: number,
@@ -235,9 +236,10 @@ export class StaffBotService {
   }
 
   private async render(chatId: number, messageId: number | null | undefined, text: string,
-    keyboard: Keyboard): Promise<void> {
-    if (messageId) await this.telegram.editStaff(chatId, messageId, text.slice(0, 3900), keyboard);
-    else await this.telegram.sendStaff(chatId, text.slice(0, 3900), keyboard);
+    keyboard: Keyboard, view?: TelegramScreen): Promise<void> {
+    const presentation = view ? [{ rich: view.rich, fallback: view.fallback }] : [];
+    if (messageId) await this.telegram.editStaff(chatId, messageId, text.slice(0, 3900), keyboard, ...presentation);
+    else await this.telegram.sendStaff(chatId, text.slice(0, 3900), keyboard, ...presentation);
   }
 
   private async callback(callback: StaffCallback, identity: Identity): Promise<string> {

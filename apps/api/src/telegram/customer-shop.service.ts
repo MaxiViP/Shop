@@ -41,6 +41,10 @@ const navigation: Button[][] = [
 ];
 type Basket = Awaited<ReturnType<CartService['get']>>;
 const estimate = (value: number | null) => value === null ? 'после взвешивания' : '≈ ' + amount(value);
+function stepEstimate(product: NonNullable<Basket['items'][number]['product']>) {
+  try { return estimate(requestedLine({ ...product, qty: product.step })); }
+  catch (error) { if (error instanceof BadRequestException) return 'стоимость уточняется'; throw error; }
+}
 
 @Injectable()
 export class CustomerShopService {
@@ -81,9 +85,11 @@ export class CustomerShopService {
   private async categories(target: CustomerTarget, requested = 0) {
     const where = { active: true, products: { some: { active: true } } };
     const { rows, info } = await this.db.$transaction(async db => {
-      const info = pageInfo(await db.category.count({ where }), requested, 8);
+      const total = await db.category.count({ where });
+      const size = total <= 48 ? 48 : 24;
+      const info = pageInfo(total, requested, size);
       const rows = await db.category.findMany({ where, orderBy: [{ sort: 'asc' }, { id: 'asc' }],
-        skip: info.skip, take: 8, select: { id: true, name: true } });
+        skip: info.skip, take: size, select: { id: true, name: true } });
       return { rows, info };
     }, { isolationLevel: 'RepeatableRead' });
     const buttons: Button[][] = [];
@@ -95,7 +101,7 @@ export class CustomerShopService {
     if (info.page + 1 < info.pages) nav.push({ text: 'Следующие категории →', callback_data: shoppingData('c', info.page + 1) });
     return customerShow(target, {
       text: 'Каталог KorzinaMarket\n\nСвежие продукты с московского рынка.\n' +
-        (rows.length ? 'Выберите категорию.\n\n' + info.label : 'Доступных товаров пока нет.'),
+        (rows.length ? 'Выберите категорию.' + (info.pages > 1 ? '\n\n' + info.label : '') : 'Доступных товаров пока нет.'),
       keyboard: { inline_keyboard: [...buttons, ...(nav.length ? [nav] : []), ...navigation] },
     });
   }
@@ -109,7 +115,7 @@ export class CustomerShopService {
         orderBy: [{ sort: 'asc' }, { id: 'asc' }], skip: info.skip, take: 8 })).map(customerProduct);
       const categories = await db.category.findMany({ where: { active: true, products: { some: { active: true } } },
         orderBy: [{ sort: 'asc' }, { id: 'asc' }], select: { id: true } });
-      const categoryPage = Math.floor(Math.max(0, categories.findIndex(row => row.id === categoryId)) / 8);
+      const categoryPage = categories.length <= 48 ? 0 : Math.floor(Math.max(0, categories.findIndex(row => row.id === categoryId)) / 24);
       return { rows, info, total, categoryPage };
     }, { isolationLevel: 'RepeatableRead' });
     const context: ShopContext = { page: info.page, origin: 'category' };
@@ -138,6 +144,7 @@ export class CustomerShopService {
     const basket = options.browsingOnly ? null : options.basket ?? await this.cart.get(identity.userId);
     const inCart = basket?.items.find(item => item.productId === productId);
     const p = { ...customerProduct(source), ...inCart?.product }, context = options.context ?? { page: 0, origin: 'category' as const };
+    const photo = p.images.map(image => productPhoto(image.url)).find(value => value !== undefined);
     const back = { text: context.origin === 'basket' ? '← К корзине' : context.origin === 'quick' ? '← К моим продуктам' : '← К товарам',
       callback_data: context.origin === 'basket' ? shoppingData('k', context.page) : context.origin === 'quick' ? shoppingData('q', context.page) : shoppingData('l', p.categoryId, context.page) };
     const rules = 'От ' + quantity(p.min, p.unit) + ' · шаг ' + quantity(p.step, p.unit);
@@ -147,6 +154,8 @@ export class CustomerShopService {
       return value === null ? 'После взвешивания' : (p.unit === 'GRAM' || variableWeight(p) || p.priceStatus !== 'SOURCE' ? '≈ ' : '') + amount(value);
     };
     if (!basket) return customerShow(target, {
+      rich: { blocks: [heading(short(p.name, 180)), ...(photo ? [photo] : []), paragraph(price + '\n' + rules), paragraph('Для покупок подтвердите свой номер Telegram.')] },
+      ...(!photo ? { mediaReason: p.images.length ? 'invalid_url' as const : 'no_image' as const } : {}),
       text: short(p.name, 180) + '\nЦена: ' + price + '\n' + rules +
         '\n\nДля покупок подтвердите свой номер Telegram.',
       keyboard: { inline_keyboard: [[{ text: '📱 Подтвердить номер', callback_data: 'verify_phone', style: 'primary' }], [back, { text: 'Меню', callback_data: 'menu' }]] },
@@ -154,22 +163,21 @@ export class CustomerShopService {
     const current = inCart?.qty ?? 0;
     const canAdd = !inCart || inCart.status === 'AVAILABLE';
     const controls: Button[][] = [];
-    const mutation = (delta: number): Button => ({
-      text: (delta < 0 ? '−' : '+') + quantity(Math.abs(delta), p.unit) + ' · ' + (delta < 0 ? '−' : '') + hint(Math.abs(delta)),
+    const mutation = (delta: number, label?: string): Button => ({
+      text: (label ?? (delta < 0 ? '−' : '+') + quantity(Math.abs(delta), p.unit)) + ' · ' + (delta < 0 ? '−' : '') + hint(Math.abs(delta)),
       callback_data: adjustData(basket.revision, p.id, delta, p.unit, context),
       ...(delta > 0 ? { style: 'success' as const } : {}),
     });
     if (canAdd) {
-      if (current) controls.push([mutation(-(current <= p.min ? current : p.step))]);
-      for (const multiple of p.unit === 'GRAM' || variableWeight(p) ? [1, 2] : [1, 2, 5]) {
-        const delta = multiple * p.step, next = current + delta;
-        if (!cartQuantityValid(next, p.min, p.step) || (variableWeight(p) && next > 100)) continue;
-        try { controls.push([mutation(delta)]); }
+      if (current === p.step || (current > p.step && cartQuantityValid(current - p.step, p.min, p.step))) controls.push([mutation(-p.step)]);
+      {
+        const initialMinimum = !current && p.min !== p.step;
+        const delta = initialMinimum ? p.min : p.step, next = current + delta;
+        try { if (cartQuantityValid(next, p.min, p.step) && (!variableWeight(p) || next <= 100)) controls.push([mutation(delta, initialMinimum ? 'Минимум: ' + quantity(p.min, p.unit) : undefined)]); }
         catch (error) { if (!(error instanceof BadRequestException)) throw error; }
       }
     }
     const selection = quantity(current, inCart?.quantityUnit ?? p.unit) + (inCart ? ' · ' + estimate(inCart.lineTotal) : '');
-    const photo = options.details ? productPhoto(p.images[0]?.url) : undefined;
     const detailBlocks: InputRichBlock[] = options.details && p.description ? [{ type: 'details', summary: 'Описание', blocks: [paragraph(short(p.description, 1000))] }] : [];
     const text = (options.feedback ? options.feedback + '\n\n' : '') + short(p.name, 180) + '\nЦена: ' + price + '\n' + rules +
       (variableWeight(p) ? '\nЦеликом, в ' + (p.unit === 'BUNCH' ? 'пучках' : 'штуках') + '. Каждый экземпляр взвесим отдельно.' : '') +
@@ -179,6 +187,7 @@ export class CustomerShopService {
       (options.details && p.description ? '\n\n' + short(p.description, 1000) : '');
     return customerShow(target, {
       text,
+      ...(!photo ? { mediaReason: p.images.length ? 'invalid_url' as const : 'no_image' as const } : {}),
       rich: { blocks: [heading(short(p.name, 180)), ...(options.feedback ? [paragraph(bold(options.feedback))] : []),
         ...(photo ? [photo] : []), paragraph(price + '\n' + rules),
         richTable([['В корзине', selection], ['Вся корзина', basket.items.length + ' поз. · ' + estimate(basket.goodsTotal)]]),
@@ -236,45 +245,30 @@ export class CustomerShopService {
     const visible = basket.items.slice(page * 5, page * 5 + 5);
     const lines = visible.map((item) =>
       item.product
-        ? short(item.product.name, 120) +
+        ? short(item.product.name, 300) +
           '\n' +
           quantity(item.qty, item.quantityUnit ?? item.product.unit) +
           ' · ' +
-          estimate(item.lineTotal) +
+          estimate(item.lineTotal) + '\nШаг: ' + quantity(item.product.step, item.product.unit) + ' · ' +
+          stepEstimate(item.product) +
           (item.status === 'AVAILABLE'
             ? ''
             : '\n⚠️ Проверьте количество / стоимость')
         : 'Товар больше недоступен',
     );
-    const buttons: Button[][] = visible.flatMap((item) => [
-      [
-        {
-          text: short(item.product?.name ?? 'Недоступный товар', 40),
-          callback_data: item.product
-            ? productData(item.productId, { page, origin: 'basket' })
-            : 'cart',
-        },
-      ],
-      [
-        ...(item.product && item.status === 'AVAILABLE'
-          ? [
-              {
-                text: '−' + quantity(item.qty <= item.product.min ? item.qty : item.product.step, item.product.unit),
-                callback_data: adjustData(basket.revision, item.productId,
-                  -(item.qty <= item.product.min ? item.qty : item.product.step), item.product.unit, { page, origin: 'basket' }),
-              },
-              {
-                text: '+' + quantity(item.product.step, item.product.unit) + ' · ' + estimate(requestedLine({ ...item.product, qty: item.product.step })),
-                callback_data: adjustData(basket.revision, item.productId, item.product.step, item.product.unit, { page, origin: 'basket' }),
-              },
-            ]
-          : []),
-        {
-          text: 'Удалить',
-          callback_data: shoppingData('x', basket.revision, item.productId, page),
-        },
-      ],
-    ]);
+    const buttons: Button[][] = visible.map(item => {
+      const p = item.product, available = p && item.status === 'AVAILABLE';
+      const context = { page, origin: 'basket' as const };
+      const minus = available && (item.qty === p.step || cartQuantityValid(item.qty - p.step, p.min, p.step));
+      const plus = available && cartQuantityValid(item.qty + p.step, p.min, p.step) && (!variableWeight(p) || item.qty + p.step <= 100);
+      return [
+        { text: short(p?.name ?? 'Недоступен', 16), style: 'primary', callback_data: p ? productData(item.productId, context) : 'cart' },
+        { text: '−', ...(minus ? { callback_data: adjustData(basket.revision, item.productId, -p.step, p.unit, context) } : { disabled: {} }) },
+        { text: '+', style: 'success', ...(plus ? { callback_data: adjustData(basket.revision, item.productId, p.step, p.unit, context) } : { disabled: {} }) },
+        { text: '✕', style: 'danger', callback_data: shoppingData('x', basket.revision, item.productId, page) },
+      ];
+    });
+    const itemRows = [...buttons];
     const nav: Button[] = [];
     if (page)
       nav.push({ text: '← Предыдущие', callback_data: shoppingData('k', page - 1) });
@@ -302,6 +296,12 @@ export class CustomerShopService {
       { text: 'Меню', callback_data: 'menu' },
     ]);
     return customerShow(target, {
+      rich: { blocks: [heading('🛒 Ваша корзина'), paragraph(basket.items.length + ' поз. · ' + estimate(basket.goodsTotal) + '\n' + pageInfo(basket.items.length, page, 5).label),
+        ...(feedback ? [paragraph(feedback)] : []),
+        ...visible.flatMap((item, index): InputRichBlock[] => [paragraph([bold(short(item.product?.name ?? 'Товар больше недоступен', 300)), '\n', lines[index]!.split('\n').slice(1).join('\n')]), { type: 'buttons', buttons: itemRows[index]! }]),
+        ...(!visible.length ? [paragraph('Корзина пуста.')] : []),
+        ...(basket.promo ? [paragraph('Промокод: ' + basket.promo.code + ' · скидка ' + amount(basket.promo.discount) + '\nЗа товары после скидки: ' + amount(basket.goodsTotal))] : []),
+      ] },
       text:
         '🛒 Ваша корзина' + (basket.items.length ? ' · ' + basket.items.length + ' поз.' : '') +
         '\n' + pageInfo(basket.items.length, page, 5).label +
@@ -401,13 +401,14 @@ export class CustomerShopService {
       case 'plus':
       case 'minus':
       case 'remove':
-      case 'clearConfirmed':
-        await this.cart.change(
+      case 'clearConfirmed': {
+        const basket = await this.cart.change(
           identity.userId,
           action.revision,
           action.kind === 'clearConfirmed' ? { kind: 'clear' } : action,
         );
-        return this.basket(target, identity, action.kind === 'remove' ? action.page ?? 0 : 0);
+        return this.basket(target, identity, action.kind === 'remove' ? action.page ?? 0 : 0, basket);
+      }
       case 'checkout':
         return this.present(
           target,

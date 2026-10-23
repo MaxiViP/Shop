@@ -1,16 +1,15 @@
 import type { OrderService } from '../order/order.service.js';
 import type { CoordinationService } from '../order/coordination.service.js';
-import type { OrderStatus, Unit, DeliveryStatus, PaymentStatus } from '../db/gen/client.js';
+import type { OrderStatus, Unit, DeliveryStatus } from '../db/gen/client.js';
 import { shoppingData } from './shopping-callback.js';
 import { goodsLine, requestedLine } from '../order/pricing.js';
 import { priceUnit, variableWeight } from '../product/sale.js';
 import { customerView, customerDecision, customerConfirmCancellation, decisionCodes, type DecisionCode } from './customer-callback.js';
+import { orderRich, orderFallback, paymentLabel, progressLabel } from './order-rich.js';
 
-export type Button = { style?: 'success' | 'primary' | 'danger' } & (
-  { text: string; callback_data: string } | { text: string; url: string } |
-  { text: string; web_app: { url: string } });
+export type Button = import('./rich.js').TelegramButton;
 export type Keyboard = { inline_keyboard: Button[][] };
-export type Screen = { text: string; keyboard: Keyboard; rich?: import('./rich.js').InputRichMessage };
+export type Screen = import('./rich.js').TelegramScreen;
 export type CustomerOrder = Awaited<ReturnType<OrderService['get']>>;
 export type CustomerIssue = Awaited<ReturnType<CoordinationService['view']>>['issues'][number];
 export const activeStatuses: OrderStatus[] = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY', 'DELIVERING'];
@@ -21,9 +20,6 @@ export const orderStatus: Record<OrderStatus, string> = {
 export const deliveryStatus: Record<DeliveryStatus, string> = {
   PENDING: 'Оформляется', ASSIGNED: 'Курьер назначен', PICKED_UP: 'В пути',
   DELIVERED: 'Доставлен', CANCELED: 'Отменена',
-};
-const paymentStatus: Record<PaymentStatus, string> = {
-  AWAITING: 'Ожидается', REPORTED: 'Проверяется', PAID: 'Получена', CANCELED: 'Отменена',
 };
 export function short(text: string, limit = 180) {
   const clean = text.replace(/[\p{Cc}\u202a-\u202e\u2066-\u2069]/gu, ' ').trim();
@@ -203,7 +199,7 @@ export function orderCard(order: CustomerOrder, page = 0): Screen {
     ...(order.finalSubtotal !== null ? ['Итог за товары: ' + amount(order.finalSubtotal), 'Итого: ' + amount(order.finalTotal)] :
       order.status === 'ASSEMBLING' && order.extras.length ? ['Доп. позиции: ' + amount(order.extras.reduce((sum, extra) => sum + extra.amount, 0))] : []),
     ...(order.customerUnread ? ['Обновлений в чате: ' + order.customerUnread] : []),
-    'Оплата: ' + (order.payment ? paymentStatus[order.payment.status] : 'после сборки'),
+    paymentLabel(order.payment), progressLabel(order),
     ...(order.payment ? ['Сумма оплаты товаров: ' + amount(order.payment.amount)] : []),
     ...(order.type === 'DELIVERY' ? ['Доставка: ' + amount(order.deliveryPrice)] : []),
     ...(order.delivery ? ['Доставка: ' + deliveryStatus[order.delivery.status],
@@ -246,10 +242,20 @@ export function orderCard(order: CustomerOrder, page = 0): Screen {
     [{ text: '🔄 Обновить', callback_data: customerView('o', order.publicId, page) }],
     ...orderLinks(order.publicId),
   );
-  return { text: headerText + '\n\n' + chunks[page]!.join('\n\n') +
+  const text = headerText + '\n\n' + chunks[page]!.join('\n\n') +
     (order.status === 'ASSEMBLING' ? '\n\nФактический вес и доп. позиции войдут в итоговую сумму после сборки.' : '') +
-    (pages > 1 ? '\n\nТовары: страница ' + (page + 1) + ' из ' + pages : ''),
-    keyboard: { inline_keyboard: keyboard } };
+    (pages > 1 ? '\n\nТовары: страница ' + (page + 1) + ' из ' + pages : '');
+  return { text, keyboard: { inline_keyboard: keyboard },
+    fallback: orderFallback(text.split('\n'), [header[0]!, header[1]!, header[2]!, paymentLabel(order.payment), progressLabel(order),
+      'Итого: ' + amount(order.finalTotal)]),
+    rich: orderRich(order, { title: header[0]!, person: short(order.customerName ?? '', 100), next: orderNextStep(order),
+      details: ['Создан: ' + date(order.createdAt), ...(order.customerPhone ? ['Телефон: ' + short(order.customerPhone, 30)] : []),
+        ...(order.type === 'DELIVERY' ? addressLines(order) : []),
+        ...(order.deliveryAt ? ['Получение: ' + date(order.deliveryAt)] : []), ...(order.scheduledFor ? ['Подготовить к: ' + date(order.scheduledFor)] : []),
+        ...(order.delivery ? ['Доставка: ' + deliveryStatus[order.delivery.status], ...(order.delivery.courierName ? ['Курьер: ' + short(order.delivery.courierName, 100)] : []),
+          ...(order.delivery.courierPhone ? ['Телефон курьера: ' + short(order.delivery.courierPhone, 40)] : [])] : [])],
+      items: [...chunks[page]!, ...(pages > 1 ? ['Страница ' + (page + 1) + ' из ' + pages] : [])] }),
+  };
 }
 type IssueOrder = Pick<CustomerOrder, 'id' | 'publicId'> & Partial<Pick<CustomerOrder, 'items'>>;
 const signedQuantity = (value: number, unit: Unit) =>

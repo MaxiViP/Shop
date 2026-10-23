@@ -316,7 +316,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       return o;
     }
 
-    it('native immediate buttons keep 0 → 1 → 3 → 2 → 4 across card/basket and deduplicate one Telegram update', async () => {
+    it('native single-step buttons keep acknowledged quantities across card/basket and deduplicate one Telegram update', async () => {
       const f = await fixture('BUNCH');
       await db.product.update({ where: { id: f.product.id }, data: {
         name: 'Укроп', price: 15000, serviceMarkupPercent: 10, saleModel: 'BUNCH', priceUnit: 'BUNCH',
@@ -333,7 +333,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       };
       await handler.handle(cb(f.telegramId, productData(f.product.id, context)));
       let sequence = 1000000 + f.user.id * 10;
-      for (const [delta, expected] of [[1, 1], [2, 3], [-1, 2], [2, 4]] as const) {
+      for (const [delta, expected] of [[1, 1], [1, 2], [1, 3], [-1, 2], [1, 3], [1, 4]] as const) {
         const update = { ...cb(f.telegramId, button(delta)), update_id: sequence++ };
         await Promise.all([handler.handle(update), handler.handle(update)]);
         const stored = await cart.get(f.user.id);
@@ -982,7 +982,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           .some(
             (b) => {
               const action = shoppingAction(b.callback_data ?? '');
-              return action?.kind === 'adjust' && action.productId === f.product.id && action.delta === 1000;
+              return action?.kind === 'adjust' && action.productId === f.product.id && action.delta === 500;
             },
           ),
       ).toBe(true);

@@ -4,6 +4,8 @@ import type { StaffService } from '../staff/staff.service.js';
 import { reviewCallback, type FlowPayload, type ReviewFlow } from './staff-flow.js';
 import { clean, money, quantity, staffConfirmData, staffData, staffQueueData } from './staff-bot.js';
 import { orderChatPath } from './chat-notice.js';
+import { orderRich, orderFallback, paymentLabel, progressLabel } from './order-rich.js';
+import type { TelegramScreen } from './rich.js';
 
 export type OrderView = Awaited<ReturnType<StaffService['get']>>;
 export type Button = ({ text: string; callback_data: string } | { text: string; url: string } |
@@ -15,8 +17,6 @@ export const statusText = {
   NEW: 'Новый', CONFIRMED: 'Подтверждён', ASSEMBLING: 'Собирается',
   READY: 'Готов', DELIVERING: 'Доставляется', COMPLETED: 'Завершён', CANCELED: 'Отменён',
 } as const;
-const paymentText = { AWAITING: 'ожидается', REPORTED: 'сообщена', PAID: 'получена',
-  CANCELED: 'отменена' } as const;
 const deliveryText = { PENDING: 'ожидается', ASSIGNED: 'назначена',
   PICKED_UP: 'у курьера', DELIVERED: 'доставлена', CANCELED: 'отменена' } as const;
 const itemStatusText = { PENDING: 'в сборке', PICKED: 'собран', MISSING: 'нет в наличии' } as const;
@@ -289,7 +289,7 @@ export function workOverview(counts: Record<'new' | 'confirmed' | 'assembly' | '
   ] } };
 }
 
-export function dashboard(order: OrderView, url?: string): { text: string; keyboard: Keyboard } {
+export function dashboard(order: OrderView, url?: string): TelegramScreen & { keyboard: Keyboard } {
   const id = order.id;
   const lines = [
     'Заказ #' + id + ' · ' + statusText[order.status],
@@ -306,12 +306,13 @@ export function dashboard(order: OrderView, url?: string): { text: string; keybo
     lines.push('Факт товаров: ' + money(order.finalSubtotal), 'Итого: ' + money(order.finalTotal));
   if (order.promoCodeSnapshot) lines.push('Промокод: ' + clean(order.promoCodeSnapshot, 32) +
     ' · скидка ' + money(order.finalPromoDiscount ?? order.promoDiscount));
-  lines.push('Оплата: ' + (order.payment ? paymentText[order.payment.status] : 'не создана'));
+  lines.push(paymentLabel(order.payment), progressLabel(order));
+  if (order.payment) lines.push((order.payment.status === 'PAID' ? 'Подтверждено за товары: ' : 'Сумма платежа за товары: ') + money(order.payment.amount));
   if (order.payment?.status === 'REPORTED') lines.push('⚠️ Покупатель сообщил об оплате. Проверьте поступление денег.');
   if (order.delivery) lines.push('Доставка: ' +
     (order.delivery.provider === 'YANDEX' ? 'Яндекс' : 'другой курьер') + ' · ' +
     deliveryText[order.delivery.status]);
-  lines.push(assemblyProgress(order));
+  lines.push('Осталось: ' + order.items.filter(item => item.status === 'PENDING').length, ...assemblyProgress(order).split('\n').slice(1));
   for (const item of order.items.slice(0, 5)) lines.push('• ' + clean(item.productName, 65) +
     ' — ' + quantity(item.qty, item.unit) + ' · ' + itemStatusText[item.status]);
   if (order.items.length > 5) lines.push('Ещё позиций: ' + (order.items.length - 5));
@@ -362,7 +363,17 @@ export function dashboard(order: OrderView, url?: string): { text: string; keybo
     rows.push([{ text: 'Чат с покупателем', url: new URL(orderChatPath(id, true), url).href }]);
     rows.push([{ text: 'Открыть заказ на сайте', url }]);
   }
-  return { text: lines.join('\n').slice(0, 3900), keyboard: { inline_keyboard: rows } };
+  const text = lines.join('\n').slice(0, 3900);
+  return { text, keyboard: { inline_keyboard: rows },
+    fallback: orderFallback(text.split('\n'), [lines[0]!, order.type === 'PICKUP' ? 'Самовывоз' : 'Доставка', nextStaffAction(order),
+      'Итого: ' + money(order.finalTotal), paymentLabel(order.payment), progressLabel(order)]),
+    rich: orderRich(order, { title: lines[0]!, person: clean(order.customerName, 100), next: nextStaffAction(order), sellerActions: order.issues.filter(issue => sellerIssueItem(order, issue)).length,
+      details: [clean(order.customerPhone, 40), ...(order.type === 'DELIVERY' ? [clean(formatAddress(order), 200)] : []),
+        ...(order.comment ? [clean(order.comment, 300)] : []), ...(order.delivery ? ['Доставка: ' + deliveryText[order.delivery.status]] : [])],
+      items: [...order.items.slice(0, 5).map(item => clean(item.productName, 160) + ' · ' + quantity(item.qty, item.unit) + ' · ' + itemStatusText[item.status]),
+        ...(order.items.length > 5 ? ['Ещё позиций: ' + (order.items.length - 5) + '. Откройте позиции заказа.'] : []),
+        ...order.extras.filter(extra => extra.status === 'ACTIVE').slice(0, 5).map(extra => clean(extra.title, 160) + ' · ' + money(extra.amount))] }),
+  };
 }
 
 export function itemPage(order: OrderView, offset: number): { text: string; keyboard: Keyboard } {

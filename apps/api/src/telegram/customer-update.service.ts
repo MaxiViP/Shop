@@ -13,6 +13,7 @@ import { shoppingAction } from './shopping-callback.js';
 import { customerBotToken } from './bot-config.js';
 import { serialUpdate } from './updates.js';
 import { pageInfo } from './page.js';
+import { screenNotice } from './rich.js';
 import { phone } from '../common/phone.js';
 import { customerAction, customerUpdate, customerView, type CustomerAction } from './customer-callback.js';
 import {
@@ -188,7 +189,7 @@ export class CustomerUpdateService {
     const waiting = coordination.issues.filter(issue => issue.status === 'WAITING_CUSTOMER' && issue.actions.length);
     const next = waiting.findIndex(issue => issue.id > afterIssueId);
     const screen = waiting.length ? issueCard(order, coordination.issues, next < 0 ? 0 : next) : orderCard(order);
-    return this.show(target, { ...screen, text: feedback + '\n\n' + screen.text });
+    return this.show(target, screenNotice(screen, feedback));
   }
   private async messages(target: Target, identity: Identity, publicId: string, cursor = 0, direction: 'before' | 'after' | 'latest' = 'before') {
     const actor = { publicId, userId: identity.userId };

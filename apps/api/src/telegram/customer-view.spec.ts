@@ -18,7 +18,7 @@ afterEach(() => vi.unstubAllEnvs());
 it('renders requested/actual quantity, final totals, payment and delivery without technical IDs', () => {
   vi.stubEnv('ORDER_SITE_URL', 'https://shop.example');
   const card = orderCard(order);
-  for (const text of ['1,2 кг', '120 ₽', '160 ₽', 'Получена', 'Курьер назначен', 'Заказ №7']) expect(card.text).toContain(text);
+  for (const text of ['1,2 кг', '120 ₽', '160 ₽', 'Оплата получена', 'Курьер назначен', 'Заказ №7']) expect(card.text).toContain(text);
   expect(card.text).not.toContain(id);
   expect(JSON.stringify(card.keyboard)).toContain(id.replaceAll('-', ''));
   expect(card.keyboard.inline_keyboard.flat().find(b => b.text === 'Открыть заказ на сайте'))
