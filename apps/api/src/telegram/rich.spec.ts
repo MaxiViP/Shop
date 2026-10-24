@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { deliverScreen } from './delivery.js';
 import { richEnabled } from './rich-policy.js';
-import { bold, marked, fallbackHtml, productPhoto, richMessage, validScreen, screenNotice, type TelegramScreen } from './rich.js';
+import { bold, marked, customerScreen, fallbackHtml, productPhoto, richMessage, validScreen, screenNotice, type TelegramScreen } from './rich.js';
 import { Logger } from '@nestjs/common';
 import { localPhoto } from './photo.js';
 vi.mock('./photo.js', () => ({ localPhoto: vi.fn(async () => undefined) }));
@@ -49,6 +49,19 @@ it('sends and edits a Rich screen with the confirmed current message ID', async 
   expect(body()).toHaveProperty('rich_message.blocks'); expect(body()).not.toHaveProperty('text');
   await deliverScreen('customer', { chatId: 123, messageId: 92 }, screen);
   expect(String(fetcher.mock.calls[1]?.[0])).toMatch(/\/editMessageText$/); expect(body(1).message_id).toBe(92);
+});
+it('keeps one right-aligned basket row through customer processing and real send/edit payloads without per-button layout fields', async () => {
+  const buttons = [{ text: 'Название товара', callback_data: 'open' }, { text: '−', callback_data: 'minus' },
+    { text: '+', callback_data: 'plus' }, { text: '✕', callback_data: 'remove' }];
+  const value = customerScreen({ ...screen, keyboard: { inline_keyboard: [buttons] }, rich: { blocks: [
+    { type: 'buttons', align: 'right', buttons },
+  ] } });
+  await deliverScreen('customer', { chatId: 123 }, value);
+  await deliverScreen('customer', { chatId: 123, messageId: 92 }, value);
+  for (const index of [0, 1]) {
+    expect(body(index).rich_message.blocks).toEqual([{ type: 'buttons', align: 'right', buttons }]);
+    expect(body(index)).not.toHaveProperty('buttonsAlign');
+  }
 });
 it('uses escaped HTML and inline buttons for a chat outside the Rich allowlist', async () => {
   await deliverScreen('customer', { chatId: 125 }, screen);
@@ -247,7 +260,9 @@ it.each(['send-edit', 'missing', 'rejected', 'html', 'unknown'] as const)('prese
     { type: 'photo', photo: { type: 'photo', media: path }, caption },
     { type: 'photo', photo: { type: 'photo', media: path + '-2' }, caption },
   ] }] } };
-  expect(richMessage(value).blocks).toHaveLength(1); // Caption controls are never appended below the collage again.
+  expect(richMessage(value).blocks).toHaveLength(2);
+  // Client-hidden captions must never suppress the real, interactive keyboard projection.
+  expect(richMessage(value).blocks.at(-1)).toEqual({ type: 'buttons', buttons });
   expect(fallbackHtml('test', [caption.text])).toBe('Товар · 110 ₽ Добавить в 🛒');
   vi.mocked(localPhoto).mockImplementation(async media => mode === 'missing' || !media.startsWith('https:') ? undefined : new Uint8Array([255,216,255,217]));
   if (mode === 'rejected' || mode === 'html') fetcher.mockResolvedValueOnce(reject());
@@ -262,10 +277,11 @@ it.each(['send-edit', 'missing', 'rejected', 'html', 'unknown'] as const)('prese
     await deliverScreen('customer', { chatId: 123, messageId: 92 }, value);
     expect(body(1).rich_message.blocks[0].blocks[0]).toMatchObject({ photo: { media: 'caption-1' }, caption });
     expect(body(1).rich_message.blocks[0].blocks[1]).toMatchObject({ photo: { media: 'caption-2' }, caption });
+    expect(body(1).rich_message.blocks.at(-1)).toEqual({ type: 'buttons', buttons });
   } else {
     const payload = body(mode === 'html' ? 2 : mode === 'rejected' ? 1 : 0);
     if (mode === 'html') expect(payload.reply_markup.inline_keyboard).toEqual([buttons]);
-    else expect(payload.rich_message.blocks).toEqual([{ type: 'paragraph', text: caption.text }, { type: 'paragraph', text: caption.text }]);
+    else expect(payload.rich_message.blocks).toEqual([{ type: 'paragraph', text: caption.text }, { type: 'paragraph', text: caption.text }, { type: 'buttons', buttons }]);
   }
   vi.mocked(localPhoto).mockImplementation(async () => undefined);
 });

@@ -153,15 +153,15 @@ export class CustomerShopService {
     const names = rows.map(p => short(p.name, 30));
     const photos = rows.map(p => p.images.map(image => productPhoto(image.url)).find(photo => photo !== undefined));
     const gallery: InputRichBlock[] = [];
-    const cells: InputRichBlock[] = [];
     const placeholder: Extract<InputRichBlock, { type: 'photo' }> = { type: 'photo', photo: { type: 'photo', media: galleryPlaceholder } };
-    // Native caption buttons belong to their photo, unlike independent full-width rows below a collage.
+    // Clients may hide photo captions. Keep actions in real blocks directly after each pair.
     for (const [index, source] of rows.entries()) {
-      const photo = photos[index];
+      if (index % 2 === 0) gallery.push({ type: 'collage', blocks: [photos[index] ?? placeholder, photos[index + 1] ?? placeholder] });
       const item = basket?.items.find(item => item.productId === source.id);
       const p = { ...source, ...item?.product };
       const row: Button[] = [{
-        text: (names.filter(name => name === short(source.name, 30)).length > 1 ? short(p.name, 24) + ' · №' + p.id : short(p.name, 30)) +
+        text: (index % 2 === 0 ? 'Слева · ' : 'Справа · ') +
+          (names.filter(name => name === short(source.name, 30)).length > 1 ? short(p.name, 24) + ' · №' + p.id : short(p.name, 30)) +
           ' · ' + amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)) +
           (item ? '\n🛒 ' + quantity(item.qty, item.quantityUnit ?? p.unit) : ''),
         callback_data: productData(p.id, context), style: 'primary',
@@ -182,14 +182,9 @@ export class CustomerShopService {
         row.push(add);
         if (current) controls.push({ ...add, text: '+' });
       }
-      buttons.push(row);
-      if (controls.length) buttons.push(controls);
-      const caption: RichText[] = row.flatMap((button, at) => [...(at ? [' '] : []), { type: 'button' as const, button }]);
-      if (controls.length) caption.push('\n', ...controls.flatMap((button, at) => [...(at ? [' '] : []), { type: 'button' as const, button }]));
-      if (!photo) caption.push('\nФото недоступно');
-      cells.push({ ...(photo ?? placeholder), caption: { text: caption } });
+      buttons.push(row); gallery.push({ type: 'buttons', buttons: row });
+      if (controls.length) { buttons.push(controls); gallery.push({ type: 'buttons', buttons: controls }); }
     }
-    for (let index = 0; index < cells.length; index += 2) gallery.push({ type: 'collage', blocks: [cells[index]!, cells[index + 1] ?? placeholder] });
     const nav: Button[] = [];
     if (info.page) nav.push({ text: '← Предыдущие товары', callback_data: shoppingData('l', categoryId, info.page - 1) });
     if (info.page + 1 < info.pages) nav.push({ text: 'Следующие товары →', callback_data: shoppingData('l', categoryId, info.page + 1) });
@@ -329,7 +324,7 @@ export class CustomerShopService {
       const minus = available && (item.qty === p.step || cartQuantityValid(item.qty - p.step, p.min, p.step));
       const plus = available && cartQuantityValid(item.qty + p.step, p.min, p.step) && (!variableWeight(p) || item.qty + p.step <= 100);
       return [
-        { text: short(p?.name ?? 'Недоступен', 16), style: 'primary', callback_data: p ? productData(item.productId, context) : 'cart' },
+        { text: short(p?.name ?? 'Недоступен', 40), style: 'primary', callback_data: p ? productData(item.productId, context) : 'cart' },
         { text: '−', ...(minus ? { callback_data: adjustData(basket.revision, item.productId, -p.step, p.unit, context) } : { disabled: {} }) },
         { text: '+', style: 'success', ...(plus ? { callback_data: adjustData(basket.revision, item.productId, p.step, p.unit, context) } : { disabled: {} }) },
         { text: '✕', style: 'danger', callback_data: shoppingData('x', basket.revision, item.productId, page) },
@@ -371,7 +366,7 @@ export class CustomerShopService {
         ...visible.flatMap((item, index): InputRichBlock[] => [{ type: 'divider' },
           ...(!item.product || item.product.name !== itemRows[index]![0]!.text ? [paragraph(short(item.product?.name ?? 'Товар больше недоступен', 300))] : []),
           paragraph(itemLines[index]!.flatMap((line, lineIndex): RichText[] => [...(lineIndex ? ['\n'] : []), line])),
-          { type: 'buttons', buttons: itemRows[index]! }]),
+          { type: 'buttons', buttons: itemRows[index]!, align: 'right' }]),
         ...(!visible.length ? [paragraph('Корзина пуста.')] : []),
         ...(nav.length ? [{ type: 'buttons' as const, buttons: nav }] : []),
         ...(basket.items.length ? [{ type: 'divider' as const }, ...(footer ? [paragraph(footer)] : []), ...(promo ? [paragraph(promo)] : []),

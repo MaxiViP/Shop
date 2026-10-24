@@ -12,7 +12,7 @@ import { cartQuantityValid } from '../order/cart-quote.js';
 import { requestedLine } from '../order/pricing.js';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { fallbackHtml, richMessage, validScreen } from './rich.js';
+import { customerScreen, fallbackHtml, richMessage, validScreen } from './rich.js';
 
 vi.mock('./customer-send.js', () => ({ customerShow: vi.fn(async () => true), customerPrompt: vi.fn() }));
 const target = { chatId: 70001, messageId: 90 }, identity = { id: 3, userId: 7 };
@@ -280,10 +280,11 @@ it.each(['GRAM', 'PIECE', 'BUNCH', 'PACK'] as const)('renders a compact four-but
   const row = screen().keyboard.inline_keyboard.find(row => row.some(button => button.text === '✕'))!;
   expect(row.map(button => button.text)).toEqual([expect.stringContaining('…'), '−', '+', '✕']);
   expect(row.map(button => button.style)).toEqual(['primary', undefined, 'success', 'danger']);
-  expect(row[0]!.text.length).toBeLessThanOrEqual(16);
+  expect(row[0]!.text.length).toBe(40);
   expect(screen().text).toContain(source.name);
-  const embedded = richMessage(screen()).blocks.filter(block => block.type === 'buttons' && block.buttons.length === 4);
+  const embedded = richMessage(customerScreen(screen())).blocks.filter(block => block.type === 'buttons' && block.buttons.length === 4);
   expect(embedded).toHaveLength(1);
+  expect(embedded[0]).toMatchObject({ align: 'right', buttons: row });
   expect(adjustment(-step)).toMatchObject({ delta: -step, origin: 'basket', page: 0, revision: s.snapshot().revision });
   await s.service.handle(target, identity, adjustment(step));
   expect(s.snapshot().items[0]?.qty).toBe(2 * step);

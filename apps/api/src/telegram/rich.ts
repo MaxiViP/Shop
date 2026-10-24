@@ -56,25 +56,14 @@ export function richMessage(screen: TelegramScreen): InputRichMessage {
   const blocks = screen.rich?.blocks ?? [heading(title), ...(rest.some(Boolean) ? [{ type: 'divider' as const }] : []),
     ...rest.join('\n').split('\n\n').filter(Boolean).map(text => paragraph(emphasis(text)))];
   const embedded = new Set(blocks.filter(block => block.type === 'buttons').map(block => JSON.stringify(block.buttons)));
-  const captionButtons = new Set<string>();
-  const collect = (list: InputRichBlock[]) => { for (const block of list) {
-    if (block.type === 'photo' && block.caption) for (const button of textButtons(block.caption.text)) captionButtons.add(JSON.stringify(button));
-    if (block.type === 'collage' || block.type === 'details') collect(block.blocks);
-  } };
-  collect(blocks);
-  const complete = [...blocks, ...screen.keyboard.inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row)) &&
-    !row.every(button => captionButtons.has(JSON.stringify(button)))).map(buttons => ({
+  // Only an actual visible buttons block suppresses its duplicate keyboard row.
+  const complete = [...blocks, ...screen.keyboard.inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row))).map(buttons => ({
     type: 'buttons' as const, buttons,
   }))];
   return { blocks: screen.buttonsAlign ? complete.map(customerBlock) : complete, skip_entity_detection: true };
 }
-function textButtons(text: RichText): RichMessageButton[] {
-  if (typeof text === 'string') return [];
-  if (Array.isArray(text)) return text.flatMap(textButtons);
-  return text.type === 'button' ? [text.button] : textButtons(text.text);
-}
 function customerBlock(block: InputRichBlock): InputRichBlock {
-  if (block.type === 'buttons') return { ...block, align: 'left' };
+  if (block.type === 'buttons') return { ...block, align: block.align ?? 'left' };
   if (block.type === 'collage' || block.type === 'details') return { ...block, blocks: block.blocks.map(customerBlock) };
   if (block.type === 'heading' || block.type === 'paragraph' || block.type === 'footer')
     return { ...block, text: typeof block.text === 'string' ? emphasis(block.text) : block.text };

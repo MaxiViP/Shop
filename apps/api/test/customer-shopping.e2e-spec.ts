@@ -354,6 +354,16 @@ describe.skipIf(!process.env.DATABASE_URL)(
           expect(row).toHaveLength(2);
           expect(row![1]!.text).toBe('Добавить в 🛒');
           expect(shoppingAction(row![1]!.callback_data!)).toMatchObject({ kind: 'adjust', productId: f.product.id, inCategory: true, page: 1 });
+          if (spec.rich) {
+            const blocks = payload!.rich_message!.blocks;
+            const actual = blocks.filter(block => block.type === 'buttons').flatMap(block => block.buttons);
+            expect(actual).toContainEqual(expect.objectContaining({ text: 'Добавить в 🛒', callback_data: row![1]!.callback_data }));
+            expect(row![0]!.text).toMatch(/^Слева · /);
+            for (const block of blocks) if (block.type === 'collage') {
+              expect(block.blocks).toHaveLength(2);
+              for (const photo of block.blocks) expect(photo).not.toHaveProperty('caption');
+            }
+          }
         };
         const button = (delta: number) => {
           const buttons = payloads().flatMap(payload => payload.reply_markup?.inline_keyboard?.flat() ?? nativeRows(payload.rich_message?.blocks ?? []).flat()).reverse();
@@ -426,6 +436,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await handler.handle(cb(f.telegramId, choice('adjust')));
         expect((await cart.get(f.user.id)).items[0]?.qty).toBe(f.product.min);
         await handler.handle(cb(f.telegramId, 'cart'));
+        const cartPayload = payloads().filter(payload => payload.rich_message).at(-1)!;
+        const cartRows = cartPayload.rich_message!.blocks.filter(block => block.type === 'buttons' && block.buttons.some(button => button.text === '✕'));
+        expect(cartRows).toHaveLength(1);
+        expect(cartRows[0]).toMatchObject({ align: 'right', buttons: [expect.objectContaining({ callback_data: expect.any(String) }),
+          expect.objectContaining({ text: '−' }), expect.objectContaining({ text: '+' }), expect.objectContaining({ text: '✕' })] });
         await handler.handle(cb(f.telegramId, choice('checkout')));
         await handler.handle(cb(f.telegramId, choice('flow', 'pickup')));
         const state = await session(f); expect(state.step).toBe('TIME');

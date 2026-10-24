@@ -6,7 +6,7 @@ import type { CustomerCheckoutService } from './customer-checkout.service.js';
 import { CustomerShopService } from './customer-shop.service.js';
 import { customerShow } from './customer-send.js';
 import { shoppingAction } from './shopping-callback.js';
-import { galleryPlaceholder, richMessage, validScreen, type InputRichBlock, type RichText, type TelegramButton } from './rich.js';
+import { customerScreen, galleryPlaceholder, richMessage, validScreen, type InputRichBlock } from './rich.js';
 import { mapPhotos } from './media.js';
 import { deliverScreen } from './delivery.js';
 
@@ -32,11 +32,8 @@ function setup(total: number, missing = -1) {
 const screen = () => vi.mocked(customerShow).mock.calls.at(-1)![1];
 const cells = () => richMessage(screen()).blocks.flatMap(block => block.type === 'collage' ? block.blocks : [])
   .filter((block): block is Extract<InputRichBlock, { type: 'photo' }> => block.type === 'photo');
-function captionButtons(text: RichText): TelegramButton[] {
-  if (typeof text === 'string') return [];
-  if (Array.isArray(text)) return text.flatMap(captionButtons);
-  return text.type === 'button' ? [text.button] : captionButtons(text.text);
-}
+const productRows = () => richMessage(customerScreen(screen())).blocks.filter((block): block is Extract<InputRichBlock, { type: 'buttons' }> =>
+  block.type === 'buttons' && block.buttons.some(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'open'));
 beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('ORDER_SITE_URL', 'https://shop.example'); });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
@@ -52,11 +49,11 @@ it.each([0, 1, 3, 8, 17])('shows %s products in pairs without a duplicate text l
   for (const block of rich.blocks) if (block.type === 'collage') expect(block.blocks).toHaveLength(2);
   expect(rich.blocks.some(block => block.type === 'photo')).toBe(false);
   expect(value.thumbnailPhotos).toBe(true);
-  const selection = cells().flatMap(photo => captionButtons(photo.caption?.text ?? ''))
+  const selection = productRows().flatMap(row => row.buttons)
     .filter(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'open');
   expect(selection).toHaveLength(Math.min(total, 8));
-  expect(rich.blocks.filter(block => block.type === 'buttons').flatMap(block => block.buttons)
-    .some(button => 'callback_data' in button && ['open', 'adjust'].includes(shoppingAction(button.callback_data)?.kind ?? ''))).toBe(false);
+  expect(productRows()).toHaveLength(Math.min(total, 8));
+  expect(cells().every(photo => photo.caption === undefined)).toBe(true);
 });
 it.each([{ images: [] }, { images: [{ url: 'https://evil.example/private.jpg', alt: '' }] }])('uses every original button when a photo is absent or invalid', async ({ images }) => {
   const { db, service } = setup(8, 103);
@@ -87,15 +84,20 @@ it('disambiguates identical truncated names with stable product identifiers', as
   expect(first!.text).not.toBe(second!.text);
   expect(first!.text).toContain('№101'); expect(second!.text).toContain('№102');
 });
-it('binds both native caption buttons to their own photo/product inside strictly two-photo collages', async () => {
+it('keeps visible A/B buttons directly after each two-photo collage through the real customer renderer', async () => {
   const { service } = setup(8);
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
-  const photos = cells();
+  const photos = cells(), blocks = richMessage(customerScreen(screen())).blocks;
   for (let index = 0; index < 8; index++) {
     const photo = photos[index]!;
     expect(photo.photo.media).toBe('https://shop.example/uploads/products/item-' + (100 + index) + '.webp');
-    const buttons = captionButtons(photo.caption!.text);
-    expect(buttons.map(button => button.text)).toEqual(['Товар ' + (100 + index) + ' · 110 ₽ / 1 шт.', 'Добавить в 🛒']);
+    const at = 2 + Math.floor(index / 2) * 3;
+    expect(blocks[at]?.type).toBe('collage');
+    const row = blocks[at + 1 + index % 2];
+    if (row?.type !== 'buttons') throw new Error('Visible product buttons missing after collage');
+    const buttons = row.buttons;
+    expect(row.align).toBe('left');
+    expect(buttons.map(button => button.text)).toEqual([(index % 2 === 0 ? 'Слева · ' : 'Справа · ') + 'Товар ' + (100 + index) + ' · 110 ₽ / 1 шт.', 'Добавить в 🛒']);
     expect(buttons.map(button => 'callback_data' in button ? shoppingAction(button.callback_data) : null)).toEqual([
       { kind: 'open', productId: 100 + index, origin: 'category', categoryId: 3, page: 0 },
       { kind: 'adjust', productId: 100 + index, origin: 'category', categoryId: 3, page: 0,
@@ -109,7 +111,7 @@ it('refreshes button prices without baking text into or replacing the product ph
   const initial = cells().map(photo => photo.photo);
   db.product.findMany.mockResolvedValueOnce([product(100), { ...product(101), price: 12500 }]);
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
-  expect(screen().keyboard.inline_keyboard[1]![0]!.text).toBe('Товар 101 · 125 ₽ / 1 шт.');
+  expect(screen().keyboard.inline_keyboard[1]![0]!.text).toBe('Справа · Товар 101 · 125 ₽ / 1 шт.');
   expect(cells().map(photo => photo.photo)).toEqual(initial);
 });
 it('offers phone verification for every public add button without reading the private basket', async () => {
@@ -127,15 +129,17 @@ it.each(['AVAILABLE', 'INVALID_QUANTITY'] as const)('keeps the exact add label a
     productId: index + 108, product: product(index + 108), qty: 3, status, lineTotal: 33000,
   })) } as unknown as Awaited<ReturnType<CartService['get']>>);
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 1 });
-  const value = screen(), photos = cells();
+  const value = screen(), photos = cells(), rows = productRows(), blocks = richMessage(customerScreen(value)).blocks;
   for (let index = 0; index < 8; index++) {
-    const photo = photos[index]!, buttons = captionButtons(photo.caption!.text);
+    const photo = photos[index]!, row = rows[index]!, buttons = row.buttons;
     expect(photo.photo.media).toContain('item-' + (index + 108) + '.webp');
     expect(buttons[0]!.text).toContain('🛒 3 шт.');
     expect(buttons[1]!.text).toBe('Добавить в 🛒');
+    const controls = blocks[blocks.findIndex(block => block.type === 'buttons' && block.buttons === row.buttons) + 1];
+    if (controls?.type !== 'buttons') throw new Error('Visible quantity controls missing');
     if (status === 'AVAILABLE') {
-      expect(buttons.slice(2).map(button => button.text)).toEqual(['−', '+']);
-      for (const button of buttons)
+      expect(controls.buttons.map(button => button.text)).toEqual(['−', '+']);
+      for (const button of [...buttons, ...controls.buttons])
         if ('callback_data' in button) expect(shoppingAction(button.callback_data)).toMatchObject({ productId: index + 108, page: 1 });
     } else expect(buttons[1]).toHaveProperty('disabled');
   }
@@ -149,8 +153,9 @@ it('keeps other product photos and button positions when one product has no phot
   const photos = cells();
   expect(photos).toHaveLength(8);
   expect(photos[3]!.photo.media).toBe(galleryPlaceholder);
-  expect(JSON.stringify(photos[3]!.caption)).toContain('Фото недоступно');
-  for (const button of captionButtons(photos[3]!.caption!.text)) if ('callback_data' in button) expect(shoppingAction(button.callback_data)).toMatchObject({ productId: 103 });
+  const buttons = productRows()[3]!.buttons;
+  expect(buttons[0]!.text).toContain('Справа · ');
+  for (const button of buttons) if ('callback_data' in button) expect(shoppingAction(button.callback_data)).toMatchObject({ productId: 103 });
 });
 it('retains exact open/add product bindings and inline rows in HTML fallback', async () => {
   const { service } = setup(8);
