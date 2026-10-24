@@ -133,7 +133,8 @@ export class CustomerShopService {
       keyboard: { inline_keyboard: [...buttons, ...(nav.length ? [nav] : []), ...navigation] },
     });
   }
-  private async products(target: CustomerTarget, categoryId: number, requested: number) {
+  private async products(target: CustomerTarget, identity: CustomerIdentity, categoryId: number, requested: number,
+    options: { basket?: Basket; feedback?: string; browsingOnly?: boolean } = {}) {
     const category = await this.db.category.findFirst({ where: { id: categoryId, active: true }, select: { name: true } });
     if (!category) throw new NotFoundException('Категория недоступна');
     const where = { ...orderableProductWhere, categoryId };
@@ -146,21 +147,36 @@ export class CustomerShopService {
       const categoryPage = categories.length <= 48 ? 0 : Math.floor(Math.max(0, categories.findIndex(row => row.id === categoryId)) / 24);
       return { rows, info, total, categoryPage };
     }, { isolationLevel: 'RepeatableRead' });
+    const basket = options.browsingOnly ? null : options.basket ?? await this.cart.get(identity.userId);
     const context: ShopContext = { page: info.page, origin: 'category', categoryId };
     const buttons: Button[][] = [];
     const names = rows.map(p => short(p.name, 30));
     const photos = rows.map(p => p.images.map(image => productPhoto(image.url)).find(photo => photo !== undefined));
     const gallery: InputRichBlock[] = [];
     for (let index = 0; index < rows.length; index += 2) {
-      const pair = rows.slice(index, index + 2).map(p => ({
-        text: (names.filter(name => name === short(p.name, 30)).length > 1 ? short(p.name, 24) + ' · №' + p.id : short(p.name, 30)) +
-          ' · ' + amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)),
-        callback_data: productData(p.id, context),
-      }));
-      buttons.push(pair);
       // Keep every product selectable; a missing photo degrades the whole page, never shifts the grid.
       if (photos.every(photo => photo !== undefined)) gallery.push({ type: 'collage', blocks: photos.slice(index, index + 2).filter(photo => photo !== undefined) });
-      gallery.push({ type: 'buttons', buttons: pair });
+      for (const source of rows.slice(index, index + 2)) {
+        const item = basket?.items.find(item => item.productId === source.id);
+        const p = { ...source, ...item?.product };
+        const row: Button[] = [{
+          text: (names.filter(name => name === short(source.name, 30)).length > 1 ? short(p.name, 24) + ' · №' + p.id : short(p.name, 30)) +
+            ' · ' + amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)) +
+            (item ? '\n🛒 ' + quantity(item.qty, item.quantityUnit ?? p.unit) : ''),
+          callback_data: productData(p.id, context), style: 'primary',
+        }];
+        if (!basket) row.push({ text: '📱 Добавить в корзину', callback_data: 'verify_phone' });
+        else if (item && item.status !== 'AVAILABLE') row.push({ text: '⚠️ Проверить корзину', callback_data: 'cart' });
+        else {
+          const current = item?.qty ?? 0, delta = current ? p.step : p.min;
+          if (current) row.push({ text: '−', ...(current === p.step || cartQuantityValid(current - p.step, p.min, p.step)
+            ? { callback_data: adjustData(basket.revision, p.id, -p.step, p.unit, context, true) } : { disabled: {} }) });
+          const canAdd = cartQuantityValid(current + delta, p.min, p.step) && (!variableWeight(p) || current + delta <= 100);
+          row.push({ text: current ? '+' : '🛒 Добавить в корзину', style: 'success', ...(canAdd
+            ? { callback_data: adjustData(basket.revision, p.id, delta, p.unit, context, true) } : { disabled: {} }) });
+        }
+        buttons.push(row); gallery.push({ type: 'buttons', buttons: row });
+      }
     }
     const nav: Button[] = [];
     if (info.page) nav.push({ text: '← Предыдущие товары', callback_data: shoppingData('l', categoryId, info.page - 1) });
@@ -168,8 +184,9 @@ export class CustomerShopService {
     const title = short(category.name, 100);
     const summary = total ? 'Товары ' + info.first + '–' + info.last + ' из ' + total : 'Товаров пока нет.';
     return customerShow(target, {
-      text: title + '\n\n' + summary + (info.pages > 1 ? '\n' + info.label : ''),
-      rich: { blocks: [heading(title), paragraph(summary + (info.pages > 1 ? '\n' + info.label : '')), ...gallery] },
+      text: title + '\n\n' + summary + (info.pages > 1 ? '\n' + info.label : '') + (options.feedback ? '\n\n' + options.feedback : ''),
+      rich: { blocks: [heading(title), paragraph(summary + (info.pages > 1 ? '\n' + info.label : '')),
+        ...(options.feedback ? [paragraph(options.feedback)] : []), ...gallery] },
       keyboard: { inline_keyboard: [...buttons, ...(nav.length ? [nav] : []),
         [{ text: '← Категории', callback_data: shoppingData('c', categoryPage) }], ...navigation] },
     });
@@ -204,18 +221,20 @@ export class CustomerShopService {
     const canAdd = !inCart || inCart.status === 'AVAILABLE';
     const controls: Button[][] = [];
     const mutation = (delta: number, label?: string): Button => ({
-      text: (label ?? (delta < 0 ? '−' : '+') + quantity(Math.abs(delta), p.unit)) + ' · ' + (delta < 0 ? '−' : '') + hint(Math.abs(delta)),
+      text: label ?? (delta < 0 ? '➖ Уменьшить' : '➕ Увеличить'),
       callback_data: adjustData(basket.revision, p.id, delta, p.unit, context),
       ...(delta > 0 ? { style: 'success' as const } : {}),
     });
     if (canAdd) {
-      if (current === p.step || (current > p.step && cartQuantityValid(current - p.step, p.min, p.step))) controls.push([mutation(-p.step)]);
+      const row: Button[] = [];
+      if (current === p.step || (current > p.step && cartQuantityValid(current - p.step, p.min, p.step))) row.push(mutation(-p.step));
       {
-        const initialMinimum = !current && p.min !== p.step;
-        const delta = initialMinimum ? p.min : p.step, next = current + delta;
-        try { if (cartQuantityValid(next, p.min, p.step) && (!variableWeight(p) || next <= 100)) controls.push([mutation(delta, initialMinimum ? 'Минимум: ' + quantity(p.min, p.unit) : undefined)]); }
+        const delta = current ? p.step : p.min, next = current + delta;
+        try { if (cartQuantityValid(next, p.min, p.step) && (!variableWeight(p) || next <= 100)) row.push(mutation(delta,
+          current ? undefined : '🛒 Добавить в корзину · ' + quantity(delta, p.unit) + ' · ' + hint(delta))); }
         catch (error) { if (!(error instanceof BadRequestException)) throw error; }
       }
+      if (row.length) controls.push(row);
     }
     const selection = quantity(current, inCart?.quantityUnit ?? p.unit) + (inCart ? ' · ' + estimate(inCart.lineTotal) : '');
     const detailBlocks: InputRichBlock[] = options.details && p.description ? [{ type: 'details', summary: 'Описание', blocks: [paragraph(short(p.description, 1000))] }] : [];
@@ -227,6 +246,8 @@ export class CustomerShopService {
       (options.details && p.description ? '\n\n' + short(p.description, 1000) : '');
     return customerShow(target, {
       text,
+      fallback: text.split('\n').map((line, index) => line.startsWith('В корзине этого товара: ')
+        ? ['В корзине: ', bold(selection)] : index === 0 ? bold(line) : line),
       ...(!photo ? { mediaReason: p.images.length ? 'invalid_url' as const : 'no_image' as const } : {}),
       rich: { blocks: [heading(short(p.name, 180)), ...(options.feedback ? [paragraph(bold(options.feedback))] : []),
         ...(photo ? [photo] : []), paragraph(price + '\n' + rules),
@@ -243,9 +264,11 @@ export class CustomerShopService {
   private async adjust(target: CustomerTarget, identity: CustomerIdentity, action: Extract<ShoppingAction, { kind: 'adjust' }>) {
     const before = await this.cart.get(identity.userId);
     const context: ShopContext = { page: action.page, origin: action.origin, ...(action.categoryId === undefined ? {} : { categoryId: action.categoryId }) };
+    const show = (basket: Basket, feedback: string) => action.inCategory && action.categoryId !== undefined
+      ? this.products(target, identity, action.categoryId, action.page, { basket, feedback })
+      : this.product(target, identity, action.productId, { basket, context, feedback });
     if (before.revision !== action.revision) {
-      await this.product(target, identity, action.productId, { basket: before, context,
-        feedback: 'Корзина уже изменилась. Ниже — актуальное количество. Старое действие не применено.' });
+      await show(before, 'Корзина уже изменилась. Ниже — актуальное количество. Старое действие не применено.');
       throw new ConflictException('Корзина уже изменилась');
     }
     const old = before.items.find(item => item.productId === action.productId), current = old?.qty ?? 0;
@@ -261,14 +284,13 @@ export class CustomerShopService {
       // No mutation replay, even for a lost response after commit. A read also waits for the cart lock.
       try {
         const latest = await this.cart.get(identity.userId);
-        await this.product(target, identity, action.productId, { basket: latest, context,
-          feedback: 'Изменение не подтверждено. Корзина перечитана — проверьте количество перед следующим действием.' });
+        await show(latest, 'Изменение не подтверждено. Корзина перечитана — проверьте количество перед следующим действием.');
       } catch { /* Keep the old card; its revision remains fenced by CartService. */ }
       throw error;
     }
     const feedback = cartFeedback(before, basket, action.productId);
     if (context.origin === 'basket') return this.basket(target, identity, context.page, basket, feedback);
-    return this.product(target, identity, action.productId, { basket, context, feedback });
+    return show(basket, feedback);
   }
   async basket(target: CustomerTarget, identity: CustomerIdentity, page = 0, saved?: Basket, feedback?: string) {
     const basket = saved ?? await this.cart.get(identity.userId);
@@ -412,7 +434,7 @@ export class CustomerShopService {
       case 'categories':
         return this.categories(target, action.page);
       case 'products':
-        return this.products(target, action.categoryId, action.page);
+        return this.products(target, identity, action.categoryId, action.page, { browsingOnly });
       case 'product':
         return this.product(target, identity, action.productId, { browsingOnly });
       case 'open':

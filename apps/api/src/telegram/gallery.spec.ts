@@ -8,6 +8,7 @@ import { customerShow } from './customer-send.js';
 import { shoppingAction } from './shopping-callback.js';
 import { richMessage, validScreen } from './rich.js';
 import { mapPhotos } from './media.js';
+import { deliverScreen } from './delivery.js';
 
 vi.mock('./customer-send.js', () => ({ customerShow: vi.fn(async () => true) }));
 const target = { chatId: 123 }, identity = { id: 1, userId: 2 };
@@ -24,12 +25,13 @@ function setup(total: number, missing = -1) {
         return { ...row, images: row.id === missing ? [] : row.images };
       })), findFirst: vi.fn(async ({ where }: { where: { id: number } }) => product(where.id)) }, $transaction: vi.fn() };
   db.$transaction.mockImplementation(async (run: (db: unknown) => Promise<unknown>) => run(db));
-  const service = new CustomerShopService(db as unknown as DbService, {} as CartService, {} as CustomerCheckoutService, {} as OrderService, {} as QuickShopService);
-  return { db, service };
+  const cart = { get: vi.fn(async () => ({ revision: '11111111-1111-4111-8111-111111111111', items: [], goodsTotal: 0 })) };
+  const service = new CustomerShopService(db as unknown as DbService, cart as unknown as CartService, {} as CustomerCheckoutService, {} as OrderService, {} as QuickShopService);
+  return { db, service, cart };
 }
 const screen = () => vi.mocked(customerShow).mock.calls.at(-1)![1];
 beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('ORDER_SITE_URL', 'https://shop.example'); });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 it.each([0, 1, 8, 17])('shows %s products without a duplicate text list or single-page label', async total => {
   const { service } = setup(total);
@@ -55,7 +57,7 @@ it.each([{ images: [] }, { images: [{ url: 'https://evil.example/private.jpg', a
 it('binds each selection to its real ID and retains the page even if catalog ordering changes', async () => {
   const { service, db } = setup(25);
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 2 });
-  const button = screen().keyboard.inline_keyboard[0]![1]!;
+  const button = screen().keyboard.inline_keyboard[1]![0]!;
   if (!('callback_data' in button)) throw new Error('No callback');
   const action = shoppingAction(button.callback_data);
   expect(action).toMatchObject({ kind: 'open', productId: 117, page: 2, origin: 'category' });
@@ -69,7 +71,7 @@ it('disambiguates identical truncated names with stable product identifiers', as
   const { service, db } = setup(2);
   db.product.findMany.mockResolvedValueOnce([101,102].map(id => ({ ...product(id), name: 'Очень длинное название одного и того же вида продукции ' + id })));
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
-  const [first, second] = screen().keyboard.inline_keyboard[0]!;
+  const first = screen().keyboard.inline_keyboard[0]![0], second = screen().keyboard.inline_keyboard[1]![0];
   expect(first!.text).not.toBe(second!.text);
   expect(first!.text).toContain('№101'); expect(second!.text).toContain('№102');
 });
@@ -78,14 +80,21 @@ it('places each pair of uncaptioned photos directly above its named and priced p
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
   const blocks = richMessage(screen()).blocks;
   for (let row = 0; row < 4; row++) {
-    const collage = blocks[2 + row * 2], buttons = blocks[3 + row * 2];
+    const collage = blocks[2 + row * 3];
     expect(collage).toMatchObject({ type: 'collage', blocks: [{ type: 'photo' }, { type: 'photo' }] });
-    if (collage?.type !== 'collage' || buttons?.type !== 'buttons') throw new Error('Missing gallery row');
+    if (collage?.type !== 'collage') throw new Error('Missing gallery row');
     expect(collage.blocks).toEqual([0, 1].map(col => ({ type: 'photo', photo: { type: 'photo',
       media: 'https://shop.example/uploads/products/item-' + (100 + row * 2 + col) + '.webp' } })));
-    expect(buttons.buttons.map(button => button.text)).toEqual([0, 1].map(col => 'Товар ' + (100 + row * 2 + col) + ' · 110 ₽ / 1 шт.'));
-    expect(buttons.buttons.map(button => 'callback_data' in button ? shoppingAction(button.callback_data) : null)).toEqual(
-      [0, 1].map(col => ({ kind: 'open', productId: 100 + row * 2 + col, origin: 'category', categoryId: 3, page: 0 })));
+    for (const col of [0, 1]) {
+      const buttons = blocks[3 + row * 3 + col];
+      if (buttons?.type !== 'buttons') throw new Error('Missing product row');
+      expect(buttons.buttons.map(button => button.text)).toEqual(['Товар ' + (100 + row * 2 + col) + ' · 110 ₽ / 1 шт.', '🛒 Добавить в корзину']);
+      expect(buttons.buttons.map(button => 'callback_data' in button ? shoppingAction(button.callback_data) : null)).toEqual([
+        { kind: 'open', productId: 100 + row * 2 + col, origin: 'category', categoryId: 3, page: 0 },
+        { kind: 'adjust', productId: 100 + row * 2 + col, origin: 'category', categoryId: 3, page: 0,
+          delta: 1, quantityUnit: 'PIECE', revision: '11111111-1111-4111-8111-111111111111', inCategory: true },
+      ]);
+    }
   }
 });
 it('refreshes button prices without baking text into or replacing the product photograph', async () => {
@@ -94,6 +103,25 @@ it('refreshes button prices without baking text into or replacing the product ph
   const initial = screen();
   db.product.findMany.mockResolvedValueOnce([product(100), { ...product(101), price: 12500 }]);
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
-  expect(screen().keyboard.inline_keyboard[0]![1]!.text).toBe('Товар 101 · 125 ₽ / 1 шт.');
+  expect(screen().keyboard.inline_keyboard[1]![0]!.text).toBe('Товар 101 · 125 ₽ / 1 шт.');
   expect(screen().rich!.blocks.filter(block => block.type === 'collage')).toEqual(initial.rich!.blocks.filter(block => block.type === 'collage'));
+});
+it('offers phone verification for every public add button without reading the private basket', async () => {
+  const { service, cart } = setup(8);
+  await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 }, true);
+  expect(cart.get).not.toHaveBeenCalled();
+  const buttons = screen().keyboard.inline_keyboard.flat();
+  expect(buttons.filter(button => 'callback_data' in button && button.callback_data === 'verify_phone')).toHaveLength(8);
+  expect(buttons.some(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'adjust')).toBe(false);
+});
+it('retains exact open/add product bindings and inline rows in HTML fallback', async () => {
+  const { service } = setup(8);
+  await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
+  const value = screen();
+  vi.stubEnv('TELEGRAM_CUSTOMER_BOT_TOKEN', 'fixture'); vi.stubEnv('TELEGRAM_CUSTOMER_GATEWAY_URL', ''); vi.stubEnv('TELEGRAM_RICH_CONFIG_FILE', '');
+  const fetcher = vi.fn<typeof fetch>(async () => Response.json({ ok: true, result: { message_id: 19 } })); vi.stubGlobal('fetch', fetcher);
+  expect(await deliverScreen('customer', target, value)).toMatchObject({ status: 'sent' });
+  const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body));
+  expect(body).toMatchObject({ parse_mode: 'HTML', reply_markup: value.keyboard });
+  expect(body).not.toHaveProperty('rich_message'); expect(body.text).not.toContain('Товар 100');
 });

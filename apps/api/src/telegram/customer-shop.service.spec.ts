@@ -87,7 +87,9 @@ it('shows acknowledged cart quantity and immediate priced step controls without 
   expect(screen().text).toContain('В корзине этого товара: 500 г · ≈ 160 ₽');
   expect(screen().text).toContain('Вся корзина: 1 поз. · ≈ 160 ₽');
   const buttons = screen().keyboard.inline_keyboard.flat();
-  expect(buttons.map(button => button.text)).toContain('+250 г · ≈ 80 ₽');
+  expect(buttons.map(button => button.text)).toContain('➕ Увеличить');
+  expect(screen().keyboard.inline_keyboard[0]?.map(button => button.text)).toEqual(['➖ Уменьшить', '➕ Увеличить']);
+  expect(fallbackHtml(screen().text, screen().fallback)).toContain('<b>500 г · ≈ 160 ₽</b>');
   expect(buttons.map(button => button.text)).not.toContain('+500 г · ≈ 160 ₽');
   expect(buttons.every(button => !button.text.startsWith('➕ Добавить'))).toBe(true);
 });
@@ -118,7 +120,7 @@ it('shows whole weighted goods as pieces with a per-kilogram price and no invent
   const s = setup(whole, 1, null);
   await s.service.handle(target, identity, { kind: 'product', productId: 11, qty: 1 });
   expect(screen().text).toContain('Цена: 650 ₽ / 1 кг');
-  expect(screen().keyboard.inline_keyboard.flat().map(button => button.text)).toContain('+1 шт. · После взвешивания');
+  expect(screen().keyboard.inline_keyboard.flat().map(button => button.text)).toContain('➕ Увеличить');
   expect(screen().text).toContain('В корзине этого товара: 1 шт. · после взвешивания');
   expect(screen().text).not.toContain('1 000 шт.');
   expect(screen().text).not.toContain('≈ 0');

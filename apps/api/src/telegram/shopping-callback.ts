@@ -52,7 +52,7 @@ export type ShoppingAction =
   | { kind: 'products'; categoryId: number; page: number }
   | { kind: 'product'; productId: number; qty: number }
   | ({ kind: 'open' | 'details'; productId: number } & ShopContext)
-  | ({ kind: 'adjust'; productId: number; delta: number; quantityUnit: SaleUnit; revision: string } & ShopContext)
+  | ({ kind: 'adjust'; productId: number; delta: number; quantityUnit: SaleUnit; revision: string; inCategory?: true } & ShopContext)
   | { kind: 'add'; productId: number; qty: number; revision: string; quantityUnit?: SaleUnit }
   | { kind: 'plus' | 'minus' | 'remove'; productId: number; revision: string; page?: number }
   | { kind: 'clear'; revision: string }
@@ -112,14 +112,15 @@ export function shoppingAction(data: string): ShoppingAction | null {
       kind: parts[1] === 'o' ? 'open' : 'details', productId, ...context,
     } : null;
   }
-  if (parts[0] === 's' && parts[1] === 'u' && parts.length === 8) {
+  if (parts[0] === 's' && (parts[1] === 'u' || parts[1] === 'j') && parts.length === 8) {
     const revision = expand(parts[2]), productId = number(parts[3], id), value = parts[4] ?? '';
     const delta = /^[pm]/.test(value) ? number(value.slice(1), qty) : null;
     const unit = quantityUnit(parts[5]), p = number(parts[6], page), origin = parts[7];
     const context = p === null ? null : shopContext(origin, p);
+    if (parts[1] === 'j' && (!context || context.origin !== 'category' || context.categoryId === undefined)) return null;
     return revision && productId && delta && context && unit ? {
         kind: 'adjust', productId, delta: value[0] === 'm' ? -delta : delta, revision,
-        quantityUnit: unit, ...context,
+        quantityUnit: unit, ...context, ...(parts[1] === 'j' ? { inCategory: true as const } : {}),
       } : null;
   }
   const [prefix, action, a, b, c, unit, ...extra] = data.split(':');
@@ -217,7 +218,7 @@ export type ShopContext = { page: number; origin: 'category' | 'basket' | 'quick
 export function productData(productId: number, context: ShopContext, details = false) {
   return shoppingData(details ? 'd' : 'o', productId, context.page, contextCode(context));
 }
-export function adjustData(revision: string, productId: number, delta: number, unit: SaleUnit, context: ShopContext) {
-  return shoppingData('u', revision, productId, (delta < 0 ? 'm' : 'p') + Math.abs(delta).toString(36),
+export function adjustData(revision: string, productId: number, delta: number, unit: SaleUnit, context: ShopContext, inCategory = false) {
+  return shoppingData(inCategory ? 'j' : 'u', revision, productId, (delta < 0 ? 'm' : 'p') + Math.abs(delta).toString(36),
     context.origin === 'category' && context.categoryId !== undefined ? unitCodes[unit] : unit, context.page, contextCode(context));
 }

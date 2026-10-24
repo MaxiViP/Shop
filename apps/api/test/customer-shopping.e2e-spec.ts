@@ -318,6 +318,69 @@ describe.skipIf(!process.env.DATABASE_URL)(
       return o;
     }
 
+    it.each([
+      { unit: 'GRAM', rich: true, min: 500, step: 100, variable: false },
+      { unit: 'PIECE', rich: false, min: 1, step: 1, variable: false },
+      { unit: 'PACK', rich: false, min: 2, step: 1, variable: false },
+      { unit: 'BUNCH', rich: false, min: 3, step: 1, variable: false },
+      { unit: 'PIECE', rich: true, min: 1, step: 1, variable: true },
+    ] satisfies { unit: Unit; rich: boolean; min: number; step: number; variable: boolean }[])(
+      'direct category $unit/$variable Rich=$rich binds min/step and ignores duplicate/stale actions on the same page', async spec => {
+        const f = await fixture(spec.unit), handler = bot(), directory = await mkdtemp(join(tmpdir(), 'category-ux34-'));
+        const config = join(directory, 'policy.json');
+        await writeFile(config, JSON.stringify({ enabled: spec.rich, global: { customer: true } })); vi.stubEnv('TELEGRAM_RICH_CONFIG_FILE', config);
+        await db.product.update({ where: { id: f.product.id }, data: { min: spec.min, step: spec.step, sort: 100,
+          name: 'Очень длинное название продукции '.repeat(8),
+          ...(spec.variable ? { saleModel: 'WHOLE_VARIABLE_WEIGHT', priceUnit: 'GRAM', priceQty: 1000, estimatedWeightGrams: null } : {}) } });
+        await db.product.createMany({ data: Array.from({ length: 8 }, (_, index) => ({ name: 'Другой товар ' + index,
+          slug: randomUUID(), categoryId: f.category.id, price: 11000, unit: 'PIECE', min: 1, step: 1, portionQty: 1 })) });
+        const payloads = () => fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+        const button = (delta: number) => {
+          const buttons = payloads().flatMap(payload => payload.reply_markup?.inline_keyboard?.flat() ??
+            (payload.rich_message?.blocks ?? []).flatMap((block: { buttons?: { callback_data?: string }[] }) => block.buttons ?? [])).reverse();
+          const found = buttons.find((button: { callback_data?: string }) => {
+            const action = shoppingAction(button.callback_data ?? '');
+            return action?.kind === 'adjust' && action.inCategory && action.productId === f.product.id && action.delta === delta;
+          });
+          if (!found?.callback_data) throw new Error('Bound category callback missing');
+          return found.callback_data as string;
+        };
+        try {
+          await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 1)));
+          const write = vi.spyOn(cart, 'change'), first = button(spec.min);
+          const update = { ...cb(f.telegramId, first), update_id: 4000000 + f.user.id * 10 };
+          await Promise.all([handler.handle(update), handler.handle(update)]);
+          expect(write).toHaveBeenCalledTimes(1); expect((await cart.get(f.user.id)).items[0]?.qty).toBe(spec.min);
+          await handler.handle(cb(f.telegramId, first));
+          expect(write).toHaveBeenCalledTimes(1);
+          const plus = button(spec.step);
+          await Promise.all([handler.handle(cb(f.telegramId, plus)), handler.handle(cb(f.telegramId, plus))]);
+          expect(write).toHaveBeenCalledTimes(2); expect((await cart.get(f.user.id)).items[0]?.qty).toBe(spec.min + spec.step);
+          await handler.handle(cb(f.telegramId, button(-spec.step)));
+          expect((await cart.get(f.user.id)).items[0]?.qty).toBe(spec.min);
+          const last = payloads().filter(payload => payload.rich_message || payload.parse_mode === 'HTML').at(-1);
+          expect(JSON.stringify(last)).toContain('Страница 2 из 2');
+          expect(JSON.stringify(last)).toContain(shoppingData('l', f.category.id, 0));
+          expect(JSON.stringify(last)).toContain(productData(f.product.id, { origin: 'category', categoryId: f.category.id, page: 1 }));
+          expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+        } finally { await rm(directory, { recursive: true, force: true }); }
+      });
+    it('requires own phone verification instead of mutating the basket from a saved category callback', async () => {
+      const f = await fixture('PIECE'), handler = bot();
+      await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 0)));
+      const buttons = sent().flatMap(screen => screen.reply_markup?.inline_keyboard?.flat() ?? []);
+      const add = buttons.find(button => {
+        const action = shoppingAction(button.callback_data ?? ''); return action?.kind === 'adjust' && action.inCategory;
+      });
+      if (!add?.callback_data) throw new Error('Direct add callback missing');
+      await db.telegramIdentity.update({ where: { id: f.identity.id }, data: { phoneVerified: false } });
+      const write = vi.spyOn(cart, 'change'), read = vi.spyOn(cart, 'get'); fetcher.mockClear();
+      await handler.handle(cb(f.telegramId, add.callback_data));
+      expect(write).not.toHaveBeenCalled(); expect(read).not.toHaveBeenCalled();
+      expect(JSON.stringify(sent())).toContain('request_contact');
+      expect((await cart.get(f.user.id)).items).toHaveLength(0);
+    });
+
     it('global Rich preserves catalog, min/step, cart, checkout and immediate HTML rollback outside the old allowlist', async () => {
       const f = await fixture('GRAM'), handler = bot(), directory = await mkdtemp(join(tmpdir(), 'customer-rich-global-'));
       const config = join(directory, 'policy.json');
@@ -1071,7 +1134,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await bot().handle(
         cb(f.telegramId, shoppingData('v', f.product.id, f.product.min)),
       );
-      const screen = sent().find((x) => x.text?.includes('В корзине этого товара:'));
+      const screen = sent().find((x) => x.text?.includes('В корзине:'));
       expect(screen?.text).toContain('500 г');
       const details = screen?.reply_markup?.inline_keyboard?.flat().find(button => button.text === '📷 Фото и описание');
       expect(shoppingAction(details?.callback_data ?? '')).toMatchObject({ kind: 'details', productId: f.product.id });

@@ -7,7 +7,7 @@ import type { OrderService } from '../order/order.service.js';
 import type { CustomerCheckoutService } from './customer-checkout.service.js';
 import { CustomerShopService } from './customer-shop.service.js';
 import { customerShow } from './customer-send.js';
-import { shoppingAction, type ShoppingAction } from './shopping-callback.js';
+import { shoppingAction, adjustData, type ShoppingAction } from './shopping-callback.js';
 import { cartQuantityValid } from '../order/cart-quote.js';
 import { requestedLine } from '../order/pricing.js';
 import { writeFileSync } from 'node:fs';
@@ -62,6 +62,65 @@ function adjustment(delta: number) {
 beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('ORDER_SITE_URL', 'https://shop.example'); });
 afterEach(() => vi.unstubAllEnvs());
 
+const categoryAdjustment = (delta: number) => {
+  const action = actions().find((action): action is Extract<ShoppingAction, { kind: 'adjust' }> =>
+    action?.kind === 'adjust' && action.productId === 11 && action.delta === delta && action.inCategory === true);
+  if (!action) throw new Error('Category adjustment missing');
+  return action;
+};
+it.each([
+  { ...dill, min: 3, step: 1 },
+  { ...dill, unit: 'GRAM', priceUnit: 'GRAM', saleModel: 'WEIGHT_LOOSE', priceQty: 1000, min: 500, step: 100 },
+  { ...dill, unit: 'PIECE', priceUnit: 'PIECE', saleModel: 'PIECE_FIXED', min: 1, step: 1 },
+  { ...dill, unit: 'PACK', priceUnit: 'PACK', saleModel: 'PACK', min: 2, step: 1 },
+  { ...dill, unit: 'PIECE', priceUnit: 'GRAM', saleModel: 'WHOLE_VARIABLE_WEIGHT', priceQty: 1000, min: 1, step: 1 },
+] satisfies Source[])('adds $saleModel from a category at min, then adjusts by step and rejects stale callbacks on the same page', async product => {
+  const s = setup(product);
+  await s.service.handle(target, identity, { kind: 'products', categoryId: 2, page: 1 });
+  const first = categoryAdjustment(product.min);
+  const photos = screen().rich!.blocks.filter(block => block.type === 'collage');
+  await s.service.handle(target, identity, first);
+  expect(s.snapshot().items[0]?.qty).toBe(product.min);
+  expect(screen().text).toMatch(/^Зелень/); expect(screen().text).toContain('Страница 2 из 5');
+  expect(screen().keyboard.inline_keyboard.flat().find(button => {
+    const action = 'callback_data' in button ? shoppingAction(button.callback_data) : null;
+    return action?.kind === 'open' && action.productId === 11;
+  })?.text).toContain('🛒');
+  expect(screen().rich!.blocks.filter(block => block.type === 'collage')).toEqual(photos);
+  expect(s.db.product.findFirst).not.toHaveBeenCalled();
+  await expect(s.service.handle(target, identity, first)).rejects.toBeInstanceOf(ConflictException);
+  expect(s.cart.change).toHaveBeenCalledTimes(1); expect(screen().text).toContain('Старое действие не применено');
+  expect(screen().text).not.toContain('✅ Добавлен');
+  await s.service.handle(target, identity, categoryAdjustment(product.step));
+  expect(s.snapshot().items[0]?.qty).toBe(product.min + product.step);
+  await s.service.handle(target, identity, categoryAdjustment(-product.step));
+  expect(s.snapshot().items[0]?.qty).toBe(product.min);
+  if (product.min > product.step) expect(actions().some(action => action?.kind === 'adjust' && action.productId === 11 && action.delta < 0)).toBe(false);
+  else {
+    await s.service.handle(target, identity, categoryAdjustment(-product.step));
+    expect(s.snapshot().items).toHaveLength(0); expect(screen().text).toContain('Удалён:');
+  }
+  expect(validScreen(screen())).toBe(true);
+});
+it('rereads a category after an unknown committed mutation without replaying it or confirming success', async () => {
+  const s = setup();
+  await s.service.handle(target, identity, { kind: 'products', categoryId: 2, page: 1 });
+  s.loseNextResponse();
+  await expect(s.service.handle(target, identity, categoryAdjustment(1))).rejects.toThrow('Lost response');
+  expect(s.cart.change).toHaveBeenCalledTimes(1); expect(s.snapshot().items[0]?.qty).toBe(1);
+  expect(screen().text).toMatch(/^Зелень/); expect(screen().text).toContain('Изменение не подтверждено');
+  expect(screen().text).not.toContain('✅ Добавлен');
+});
+it('keeps largest direct-category callbacks inside 64 bytes and rejects a missing/foreign category context', () => {
+  const context = { origin: 'category' as const, categoryId: 2147483647, page: 10000 };
+  const data = adjustData('11111111-1111-4111-8111-111111111111', 2147483647, 1000000, 'PIECE', context, true);
+  expect(Buffer.byteLength(data)).toBeLessThanOrEqual(64);
+  expect(shoppingAction(data)).toEqual({ ...context, kind: 'adjust', productId: 2147483647, delta: 1000000,
+    quantityUnit: 'PIECE', revision: '11111111-1111-4111-8111-111111111111', inCategory: true });
+  for (const origin of ['basket', 'quick', 'category'] as const)
+    expect(shoppingAction(adjustData('11111111-1111-4111-8111-111111111111', 11, 1, 'PIECE', { origin, page: 0 }, true))).toBeNull();
+});
+
 it('repeats single steps and keeps the acknowledged quantity across basket and product navigation', async () => {
   const s = setup();
   await s.service.handle(target, identity, { kind: 'open', productId: 11, page: 2, origin: 'category' });
@@ -92,7 +151,7 @@ it('removes the final bunch immediately and never creates a zero-quantity line',
 it('labels estimated fixed-unit action prices and receipts as preliminary', async () => {
   const s = setup({ ...dill, priceStatus: 'ESTIMATED' });
   await s.service.handle(target, identity, { kind: 'open', productId: 11, page: 0, origin: 'category' });
-  expect(screen().keyboard.inline_keyboard.flat().map(button => button.text)).toContain('+1 пучок · ≈ 165 ₽');
+  expect(screen().keyboard.inline_keyboard.flat().map(button => button.text)).toContain('🛒 Добавить в корзину · 1 пучок · ≈ 165 ₽');
   await s.service.handle(target, identity, adjustment(1));
   expect(screen().text).toContain('✅ Добавлен: Укроп\n+1 пучок · +≈ 165 ₽');
 });
@@ -114,14 +173,14 @@ it('reads after a lost write response, with no blind replay or invented receipt'
 it('uses configured weight steps and server line rounding for immediate action estimates', async () => {
   const s = setup({ ...dill, unit: 'GRAM', priceUnit: 'GRAM', saleModel: 'WEIGHT_LOOSE', min: 500, step: 500, priceQty: 1000, price: 29000 });
   await s.service.handle(target, identity, { kind: 'open', productId: 11, page: 0, origin: 'category' });
-  expect(screen().keyboard.inline_keyboard.flat().map(button => button.text)).toContain('+500 г · ≈ 145 ₽');
+  expect(screen().keyboard.inline_keyboard.flat().map(button => button.text)).toContain('🛒 Добавить в корзину · 500 г · ≈ 145 ₽');
   expect(actions().filter(action => action?.kind === 'adjust')).toHaveLength(1);
   await s.service.handle(target, identity, adjustment(500)); expect(s.snapshot().items[0]?.qty).toBe(500);
 });
 it('keeps whole goods in pieces and includes media on ordinary opening and edits', async () => {
   const s = setup({ ...dill, unit: 'PIECE', priceUnit: 'GRAM', saleModel: 'WHOLE_VARIABLE_WEIGHT', priceQty: 1000, price: 77000 });
   await s.service.handle(target, identity, { kind: 'open', productId: 11, page: 1, origin: 'category' });
-  expect(screen().keyboard.inline_keyboard.flat().map(button => button.text)).toContain('+1 шт. · После взвешивания');
+  expect(screen().keyboard.inline_keyboard.flat().map(button => button.text)).toContain('🛒 Добавить в корзину · 1 шт. · После взвешивания');
   expect(screen().rich?.blocks.some(block => block.type === 'photo')).toBe(true);
   expect(adjustment(1).quantityUnit).toBe('PIECE');
   await s.service.handle(target, identity, { kind: 'details', productId: 11, page: 1, origin: 'category' });
@@ -243,7 +302,7 @@ it('disables a decrease that would cross min instead of silently removing more t
 it('starts above-step minimum goods at the actual minimum, then offers only one configured step', async () => {
   const s = setup({ ...dill, min: 3, step: 1 });
   await s.service.handle(target, identity, { kind: 'open', productId: 11, page: 0, origin: 'category' });
-  expect(screen().keyboard.inline_keyboard.flat().map(button => button.text)).toContain('Минимум: 3 пучка · 495 ₽');
+  expect(screen().keyboard.inline_keyboard.flat().map(button => button.text)).toContain('🛒 Добавить в корзину · 3 пучка · 495 ₽');
   await s.service.handle(target, identity, adjustment(3));
   expect(s.snapshot().items[0]?.qty).toBe(3);
   expect(screen().text).toContain('✅ Добавлен: Укроп\n+3 пучка · +495 ₽');
