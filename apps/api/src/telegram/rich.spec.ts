@@ -221,6 +221,23 @@ const galleryScreen = (count = 8): TelegramScreen => ({ ...screen, rich: { block
     blocks: Array.from({ length: Math.min(2, count - row * 2) }, (_, col) => ({ type: 'photo' as const,
       photo: { type: 'photo' as const, media: 'https://shop.example/uploads/products/gallery-' + (row * 2 + col) + '.webp' } })) })),
 ] } });
+it('prepares standalone category photos at 4:3, keeps thumbnail file_ids separate and never sends internal layout flags', async () => {
+  const path = 'https://shop.example/uploads/products/' + randomUUID() + '.webp';
+  const photo = { type: 'photo' as const, photo: { type: 'photo' as const, media: path } };
+  const value: TelegramScreen = { ...screen, thumbnailPhotos: true, rich: { blocks: [photo] } };
+  vi.mocked(localPhoto).mockResolvedValueOnce(new Uint8Array([255,216,255,217]));
+  fetcher.mockResolvedValueOnce(Response.json({ ok: true, result: { message_id: 92, rich_message: { blocks: [
+    { type: 'photo', photo: [{ file_id: 'category-landscape' }] },
+  ] } } }));
+  await deliverScreen('customer', { chatId: 123 }, value);
+  expect(localPhoto).toHaveBeenCalledWith(path, undefined, true);
+  const form = fetcher.mock.calls[0]![1]!.body as FormData;
+  expect(form.get('rich_message')).not.toContain('thumbnailPhotos');
+  await deliverScreen('customer', { chatId: 123, messageId: 92 }, value);
+  expect(body(1).rich_message.blocks[0].photo.media).toBe('category-landscape');
+  await deliverScreen('customer', { chatId: 123 }, { ...screen, rich: { blocks: [photo] } });
+  expect(body(2).rich_message.blocks[0].photo.media).toBe(path);
+});
 it('uploads all 8 nested gallery photos once, caches returned IDs per bot and preserves their tree order', async () => {
   vi.mocked(localPhoto).mockImplementation(async url => url.startsWith('https:') ? new Uint8Array([255, 216, 255, 217]) : undefined);
   const received = Array.from({ length: 4 }, (_, row) => ({ type: 'collage', blocks: Array.from({ length: 2 }, (_, col) => ({ type: 'photo', photo: [{ file_id: 'gallery-' + (row * 2 + col) }] })) }));
@@ -243,8 +260,12 @@ it('uploads all 8 nested gallery photos once, caches returned IDs per bot and pr
   expect(fetcher.mock.calls[3]![1]!.body).toBeInstanceOf(FormData);
   vi.mocked(localPhoto).mockImplementation(async () => undefined);
 });
-it.each(['missing', 'rejected', 'unknown'] as const)('degrades a %s gallery safely and retains all selection callbacks', async failure => {
+it.each([false, true].flatMap(standalone => (['missing', 'rejected', 'unknown'] as const).map(failure => ({ standalone, failure }))))('degrades a $failure gallery (standalone=$standalone) safely and retains all selection callbacks', async ({ standalone, failure }) => {
   const value = galleryScreen(2);
+  if (standalone) {
+    value.thumbnailPhotos = true;
+    value.rich!.blocks = value.rich!.blocks.flatMap(block => block.type === 'collage' ? block.blocks : [block]);
+  }
   vi.mocked(localPhoto).mockImplementation(async url => failure === 'missing' && url.endsWith('gallery-1.webp') ? undefined : new Uint8Array([255,216,255,217]));
   if (failure === 'rejected') fetcher.mockResolvedValueOnce(reject());
   if (failure === 'unknown') fetcher.mockRejectedValueOnce(new Error('lost gallery reply'));

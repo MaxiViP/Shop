@@ -335,6 +335,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await db.product.createMany({ data: Array.from({ length: 8 }, (_, index) => ({ name: 'Другой товар ' + index,
           slug: randomUUID(), categoryId: f.category.id, price: 11000, unit: 'PIECE', min: 1, step: 1, portionQty: 1 })) });
         const payloads = () => fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+        const fixedAdd = () => {
+          const payload = payloads().filter(payload => payload.rich_message || payload.parse_mode === 'HTML').at(-1);
+          const rows = payload.reply_markup?.inline_keyboard ?? (payload.rich_message?.blocks ?? [])
+            .filter((block: { type: string }) => block.type === 'buttons').map((block: { buttons: { text: string; callback_data?: string }[] }) => block.buttons);
+          const row = rows.find((row: { callback_data?: string }[]) => row.some(button => {
+            const action = shoppingAction(button.callback_data ?? '');
+            return action?.kind === 'open' && action.productId === f.product.id;
+          }));
+          expect(row).toHaveLength(2);
+          expect(row[1].text).toBe('Добавить в корзину');
+          expect(shoppingAction(row[1].callback_data)).toMatchObject({ kind: 'adjust', productId: f.product.id, inCategory: true, page: 1 });
+        };
         const button = (delta: number) => {
           const buttons = payloads().flatMap(payload => payload.reply_markup?.inline_keyboard?.flat() ??
             (payload.rich_message?.blocks ?? []).flatMap((block: { buttons?: { callback_data?: string }[] }) => block.buttons ?? [])).reverse();
@@ -347,17 +359,21 @@ describe.skipIf(!process.env.DATABASE_URL)(
         };
         try {
           await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 1)));
+          fixedAdd();
           const write = vi.spyOn(cart, 'change'), first = button(spec.min);
           const update = { ...cb(f.telegramId, first), update_id: 4000000 + f.user.id * 10 };
           await Promise.all([handler.handle(update), handler.handle(update)]);
           expect(write).toHaveBeenCalledTimes(1); expect((await cart.get(f.user.id)).items[0]?.qty).toBe(spec.min);
+          fixedAdd();
           await handler.handle(cb(f.telegramId, first));
           expect(write).toHaveBeenCalledTimes(1);
           const plus = button(spec.step);
           await Promise.all([handler.handle(cb(f.telegramId, plus)), handler.handle(cb(f.telegramId, plus))]);
           expect(write).toHaveBeenCalledTimes(2); expect((await cart.get(f.user.id)).items[0]?.qty).toBe(spec.min + spec.step);
+          fixedAdd();
           await handler.handle(cb(f.telegramId, button(-spec.step)));
           expect((await cart.get(f.user.id)).items[0]?.qty).toBe(spec.min);
+          fixedAdd();
           const last = payloads().filter(payload => payload.rich_message || payload.parse_mode === 'HTML').at(-1);
           expect(JSON.stringify(last)).toContain('Страница 2 из 2');
           expect(JSON.stringify(last)).toContain(shoppingData('l', f.category.id, 0));

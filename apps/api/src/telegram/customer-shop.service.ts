@@ -153,30 +153,37 @@ export class CustomerShopService {
     const names = rows.map(p => short(p.name, 30));
     const photos = rows.map(p => p.images.map(image => productPhoto(image.url)).find(photo => photo !== undefined));
     const gallery: InputRichBlock[] = [];
-    for (let index = 0; index < rows.length; index += 2) {
-      // Keep every product selectable; a missing photo degrades the whole page, never shifts the grid.
-      if (photos.every(photo => photo !== undefined)) gallery.push({ type: 'collage', blocks: photos.slice(index, index + 2).filter(photo => photo !== undefined) });
-      for (const source of rows.slice(index, index + 2)) {
-        const item = basket?.items.find(item => item.productId === source.id);
-        const p = { ...source, ...item?.product };
-        const row: Button[] = [{
-          text: (names.filter(name => name === short(source.name, 30)).length > 1 ? short(p.name, 24) + ' · №' + p.id : short(p.name, 30)) +
-            ' · ' + amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)) +
-            (item ? '\n🛒 ' + quantity(item.qty, item.quantityUnit ?? p.unit) : ''),
-          callback_data: productData(p.id, context), style: 'primary',
-        }];
-        if (!basket) row.push({ text: '📱 Добавить в корзину', callback_data: 'verify_phone' });
-        else if (item && item.status !== 'AVAILABLE') row.push({ text: '⚠️ Проверить корзину', callback_data: 'cart' });
-        else {
-          const current = item?.qty ?? 0, delta = current ? p.step : p.min;
-          if (current) row.push({ text: '−', ...(current === p.step || cartQuantityValid(current - p.step, p.min, p.step)
-            ? { callback_data: adjustData(basket.revision, p.id, -p.step, p.unit, context, true) } : { disabled: {} }) });
-          const canAdd = cartQuantityValid(current + delta, p.min, p.step) && (!variableWeight(p) || current + delta <= 100);
-          row.push({ text: current ? '+' : '🛒 Добавить в корзину', style: 'success', ...(canAdd
-            ? { callback_data: adjustData(basket.revision, p.id, delta, p.unit, context, true) } : { disabled: {} }) });
-        }
-        buttons.push(row); gallery.push({ type: 'buttons', buttons: row });
+    // Collage does not bind independent button rows to photo columns. Keep each product contiguous.
+    for (const [index, source] of rows.entries()) {
+      if (index) gallery.push({ type: 'divider' });
+      const photo = photos[index];
+      gallery.push(photo ?? paragraph('Фото недоступно'));
+      const item = basket?.items.find(item => item.productId === source.id);
+      const p = { ...source, ...item?.product };
+      const row: Button[] = [{
+        text: (names.filter(name => name === short(source.name, 30)).length > 1 ? short(p.name, 24) + ' · №' + p.id : short(p.name, 30)) +
+          ' · ' + amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)) +
+          (item ? '\n🛒 ' + quantity(item.qty, item.quantityUnit ?? p.unit) : ''),
+        callback_data: productData(p.id, context), style: 'primary',
+      }];
+      const controls: Button[] = [];
+      if (!basket) row.push({ text: 'Добавить в корзину', callback_data: 'verify_phone' });
+      else if (item && item.status !== 'AVAILABLE') {
+        row.push({ text: 'Добавить в корзину', disabled: {} });
+        controls.push({ text: '⚠️ Проверить корзину', callback_data: 'cart' });
       }
+      else {
+        const current = item?.qty ?? 0, delta = current ? p.step : p.min;
+        if (current) controls.push({ text: '−', ...(current === p.step || cartQuantityValid(current - p.step, p.min, p.step)
+          ? { callback_data: adjustData(basket.revision, p.id, -p.step, p.unit, context, true) } : { disabled: {} }) });
+        const canAdd = cartQuantityValid(current + delta, p.min, p.step) && (!variableWeight(p) || current + delta <= 100);
+        const add: Button = { text: 'Добавить в корзину', style: 'success', ...(canAdd
+          ? { callback_data: adjustData(basket.revision, p.id, delta, p.unit, context, true) } : { disabled: {} }) };
+        row.push(add);
+        if (current) controls.push({ ...add, text: '+' });
+      }
+      buttons.push(row); gallery.push({ type: 'buttons', buttons: row });
+      if (controls.length) { buttons.push(controls); gallery.push({ type: 'buttons', buttons: controls }); }
     }
     const nav: Button[] = [];
     if (info.page) nav.push({ text: '← Предыдущие товары', callback_data: shoppingData('l', categoryId, info.page - 1) });
@@ -184,6 +191,7 @@ export class CustomerShopService {
     const title = short(category.name, 100);
     const summary = total ? 'Товары ' + info.first + '–' + info.last + ' из ' + total : 'Товаров пока нет.';
     return customerShow(target, {
+      thumbnailPhotos: true,
       text: title + '\n\n' + summary + (info.pages > 1 ? '\n' + info.label : '') + (options.feedback ? '\n\n' + options.feedback : ''),
       rich: { blocks: [heading(title), paragraph(summary + (info.pages > 1 ? '\n' + info.label : '')),
         ...(options.feedback ? [paragraph(options.feedback)] : []), ...gallery] },

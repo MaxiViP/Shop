@@ -17,7 +17,7 @@ export type InputRichBlock =
   | { type: 'photo'; photo: { type: 'photo'; media: string }; caption?: { text: RichText } };
 export type InputRichMessage = { blocks: InputRichBlock[]; skip_entity_detection?: boolean };
 export type TelegramScreen = { text: string; keyboard: TelegramKeyboard; rich?: InputRichMessage; fallback?: RichText[];
-  buttonsAlign?: 'left'; mediaReason?: 'no_image' | 'invalid_url' };
+  buttonsAlign?: 'left'; thumbnailPhotos?: true; mediaReason?: 'no_image' | 'invalid_url' };
 
 export const bold = (text: string): RichText => ({ type: 'bold', text });
 export const marked = (text: string): RichText => ({ type: 'marked', text });

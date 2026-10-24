@@ -20,16 +20,16 @@ export function mediaDiagnostic(reason: 'no_image' | 'invalid_url' | 'media_reje
   // Fixed reason codes only: never URLs, identifiers, provider responses or credentials.
   logger.debug(reason);
 }
-export function reusePhotos(bot: BotKind, blocks: InputRichBlock[]): InputRichBlock[] {
+export function reusePhotos(bot: BotKind, blocks: InputRichBlock[], thumbnailPhotos = false): InputRichBlock[] {
   return mapPhotos(blocks, (block, thumbnail) => {
     const known = cache.get(key(bot, block.photo.media, thumbnail));
     return known && Date.now() - known.at < 15 * 60_000
       ? { ...block, photo: { ...block.photo, media: known.fileId } } : block;
-  });
+  }, thumbnailPhotos);
 }
-export function rememberPhotos(bot: BotKind, blocks: InputRichBlock[], fileIds: string[]) {
+export function rememberPhotos(bot: BotKind, blocks: InputRichBlock[], fileIds: string[], thumbnailPhotos = false) {
   const photos: { block: PhotoBlock; thumbnail: boolean }[] = [];
-  mapPhotos(blocks, (block, thumbnail) => { photos.push({ block, thumbnail }); return block; });
+  mapPhotos(blocks, (block, thumbnail) => { photos.push({ block, thumbnail }); return block; }, thumbnailPhotos);
   if (photos.length !== fileIds.length) return;
   photos.forEach(({ block, thumbnail }, index) => cache.set(key(bot, block.photo.media, thumbnail), { fileId: fileIds[index]!, at: Date.now() }));
   while (cache.size > 256) cache.delete(cache.keys().next().value!);

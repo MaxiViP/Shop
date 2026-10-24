@@ -20,11 +20,11 @@ export async function deliverScreen(bot: BotKind, target: ScreenTarget, screen: 
   if (await richEnabled(bot, target.chatId)) {
     const rich = richMessage(screen);
     const original = rich.blocks;
-    rich.blocks = reusePhotos(bot, original);
+    rich.blocks = reusePhotos(bot, original, screen.thumbnailPhotos);
     const send = async () => {
       const uploads = new Map<string, Uint8Array>();
       const sources: { media: string; thumbnail: boolean }[] = [];
-      mapPhotos(rich.blocks, (block, thumbnail) => { sources.push({ media: block.photo.media, thumbnail }); return block; });
+      mapPhotos(rich.blocks, (block, thumbnail) => { sources.push({ media: block.photo.media, thumbnail }); return block; }, screen.thumbnailPhotos);
       let missingGalleryPhoto = false;
       // Bounded page (8 images), sequential local preparation; never fetch a remote gallery URL.
       for (const source of sources) {
@@ -40,7 +40,7 @@ export async function deliverScreen(bot: BotKind, target: ScreenTarget, screen: 
         const name = files.size ? 'photo' + files.size : 'photo';
         files.set(name, photo);
         return { ...block, photo: { type: 'photo', media: 'attach://' + name } };
-      });
+      }, screen.thumbnailPhotos);
       return botExchange(token, edit ? 'editMessageText' : 'sendRichMessage', { ...common, rich_message: { ...rich, blocks } }, files.size ? files : undefined);
     };
     result = await send();
@@ -60,7 +60,7 @@ export async function deliverScreen(bot: BotKind, target: ScreenTarget, screen: 
       }
       if (result.status === 'rejected' && result.confirmed && !result.uneditable) { mediaDiagnostic('fallback_used'); result = await plain(); }
     }
-    if (result.status === 'sent' && result.photoFileIds) rememberPhotos(bot, original, result.photoFileIds);
+    if (result.status === 'sent' && result.photoFileIds) rememberPhotos(bot, original, result.photoFileIds, screen.thumbnailPhotos);
   } else result = await plain();
   if (result.status === 'rejected' && result.uneditable && target.messageId) {
     // Definite missing/uneditable message, not timeout. Return and bind the new ID.
