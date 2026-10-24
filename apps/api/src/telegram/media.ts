@@ -13,8 +13,11 @@ export function mapPhotos(blocks: InputRichBlock[], map: (photo: PhotoBlock, thu
     : block.type === 'collage' || block.type === 'details' ? { ...block, blocks: mapPhotos(block.blocks, map, thumbnail || block.type === 'collage') } : block);
 }
 export function withoutPhotos(blocks: InputRichBlock[]): InputRichBlock[] {
-  return blocks.filter(block => block.type !== 'photo' && block.type !== 'collage')
-    .map(block => block.type === 'details' ? { ...block, blocks: withoutPhotos(block.blocks) } : block);
+  return blocks.flatMap((block): InputRichBlock[] => {
+    if (block.type === 'photo') return block.caption ? [{ type: 'paragraph', text: block.caption.text }] : [];
+    if (block.type === 'collage') return withoutPhotos(block.blocks);
+    return [block.type === 'details' ? { ...block, blocks: withoutPhotos(block.blocks) } : block];
+  });
 }
 export function mediaDiagnostic(reason: 'no_image' | 'invalid_url' | 'media_rejected' | 'fallback_used') {
   // Fixed reason codes only: never URLs, identifiers, provider responses or credentials.

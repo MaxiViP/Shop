@@ -2,12 +2,22 @@ import { lstat, readFile, realpath } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import sharp from 'sharp';
 import { productUploadRoot } from '../common/image.js';
-import { productPhoto } from './rich.js';
+import { galleryPlaceholder, productPhoto } from './rich.js';
 import { mediaDiagnostic } from './media.js';
 
 const prepared = new Map<string, Promise<Uint8Array>>();
+let placeholder: Promise<Uint8Array> | undefined;
 // Telegram-only in-memory JPEG derivative. Never modifies source WebP or image-runner state.
 export async function localPhoto(url: string, root = productUploadRoot, thumbnail = false): Promise<Uint8Array | undefined> {
+  if (url === galleryPlaceholder) {
+    if (!thumbnail) return;
+    try {
+      // A neutral empty slot keeps odd/missing products from becoming a one-photo row.
+      placeholder ??= sharp({ create: { width: 640, height: 480, channels: 3, background: '#f4f4f4' } })
+        .jpeg({ quality: 85 }).toBuffer().then(buffer => new Uint8Array(buffer));
+      return await placeholder;
+    } catch { placeholder = undefined; mediaDiagnostic('no_image'); return; }
+  }
   if (!productPhoto(url)) return;
   const match = /^\/uploads\/products\/([A-Za-z0-9_-]{1,128}\.(?:webp|png|jpe?g))$/.exec(new URL(url).pathname);
   if (!match) return;

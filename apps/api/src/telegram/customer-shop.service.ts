@@ -14,7 +14,7 @@ import { customerProduct } from '../product/select.js';
 import { requestedLine } from '../order/pricing.js';
 import { orderableProductWhere } from '../product/select.js';
 import { pageInfo } from './page.js';
-import { bold, heading, paragraph, richTable, productPhoto, type InputRichBlock, type RichText } from './rich.js';
+import { bold, heading, paragraph, richTable, productPhoto, galleryPlaceholder, type InputRichBlock, type RichText } from './rich.js';
 import { priceUnit, saleModel, variableWeight } from '../product/sale.js';
 import { CustomerCheckoutService } from './customer-checkout.service.js';
 import { checkoutScreen, paymentScreen, clearCartScreen, shoppingHelpScreen } from './shopping-view.js';
@@ -153,11 +153,11 @@ export class CustomerShopService {
     const names = rows.map(p => short(p.name, 30));
     const photos = rows.map(p => p.images.map(image => productPhoto(image.url)).find(photo => photo !== undefined));
     const gallery: InputRichBlock[] = [];
-    // Collage does not bind independent button rows to photo columns. Keep each product contiguous.
+    const cells: InputRichBlock[] = [];
+    const placeholder: Extract<InputRichBlock, { type: 'photo' }> = { type: 'photo', photo: { type: 'photo', media: galleryPlaceholder } };
+    // Native caption buttons belong to their photo, unlike independent full-width rows below a collage.
     for (const [index, source] of rows.entries()) {
-      if (index) gallery.push({ type: 'divider' });
       const photo = photos[index];
-      gallery.push(photo ?? paragraph('Фото недоступно'));
       const item = basket?.items.find(item => item.productId === source.id);
       const p = { ...source, ...item?.product };
       const row: Button[] = [{
@@ -167,9 +167,9 @@ export class CustomerShopService {
         callback_data: productData(p.id, context), style: 'primary',
       }];
       const controls: Button[] = [];
-      if (!basket) row.push({ text: 'Добавить в корзину', callback_data: 'verify_phone' });
+      if (!basket) row.push({ text: 'Добавить в 🛒', callback_data: 'verify_phone' });
       else if (item && item.status !== 'AVAILABLE') {
-        row.push({ text: 'Добавить в корзину', disabled: {} });
+        row.push({ text: 'Добавить в 🛒', disabled: {} });
         controls.push({ text: '⚠️ Проверить корзину', callback_data: 'cart' });
       }
       else {
@@ -177,14 +177,19 @@ export class CustomerShopService {
         if (current) controls.push({ text: '−', ...(current === p.step || cartQuantityValid(current - p.step, p.min, p.step)
           ? { callback_data: adjustData(basket.revision, p.id, -p.step, p.unit, context, true) } : { disabled: {} }) });
         const canAdd = cartQuantityValid(current + delta, p.min, p.step) && (!variableWeight(p) || current + delta <= 100);
-        const add: Button = { text: 'Добавить в корзину', style: 'success', ...(canAdd
+        const add: Button = { text: 'Добавить в 🛒', style: 'success', ...(canAdd
           ? { callback_data: adjustData(basket.revision, p.id, delta, p.unit, context, true) } : { disabled: {} }) };
         row.push(add);
         if (current) controls.push({ ...add, text: '+' });
       }
-      buttons.push(row); gallery.push({ type: 'buttons', buttons: row });
-      if (controls.length) { buttons.push(controls); gallery.push({ type: 'buttons', buttons: controls }); }
+      buttons.push(row);
+      if (controls.length) buttons.push(controls);
+      const caption: RichText[] = row.flatMap((button, at) => [...(at ? [' '] : []), { type: 'button' as const, button }]);
+      if (controls.length) caption.push('\n', ...controls.flatMap((button, at) => [...(at ? [' '] : []), { type: 'button' as const, button }]));
+      if (!photo) caption.push('\nФото недоступно');
+      cells.push({ ...(photo ?? placeholder), caption: { text: caption } });
     }
+    for (let index = 0; index < cells.length; index += 2) gallery.push({ type: 'collage', blocks: [cells[index]!, cells[index + 1] ?? placeholder] });
     const nav: Button[] = [];
     if (info.page) nav.push({ text: '← Предыдущие товары', callback_data: shoppingData('l', categoryId, info.page - 1) });
     if (info.page + 1 < info.pages) nav.push({ text: 'Следующие товары →', callback_data: shoppingData('l', categoryId, info.page + 1) });

@@ -78,7 +78,8 @@ it.each([
   const s = setup(product);
   await s.service.handle(target, identity, { kind: 'products', categoryId: 2, page: 1 });
   const first = categoryAdjustment(product.min);
-  const photos = screen().rich!.blocks.filter(block => block.type === 'collage');
+  const photos = screen().rich!.blocks.flatMap(block => block.type === 'collage' ? block.blocks : [])
+    .map(block => block.type === 'photo' ? block.photo : null);
   await s.service.handle(target, identity, first);
   expect(s.snapshot().items[0]?.qty).toBe(product.min);
   expect(screen().text).toMatch(/^Зелень/); expect(screen().text).toContain('Страница 2 из 5');
@@ -86,7 +87,8 @@ it.each([
     const action = 'callback_data' in button ? shoppingAction(button.callback_data) : null;
     return action?.kind === 'open' && action.productId === 11;
   })?.text).toContain('🛒');
-  expect(screen().rich!.blocks.filter(block => block.type === 'collage')).toEqual(photos);
+  expect(screen().rich!.blocks.flatMap(block => block.type === 'collage' ? block.blocks : [])
+    .map(block => block.type === 'photo' ? block.photo : null)).toEqual(photos);
   expect(s.db.product.findFirst).not.toHaveBeenCalled();
   await expect(s.service.handle(target, identity, first)).rejects.toBeInstanceOf(ConflictException);
   expect(s.cart.change).toHaveBeenCalledTimes(1); expect(screen().text).toContain('Старое действие не применено');

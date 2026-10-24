@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { localPhoto } from './photo.js';
+import { galleryPlaceholder } from './rich.js';
 
 let root: string;
 beforeEach(async () => { root = await mkdtemp(join(tmpdir(), 'telegram-photo-')); vi.stubEnv('ORDER_SITE_URL', 'https://shop.example'); });
@@ -30,6 +31,15 @@ it('treats absent, invalid and oversized sources as unavailable', async () => {
   expect(await localPhoto('https://shop.example/uploads/products/invalid.webp', root)).toBeUndefined();
   await writeFile(join(root, 'oversized.webp'), Buffer.alloc(5 * 1024 * 1024 + 1));
   expect(await localPhoto('https://shop.example/uploads/products/oversized.webp', root)).toBeUndefined();
+});
+it('keeps a cached neutral 4:3 slot for odd/missing collage photos without files or remote fetching', async () => {
+  const fetcher = vi.spyOn(globalThis, 'fetch');
+  const [first, second] = await Promise.all([localPhoto(galleryPlaceholder, root, true), localPhoto(galleryPlaceholder, root, true)]);
+  expect(first).toBe(second);
+  expect(await sharp(first!).metadata()).toMatchObject({ format: 'jpeg', width: 640, height: 480 });
+  expect(first!.length).toBeLessThan(192 * 1024);
+  expect(await localPhoto(galleryPlaceholder, root)).toBeUndefined();
+  expect(fetcher).not.toHaveBeenCalled(); fetcher.mockRestore();
 });
 it('changes gallery geometry to 4:3 while keeping the full product preparation separate', async () => {
   await writeFile(join(root, 'gallery.webp'), await sharp({ create: { width: 1800, height: 900, channels: 3, background: '#12a080' } }).webp().toBuffer());

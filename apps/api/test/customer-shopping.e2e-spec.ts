@@ -23,6 +23,7 @@ import { receivingPayload } from '../src/telegram/receiving.js';
 import { checkoutPayload } from '../src/telegram/checkout.js';
 import { shoppingData, shoppingAction, productData, adjustData } from '../src/telegram/shopping-callback.js';
 import { customerView } from '../src/telegram/customer-callback.js';
+import type { InputRichBlock, InputRichMessage, RichText, TelegramButton } from '../src/telegram/rich.js';
 
 describe.skipIf(!process.env.DATABASE_URL)(
   'CUSTOMER shopping PostgreSQL',
@@ -60,10 +61,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
         }[][];
       };
     };
+    const request = (init?: RequestInit): Sent & { rich_message?: InputRichMessage; message_id?: number } => init?.body instanceof FormData
+      ? { rich_message: JSON.parse(String(init.body.get('rich_message'))), message_id: Number(init.body.get('message_id')) }
+      : JSON.parse(String(init?.body));
+    const captionButtons = (text: RichText): TelegramButton[] => typeof text === 'string' ? [] : Array.isArray(text)
+      ? text.flatMap(captionButtons) : text.type === 'button' ? [text.button] : captionButtons(text.text);
+    const nativeRows = (blocks: InputRichBlock[]): { text: string; callback_data?: string }[][] => blocks.flatMap(block => block.type === 'buttons' ? [block.buttons]
+      : block.type === 'photo' && block.caption ? [captionButtons(block.caption.text)]
+      : block.type === 'collage' || block.type === 'details' ? nativeRows(block.blocks) : []);
     const sent = () =>
       fetcher.mock.calls.map(
         ([, init]) => {
-          const value = JSON.parse(String(init?.body)) as Sent;
+          const value = request(init);
           // Assert visible semantics here; raw escaping/Rich payloads have dedicated transport tests.
           if (value.parse_mode === 'HTML' && value.text) value.text = value.text.replace(/<\/?b>/g, '')
             .replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&amp;', '&');
@@ -334,22 +343,20 @@ describe.skipIf(!process.env.DATABASE_URL)(
           ...(spec.variable ? { saleModel: 'WHOLE_VARIABLE_WEIGHT', priceUnit: 'GRAM', priceQty: 1000, estimatedWeightGrams: null } : {}) } });
         await db.product.createMany({ data: Array.from({ length: 8 }, (_, index) => ({ name: 'Другой товар ' + index,
           slug: randomUUID(), categoryId: f.category.id, price: 11000, unit: 'PIECE', min: 1, step: 1, portionQty: 1 })) });
-        const payloads = () => fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+        const payloads = () => fetcher.mock.calls.map(([, init]) => request(init));
         const fixedAdd = () => {
           const payload = payloads().filter(payload => payload.rich_message || payload.parse_mode === 'HTML').at(-1);
-          const rows = payload.reply_markup?.inline_keyboard ?? (payload.rich_message?.blocks ?? [])
-            .filter((block: { type: string }) => block.type === 'buttons').map((block: { buttons: { text: string; callback_data?: string }[] }) => block.buttons);
+          const rows = payload?.reply_markup?.inline_keyboard ?? nativeRows(payload?.rich_message?.blocks ?? []);
           const row = rows.find((row: { callback_data?: string }[]) => row.some(button => {
             const action = shoppingAction(button.callback_data ?? '');
             return action?.kind === 'open' && action.productId === f.product.id;
-          }));
+          }))?.slice(0, 2);
           expect(row).toHaveLength(2);
-          expect(row[1].text).toBe('Добавить в корзину');
-          expect(shoppingAction(row[1].callback_data)).toMatchObject({ kind: 'adjust', productId: f.product.id, inCategory: true, page: 1 });
+          expect(row![1]!.text).toBe('Добавить в 🛒');
+          expect(shoppingAction(row![1]!.callback_data!)).toMatchObject({ kind: 'adjust', productId: f.product.id, inCategory: true, page: 1 });
         };
         const button = (delta: number) => {
-          const buttons = payloads().flatMap(payload => payload.reply_markup?.inline_keyboard?.flat() ??
-            (payload.rich_message?.blocks ?? []).flatMap((block: { buttons?: { callback_data?: string }[] }) => block.buttons ?? [])).reverse();
+          const buttons = payloads().flatMap(payload => payload.reply_markup?.inline_keyboard?.flat() ?? nativeRows(payload.rich_message?.blocks ?? []).flat()).reverse();
           const found = buttons.find((button: { callback_data?: string }) => {
             const action = shoppingAction(button.callback_data ?? '');
             return action?.kind === 'adjust' && action.inCategory && action.productId === f.product.id && action.delta === delta;
@@ -402,10 +409,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const config = join(directory, 'policy.json');
       await writeFile(config, JSON.stringify({ enabled: true, customer: ['123'], global: { customer: true } }));
       vi.stubEnv('TELEGRAM_RICH_CONFIG_FILE', config);
-      const payloads = () => fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+      const payloads = () => fetcher.mock.calls.map(([, init]) => request(init));
       const choice = (kind: 'adjust' | 'checkout' | 'flow', value?: 'pickup' | 'confirm') => {
-        const buttons = payloads().flatMap(payload => payload.rich_message?.blocks ?? [])
-          .flatMap((block: { buttons?: { callback_data?: string }[] }) => block.buttons ?? []).reverse();
+        const buttons = payloads().flatMap(payload => nativeRows(payload.rich_message?.blocks ?? []).flat()).reverse();
         const found = buttons.find((button: { callback_data?: string }) => {
           const action = shoppingAction(button.callback_data ?? '');
           return action?.kind === kind && (action.kind !== 'flow' || action.choice === value);

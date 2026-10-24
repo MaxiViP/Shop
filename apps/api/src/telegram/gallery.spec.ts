@@ -6,7 +6,7 @@ import type { CustomerCheckoutService } from './customer-checkout.service.js';
 import { CustomerShopService } from './customer-shop.service.js';
 import { customerShow } from './customer-send.js';
 import { shoppingAction } from './shopping-callback.js';
-import { richMessage, validScreen } from './rich.js';
+import { galleryPlaceholder, richMessage, validScreen, type InputRichBlock, type RichText, type TelegramButton } from './rich.js';
 import { mapPhotos } from './media.js';
 import { deliverScreen } from './delivery.js';
 
@@ -30,29 +30,40 @@ function setup(total: number, missing = -1) {
   return { db, service, cart };
 }
 const screen = () => vi.mocked(customerShow).mock.calls.at(-1)![1];
+const cells = () => richMessage(screen()).blocks.flatMap(block => block.type === 'collage' ? block.blocks : [])
+  .filter((block): block is Extract<InputRichBlock, { type: 'photo' }> => block.type === 'photo');
+function captionButtons(text: RichText): TelegramButton[] {
+  if (typeof text === 'string') return [];
+  if (Array.isArray(text)) return text.flatMap(captionButtons);
+  return text.type === 'button' ? [text.button] : captionButtons(text.text);
+}
 beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('ORDER_SITE_URL', 'https://shop.example'); });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
-it.each([0, 1, 8, 17])('shows %s products without a duplicate text list or single-page label', async total => {
+it.each([0, 1, 3, 8, 17])('shows %s products in pairs without a duplicate text list or single-page label', async total => {
   const { service } = setup(total);
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
   const value = screen(), rich = richMessage(value), photos: string[] = [];
   mapPhotos(rich.blocks, photo => { photos.push(photo.photo.media); return photo; });
-  expect(photos).toHaveLength(Math.min(total, 8));
+  expect(photos.filter(media => media !== galleryPlaceholder)).toHaveLength(Math.min(total, 8));
   expect(value.text).not.toContain('Товар 100');
   expect(value.text.includes('Страница')).toBe(total > 8);
   expect(validScreen(value)).toBe(true);
-  expect(rich.blocks.some(block => block.type === 'collage')).toBe(false);
+  for (const block of rich.blocks) if (block.type === 'collage') expect(block.blocks).toHaveLength(2);
+  expect(rich.blocks.some(block => block.type === 'photo')).toBe(false);
   expect(value.thumbnailPhotos).toBe(true);
-  const selection = rich.blocks.filter(block => block.type === 'buttons').flatMap(block => block.buttons)
+  const selection = cells().flatMap(photo => captionButtons(photo.caption?.text ?? ''))
     .filter(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'open');
-  expect(selection).toHaveLength(Math.min(total, 8)); // Embedded controls are not appended again.
+  expect(selection).toHaveLength(Math.min(total, 8));
+  expect(rich.blocks.filter(block => block.type === 'buttons').flatMap(block => block.buttons)
+    .some(button => 'callback_data' in button && ['open', 'adjust'].includes(shoppingAction(button.callback_data)?.kind ?? ''))).toBe(false);
 });
 it.each([{ images: [] }, { images: [{ url: 'https://evil.example/private.jpg', alt: '' }] }])('uses every original button when a photo is absent or invalid', async ({ images }) => {
   const { db, service } = setup(8, 103);
   if (images.length) db.product.findMany.mockResolvedValueOnce(Array.from({ length: 8 }, (_, i) => ({ ...product(i + 100), images: i === 3 ? images : product(i + 100).images })));
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
-  expect(screen().rich!.blocks.some(block => block.type === 'collage')).toBe(false);
+  expect(cells()[3]?.photo.media).toBe(galleryPlaceholder);
+  expect(cells()).toHaveLength(8);
   expect(screen().keyboard.inline_keyboard.flat().filter(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'open')).toHaveLength(8);
 });
 it('binds each selection to its real ID and retains the page even if catalog ordering changes', async () => {
@@ -76,31 +87,30 @@ it('disambiguates identical truncated names with stable product identifiers', as
   expect(first!.text).not.toBe(second!.text);
   expect(first!.text).toContain('№101'); expect(second!.text).toContain('№102');
 });
-it('places every individual photo immediately above only its own open/add buttons, with exact fixed add text', async () => {
+it('binds both native caption buttons to their own photo/product inside strictly two-photo collages', async () => {
   const { service } = setup(8);
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
-  const blocks = richMessage(screen()).blocks;
+  const photos = cells();
   for (let index = 0; index < 8; index++) {
-      expect(blocks[2 + index * 3]).toEqual({ type: 'photo', photo: { type: 'photo',
-        media: 'https://shop.example/uploads/products/item-' + (100 + index) + '.webp' } });
-      const buttons = blocks[3 + index * 3];
-      if (buttons?.type !== 'buttons') throw new Error('Missing product row');
-      expect(buttons.buttons.map(button => button.text)).toEqual(['Товар ' + (100 + index) + ' · 110 ₽ / 1 шт.', 'Добавить в корзину']);
-      expect(buttons.buttons.map(button => 'callback_data' in button ? shoppingAction(button.callback_data) : null)).toEqual([
-        { kind: 'open', productId: 100 + index, origin: 'category', categoryId: 3, page: 0 },
-        { kind: 'adjust', productId: 100 + index, origin: 'category', categoryId: 3, page: 0,
-          delta: 1, quantityUnit: 'PIECE', revision: '11111111-1111-4111-8111-111111111111', inCategory: true },
-      ]);
+    const photo = photos[index]!;
+    expect(photo.photo.media).toBe('https://shop.example/uploads/products/item-' + (100 + index) + '.webp');
+    const buttons = captionButtons(photo.caption!.text);
+    expect(buttons.map(button => button.text)).toEqual(['Товар ' + (100 + index) + ' · 110 ₽ / 1 шт.', 'Добавить в 🛒']);
+    expect(buttons.map(button => 'callback_data' in button ? shoppingAction(button.callback_data) : null)).toEqual([
+      { kind: 'open', productId: 100 + index, origin: 'category', categoryId: 3, page: 0 },
+      { kind: 'adjust', productId: 100 + index, origin: 'category', categoryId: 3, page: 0,
+        delta: 1, quantityUnit: 'PIECE', revision: '11111111-1111-4111-8111-111111111111', inCategory: true },
+    ]);
   }
 });
 it('refreshes button prices without baking text into or replacing the product photograph', async () => {
   const { service, db } = setup(2);
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
-  const initial = screen();
+  const initial = cells().map(photo => photo.photo);
   db.product.findMany.mockResolvedValueOnce([product(100), { ...product(101), price: 12500 }]);
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
   expect(screen().keyboard.inline_keyboard[1]![0]!.text).toBe('Товар 101 · 125 ₽ / 1 шт.');
-  expect(screen().rich!.blocks.filter(block => block.type === 'photo')).toEqual(initial.rich!.blocks.filter(block => block.type === 'photo'));
+  expect(cells().map(photo => photo.photo)).toEqual(initial);
 });
 it('offers phone verification for every public add button without reading the private basket', async () => {
   const { service, cart } = setup(8);
@@ -108,7 +118,7 @@ it('offers phone verification for every public add button without reading the pr
   expect(cart.get).not.toHaveBeenCalled();
   const buttons = screen().keyboard.inline_keyboard.flat();
   expect(buttons.filter(button => 'callback_data' in button && button.callback_data === 'verify_phone')).toHaveLength(8);
-  expect(buttons.filter(button => 'callback_data' in button && button.callback_data === 'verify_phone').every(button => button.text === 'Добавить в корзину')).toBe(true);
+  expect(buttons.filter(button => 'callback_data' in button && button.callback_data === 'verify_phone').every(button => button.text === 'Добавить в 🛒')).toBe(true);
   expect(buttons.some(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'adjust')).toBe(false);
 });
 it.each(['AVAILABLE', 'INVALID_QUANTITY'] as const)('keeps the exact add label and separates controls after adding, with %s sale terms', async status => {
@@ -117,18 +127,17 @@ it.each(['AVAILABLE', 'INVALID_QUANTITY'] as const)('keeps the exact add label a
     productId: index + 108, product: product(index + 108), qty: 3, status, lineTotal: 33000,
   })) } as unknown as Awaited<ReturnType<CartService['get']>>);
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 1 });
-  const value = screen(), blocks = richMessage(value).blocks;
+  const value = screen(), photos = cells();
   for (let index = 0; index < 8; index++) {
-    const at = blocks.findIndex(block => block.type === 'photo' && block.photo.media.endsWith('item-' + (index + 108) + '.webp'));
-    const row = blocks[at + 1], controls = blocks[at + 2];
-    if (row?.type !== 'buttons' || controls?.type !== 'buttons') throw new Error('Product controls not adjacent');
-    expect(row.buttons).toHaveLength(2); expect(row.buttons[0]!.text).toContain('🛒 3 шт.');
-    expect(row.buttons[1]!.text).toBe('Добавить в корзину');
+    const photo = photos[index]!, buttons = captionButtons(photo.caption!.text);
+    expect(photo.photo.media).toContain('item-' + (index + 108) + '.webp');
+    expect(buttons[0]!.text).toContain('🛒 3 шт.');
+    expect(buttons[1]!.text).toBe('Добавить в 🛒');
     if (status === 'AVAILABLE') {
-      expect(controls.buttons.map(button => button.text)).toEqual(['−', '+']);
-      for (const button of [...row.buttons, ...controls.buttons])
+      expect(buttons.slice(2).map(button => button.text)).toEqual(['−', '+']);
+      for (const button of buttons)
         if ('callback_data' in button) expect(shoppingAction(button.callback_data)).toMatchObject({ productId: index + 108, page: 1 });
-    } else expect(row.buttons[1]).toHaveProperty('disabled');
+    } else expect(buttons[1]).toHaveProperty('disabled');
   }
   expect(validScreen(value)).toBe(true);
   expect(value.keyboard.inline_keyboard.flat()).toContainEqual({ text: '← Предыдущие товары', callback_data: 's:l:3:0' });
@@ -137,12 +146,11 @@ it.each(['AVAILABLE', 'INVALID_QUANTITY'] as const)('keeps the exact add label a
 it('keeps other product photos and button positions when one product has no photograph', async () => {
   const { service } = setup(8, 103);
   await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
-  const blocks = screen().rich!.blocks;
-  expect(blocks.filter(block => block.type === 'photo')).toHaveLength(7);
-  expect(blocks[2 + 3 * 3]).toEqual({ type: 'paragraph', text: 'Фото недоступно' });
-  const row = blocks[3 + 3 * 3];
-  if (row?.type !== 'buttons') throw new Error('Missing photo shifted the selection');
-  for (const button of row.buttons) if ('callback_data' in button) expect(shoppingAction(button.callback_data)).toMatchObject({ productId: 103 });
+  const photos = cells();
+  expect(photos).toHaveLength(8);
+  expect(photos[3]!.photo.media).toBe(galleryPlaceholder);
+  expect(JSON.stringify(photos[3]!.caption)).toContain('Фото недоступно');
+  for (const button of captionButtons(photos[3]!.caption!.text)) if ('callback_data' in button) expect(shoppingAction(button.callback_data)).toMatchObject({ productId: 103 });
 });
 it('retains exact open/add product bindings and inline rows in HTML fallback', async () => {
   const { service } = setup(8);

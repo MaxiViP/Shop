@@ -3,8 +3,10 @@ export type ButtonStyle = 'primary' | 'success' | 'danger';
 export type TelegramButton = { text: string; style?: ButtonStyle } & (
   { callback_data: string } | { url: string } | { web_app: { url: string } } | { copy_text: { text: string } } | { disabled: Record<string, never> });
 export type TelegramKeyboard = { inline_keyboard: TelegramButton[][] };
-export type RichText = string | RichText[] | { type: 'bold' | 'italic' | 'marked'; text: RichText };
+export type RichText = string | RichText[] | { type: 'bold' | 'italic' | 'marked'; text: RichText }
+  | { type: 'button'; button: RichMessageButton };
 export type RichMessageButton = TelegramButton;
+export const galleryPlaceholder = 'telegram:gallery-placeholder:v1';
 type Cell = { text: RichText; align: 'left' | 'right'; valign: 'top'; is_header?: true };
 export type InputRichBlock =
   | { type: 'heading'; text: RichText; size: 1 | 2 | 3 | 4 | 5 | 6 }
@@ -40,6 +42,7 @@ const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '
 function html(text: RichText): string {
   if (typeof text === 'string') return escape(text);
   if (Array.isArray(text)) return text.map(html).join('');
+  if (text.type === 'button') return escape(text.button.text);
   const tag = text.type === 'italic' ? 'i' : 'b';
   return '<' + tag + '>' + html(text.text) + '</' + tag + '>';
 }
@@ -53,10 +56,22 @@ export function richMessage(screen: TelegramScreen): InputRichMessage {
   const blocks = screen.rich?.blocks ?? [heading(title), ...(rest.some(Boolean) ? [{ type: 'divider' as const }] : []),
     ...rest.join('\n').split('\n\n').filter(Boolean).map(text => paragraph(emphasis(text)))];
   const embedded = new Set(blocks.filter(block => block.type === 'buttons').map(block => JSON.stringify(block.buttons)));
-  const complete = [...blocks, ...screen.keyboard.inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row))).map(buttons => ({
+  const captionButtons = new Set<string>();
+  const collect = (list: InputRichBlock[]) => { for (const block of list) {
+    if (block.type === 'photo' && block.caption) for (const button of textButtons(block.caption.text)) captionButtons.add(JSON.stringify(button));
+    if (block.type === 'collage' || block.type === 'details') collect(block.blocks);
+  } };
+  collect(blocks);
+  const complete = [...blocks, ...screen.keyboard.inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row)) &&
+    !row.every(button => captionButtons.has(JSON.stringify(button)))).map(buttons => ({
     type: 'buttons' as const, buttons,
   }))];
   return { blocks: screen.buttonsAlign ? complete.map(customerBlock) : complete, skip_entity_detection: true };
+}
+function textButtons(text: RichText): RichMessageButton[] {
+  if (typeof text === 'string') return [];
+  if (Array.isArray(text)) return text.flatMap(textButtons);
+  return text.type === 'button' ? [text.button] : textButtons(text.text);
 }
 function customerBlock(block: InputRichBlock): InputRichBlock {
   if (block.type === 'buttons') return { ...block, align: 'left' };
@@ -90,7 +105,7 @@ export function validScreen(screen: TelegramScreen): boolean {
 }
 
 // Only public media from the configured shop origin. No arbitrary URL or API fetch.
-export function productPhoto(path: string | undefined): InputRichBlock | undefined {
+export function productPhoto(path: string | undefined): Extract<InputRichBlock, { type: 'photo' }> | undefined {
   if (!path) return;
   try {
     const origin = new URL(process.env.ORDER_SITE_URL ?? '');

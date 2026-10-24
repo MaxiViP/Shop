@@ -238,6 +238,37 @@ it('prepares standalone category photos at 4:3, keeps thumbnail file_ids separat
   await deliverScreen('customer', { chatId: 123 }, { ...screen, rich: { blocks: [photo] } });
   expect(body(2).rich_message.blocks[0].photo.media).toBe(path);
 });
+it.each(['send-edit', 'missing', 'rejected', 'html', 'unknown'] as const)('preserves native photo caption buttons and fallback bindings through %s', async mode => {
+  const path = 'https://shop.example/uploads/products/' + randomUUID() + '.webp';
+  const buttons = [{ text: 'Товар · 110 ₽', callback_data: 'open-actual-id', style: 'primary' as const },
+    { text: 'Добавить в 🛒', callback_data: 'add-actual-id', style: 'success' as const }];
+  const caption = { text: [{ type: 'button' as const, button: buttons[0]! }, ' ', { type: 'button' as const, button: buttons[1]! }] };
+  const value: TelegramScreen = { ...screen, keyboard: { inline_keyboard: [buttons] }, rich: { blocks: [{ type: 'collage', blocks: [
+    { type: 'photo', photo: { type: 'photo', media: path }, caption },
+    { type: 'photo', photo: { type: 'photo', media: path + '-2' }, caption },
+  ] }] } };
+  expect(richMessage(value).blocks).toHaveLength(1); // Caption controls are never appended below the collage again.
+  expect(fallbackHtml('test', [caption.text])).toBe('Товар · 110 ₽ Добавить в 🛒');
+  vi.mocked(localPhoto).mockImplementation(async media => mode === 'missing' || !media.startsWith('https:') ? undefined : new Uint8Array([255,216,255,217]));
+  if (mode === 'rejected' || mode === 'html') fetcher.mockResolvedValueOnce(reject());
+  if (mode === 'html') fetcher.mockResolvedValueOnce(reject());
+  if (mode === 'unknown') fetcher.mockRejectedValueOnce(new Error('lost caption reply'));
+  if (mode === 'send-edit') fetcher.mockResolvedValueOnce(Response.json({ ok: true, result: { message_id: 92, rich_message: { blocks: [{ type: 'collage', blocks: [
+    { type: 'photo', photo: [{ file_id: 'caption-1' }], caption }, { type: 'photo', photo: [{ file_id: 'caption-2' }], caption },
+  ] }] } } }));
+  const result = await deliverScreen('customer', { chatId: 123 }, value);
+  if (mode === 'unknown') { expect(result.status).toBe('unknown'); expect(fetcher).toHaveBeenCalledTimes(1); }
+  else if (mode === 'send-edit') {
+    await deliverScreen('customer', { chatId: 123, messageId: 92 }, value);
+    expect(body(1).rich_message.blocks[0].blocks[0]).toMatchObject({ photo: { media: 'caption-1' }, caption });
+    expect(body(1).rich_message.blocks[0].blocks[1]).toMatchObject({ photo: { media: 'caption-2' }, caption });
+  } else {
+    const payload = body(mode === 'html' ? 2 : mode === 'rejected' ? 1 : 0);
+    if (mode === 'html') expect(payload.reply_markup.inline_keyboard).toEqual([buttons]);
+    else expect(payload.rich_message.blocks).toEqual([{ type: 'paragraph', text: caption.text }, { type: 'paragraph', text: caption.text }]);
+  }
+  vi.mocked(localPhoto).mockImplementation(async () => undefined);
+});
 it('uploads all 8 nested gallery photos once, caches returned IDs per bot and preserves their tree order', async () => {
   vi.mocked(localPhoto).mockImplementation(async url => url.startsWith('https:') ? new Uint8Array([255, 216, 255, 217]) : undefined);
   const received = Array.from({ length: 4 }, (_, row) => ({ type: 'collage', blocks: Array.from({ length: 2 }, (_, col) => ({ type: 'photo', photo: [{ file_id: 'gallery-' + (row * 2 + col) }] })) }));
