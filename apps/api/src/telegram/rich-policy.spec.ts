@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { richEnabled } from './rich-policy.js';
+import { richEnabled, galleryTablesEnabled } from './rich-policy.js';
 
 let directory: string, config: string;
 beforeEach(async () => {
@@ -10,6 +10,26 @@ beforeEach(async () => {
 });
 afterEach(async () => { vi.unstubAllEnvs(); await rm(directory, { recursive: true, force: true }); });
 const save = async (value: unknown) => { await writeFile(config + '.next', JSON.stringify(value)); await rename(config + '.next', config); };
+
+it('keeps table galleries opt-in even with global Rich and hot reloads their independent off switch', async () => {
+  await save({ enabled: true, global: { customer: true, staff: true } });
+  expect(await galleryTablesEnabled(123)).toBe(false);
+  await save({ enabled: true, global: { customer: true, staff: true }, customerGalleryTables: ['123'] });
+  expect(await galleryTablesEnabled(123)).toBe(true); expect(await galleryTablesEnabled(124)).toBe(false);
+  expect(await richEnabled('customer', 124)).toBe(true); expect(await richEnabled('staff', 124)).toBe(true);
+  await save({ enabled: true, global: { customer: true, staff: true }, customerGalleryTables: [] });
+  expect(await galleryTablesEnabled(123)).toBe(false); expect(await richEnabled('customer', 123)).toBe(true);
+});
+it('requires both CUSTOMER Rich access and an explicit table entry, and fails closed', async () => {
+  for (const value of [{ enabled: false, global: { customer: true }, customerGalleryTables: ['123'] },
+    { enabled: true, staff: ['123'], customerGalleryTables: ['123'] },
+    { enabled: true, global: { customer: true }, customerGalleryTables: true },
+    { enabled: true, global: { customer: true }, customerGalleryTables: ['bad'] }]) {
+    await save(value); expect(await galleryTablesEnabled(123)).toBe(false);
+  }
+  await save({ enabled: true, customer: ['123'], customerGalleryTables: ['123'] });
+  expect(await galleryTablesEnabled(123)).toBe(true); expect(await galleryTablesEnabled(0)).toBe(false);
+});
 
 it.each(['customer', 'staff'] as const)('enables %s globally without listing IDs, independently of the other bot', async bot => {
   await save({ enabled: true, global: { [bot]: true } });

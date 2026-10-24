@@ -9,8 +9,11 @@ import { shoppingAction } from './shopping-callback.js';
 import { customerScreen, galleryPlaceholder, richMessage, validScreen, type InputRichBlock } from './rich.js';
 import { mapPhotos } from './media.js';
 import { deliverScreen } from './delivery.js';
+import { galleryTablesEnabled } from './rich-policy.js';
+import type { RichText, RichMessageButton } from './rich.js';
 
 vi.mock('./customer-send.js', () => ({ customerShow: vi.fn(async () => true) }));
+vi.mock('./rich-policy.js', () => ({ galleryTablesEnabled: vi.fn(async () => false), richEnabled: vi.fn(async () => false) }));
 const target = { chatId: 123 }, identity = { id: 1, userId: 2 };
 const product = (id: number) => ({ id, name: 'Товар ' + id, slug: 'item-' + id, unit: 'PIECE' as const,
   priceUnit: 'PIECE' as const, saleModel: 'PIECE_FIXED' as const, price: 11000, priceQty: 1,
@@ -34,8 +37,77 @@ const cells = () => richMessage(screen()).blocks.flatMap(block => block.type ===
   .filter((block): block is Extract<InputRichBlock, { type: 'photo' }> => block.type === 'photo');
 const productRows = () => richMessage(customerScreen(screen())).blocks.filter((block): block is Extract<InputRichBlock, { type: 'buttons' }> =>
   block.type === 'buttons' && block.buttons.some(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'open'));
-beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('ORDER_SITE_URL', 'https://shop.example'); });
+beforeEach(() => { vi.clearAllMocks(); vi.mocked(galleryTablesEnabled).mockResolvedValue(false); vi.stubEnv('ORDER_SITE_URL', 'https://shop.example'); });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+
+const textButtons = (text: RichText): RichMessageButton[] => typeof text === 'string' ? [] : Array.isArray(text)
+  ? text.flatMap(textButtons) : text.type === 'button' ? [text.button] : textButtons(text.text);
+it.each([0, 1, 3, 8, 17])('shows accepted table galleries for %s products without duplicate root actions', async total => {
+  vi.mocked(galleryTablesEnabled).mockResolvedValue(true);
+  const { service } = setup(total);
+  await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
+  const blocks = richMessage(customerScreen(screen())).blocks;
+  const tables = blocks.filter(block => block.type === 'table');
+  expect(tables).toHaveLength(Math.ceil(Math.min(total, 8) / 2));
+  expect(productRows()).toHaveLength(0); expect(cells()).toHaveLength(tables.length * 2);
+  for (const table of tables) {
+    expect(table.is_compact).toBe(true); expect(table.cells.map(row => row.length)).toEqual([2, 2]);
+    expect(blocks[blocks.indexOf(table) - 1]?.type).toBe('collage');
+    expect(Object.keys(table).sort()).toEqual(['cells', 'is_compact', 'type']);
+  }
+  const opens = tables.flatMap(table => table.cells[0]!.flatMap(cell => textButtons(cell.text)));
+  expect(opens).toHaveLength(Math.min(total, 8));
+  if (total % 2 && total < 8) expect(tables.at(-1)?.cells.map(row => row[1]!.text)).toEqual(['', '']);
+  expect(validScreen(screen())).toBe(true);
+});
+it('keeps full names, bold current prices and exact add labels in their own photo column', async () => {
+  vi.mocked(galleryTablesEnabled).mockResolvedValue(true);
+  const { service, db } = setup(2);
+  const name = 'Очень длинное название товара '.repeat(8);
+  db.product.findMany.mockResolvedValueOnce([{ ...product(100), name }, { ...product(101), price: 12500 }]);
+  await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
+  const table = richMessage(customerScreen(screen())).blocks.find(block => block.type === 'table');
+  if (table?.type !== 'table') throw new Error('Table missing');
+  const open = textButtons(table.cells[0]![0]!.text)[0]!;
+  expect(open.text).toBe(name); expect(open.style).toBe('link');
+  expect(table.cells[0]![1]!.text).toContainEqual({ type: 'bold', text: '125 ₽ / 1 шт.' });
+  for (const [index, cell] of table.cells[1]!.entries()) {
+    const add = textButtons(cell.text)[0]!;
+    expect(add.text).toBe('Добавить в ');
+    expect(shoppingAction('callback_data' in add ? add.callback_data : '')).toMatchObject({ kind: 'adjust', productId: 100 + index, page: 0, categoryId: 3 });
+  }
+  expect(JSON.stringify(table)).not.toMatch(/Слева|Справа|…/);
+  expect(validScreen(screen())).toBe(true);
+});
+it('keeps acknowledged quantity and minus/plus inside the correct table cell', async () => {
+  vi.mocked(galleryTablesEnabled).mockResolvedValue(true);
+  const { service, cart } = setup(2);
+  cart.get.mockResolvedValueOnce({ revision: '11111111-1111-4111-8111-111111111111', items: [{ productId: 101, product: product(101), qty: 3, status: 'AVAILABLE', lineTotal: 33000 }] } as Awaited<ReturnType<CartService['get']>>);
+  await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 });
+  const table = richMessage(customerScreen(screen())).blocks.find(block => block.type === 'table');
+  if (table?.type !== 'table') throw new Error('Table missing');
+  expect(textButtons(table.cells[0]![0]!.text)).toHaveLength(1);
+  expect(JSON.stringify(table.cells[0]![1])).toContain('🛒 3 шт.');
+  const buttons = textButtons(table.cells[0]![1]!.text);
+  expect(buttons.map(button => button.text)).toEqual(['Товар 101', '−', '+']);
+  for (const button of buttons) expect(shoppingAction('callback_data' in button ? button.callback_data : '')).toMatchObject({ productId: 101 });
+  expect(productRows()).toHaveLength(0);
+  const duplicated = richMessage(customerScreen(screen())).blocks.filter(block => block.type === 'buttons' && block.buttons.some(button => button.text === '−'));
+  expect(duplicated).toHaveLength(0);
+});
+it('keeps table onboarding and the complete HTML keyboard without private reads', async () => {
+  vi.mocked(galleryTablesEnabled).mockResolvedValue(true);
+  const { service, cart } = setup(2);
+  await service.handle(target, identity, { kind: 'products', categoryId: 3, page: 0 }, true);
+  expect(cart.get).not.toHaveBeenCalled();
+  const table = richMessage(customerScreen(screen())).blocks.find(block => block.type === 'table');
+  if (table?.type !== 'table') throw new Error('Table missing');
+  expect(table.cells[1]!.flatMap(cell => textButtons(cell.text))).toEqual([
+    { text: 'Добавить в ', callback_data: 'verify_phone' }, { text: 'Добавить в ', callback_data: 'verify_phone' },
+  ]);
+  expect(screen().keyboard.inline_keyboard.flat().filter(button => button.text === 'Добавить в ')).toHaveLength(2);
+  expect(screen().keyboard.inline_keyboard[0]![0]!.text).toContain('110 ₽');
+});
 
 it.each([0, 1, 3, 8, 17])('shows %s products in pairs without a duplicate text list or single-page label', async total => {
   const { service } = setup(total);

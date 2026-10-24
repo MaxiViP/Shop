@@ -26,6 +26,7 @@ import {
   type CustomerIdentity,
 } from './customer-send.js';
 import { shoppingData, productData, adjustData, type ShopContext, type ShoppingAction } from './shopping-callback.js';
+import { galleryTablesEnabled } from './rich-policy.js';
 import { customerView } from './customer-callback.js';
 import {
   amount,
@@ -153,6 +154,8 @@ export class CustomerShopService {
     const names = rows.map(p => short(p.name, 30));
     const photos = rows.map(p => p.images.map(image => productPhoto(image.url)).find(photo => photo !== undefined));
     const gallery: InputRichBlock[] = [];
+    const tables = await galleryTablesEnabled(target.chatId);
+    let tableCells: Extract<InputRichBlock, { type: 'table' }>['cells'] = [[], []];
     const placeholder: Extract<InputRichBlock, { type: 'photo' }> = { type: 'photo', photo: { type: 'photo', media: galleryPlaceholder } };
     // Clients may hide photo captions. Keep actions in real blocks directly after each pair.
     for (const [index, source] of rows.entries()) {
@@ -160,16 +163,17 @@ export class CustomerShopService {
       const item = basket?.items.find(item => item.productId === source.id);
       const p = { ...source, ...item?.product };
       const row: Button[] = [{
-        text: (index % 2 === 0 ? 'Слева · ' : 'Справа · ') +
+        text: (tables ? '' : index % 2 === 0 ? 'Слева · ' : 'Справа · ') +
           (names.filter(name => name === short(source.name, 30)).length > 1 ? short(p.name, 24) + ' · №' + p.id : short(p.name, 30)) +
           ' · ' + amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)) +
           (item ? '\n🛒 ' + quantity(item.qty, item.quantityUnit ?? p.unit) : ''),
         callback_data: productData(p.id, context), style: 'primary',
       }];
       const controls: Button[] = [];
-      if (!basket) row.push({ text: 'Добавить в 🛒', callback_data: 'verify_phone' });
+      const addText = tables ? 'Добавить в ' : 'Добавить в 🛒';
+      if (!basket) row.push({ text: addText, callback_data: 'verify_phone' });
       else if (item && item.status !== 'AVAILABLE') {
-        row.push({ text: 'Добавить в 🛒', disabled: {} });
+        row.push({ text: addText, disabled: {} });
         controls.push({ text: '⚠️ Проверить корзину', callback_data: 'cart' });
       }
       else {
@@ -177,13 +181,30 @@ export class CustomerShopService {
         if (current) controls.push({ text: '−', ...(current === p.step || cartQuantityValid(current - p.step, p.min, p.step)
           ? { callback_data: adjustData(basket.revision, p.id, -p.step, p.unit, context, true) } : { disabled: {} }) });
         const canAdd = cartQuantityValid(current + delta, p.min, p.step) && (!variableWeight(p) || current + delta <= 100);
-        const add: Button = { text: 'Добавить в 🛒', style: 'success', ...(canAdd
+        const add: Button = { text: addText, style: 'success', ...(canAdd
           ? { callback_data: adjustData(basket.revision, p.id, delta, p.unit, context, true) } : { disabled: {} }) };
         row.push(add);
         if (current) controls.push({ ...add, text: '+' });
       }
-      buttons.push(row); gallery.push({ type: 'buttons', buttons: row });
-      if (controls.length) { buttons.push(controls); gallery.push({ type: 'buttons', buttons: controls }); }
+      buttons.push(row);
+      if (controls.length) buttons.push(controls);
+      if (tables) {
+        const text: RichText[] = [{ type: 'button', button: { text: p.name, callback_data: productData(p.id, context), style: 'link' } }, '\n',
+          bold(amount(p.price) + ' / ' + quantity(p.priceQty, priceUnit(p)))];
+        if (item) text.push('\n🛒 ' + quantity(item.qty, item.quantityUnit ?? p.unit));
+        if (controls.length) text.push('\n', ...controls.flatMap((button, at): RichText[] => [...(at ? [' '] : []), { type: 'button', button }]));
+        tableCells[0]!.push({ text, align: 'left', valign: 'top' });
+        tableCells[1]!.push({ text: { type: 'button', button: row[1]! }, align: 'left', valign: 'top' });
+        if (index % 2 === 1 || index === rows.length - 1) {
+          // An odd page keeps the neutral photo and an empty second column; IDs never shift.
+          if (tableCells[0]!.length === 1) for (const cells of tableCells) cells.push({ text: '', align: 'left', valign: 'top' });
+          gallery.push({ type: 'table', is_compact: true, cells: tableCells });
+          tableCells = [[], []];
+        }
+      } else {
+        gallery.push({ type: 'buttons', buttons: row });
+        if (controls.length) gallery.push({ type: 'buttons', buttons: controls });
+      }
     }
     const nav: Button[] = [];
     if (info.page) nav.push({ text: '← Предыдущие товары', callback_data: shoppingData('l', categoryId, info.page - 1) });

@@ -234,6 +234,29 @@ const galleryScreen = (count = 8): TelegramScreen => ({ ...screen, rich: { block
     blocks: Array.from({ length: Math.min(2, count - row * 2) }, (_, col) => ({ type: 'photo' as const,
       photo: { type: 'photo' as const, media: 'https://shop.example/uploads/products/gallery-' + (row * 2 + col) + '.webp' } })) })),
 ] } });
+it.each(['send-edit', 'rejected', 'unknown'] as const)('keeps table callbacks and the complete HTML keyboard through %s', async mode => {
+  const open = { text: 'Полное название', callback_data: 'open-real-id', style: 'link' as const };
+  const add = { text: 'Добавить в ', callback_data: 'add-revision-real-id', style: 'success' as const };
+  const fallback = [{ ...open, text: 'Полное название · 110 ₽', style: 'primary' as const }, add];
+  const value: TelegramScreen = { ...screen, keyboard: { inline_keyboard: [fallback] }, rich: { blocks: [{ type: 'table', is_compact: true,
+    cells: [[{ text: [{ type: 'button', button: open }, '\n', { type: 'bold', text: '110 ₽' }], align: 'left', valign: 'top' }],
+      [{ text: { type: 'button', button: add }, align: 'left', valign: 'top' }]] }] } };
+  expect(richMessage(value).blocks.map(block => block.type)).toEqual(['table']);
+  if (mode === 'rejected') fetcher.mockResolvedValueOnce(reject());
+  if (mode === 'unknown') fetcher.mockRejectedValueOnce(new Error('Lost table response'));
+  const result = await deliverScreen('customer', { chatId: 123 }, value);
+  if (mode === 'unknown') { expect(result.status).toBe('unknown'); expect(fetcher).toHaveBeenCalledTimes(1); }
+  else if (mode === 'rejected') {
+    expect(result.status).toBe('sent'); expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(body(1)).toMatchObject({ parse_mode: 'HTML', reply_markup: value.keyboard });
+  } else {
+    expect(result.status).toBe('sent');
+    await deliverScreen('customer', { chatId: 123, messageId: 92 }, value);
+    expect(fetcher.mock.calls[1]![0]).toContain('editMessageText');
+    expect(body(1).rich_message).toEqual(body(0).rich_message);
+    expect(body(0).rich_message.blocks[0].cells[1][0].text.button).toEqual(add);
+  }
+});
 it('prepares standalone category photos at 4:3, keeps thumbnail file_ids separate and never sends internal layout flags', async () => {
   const path = 'https://shop.example/uploads/products/' + randomUUID() + '.webp';
   const photo = { type: 'photo' as const, photo: { type: 'photo' as const, media: path } };

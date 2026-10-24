@@ -5,7 +5,7 @@ export type TelegramButton = { text: string; style?: ButtonStyle } & (
 export type TelegramKeyboard = { inline_keyboard: TelegramButton[][] };
 export type RichText = string | RichText[] | { type: 'bold' | 'italic' | 'marked'; text: RichText }
   | { type: 'button'; button: RichMessageButton };
-export type RichMessageButton = TelegramButton;
+export type RichMessageButton = TelegramButton | { text: string; callback_data: string; style: 'link' };
 export const galleryPlaceholder = 'telegram:gallery-placeholder:v1';
 type Cell = { text: RichText; align: 'left' | 'right'; valign: 'top'; is_header?: true };
 export type InputRichBlock =
@@ -56,12 +56,20 @@ export function richMessage(screen: TelegramScreen): InputRichMessage {
   const blocks = screen.rich?.blocks ?? [heading(title), ...(rest.some(Boolean) ? [{ type: 'divider' as const }] : []),
     ...rest.join('\n').split('\n\n').filter(Boolean).map(text => paragraph(emphasis(text)))];
   const embedded = new Set(blocks.filter(block => block.type === 'buttons').map(block => JSON.stringify(block.buttons)));
-  // Only an actual visible buttons block suppresses its duplicate keyboard row.
-  const complete = [...blocks, ...screen.keyboard.inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row))).map(buttons => ({
+  const tableActions = new Set(blocks.flatMap(block => block.type === 'table' ? block.cells.flatMap(row => row.flatMap(cell => textButtons(cell.text))) : []).map(buttonAction));
+  // Table controls are enabled only for explicitly accepted chats. Hidden captions never suppress rows.
+  const complete = [...blocks, ...screen.keyboard.inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row)) &&
+    !row.every(button => tableActions.has(buttonAction(button)))).map(buttons => ({
     type: 'buttons' as const, buttons,
   }))];
   return { blocks: screen.buttonsAlign ? complete.map(customerBlock) : complete, skip_entity_detection: true };
 }
+function textButtons(text: RichText): RichMessageButton[] {
+  if (typeof text === 'string') return [];
+  if (Array.isArray(text)) return text.flatMap(textButtons);
+  return text.type === 'button' ? [text.button] : textButtons(text.text);
+}
+const buttonAction = (button: RichMessageButton) => 'callback_data' in button ? 'callback:' + button.callback_data : JSON.stringify(button);
 function customerBlock(block: InputRichBlock): InputRichBlock {
   if (block.type === 'buttons') return { ...block, align: block.align ?? 'left' };
   if (block.type === 'collage' || block.type === 'details') return { ...block, blocks: block.blocks.map(customerBlock) };
