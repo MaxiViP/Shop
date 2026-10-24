@@ -26,11 +26,19 @@
         </div>
       </template>
     </UModal>
-    <nav ref="nav" class="categories__strip" aria-label="Категории товаров">
-      <NuxtLink :to="link('/catalog')" class="categories__item" :class="{ 'categories__item--active': active === '' && !route.query.marketPoint }" :aria-current="current('')" @click="chooseCategory($event, '')">Все</NuxtLink>
-      <NuxtLink v-for="point in points" :key="'point-' + point.id" :to="pointLink(point.slug)" class="categories__item" :class="{ 'categories__item--active': route.query.marketPoint === point.slug }" :style="{ borderColor: point.cardColor ?? undefined }" :aria-current="route.query.marketPoint === point.slug ? 'page' : undefined">{{ point.name }}</NuxtLink>
-      <NuxtLink v-for="item in items" :key="item.id" :to="link(`/catalog/${item.slug}`)" class="categories__item" :class="{ 'categories__item--active': active === item.slug }" :aria-current="current(item.slug)" @click="chooseCategory($event, item.slug)">{{ item.name }}</NuxtLink>
-    </nav>
+    <div class="categories__scroller">
+      <nav ref="nav" class="categories__strip" aria-label="Категории товаров">
+        <NuxtLink :to="link('/catalog')" class="categories__item" :class="{ 'categories__item--active': active === '' && !route.query.marketPoint }" :aria-current="current('')" @click="chooseCategory($event, '')">Все</NuxtLink>
+        <NuxtLink v-for="point in points" :key="'point-' + point.id" :to="pointLink(point.slug)" class="categories__item" :class="{ 'categories__item--active': route.query.marketPoint === point.slug }" :style="{ borderColor: point.cardColor ?? undefined }" :aria-current="route.query.marketPoint === point.slug ? 'page' : undefined">{{ point.name }}</NuxtLink>
+        <NuxtLink v-for="item in items" :key="item.id" :to="link(`/catalog/${item.slug}`)" class="categories__item" :class="{ 'categories__item--active': active === item.slug }" :aria-current="current(item.slug)" @click="chooseCategory($event, item.slug)">{{ item.name }}</NuxtLink>
+      </nav>
+      <span v-show="overflowing" class="categories__hint" aria-hidden="true">
+        <svg width="44" height="10" viewBox="0 0 44 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 5H2m4-3L2 5l4 3m23-3h13m-4-3 4 3-4 3" />
+          <path d="M21 5h2" opacity=".45" />
+        </svg>
+      </span>
+    </div>
     <slot name="trailing">
       <ProductSort v-if="sort" :model-value="sort" @update:model-value="emit('update:sort', $event)" />
     </slot>
@@ -48,6 +56,13 @@ const { data: points } = await useApi<CatalogPoint[]>('/categories/points', { de
 const filteredPoints = computed(() => points.value.filter(point => point.name.toLocaleLowerCase('ru-RU').includes(search.value.trim().toLocaleLowerCase('ru-RU'))));
 function pointLink(slug: string) { return { path: '/catalog', query: { ...props.query, marketPoint: slug } }; }
 const nav = ref<HTMLElement | null>(null);
+const overflowing = ref(true);
+let stripObserver: ResizeObserver | undefined;
+function updateScroll() {
+  const strip = nav.value;
+  if (!strip) return;
+  overflowing.value = strip.scrollWidth > strip.clientWidth + 1;
+}
 const panel = ref<HTMLElement | null>(null);
 const searchBar = ref<HTMLElement | null>(null);
 const open = ref(false);
@@ -115,23 +130,33 @@ function focusPanel(event: Event) {
   });
 }
 onMounted(() => {
+  updateScroll();
   revealActive();
+  stripObserver = new ResizeObserver(updateScroll);
+  if (nav.value) stripObserver.observe(nav.value);
   window.visualViewport?.addEventListener('resize', fitPanel);
   window.visualViewport?.addEventListener('scroll', fitPanel);
   window.addEventListener('resize', fitPanel);
 });
 onBeforeUnmount(() => {
+  stripObserver?.disconnect();
   window.visualViewport?.removeEventListener('resize', fitPanel);
   window.visualViewport?.removeEventListener('scroll', fitPanel);
   window.removeEventListener('resize', fitPanel);
 });
-watch(() => props.active, revealActive, { flush: 'post' });
+watch(() => [props.active, route.query.marketPoint, props.items, points.value], () => {
+  updateScroll();
+  revealActive();
+}, { flush: 'post', deep: true });
 watch(open, value => { if (!value) resetSearch(); });
 </script>
 
 <style scoped>
 .categories { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
-.categories__strip { display: flex; flex: 1; min-width: 0; justify-content: flex-start; gap: 0.5rem; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; padding-block: 0.125rem; }
+.categories__scroller { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
+.categories__hint { position: absolute; top: calc(100% + 0.125rem); left: 50%; display: flex; transform: translateX(-50%); color: var(--ui-primary); opacity: 0.75; pointer-events: none; user-select: none; }
+.categories__strip { display: flex; flex: 1; min-width: 0; justify-content: flex-start; gap: 0.5rem; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; padding-block: 0.125rem; }
+.categories__strip::-webkit-scrollbar { display: none; }
 .categories__item { display: inline-flex; min-height: var(--touch-target); align-items: center; flex: none; padding: 0.6rem 1rem; border: 1px solid var(--ui-border); border-radius: 999px; background: var(--ui-bg-elevated); font-weight: 500; white-space: nowrap; transition: background-color 0.2s, border-color 0.2s, color 0.2s; }
 .categories__item:hover { border-color: var(--ui-primary); color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 8%, var(--ui-bg-elevated)); }
 .categories:not(.categories--tracked) .categories__item.router-link-exact-active, .categories__item--active { border-color: var(--ui-primary); color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-bg-elevated)); }

@@ -60,6 +60,7 @@
         >
           <UIcon
             name="i-lucide-plus"
+            mode="svg"
             class="card__add-icon"
             aria-hidden="true"
           />
@@ -235,7 +236,7 @@ async function subtract() {
   width: 100%;
   height: 100%;
 
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
 
   transition:
@@ -244,56 +245,31 @@ async function subtract() {
     transform 0.2s ease;
 }
 
-/*
-  Товар в корзине:
-  вместо grayscale оставляем продукт цветным,
-  лишь немного приглушаем его.
-*/
-.card--added .card__img img {
-  opacity: 0.9;
-  filter: saturate(0.88) brightness(0.94) contrast(0.96);
-}
-
-/*
-  Эффект плетёной корзины.
-  Накладывается ТОЛЬКО поверх фотографии.
-*/
-.card--added .card__img::after {
+/* Единая заливка и плетение покрывают всю область фото, включая поля. */
+.card--added .card__media::after {
   content: "";
-
   position: absolute;
   inset: 0;
   z-index: 1;
-
   pointer-events: none;
 
-  background:
-    repeating-linear-gradient(
+  background-color: rgb(15 23 42 / 10%);
+  background-image:
+    linear-gradient(
       0deg,
-      transparent 0,
-      transparent 7px,
-      rgba(105, 66, 31, 0.13) 7px,
-      rgba(105, 66, 31, 0.13) 9px,
-      rgba(207, 158, 96, 0.2) 9px,
-      rgba(207, 158, 96, 0.2) 12px,
-      transparent 12px,
-      transparent 16px
+      rgb(120 80 40 / 14%) 0 1px,
+      rgb(255 245 222 / 20%) 1px 2px,
+      rgb(120 80 40 / 10%) 2px 3px,
+      transparent 3px
     ),
-    repeating-linear-gradient(
+    linear-gradient(
       90deg,
-      transparent 0,
-      transparent 8px,
-      rgba(181, 128, 68, 0.16) 8px,
-      rgba(181, 128, 68, 0.16) 11px,
-      rgba(101, 63, 30, 0.11) 11px,
-      rgba(101, 63, 30, 0.11) 14px,
-      transparent 14px,
-      transparent 19px
-    ),
-    linear-gradient(rgba(171, 119, 61, 0.04), rgba(116, 75, 34, 0.08));
-
-  mix-blend-mode: multiply;
-  opacity: 0.58;
+      rgb(120 80 40 / 14%) 0 1px,
+      rgb(255 245 222 / 20%) 1px 2px,
+      rgb(120 80 40 / 10%) 2px 3px,
+      transparent 3px
+    );
+  background-size: 18px 18px;
 }
 
 /* =========================================================
@@ -343,23 +319,30 @@ async function subtract() {
    FAVORITE
    ========================================================= */
 
-.card__favorite {
+.card__media .card__favorite {
   position: absolute;
 
   top: 0.25rem;
   right: 0.25rem;
   z-index: 4;
 
-  width: var(--touch-target);
-  min-width: var(--touch-target);
+  width: 2.375rem;
+  min-width: 2.375rem;
 
-  height: var(--touch-target);
-  min-height: var(--touch-target);
+  height: 2.375rem;
+  min-height: 2.375rem;
+  padding: 0;
 
   border: 1px solid var(--ui-border);
   border-radius: 0.5rem;
 
   background: var(--ui-bg);
+}
+
+.card__favorite::after {
+  content: "";
+  position: absolute;
+  inset: -0.1875rem;
 }
 
 /* =========================================================
@@ -403,7 +386,7 @@ async function subtract() {
 
 .card__title {
   display: -webkit-box;
-  height: 2.6em;
+  min-height: 1.95em;
 
   margin-top: 0.125rem;
 
@@ -489,11 +472,23 @@ async function subtract() {
   padding-inline: 0.5rem;
 }
 
+.card__add { cursor: pointer; transition: background-color 160ms ease, box-shadow 160ms ease; }
+.card__add:disabled { cursor: not-allowed; }
 .card__add-icon {
   flex: none;
-
-  width: 1rem;
-  height: 1rem;
+  width: 1.625rem;
+  height: 1.625rem;
+  transition: transform 160ms ease;
+}
+.card__add-icon :deep(path) { stroke-width: 2.5; stroke-linecap: round; }
+.card__add:not(:disabled):active .card__add-icon { transform: scale(0.9); }
+@media (hover: hover) and (pointer: fine) {
+  .card__add:not(:disabled):hover { box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%); }
+  .card__add:not(:disabled):hover .card__add-icon { transform: scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card__add, .card__add-icon { transition: none; }
+  .card__add:not(:disabled):hover .card__add-icon, .card__add:not(:disabled):active .card__add-icon { transform: none; }
 }
 
 /* =========================================================
@@ -554,7 +549,7 @@ async function subtract() {
     font-size: 0.7rem;
   }
 
-  .card__favorite {
+  .card__media .card__favorite {
     top: 0.1875rem;
     right: 0.1875rem;
   }

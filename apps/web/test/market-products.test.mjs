@@ -228,7 +228,10 @@ test('a compact card keeps its cart quantity centered above both photo ribbons',
 
 test('estimated and audited product cards render their own price provenance without exposing seller price', async () => {
   const estimated = await render(Card, { product: { ...product, priceStatus: 'ESTIMATED' } });
-  assert.ok(estimated.includes('Ориентировочная цена. Актуальную стоимость продавец подтвердит при сборке.'));
+  assert.match(estimated, /<details[^>]*class="origin__disclosure"[^>]*>/);
+  assert.ok(!/<details[^>]*\sopen(?:[\s=>])/.test(estimated), 'Estimated price explanation starts collapsed');
+  assert.match(estimated, /<summary[^>]*>[\s\S]*?Ориентировочная цена\.[\s\S]*?<\/summary>/);
+  assert.ok(estimated.includes('Актуальную стоимость продавец подтвердит при сборке'));
   const audited = await render(Card, { product: { ...product, priceStatus: 'AUDITED' } });
   assert.ok(!audited.includes('Ориентировочная цена') && !audited.includes('Цена по открытому источнику'));
   for (const html of [estimated, audited]) {
