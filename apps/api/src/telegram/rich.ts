@@ -16,12 +16,16 @@ export type InputRichBlock =
   | { type: 'collage'; blocks: InputRichBlock[] }
   | { type: 'photo'; photo: { type: 'photo'; media: string }; caption?: { text: RichText } };
 export type InputRichMessage = { blocks: InputRichBlock[]; skip_entity_detection?: boolean };
-export type TelegramScreen = { text: string; keyboard: TelegramKeyboard; rich?: InputRichMessage; fallback?: RichText[]; mediaReason?: 'no_image' | 'invalid_url' };
+export type TelegramScreen = { text: string; keyboard: TelegramKeyboard; rich?: InputRichMessage; fallback?: RichText[];
+  buttonsAlign?: 'left'; mediaReason?: 'no_image' | 'invalid_url' };
 
 export const bold = (text: string): RichText => ({ type: 'bold', text });
 export const marked = (text: string): RichText => ({ type: 'marked', text });
 export const paragraph = (text: RichText): InputRichBlock => ({ type: 'paragraph', text });
 export const heading = (text: string): InputRichBlock => ({ type: 'heading', text, size: 2 });
+export function customerScreen(screen: TelegramScreen): TelegramScreen {
+  return { ...screen, buttonsAlign: 'left', fallback: screen.fallback ?? screen.text.split('\n').map((line, index) => index ? emphasis(line) : bold(line)) };
+}
 export function screenNotice(screen: TelegramScreen, notice: string): TelegramScreen {
   return { ...screen, text: notice + '\n\n' + screen.text,
     ...(screen.fallback ? { fallback: [bold(notice), '', ...screen.fallback] } : {}),
@@ -49,14 +53,22 @@ export function richMessage(screen: TelegramScreen): InputRichMessage {
   const blocks = screen.rich?.blocks ?? [heading(title), ...(rest.some(Boolean) ? [{ type: 'divider' as const }] : []),
     ...rest.join('\n').split('\n\n').filter(Boolean).map(text => paragraph(emphasis(text)))];
   const embedded = new Set(blocks.filter(block => block.type === 'buttons').map(block => JSON.stringify(block.buttons)));
-  return { blocks: [...blocks, ...screen.keyboard.inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row))).map(buttons => ({
+  const complete = [...blocks, ...screen.keyboard.inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row))).map(buttons => ({
     type: 'buttons' as const, buttons,
-  }))], skip_entity_detection: true };
+  }))];
+  return { blocks: screen.buttonsAlign ? complete.map(customerBlock) : complete, skip_entity_detection: true };
+}
+function customerBlock(block: InputRichBlock): InputRichBlock {
+  if (block.type === 'buttons') return { ...block, align: 'left' };
+  if (block.type === 'collage' || block.type === 'details') return { ...block, blocks: block.blocks.map(customerBlock) };
+  if (block.type === 'heading' || block.type === 'paragraph' || block.type === 'footer')
+    return { ...block, text: typeof block.text === 'string' ? emphasis(block.text) : block.text };
+  return block;
 }
 function emphasis(text: string): RichText {
   const parts: RichText[] = [];
   let start = 0;
-  for (const match of text.matchAll(/(?:≈[ \u00a0\u202f]*)?[+−-]?\d[\d \u00a0\u202f.,]*[ \u00a0\u202f]₽/gu)) {
+  for (const match of text.matchAll(/(?:Заказ\s+)?№\d+|(?:≈[ \u00a0\u202f]*)?[+−-]?\d[\d \u00a0\u202f.,]*[ \u00a0\u202f]₽/gu)) {
     if (match.index > start) parts.push(text.slice(start, match.index));
     parts.push(bold(match[0])); start = match.index + match[0].length;
   }

@@ -4,11 +4,12 @@ import type { DbService } from '../db/db.service.js';
 import type { CartService } from '../cart/cart.service.js';
 import type { OrderService } from '../order/order.service.js';
 import { CustomerCheckoutService } from './customer-checkout.service.js';
+import { receivingPayload } from './receiving.js';
 import { checkoutPayload } from './checkout.js';
 
 const revision = '11111111-1111-4111-8111-111111111111';
 const identity = { id: 3, userId: 7 };
-const savedAddress = { id: 9, userId: 7, city: 'Москва', street: 'Тестовая', house: '1',
+const savedAddress = { id: 9, userId: 7, label: 'Дом', isDefault: true, updatedAt: new Date('2026-10-20T09:00:00Z'), city: 'Москва', street: 'Тестовая', house: '1',
   buildingPart: null, flat: '12', entrance: null, floor: null, intercom: null, comment: null };
 const slot = '2026-10-23T09:00:00.000Z';
 function setup() {
@@ -19,7 +20,8 @@ function setup() {
     user: { findUniqueOrThrow: vi.fn().mockResolvedValue({ name: 'Покупатель', phone: '+79990000007', telegramIdentity: null }) },
     order: { findFirst: vi.fn().mockResolvedValue({ type: 'DELIVERY', customerName: 'Другой получатель',
       customerPhone: '+79990000099', scheduledFor: new Date('2020-01-01') }) },
-    address: { findFirst: vi.fn().mockResolvedValue(savedAddress) },
+    address: { findFirst: vi.fn().mockResolvedValue(savedAddress), updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      create: vi.fn().mockResolvedValue({ id: 10 }) },
     shopSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue({ deliveryEnabled: true, pickupEnabled: true, minDeliverySubtotal: 0 }) },
     customerTelegramSession: {
       findUnique: vi.fn().mockImplementation(async () => session),
@@ -220,4 +222,83 @@ it('does not allow a delivery comment to create an address on a pickup order', a
   const first = await s.service.start(identity, revision);
   await expect(s.service.choose(identity, first.id, 'edit_comment')).rejects.toBeInstanceOf(ConflictException);
   expect(checkoutPayload.parse(s.session.payload).address).toBeUndefined();
+});
+
+it('prepares pickup with an empty cart and consumes that choice only at ordinary checkout', async () => {
+  const s = setup();
+  const first = await s.service.receiving(identity);
+  expect(first.action).toBe('CHECKOUT');
+  const ready = await s.service.chooseReceiving(identity, { kind: 'receive', revision: first.id, choice: 'pickup' });
+  expect(receivingPayload.parse(ready.payload).stage).toBe('DONE');
+  expect(s.cart.getIn).not.toHaveBeenCalled(); expect(s.cart.checkoutIn).not.toHaveBeenCalled();
+  expect(s.db.address.updateMany).not.toHaveBeenCalled();
+  await expect(s.service.chooseReceiving(identity, { kind: 'receive', revision: first.id, choice: 'pickup' })).rejects.toBeInstanceOf(ConflictException);
+  await expect(s.service.confirm(identity, ready.id)).rejects.toBeInstanceOf(ConflictException);
+  const confirmation = await s.service.start(identity, revision);
+  expect(checkoutPayload.parse(confirmation.payload).type).toBe('PICKUP');
+  expect(s.cart.checkoutIn).not.toHaveBeenCalled(); expect(s.orders.created).not.toHaveBeenCalled();
+});
+it('binds a saved-address selection to ownership, version and nonce, and keeps its ID for checkout', async () => {
+  const s = setup();
+  let step = await s.service.receiving(identity);
+  step = await s.service.chooseReceiving(identity, { kind: 'receive', revision: step.id, choice: 'delivery' });
+  step = await s.service.chooseReceiving(identity, { kind: 'receive', revision: step.id, choice: 'view', value: 9 });
+  expect(s.db.address.findFirst).toHaveBeenLastCalledWith({ where: { id: 9, userId: 7 } });
+  const view = step;
+  step = await s.service.chooseReceiving(identity, { kind: 'receive', revision: step.id, choice: 'use' });
+  expect(receivingPayload.parse(step.payload).stage).toBe('DONE');
+  expect(s.db.address.updateMany).toHaveBeenCalledWith({ where: { id: 9, userId: 7, updatedAt: savedAddress.updatedAt }, data: { isDefault: true } });
+  await expect(s.service.chooseReceiving(identity, { kind: 'receive', revision: view.id, choice: 'use' })).rejects.toBeInstanceOf(ConflictException);
+  await s.service.start(identity, revision);
+  expect(s.db.address.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: { userId: 7, id: 9 } }));
+  expect(s.cart.checkoutIn).not.toHaveBeenCalled();
+});
+it.each(['foreign', 'changed'])('rejects a %s saved address without changing it or creating an order', async reason => {
+  const s = setup();
+  let step = await s.service.receiving(identity);
+  step = await s.service.chooseReceiving(identity, { kind: 'receive', revision: step.id, choice: 'delivery' });
+  if (reason === 'foreign') s.db.address.findFirst.mockResolvedValueOnce(null);
+  if (reason === 'foreign') {
+    await expect(s.service.chooseReceiving(identity, { kind: 'receive', revision: step.id, choice: 'view', value: 999 })).rejects.toBeInstanceOf(ConflictException);
+    expect(s.db.address.updateMany).not.toHaveBeenCalled();
+  } else {
+    step = await s.service.chooseReceiving(identity, { kind: 'receive', revision: step.id, choice: 'view', value: 9 });
+    s.db.address.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(s.service.chooseReceiving(identity, { kind: 'receive', revision: step.id, choice: 'use' })).rejects.toBeInstanceOf(ConflictException);
+    expect(s.db.address.updateMany).toHaveBeenCalledTimes(1);
+  }
+  expect(s.cart.checkoutIn).not.toHaveBeenCalled();
+});
+it.each(['new', 'edit'] as const)('saves a %s address only after bound replies and explicit review confirmation', async mode => {
+  const s = setup();
+  let step = await s.service.receiving(identity);
+  step = await s.service.chooseReceiving(identity, { kind: 'receive', revision: step.id, choice: 'delivery' });
+  if (mode === 'edit') step = await s.service.chooseReceiving(identity, { kind: 'receive', revision: step.id, choice: 'view', value: 9 });
+  step = await s.service.chooseReceiving(identity, { kind: 'receive', revision: step.id, choice: mode });
+  s.session.promptMessageId = 90;
+  await expect(s.service.replyReceiving(identity, 'Москва', 89)).rejects.toBeInstanceOf(ConflictException);
+  for (const text of ['Москва', 'Новая', '2', '3', '-', '-', '-', 'Позвоните']) {
+    s.session.promptMessageId = 90;
+    step = await s.service.replyReceiving(identity, text, 90);
+  }
+  expect(receivingPayload.parse(step.payload).stage).toBe('REVIEW');
+  expect(s.db.address.create).not.toHaveBeenCalled(); expect(s.db.address.updateMany).not.toHaveBeenCalled();
+  const review = step;
+  step = await s.service.chooseReceiving(identity, { kind: 'receive', revision: step.id, choice: 'save' });
+  expect(receivingPayload.parse(step.payload).stage).toBe('DONE');
+  if (mode === 'new') expect(s.db.address.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: 7, label: 'Доставка', city: 'Москва', street: 'Новая', house: '2', isDefault: true }) });
+  else expect(s.db.address.updateMany).toHaveBeenCalledWith({ where: { id: 9, userId: 7, updatedAt: savedAddress.updatedAt },
+    data: expect.objectContaining({ street: 'Новая', lat: null, lng: null, fiasId: null }) });
+  await expect(s.service.chooseReceiving(identity, { kind: 'receive', revision: review.id, choice: 'save' })).rejects.toBeInstanceOf(ConflictException);
+  expect(s.cart.checkoutIn).not.toHaveBeenCalled(); expect(s.orders.created).not.toHaveBeenCalled();
+});
+it('expires a receiving preference and rechecks disabled methods', async () => {
+  const s = setup();
+  const first = await s.service.receiving(identity);
+  s.db.shopSettings.findUniqueOrThrow.mockResolvedValueOnce({ deliveryEnabled: false, pickupEnabled: true, minDeliverySubtotal: 0 });
+  await expect(s.service.chooseReceiving(identity, { kind: 'receive', revision: first.id, choice: 'delivery' })).rejects.toThrow('недоступен');
+  await s.service.chooseReceiving(identity, { kind: 'receive', revision: first.id, choice: 'pickup' });
+  vi.advanceTimersByTime(31 * 60000);
+  const confirmation = await s.service.start(identity, revision);
+  expect(checkoutPayload.parse(confirmation.payload).type).toBe('DELIVERY');
 });

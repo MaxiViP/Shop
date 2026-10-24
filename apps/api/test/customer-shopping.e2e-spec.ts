@@ -18,6 +18,7 @@ import { TelegramService } from '../src/telegram/telegram.service.js';
 import { CustomerCheckoutService } from '../src/telegram/customer-checkout.service.js';
 import { CustomerShopService } from '../src/telegram/customer-shop.service.js';
 import { CustomerUpdateService } from '../src/telegram/customer-update.service.js';
+import { receivingPayload } from '../src/telegram/receiving.js';
 import { checkoutPayload } from '../src/telegram/checkout.js';
 import { shoppingData, shoppingAction, productData, adjustData } from '../src/telegram/shopping-callback.js';
 import { customerView } from '../src/telegram/customer-callback.js';
@@ -590,6 +591,61 @@ describe.skipIf(!process.env.DATABASE_URL)(
         other = await fixture(),
         s = await ready(f);
       await expect(checkout.confirm(other.actor, s.id)).rejects.toThrow();
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+    });
+    it('keeps a receiving preference across menu/cart navigation and creates no order', async () => {
+      const f = await fixture(), handler = bot();
+      await handler.handle(text(f.telegramId, '/delivery'));
+      let state = await session(f);
+      expect(state.action).toBe('CHECKOUT');
+      await handler.handle(cb(f.telegramId, shoppingData('g', state.id, 'pickup')));
+      state = await session(f);
+      expect(receivingPayload.parse(state.payload).stage).toBe('DONE');
+      await handler.handle(text(f.telegramId, '/menu'));
+      await handler.handle(text(f.telegramId, '/cart'));
+      expect((await session(f)).id).toBe(state.id);
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+      await add(f);
+      await checkout.start(f.actor, (await cart.get(f.user.id)).revision);
+      const checkoutState = await session(f);
+      expect(checkoutState.action).toBe('CHECKOUT');
+      expect(checkoutPayload.parse(checkoutState.payload).type).toBe('PICKUP');
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+    });
+    it('saves an address through bound input exactly once without an order or cart change', async () => {
+      const f = await fixture(), handler = bot();
+      const before = await cart.get(f.user.id);
+      await handler.handle(text(f.telegramId, '/delivery'));
+      await handler.handle(cb(f.telegramId, shoppingData('g', (await session(f)).id, 'delivery')));
+      await handler.handle(cb(f.telegramId, shoppingData('g', (await session(f)).id, 'new')));
+      for (const input of ['Москва', 'Сохранённая', '5', '12', '-', '-', '-', 'Позвоните']) {
+        const state = await session(f);
+        expect(state.promptMessageId).not.toBeNull();
+        await handler.handle(text(f.telegramId, input, state.promptMessageId!));
+      }
+      const review = await session(f);
+      expect(receivingPayload.parse(review.payload).stage).toBe('REVIEW');
+      expect(await db.address.count({ where: { userId: f.user.id } })).toBe(0);
+      const action = { kind: 'receive' as const, revision: review.id, choice: 'save' as const };
+      const attempts = await Promise.allSettled([checkout.chooseReceiving(f.actor, action), checkout.chooseReceiving(f.actor, action)]);
+      expect(attempts.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+      expect(attempts.filter(result => result.status === 'rejected')).toHaveLength(1);
+      expect(await db.address.count({ where: { userId: f.user.id } })).toBe(1);
+      expect(await db.address.findFirst({ where: { userId: f.user.id } })).toMatchObject({ city: 'Москва', street: 'Сохранённая', house: '5', isDefault: true });
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+      expect((await cart.get(f.user.id)).revision).toBe(before.revision);
+    });
+    it('rejects foreign addresses and stale edits against a concurrently changed saved address', async () => {
+      const f = await fixture(), other = await fixture();
+      const foreign = await db.address.create({ data: { userId: other.user.id, label: 'Чужой', city: 'Москва', street: 'Чужая', house: '1' } });
+      let state = await checkout.receiving(f.actor);
+      state = await checkout.chooseReceiving(f.actor, { kind: 'receive', revision: state.id, choice: 'delivery' });
+      await expect(checkout.chooseReceiving(f.actor, { kind: 'receive', revision: state.id, choice: 'view', value: foreign.id })).rejects.toThrow();
+      const own = await db.address.create({ data: { userId: f.user.id, label: 'Дом', city: 'Москва', street: 'Своя', house: '2', isDefault: true } });
+      state = await checkout.chooseReceiving(f.actor, { kind: 'receive', revision: state.id, choice: 'view', value: own.id });
+      await db.address.update({ where: { id: own.id }, data: { street: 'Изменено на сайте', updatedAt: new Date(own.updatedAt.getTime() + 1000) } });
+      await expect(checkout.chooseReceiving(f.actor, { kind: 'receive', revision: state.id, choice: 'use' })).rejects.toThrow();
+      expect((await db.address.findUniqueOrThrow({ where: { id: own.id } })).street).toBe('Изменено на сайте');
       expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
     });
     it('reuses only owned saved address and prefers own account contact over verified Telegram defaults', async () => {

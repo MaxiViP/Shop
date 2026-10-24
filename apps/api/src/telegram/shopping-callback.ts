@@ -46,6 +46,8 @@ export type ShoppingAction =
   | { kind: 'catalog' | 'cart' | 'resume' | 'help' }
   | { kind: 'categories' | 'basket'; page: number }
   | { kind: 'quick'; page: number }
+  | { kind: 'receiving' }
+  | { kind: 'receive'; revision: string; choice: 'pickup' | 'delivery' | 'view' | 'use' | 'edit' | 'new' | 'save' | 'page'; value?: number }
   | { kind: 'repeat'; revision: string; orderId: number }
   | { kind: 'products'; categoryId: number; page: number }
   | { kind: 'product'; productId: number; qty: number }
@@ -70,6 +72,8 @@ export type ShoppingAction =
     };
 export function shoppingAction(data: string): ShoppingAction | null {
   if (Buffer.byteLength(data, 'utf8') > 64) return null;
+  if (data === 'quick') return { kind: 'quick', page: 0 };
+  if (data === 'delivery') return { kind: 'receiving' };
   if (
     data === 'catalog' ||
     data === 'cart' ||
@@ -78,6 +82,17 @@ export function shoppingAction(data: string): ShoppingAction | null {
   )
     return { kind: data };
   const parts = data.split(':');
+  if (parts[0] === 's' && parts[1] === 'g' && (parts.length === 4 || parts.length === 5)) {
+    const revision = expand(parts[2]), choice = parts[3];
+    if (!revision) return null;
+    if ((choice === 'view' || choice === 'page') && parts.length === 5) {
+      const value = number(parts[4], choice === 'page' ? page : id);
+      return value === null ? null : { kind: 'receive', revision, choice, value };
+    }
+    if (parts.length === 4 && (choice === 'pickup' || choice === 'delivery' || choice === 'use' || choice === 'edit' || choice === 'new' || choice === 'save'))
+      return { kind: 'receive', revision, choice };
+    return null;
+  }
   if (parts[0] === 's' && parts[1] === 'x' && parts.length === 5) {
     const revision = expand(parts[2]), productId = number(parts[3], id), p = number(parts[4], page);
     return revision && productId && p !== null ? { kind: 'remove', revision, productId, page: p } : null;

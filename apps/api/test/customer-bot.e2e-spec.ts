@@ -200,7 +200,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CUSTOMER v2 PostgreSQL', () => {
     expect(buttons?.map(button => button.callback_data))
       .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
     expect(buttons?.map(button => button.text))
-      .toEqual(expect.arrayContaining(['🛍 Каталог', '⚡ Быстрые покупки', '📦 История']));
+      .toEqual(expect.arrayContaining(['🛍 Каталог', '⚡ Быстрые покупки', '📦 Мои заказы']));
     const beforeShopping = fetcher.mock.calls.length;
     for (const command of ['/catalog', '/cart', '/orders'])
       await makeBot().handle(text(telegramId, command));

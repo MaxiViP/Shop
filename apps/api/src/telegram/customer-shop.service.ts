@@ -18,6 +18,7 @@ import { bold, heading, paragraph, richTable, productPhoto, type InputRichBlock,
 import { priceUnit, saleModel, variableWeight } from '../product/sale.js';
 import { CustomerCheckoutService } from './customer-checkout.service.js';
 import { checkoutScreen, paymentScreen, clearCartScreen, shoppingHelpScreen } from './shopping-view.js';
+import { receivingPayload, receivingScreen, isReceiving } from './receiving.js';
 import {
   customerShow,
   customerPrompt,
@@ -90,11 +91,14 @@ export class CustomerShopService {
     const result = await this.quick.get(identity.userId);
     const info = pageInfo(result.items.length, requested, 8);
     const rows = result.items.slice(info.skip, info.skip + 8);
+    const names = rows.map(row => short(row.product.name, 70));
     return customerShow(target, {
-      text: '⚡ Быстрые покупки\n\nПривычные товары по текущим ценам.\n' + info.label + '\n\n' +
-        (rows.map(row => short(row.product.name, 70) + ' · ' + estimate(row.lineTotal)).join('\n') || 'Выберите продукты в каталоге.'),
+      text: '⚡ Быстрые покупки\n\n' + (rows.length ? 'Привычные товары по текущим ценам.' + (info.pages > 1 ? '\n' + info.label : '') : 'Выберите продукты в каталоге.'),
       keyboard: { inline_keyboard: [
-        ...rows.map(row => [{ text: short(row.product.name, 55), callback_data: productData(row.product.id, { page: info.page, origin: 'quick' }) }]),
+        ...rows.map(row => [{ text: (names.filter(name => name === short(row.product.name, 70)).length > 1
+          ? short(row.product.name, 60) + ' · №' + row.product.id : short(row.product.name, 70)) +
+          ' · ' + amount(row.product.price) + ' / ' + quantity(row.product.priceQty, priceUnit(row.product)),
+          callback_data: productData(row.product.id, { page: info.page, origin: 'quick' }) }]),
         ...(info.pages > 1 ? [[
           ...(info.page ? [{ text: '← Предыдущие', callback_data: shoppingData('q', info.page - 1) }] : []),
           ...(info.page + 1 < info.pages ? [{ text: 'Следующие →', callback_data: shoppingData('q', info.page + 1) }] : []),
@@ -357,7 +361,11 @@ export class CustomerShopService {
     identity: CustomerIdentity,
     session: CustomerTelegramSession,
   ) {
-    const screen = checkoutScreen(
+    const receiving = isReceiving(session);
+    const page = receiving ? receivingPayload.parse(session.payload).page : 0;
+    const addressTotal = receiving ? await this.db.address.count({ where: { userId: identity.userId } }) : 0;
+    const screen = receiving ? receivingScreen(session, await this.db.address.findMany({ where: { userId: identity.userId },
+      orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }], take: 6, skip: pageInfo(addressTotal, page, 6).skip }), addressTotal) : checkoutScreen(
       session,
       session.step === 'CONFIRM' ? await this.cart.get(identity.userId) : null,
       session.step === 'TIME' ? await this.orders.offer() : null,
@@ -370,7 +378,7 @@ export class CustomerShopService {
           id: session.id,
           identityId: identity.id,
           identity: { userId: identity.userId },
-          action: 'CHECKOUT',
+          action: session.action,
           step: session.step,
           promptMessageId: null,
           expiresAt: { gt: new Date() },
@@ -418,6 +426,10 @@ export class CustomerShopService {
         return this.basket(target, identity, action.page);
       case 'quick':
         return this.quickShop(target, identity, action.page);
+      case 'receiving':
+        return this.present(target, identity, await this.checkout.receiving(identity));
+      case 'receive':
+        return this.present(target, identity, await this.checkout.chooseReceiving(identity, action));
       case 'repeat': {
         const result = await this.quick.repeat(identity.userId, action.revision, action.orderId);
         return this.basket(target, identity, 0, result.cart, 'Добавлено позиций: ' + result.added +

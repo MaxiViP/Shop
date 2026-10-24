@@ -70,7 +70,7 @@ function setup(linked = true) {
     post: vi.fn().mockResolvedValue({ id: 80 }), reserveReply: vi.fn().mockResolvedValue({ id: 'reservation', orderId: 1 }),
   };
   const shop = {handle: vi.fn(), present: vi.fn(), cartLabel: vi.fn().mockResolvedValue('🛒 Корзина · 2 поз. · ≈ 320 ₽')};
-  const checkout = {resume: vi.fn().mockResolvedValue(null)};
+  const checkout = {resume: vi.fn().mockResolvedValue(null), replyReceiving: vi.fn().mockResolvedValue({ action: 'RECEIVING' })};
   const service = new CustomerUpdateService(db as unknown as DbService,
     coordination as unknown as CoordinationService, orders as unknown as OrderService,
     shop as unknown as CustomerShopService, checkout as unknown as CustomerCheckoutService);
@@ -97,6 +97,24 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe('customer cabinet', () => {
+  it.each([['/catalog', 'catalog'], ['/cart', 'cart'], ['/quick', 'quick'], ['/delivery', 'receiving'], ['/help', 'help']])(
+    'routes %s to its real shopping handler', async (command, kind) => {
+      const { service, shop } = setup();
+      await service.handle(message(command));
+      expect(shop.handle).toHaveBeenCalledWith({ chatId: telegramId }, expect.objectContaining({ userId: 7 }), expect.objectContaining({ kind }));
+    });
+  it('cancels a prepared receiving preference only for explicit /cancel', async () => {
+    const { service, db } = setup();
+    await service.handle(message('/cancel'));
+    expect(db.customerTelegramSession.deleteMany).toHaveBeenCalledWith({ where: { identityId: 3 } });
+  });
+  it('routes reply-bound receiving input without calling checkout confirmation or chat mutations', async () => {
+    const { service, db, checkout, coordination, shop } = setup();
+    db.customerTelegramSession.findUnique.mockResolvedValueOnce({ action: 'CHECKOUT', payload: { purpose: 'RECEIVING' }, expiresAt: new Date(Date.now() + 60000) });
+    await service.handle(message('Москва', telegramId, 'private', 90));
+    expect(checkout.replyReceiving).toHaveBeenCalledWith(expect.objectContaining({ userId: 7 }), 'Москва', 90);
+    expect(shop.present).toHaveBeenCalled(); expect(coordination.post).not.toHaveBeenCalled();
+  });
   it('/start activates exactly the linked identity and presents the menu', async () => {
     const { db, service } = setup();
     await service.handle(message('/start'));
@@ -106,11 +124,12 @@ describe('customer cabinet', () => {
     }));
     expect(sent()[0]?.text).toContain('Привет, Maksim!');
     const buttons = sent()[0]?.reply_markup?.inline_keyboard?.flat();
-    expect(buttons?.map(button => button.callback_data)).toEqual(expect.arrayContaining(['current', 'orders', 'attention']));
+    expect(buttons?.map(button => button.callback_data)).toEqual(expect.arrayContaining(['orders', 'attention', 'delivery', 'contact']));
+    expect(buttons?.map(button => button.callback_data)).not.toContain('current');
     expect(buttons?.map(button => button.callback_data)).toContain('catalog');
     expect(buttons?.[0]).toMatchObject({ callback_data: 'attention', style: 'primary' });
     expect(buttons?.find(button => button.callback_data === 's:q:0')).toEqual({ text: '⚡ Быстрые покупки', callback_data: 's:q:0' });
-    expect(buttons?.find(button => button.callback_data === 'cart')?.text).toBe('🛒 Корзина · 2 поз. · ≈ 320 ₽');
+    expect(buttons?.find(button => button.callback_data === 'cart')?.text).toBe('🛒 Корзина');
     expect(buttons?.map(button => button.url).filter(Boolean)).toEqual([]);
   });
   it('/menu does not alter activation and hides irrelevant attention button', async () => {
@@ -225,8 +244,9 @@ describe('customer cabinet', () => {
     const { db, service } = setup();
     await service.handle(message('/orders'));
     expect(db.order.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 7 }, take: 6, skip: 0 }));
-    expect(sent()[0]?.text).toContain('123,45');
-    expect(sent()[0]?.text).toContain('№1');
+    expect(sent()[0]?.text).not.toContain('123,45');
+    expect(sent()[0]?.text).not.toContain('№1');
+    expect(sent()[0]?.reply_markup?.inline_keyboard?.[0]?.[0]?.text).toContain('№1 · 🧺 Собирается · Предв. ≈123,45 ₽ · 22.09 12:00');
     expect(sent()[0]?.reply_markup?.inline_keyboard?.[0]?.[0]?.callback_data).toBe(customerView('o', publicId));
   });
   it('paginates order lists without unbounded queries', async () => {
@@ -341,7 +361,7 @@ describe('customer cabinet', () => {
     expect(coordination.decide).toHaveBeenCalledWith({ publicId, userId: 7 }, 8, { version: 3, action: 'REMOVE_ITEM' });
     expect(orders.get).toHaveBeenCalledWith(publicId, 7);
     expect(sent()[0]?.text).toContain('Товар убран. Остальной заказ сохраняется.');
-    expect(sent()[0]?.text).toContain('Заказ №1 · Собирается');
+    expect(sent()[0]?.text).toContain('Заказ №1 · 🧺 Собирается');
     expect(sent()[0]?.text).not.toContain('Заказ отменён');
   });
   it('refreshes a stale issue to its current version without replaying the rejected mutation', async () => {

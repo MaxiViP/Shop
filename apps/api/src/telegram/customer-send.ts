@@ -3,11 +3,12 @@ import { botSendMessageId } from './bot-api.js';
 import { deliverScreen } from './delivery.js';
 import { customerBotToken } from './bot-config.js';
 import type { Screen } from './customer-view.js';
+import { customerScreen } from './rich.js';
 export type CustomerTarget = { chatId: number; messageId?: number };
 export type CustomerIdentity = { id: number; userId: number };
 const logger = new Logger('CustomerTelegram');
 export async function customerShow(target: CustomerTarget, screen: Screen) {
-  const result = await deliverScreen('customer', target, screen);
+  const result = await deliverScreen('customer', target, customerScreen(screen));
   if (result.status === 'sent') target.messageId = result.messageId;
   const ok = result.status === 'sent' || result.status === 'unchanged';
   if (!ok) logger.warn('Customer Telegram display failed');

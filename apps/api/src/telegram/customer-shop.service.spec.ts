@@ -158,6 +158,27 @@ it('uses the authoritative cart value in the main menu, including unknown weight
   s.cart.get.mockResolvedValueOnce({ ...s.basket, goodsTotal: null });
   expect(await s.service.cartLabel(identity)).toBe('🛒 Корзина · 1 поз. · после взвешивания');
 });
+it('shows current unit prices on quick buttons once and retains repeat, paging and direct product context', async () => {
+  const s = setup();
+  const quick = { get: vi.fn().mockResolvedValue({ cart: s.basket, items: Array.from({ length: 9 }, (_, index) => ({
+    product: { ...s.basket.items[0]!.product!, id: index + 10, name: 'Очень длинное название товара 🥬 '.repeat(6), price: 35999 },
+    suggestedQty: 1000, lineTotal: 35999,
+  })), lastOrder: { id: 125 } }) };
+  const service = new CustomerShopService(s.db as unknown as DbService, s.cart as unknown as CartService,
+    {} as CustomerCheckoutService, {} as OrderService, quick as unknown as QuickShopService);
+  await service.handle(target, identity, { kind: 'quick', page: 0 });
+  expect(screen().text).not.toContain('359,99'); expect(screen().text).not.toContain('Очень длинное');
+  const buttons = screen().keyboard.inline_keyboard.flat();
+  const items = buttons.filter(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'open');
+  expect(items).toHaveLength(8); expect(items[0]!.text).toContain('№10 · 359,99 ₽ / 1 кг');
+  expect(items.every(button => button.text.length <= 180)).toBe(true);
+  expect(new Set(items.map(button => button.text)).size).toBe(8);
+  expect(items[0]).toHaveProperty('callback_data', 's:o:a:0:q');
+  expect(buttons.some(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'repeat')).toBe(true);
+  expect(buttons.some(button => button.text === 'Следующие →')).toBe(true);
+  await service.handle(target, identity, { kind: 'quick', page: 1 });
+  expect(screen().keyboard.inline_keyboard[0]![0]).toHaveProperty('callback_data', 's:o:i:1:q');
+});
 
 it('preserves the original quantity unit when sale terms changed and blocks more additions', async () => {
   const s = setup({ ...product, unit: 'PIECE', priceUnit: 'GRAM', saleModel: 'WHOLE_VARIABLE_WEIGHT',

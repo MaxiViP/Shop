@@ -17,8 +17,10 @@ import {
   checkoutInput,
   afterType,
   afterText,
+  addressInput,
   type CheckoutPayload,
 } from './checkout.js';
+import { receivingPayload, isReceiving, type ReceivingPayload } from './receiving.js';
 import type { CustomerIdentity } from './customer-send.js';
 import type { ShoppingAction } from './shopping-callback.js';
 const stale = () =>
@@ -76,6 +78,8 @@ export class CustomerCheckoutService {
         return previous.step === 'CONFIRM'
           ? this.advance(db, identity, previous, 'CONFIRM', checkoutPayload.parse(previous.payload))
           : previous;
+      const preference = previous && isReceiving(previous) && receivingPayload.parse(previous.payload).stage === 'DONE' && previous.expiresAt > new Date()
+        ? receivingPayload.safeParse(previous.payload).data : undefined;
       const user = await db.user.findUniqueOrThrow({
         where: { id: identity.userId },
         select: { name: true, phone: true, telegramIdentity: { select: { phoneNumber: true, phoneVerified: true } } },
@@ -86,7 +90,7 @@ export class CustomerCheckoutService {
         select: { type: true },
       });
       const address = await db.address.findFirst({
-        where: { userId: identity.userId },
+        where: { userId: identity.userId, ...(preference?.type === 'DELIVERY' && preference.addressId ? { id: preference.addressId } : {}) },
         orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
       });
       const name = orderSchema.shape.customerName.safeParse(user.name);
@@ -106,10 +110,11 @@ export class CustomerCheckoutService {
       const saved = addressSchema.safeParse(address ? Object.fromEntries(
         Object.entries(address).map(([key, value]) => [key, value === null ? undefined : value]),
       ) : undefined);
-      if (name.success && ownPhone && last && (last.type === 'PICKUP' || saved.success)) {
-        data.type = last.type;
+      const type = preference?.type ?? last?.type;
+      if (name.success && ownPhone && type && (type === 'PICKUP' || saved.success)) {
+        data.type = type;
         data.fulfillmentMode = 'ASAP';
-        if (last.type === 'DELIVERY' && saved.success) data.address = saved.data;
+        if (type === 'DELIVERY' && saved.success) data.address = saved.data;
         try { step = await this.confirmationStep(db, identity, data); }
         catch (error) {
           if (!(error instanceof BadRequestException)) throw error;
@@ -131,6 +136,80 @@ export class CustomerCheckoutService {
           expiresAt: new Date(Date.now() + 30 * 60000),
         },
       });
+    });
+  }
+  receiving(identity: CustomerIdentity) {
+    return this.db.$transaction(async db => {
+      await this.lock(db, identity);
+      const previous = await db.customerTelegramSession.findUnique({ where: { identityId: identity.id } });
+      if (previous && isReceiving(previous) && previous.expiresAt > new Date()) return previous;
+      await db.customerTelegramSession.deleteMany({ where: { identityId: identity.id } });
+      return db.customerTelegramSession.create({ data: { identityId: identity.id, action: 'CHECKOUT', step: 'TYPE',
+        payload: receivingPayload.parse({}), expiresAt: new Date(Date.now() + 30 * 60000) } });
+    });
+  }
+  private receivingAdvance(db: Prisma.TransactionClient, session: CustomerTelegramSession, step: ReceivingPayload['stage'], data: ReceivingPayload) {
+    return db.customerTelegramSession.update({ where: { id: session.id },
+      data: { id: randomUUID(), step: ['VIEW', 'REVIEW', 'DONE'].includes(step) ? 'CONFIRM' : step,
+        payload: receivingPayload.parse({ ...data, stage: step }), promptMessageId: null,
+        ...(step === 'DONE' ? { expiresAt: new Date(Date.now() + 30 * 60000) } : {}) } });
+  }
+  chooseReceiving(identity: CustomerIdentity, action: Extract<ShoppingAction, { kind: 'receive' }>) {
+    return this.db.$transaction(async db => {
+      await this.lock(db, identity);
+      const session = await this.current(db, identity, action.revision);
+      if (!isReceiving(session)) throw stale();
+      const data = receivingPayload.parse(session.payload);
+      const step = data.stage;
+      const { choice } = action;
+      if ((step === 'TYPE' || step === 'DONE' || step === 'ADDRESS') && (choice === 'pickup' || choice === 'delivery')) {
+        const settings = await db.shopSettings.findUniqueOrThrow({ where: { id: 1 } });
+        if (choice === 'pickup' ? !settings.pickupEnabled : !settings.deliveryEnabled)
+          throw new BadRequestException('Этот способ получения сейчас недоступен. Выберите другой.');
+        return this.receivingAdvance(db, session, choice === 'pickup' ? 'DONE' : 'ADDRESS',
+          receivingPayload.parse({ type: choice === 'pickup' ? 'PICKUP' : 'DELIVERY' }));
+      }
+      if (choice === 'page' && ['ADDRESS', 'VIEW', 'REVIEW'].includes(step))
+        return this.receivingAdvance(db, session, 'ADDRESS', receivingPayload.parse({ type: 'DELIVERY', page: action.value ?? 0 }));
+      if (choice === 'view' && step === 'ADDRESS' && action.value) {
+        const address = await db.address.findFirst({ where: { id: action.value, userId: identity.userId } });
+        if (!address) throw stale();
+        return this.receivingAdvance(db, session, 'VIEW', { ...data, addressId: address.id, addressUpdatedAt: address.updatedAt.toISOString(),
+          address: addressSchema.parse(Object.fromEntries(Object.entries(address).map(([key, value]) => [key, value ?? undefined]))) });
+      }
+      if (choice === 'new' && step === 'ADDRESS')
+        return this.receivingAdvance(db, session, 'CITY', receivingPayload.parse({ type: 'DELIVERY', page: data.page }));
+      if (choice === 'edit' && ['VIEW', 'REVIEW'].includes(step)) return this.receivingAdvance(db, session, 'CITY', data);
+      if ((choice === 'use' && step === 'VIEW') || (choice === 'save' && step === 'REVIEW')) {
+        const address = addressSchema.parse(data.address);
+        let addressId = data.addressId;
+        if (addressId) {
+          if (!data.addressUpdatedAt) throw stale();
+          const result = await db.address.updateMany({ where: { id: addressId, userId: identity.userId, updatedAt: new Date(data.addressUpdatedAt) },
+            data: { ...(choice === 'save' ? { ...address, lat: null, lng: null, fiasId: null } : {}), isDefault: true } });
+          if (result.count !== 1) throw stale();
+        } else {
+          if (choice !== 'save') throw stale();
+          addressId = (await db.address.create({ data: { ...address, userId: identity.userId, label: 'Доставка', isDefault: true } })).id;
+        }
+        await db.address.updateMany({ where: { userId: identity.userId, id: { not: addressId } }, data: { isDefault: false } });
+        return this.receivingAdvance(db, session, 'DONE', { ...data, type: 'DELIVERY', addressId, address });
+      }
+      throw stale();
+    });
+  }
+  replyReceiving(identity: CustomerIdentity, text: string, promptMessageId: number) {
+    return this.db.$transaction(async db => {
+      await this.lock(db, identity);
+      const session = await this.current(db, identity);
+      if (!isReceiving(session) || !session.promptMessageId || session.promptMessageId !== promptMessageId) throw stale();
+      const data = receivingPayload.parse(session.payload);
+      try { data.address = addressInput(data.stage, text, data.address); }
+      catch { throw new BadRequestException('Проверьте адрес. Для пропуска необязательного поля — «-».'); }
+      const next = ['CITY', 'STREET', 'HOUSE', 'FLAT', 'ENTRANCE', 'FLOOR', 'INTERCOM', 'COMMENT', 'REVIEW'] as const;
+      const position = next.findIndex(step => step === data.stage);
+      if (position < 0 || position + 1 >= next.length) throw stale();
+      return this.receivingAdvance(db, session, next[position + 1]!, data);
     });
   }
   private async confirmationStep(db: Prisma.TransactionClient, identity: CustomerIdentity, data: CheckoutPayload) {
@@ -180,7 +259,7 @@ export class CustomerCheckoutService {
     return this.db.$transaction(async (db) => {
       await this.lock(db, identity);
       const session = await this.current(db, identity, revision);
-      if (session.action !== 'CHECKOUT') throw stale();
+      if (session.action !== 'CHECKOUT' || isReceiving(session)) throw stale();
       const data = checkoutPayload.parse(session.payload);
       if (
         session.step === 'TYPE' &&
@@ -230,7 +309,7 @@ export class CustomerCheckoutService {
       await this.lock(db, identity);
       const session = await this.current(db, identity);
       if (
-        session.action !== 'CHECKOUT' ||
+        session.action !== 'CHECKOUT' || isReceiving(session) ||
         !session.promptMessageId ||
         session.promptMessageId !== promptMessageId
       )
@@ -269,7 +348,7 @@ export class CustomerCheckoutService {
         await db.customerTelegramSession.delete({ where: { id: session.id } });
         return null;
       }
-      if (session.action === 'CHECKOUT' && session.step === 'CONFIRM')
+      if (session.action === 'CHECKOUT' && !isReceiving(session) && session.step === 'CONFIRM')
         return this.advance(
           db,
           identity,
@@ -291,7 +370,7 @@ export class CustomerCheckoutService {
     const order = await this.db.$transaction(async (db) => {
       await this.lock(db, identity);
       const session = await this.current(db, identity, revision);
-      if (session.action !== 'CHECKOUT' || session.step !== 'CONFIRM')
+      if (session.action !== 'CHECKOUT' || isReceiving(session) || session.step !== 'CONFIRM')
         throw stale();
       const data = checkoutPayload
         .required({ type: true, customerName: true, customerPhone: true })

@@ -237,7 +237,7 @@ export function clearCartScreen(basket: Awaited<ReturnType<CartService['get']>>)
 }
 
 export function shoppingHelpScreen(): Screen {
-  const delivery = webAppUrl('/delivery'), about = webAppUrl('/how-it-works');
+  const about = webAppUrl('/how-it-works');
   return {
     text: 'ℹ️ Покупки в KorzinaMarket\n\n' +
       '🛍 Выберите товары в каталоге. Кнопки + и − сразу меняют корзину, новое количество видно в той же карточке. Перед созданием заказа проверьте состав, контакты, способ и время получения.\n\n' +
@@ -245,14 +245,12 @@ export function shoppingHelpScreen(): Screen {
       '💳 Оплата: после сборки откройте заказ и реквизиты. Переводите указанную сумму за товары; продавец проверит поступление. Повторно переводить деньги при проверке не нужно. Условия доставки видны в заказе.\n\n' +
       '💬 Общение: выберите заказ → «Написать продавцу», затем ответьте на приглашение Telegram. Сообщения привязаны к выбранному заказу; фото и отметки открываются на сайте.\n\n' +
       '📱 Для заказов нужен ваш контакт Telegram. Каталог и помощь доступны до подтверждения номера.\n\n' +
-      '/catalog — каталог · /cart — корзина\n/orders — заказы · /current — текущий заказ\n/messages — вопросы и непрочитанное\n/resume — восстановить ввод\n/cancel — отменить только текущий ввод; заказ и товары сохраняются.',
+      '/catalog — каталог · /cart — корзина\n/quick — быстрые покупки · /orders — заказы\n/delivery — доставка и самовывоз · /menu — меню\n/help — помощь · /current — текущий заказ\n/messages — вопросы и непрочитанное\n/resume — восстановить ввод\n/cancel — отменить только текущий ввод и выбор получения; заказ и товары сохраняются.',
     keyboard: { inline_keyboard: [
       [{ text: '🛍 Каталог', callback_data: 'catalog' }, { text: '🛒 Корзина', callback_data: 'cart' }],
       [{ text: '❗ Вопросы и сообщения', callback_data: 'attention' }],
-      ...((delivery || about) ? [[
-        ...(delivery ? [{ text: 'Доставка и самовывоз', web_app: { url: delivery } }] : []),
-        ...(about ? [{ text: 'О сервисе', web_app: { url: about } }] : []),
-      ]] : []),
+      [{ text: '🚚 Доставка и самовывоз', callback_data: 'delivery' }],
+      ...(about ? [[{ text: 'О сервисе', web_app: { url: about } }]] : []),
       [{ text: 'Меню', callback_data: 'menu' }],
     ] },
   };

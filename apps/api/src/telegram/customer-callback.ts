@@ -52,6 +52,7 @@ function expand(value: string): string | null {
 }
 export function customerAction(data: string): CustomerAction | null {
   if (Buffer.byteLength(data, 'utf8') > 64) return null;
+  if (data === 'contact') return { kind: 'orders', page: 0 };
   if (data === 'menu' || data === 'current' || data === 'cancel' || data === 'verify_phone') return { kind: data };
   if (data === 'attention') return { kind: 'attention', page: 0 };
   if (data === 'orders') return { kind: 'orders', page: 0 };

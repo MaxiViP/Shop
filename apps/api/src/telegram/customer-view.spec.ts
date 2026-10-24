@@ -211,11 +211,13 @@ it('prioritizes actionable questions above the current order, cart and shopping 
     attention: { id: 7, customerUnread: 2, issues: [{ id: 1 }] }, current: { id: 7, status: 'ASSEMBLING' },
     cartLabel: '🛒 Корзина · 2 поз. · ≈ 400 ₽',
   });
-  expect(card.text).toContain('ждём ваше решение');
+  expect(card.text).not.toContain('№7');
   expect(card.keyboard.inline_keyboard[0]?.[0]).toMatchObject({ callback_data: 'attention', style: 'primary' });
-  expect(card.keyboard.inline_keyboard[1]?.[0]).toMatchObject({ callback_data: 'current' });
-  expect(card.keyboard.inline_keyboard[2]?.[0]).toMatchObject({ callback_data: 'catalog' });
-  expect(card.keyboard.inline_keyboard[3]?.[0]).toMatchObject({ callback_data: 'cart' });
+  expect(card.keyboard.inline_keyboard.flat().filter(button => button.text.includes('№7'))).toHaveLength(1);
+  expect(card.keyboard.inline_keyboard[1]?.[0]).toMatchObject({ callback_data: 'catalog' });
+  expect(card.keyboard.inline_keyboard[1]?.[1]).toMatchObject({ callback_data: 'cart' });
+  expect(card.keyboard.inline_keyboard[2]?.map(button => 'callback_data' in button ? button.callback_data : '')).toEqual(['s:q:0', 'orders']);
+  expect(card.keyboard.inline_keyboard[3]?.[0]).toMatchObject({ callback_data: 'delivery' });
 });
 
 it('onboarding exposes browsing and help without claiming an order session is ready', () => {
@@ -241,7 +243,7 @@ it('presents questions as the first action without offering payment during unfin
 it('shows authoritative payable amount and a payment next step after finalized assembly', () => {
   const card = orderCard({ ...order, assemblyFinalizedAt: new Date(), payment: { ...order.payment!, status: 'AWAITING', amount: 12000 } });
   expect(card.text).toContain('переведите точную сумму');
-  expect(card.keyboard.inline_keyboard[0]?.[0]).toMatchObject({ text: '💳 Оплата · 120 ₽', style: 'success' });
+  expect(card.keyboard.inline_keyboard[0]?.[0]).toMatchObject({ text: '💳 Оплата · 120 ₽', style: 'primary' });
 });
 
 it('never urges another transfer while the payment is being verified', () => {

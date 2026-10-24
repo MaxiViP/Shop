@@ -14,9 +14,27 @@ export type CustomerOrder = Awaited<ReturnType<OrderService['get']>>;
 export type CustomerIssue = Awaited<ReturnType<CoordinationService['view']>>['issues'][number];
 export const activeStatuses: OrderStatus[] = ['NEW', 'CONFIRMED', 'ASSEMBLING', 'READY', 'DELIVERING'];
 export const orderStatus: Record<OrderStatus, string> = {
-  NEW: 'Принят', CONFIRMED: 'Подтверждён', ASSEMBLING: 'Собирается', READY: 'Собран',
+  NEW: 'Принят', CONFIRMED: 'Подтверждён', ASSEMBLING: 'Собирается', READY: 'Готов',
   DELIVERING: 'В пути', COMPLETED: 'Завершён', CANCELED: 'Отменён',
 };
+export const orderBadge: Record<OrderStatus, string> = {
+  NEW: '🕓 Принят', CONFIRMED: '✅ Подтверждён', ASSEMBLING: '🧺 Собирается', READY: '📦 Готов',
+  DELIVERING: '🚚 В пути', COMPLETED: '✅ Завершён', CANCELED: '❌ Отменён',
+};
+export const orderTime = (value: Date) => new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow',
+}).format(value).replace(',', '');
+export function historyButton(order: { id: number; status: OrderStatus; total: number | null; finalTotal: number | null;
+  createdAt: Date; publicId: string; pending: number; customerUnread: number }, attention: boolean): Button {
+  const total = order.finalTotal != null ? 'Итог ' + amount(order.finalTotal) :
+    order.total != null ? 'Предв. ≈' + amount(order.total) : 'Сумма уточняется';
+  return { text: '№' + order.id + ' · ' + orderBadge[order.status] + ' · ' + total + ' · ' + orderTime(order.createdAt) +
+    (order.pending ? ' · ❗' + order.pending : '') + (order.customerUnread ? ' · 💬' + order.customerUnread : ''),
+    callback_data: customerView(attention ? order.pending ? 'q' : 'm' : 'o', order.publicId),
+    ...(order.pending || order.customerUnread ? { style: 'primary' } : order.status === 'COMPLETED' ? { style: 'success' } :
+      order.status === 'CANCELED' ? { style: 'danger' } : {}),
+  };
+}
 export const deliveryStatus: Record<DeliveryStatus, string> = {
   PENDING: 'Оформляется', ASSIGNED: 'Курьер назначен', PICKED_UP: 'В пути',
   DELIVERED: 'Доставлен', CANCELED: 'Отменена',
@@ -74,19 +92,14 @@ export function customerMenu(
   const questions = attention?.issues?.length ?? 0;
   return {
     text: 'KorzinaMarket\nПривет, ' + short(identity.user.name || identity.firstName || 'покупатель', 80) + '!\n' +
-      (attention ? questions
-        ? '❗ По заказу №' + attention.id + ' ждём ваше решение. Откройте вопросы, чтобы продолжить сборку.\n\n'
-        : '💬 По заказу №' + attention.id + ' есть непрочитанные обновления.\n\n' : '') +
-      (current ? '📦 Заказ №' + current.id + ' · ' + orderStatus[current.status] + '\n\n' : '') +
       'Свежие продукты с московского рынка — прямо в чате.',
     keyboard: { inline_keyboard: [
-      ...(attention ? [[{ text: questions ? '❗ Нужен ваш ответ' : '💬 Непрочитанные сообщения', callback_data: 'attention', style: 'primary' as const }]] : []),
-      ...(current ? [[{ text: '📦 Заказ №' + current.id + ' · ' + orderStatus[current.status], callback_data: 'current' }]] : []),
-      [{ text: '🛍 Каталог', callback_data: 'catalog', style: 'primary' }],
-      [{ text: cartLabel, callback_data: 'cart' }],
-      [{ text: '⚡ Быстрые покупки', callback_data: shoppingData('q', 0) }],
-      [{ text: '📦 История', callback_data: 'orders' }, { text: '💬 Связь с продавцом', callback_data: 'current' }],
-      [{ text: 'Помощь', callback_data: 'help' }],
+      ...(attention ? [[{ text: (questions ? '❗ Нужен ваш ответ' : '💬 Непрочитанные сообщения') + ' · №' + attention.id, callback_data: 'attention', style: 'primary' as const }]] : []),
+      ...(current && current.id !== attention?.id ? [[{ text: '№' + current.id + ' · ' + orderBadge[current.status], callback_data: 'current', style: 'primary' as const }]] : []),
+      [{ text: '🛍 Каталог', callback_data: 'catalog', style: 'primary' }, { text: cartLabel.replace(/ · \d+ поз\..*$/, ''), callback_data: 'cart' }],
+      [{ text: '⚡ Быстрые покупки', callback_data: shoppingData('q', 0) }, { text: '📦 Мои заказы', callback_data: 'orders' }],
+      [{ text: '🚚 Доставка и самовывоз', callback_data: 'delivery' }],
+      [{ text: '💬 Связь с продавцом', callback_data: 'contact' }, { text: '❓ Помощь', callback_data: 'help' }],
     ] },
   };
 }
@@ -185,7 +198,7 @@ export function orderCard(order: CustomerOrder, page = 0): Screen {
   lines.push(...order.extras.map(extra => '➕ ' + short(extra.title) + '\n' + extra.quantity + ' × ' + amount(extra.unitPrice) + ' = ' + amount(extra.amount) +
     (extra.comment ? '\n' + short(extra.comment, 140) : '')));
   const header = [
-    'Заказ №' + order.id + ' · ' + orderStatus[order.status],
+    'Заказ №' + order.id + ' · ' + orderBadge[order.status],
     orderNextStep(order),
     (order.type === 'PICKUP' ? 'Самовывоз' : 'Доставка') + ' · ' + date(order.createdAt),
     ...(order.deliveryAt ? ['Получение: ' + date(order.deliveryAt)] : []),
@@ -225,7 +238,7 @@ export function orderCard(order: CustomerOrder, page = 0): Screen {
   if (waiting.length) keyboard.push([{ text: '❗ Требуется решение (' + waiting.length + ')', callback_data: customerView('q', order.publicId), style: 'primary' }]);
   if (order.assemblyFinalizedAt && order.payment && order.payment.status !== 'CANCELED' && order.status !== 'CANCELED')
     keyboard.push([{ text: order.payment.status === 'PAID' ? '✅ Оплата получена' : order.payment.status === 'REPORTED' ? '🕓 Проверка оплаты' : '💳 Оплата · ' + amount(order.payment.amount),
-      callback_data: shoppingData('p', order.publicId, 'SBP'), ...(order.payment.status === 'AWAITING' ? { style: 'success' as const } : {}) }]);
+      callback_data: shoppingData('p', order.publicId, 'SBP'), ...(order.payment.status === 'AWAITING' ? { style: 'primary' as const } : {}) }]);
   if (order.delivery?.trackingUrl) {
     try { const url = new URL(order.delivery.trackingUrl);
       const orderUrl = webAppUrl('/order/' + order.publicId);
