@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -54,6 +54,37 @@ it('uses escaped HTML and inline buttons for a chat outside the Rich allowlist',
   await deliverScreen('customer', { chatId: 125 }, screen);
   expect(body()).toMatchObject({ parse_mode: 'HTML', reply_markup: screen.keyboard });
   expect(body().text).toContain('&lt;рынок&gt;'); expect(body()).not.toHaveProperty('rich_message');
+});
+describe.each(['customer', 'staff'] as const)('%s global delivery', bot => {
+  beforeEach(async () => { await writeFile(config, JSON.stringify({ enabled: true, global: { customer: true, staff: true } })); });
+  it('sends and edits outside the old allowlist, then switches the same message to HTML immediately', async () => {
+    await deliverScreen(bot, { chatId: 987654321 }, screen);
+    expect(String(fetcher.mock.calls[0]![0])).toMatch(/\/sendRichMessage$/);
+    await deliverScreen(bot, { chatId: 987654321, messageId: 92 }, screen);
+    expect(body(1)).toHaveProperty('rich_message'); expect(body(1).message_id).toBe(92);
+    await writeFile(config + '.next', '{"enabled":false}'); await rename(config + '.next', config);
+    await deliverScreen(bot, { chatId: 987654321, messageId: 92 }, screen);
+    expect(body(2)).toMatchObject({ message_id: 92, parse_mode: 'HTML', reply_markup: screen.keyboard });
+    expect(body(2)).not.toHaveProperty('rich_message'); expect(body(2).text).toContain('&lt;рынок&gt;');
+  });
+  it('keeps callbacks and edit target through confirmed Rich rejection and HTML fallback', async () => {
+    fetcher.mockResolvedValueOnce(reject());
+    expect(await deliverScreen(bot, { chatId: 987654321, messageId: 91 }, screen)).toEqual({ status: 'sent', messageId: 92 });
+    expect(fetcher).toHaveBeenCalledTimes(2); expect(body(1)).toMatchObject({ message_id: 91, parse_mode: 'HTML', reply_markup: screen.keyboard });
+  });
+  it.each(['timeout', '500', '429', '403'])('does not retry or fall back after %s outside the old allowlist', async failure => {
+    if (failure === 'timeout') fetcher.mockRejectedValueOnce(new Error('Lost response'));
+    else fetcher.mockResolvedValueOnce(new Response('{}', { status: Number(failure) }));
+    expect((await deliverScreen(bot, { chatId: 987654321 }, screen)).status).not.toBe('sent');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it('uploads the existing product photo as JPEG outside the old allowlist', async () => {
+    vi.mocked(localPhoto).mockResolvedValueOnce(new Uint8Array([255,216,255,217]));
+    await deliverScreen(bot, { chatId: 987654321 }, { ...screen, rich: { blocks: [{ type: 'photo', photo: { type: 'photo', media: 'https://shop.example/uploads/products/' + randomUUID() + '.webp' } }] } });
+    const form = fetcher.mock.calls[0]![1]!.body as FormData;
+    expect(form).toBeInstanceOf(FormData); expect(form.get('rich_message')).toContain('attach://photo');
+    expect((form.get('photo') as File).type).toBe('image/jpeg');
+  });
 });
 it('falls back only after a confirmed Rich rejection, preserving the same edit target', async () => {
   fetcher.mockResolvedValueOnce(reject());

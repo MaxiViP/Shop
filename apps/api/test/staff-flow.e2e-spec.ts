@@ -117,10 +117,11 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
     expect(payloads.some(value => String(value.text).includes('Рабочий обзор KorzinaMarket'))).toBe(true);
     expect(payloads.some(value => String(value.text).includes('Заказ №' + f.order.id))).toBe(true);
   });
-  it('sends and edits STAFF Rich overview, queues and actual-weight detail while retaining bound actions', async () => {
+  it.each(['allowlist', 'global'] as const)('sends and edits STAFF Rich overview, queues and actual-weight detail with %s policy', async mode => {
     const f = await fixture(), directory = await mkdtemp(join(tmpdir(), 'staff-ux33-'));
     const config = join(directory, 'policy.json');
-    await writeFile(config, JSON.stringify({ enabled: true, customer: [], staff: [String(f.telegramId)] }));
+    await writeFile(config, JSON.stringify(mode === 'global' ? { enabled: true, global: { staff: true } } :
+      { enabled: true, customer: [], staff: [String(f.telegramId)] }));
     vi.stubEnv('TELEGRAM_RICH_CONFIG_FILE', config);
     fetcher.mockImplementation(async (_url, init) => {
       const input = JSON.parse(String(init?.body));
@@ -141,6 +142,17 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
       expect(JSON.stringify(item)).toContain(staffData(f.order.id, 'w', f.order.items[0]!.id));
       expect((await db.orderItem.findUniqueOrThrow({ where: { id: f.order.items[0]!.id } })).actualQty).toBeNull();
       expect(await db.orderStaffAudit.count({ where: { orderId: f.order.id } })).toBe(0);
+      if (mode === 'global') {
+        fetcher.mockClear();
+        await db.user.update({ where: { id: f.actor.userId }, data: { role: 'USER' } });
+        await f.bot.handle(callback(f, staffData(f.order.id, 'w', f.order.items[0]!.id)));
+        const denied = fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+        expect(denied).toHaveLength(1); expect(denied[0].text).toContain('Сначала привяжите');
+        expect(denied[0]).not.toHaveProperty('rich_message');
+        expect(await db.staffTelegramSession.count({ where: { identityId: f.identity.id } })).toBe(0);
+        expect(await db.orderStaffAudit.count({ where: { orderId: f.order.id } })).toBe(0);
+        expect((await db.orderItem.findUniqueOrThrow({ where: { id: f.order.items[0]!.id } })).actualQty).toBeNull();
+      }
     } finally { await rm(directory, { recursive: true, force: true }); }
   });
 

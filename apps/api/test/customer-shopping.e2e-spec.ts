@@ -1,8 +1,9 @@
 import { QuickShopService } from '../src/cart/quick-shop.service.js';
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, mkdtemp, writeFile, rename, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { Logger } from '@nestjs/common';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -316,6 +317,48 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await staff.finishAssembly(o.id, seller);
       return o;
     }
+
+    it('global Rich preserves catalog, min/step, cart, checkout and immediate HTML rollback outside the old allowlist', async () => {
+      const f = await fixture('GRAM'), handler = bot(), directory = await mkdtemp(join(tmpdir(), 'customer-rich-global-'));
+      const config = join(directory, 'policy.json');
+      await writeFile(config, JSON.stringify({ enabled: true, customer: ['123'], global: { customer: true } }));
+      vi.stubEnv('TELEGRAM_RICH_CONFIG_FILE', config);
+      const payloads = () => fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+      const choice = (kind: 'adjust' | 'checkout' | 'flow', value?: 'pickup' | 'confirm') => {
+        const buttons = payloads().flatMap(payload => payload.rich_message?.blocks ?? [])
+          .flatMap((block: { buttons?: { callback_data?: string }[] }) => block.buttons ?? []).reverse();
+        const found = buttons.find((button: { callback_data?: string }) => {
+          const action = shoppingAction(button.callback_data ?? '');
+          return action?.kind === kind && (action.kind !== 'flow' || action.choice === value);
+        });
+        if (!found?.callback_data) throw new Error('Rich callback missing');
+        return found.callback_data as string;
+      };
+      try {
+        await handler.handle(text(f.telegramId, '/catalog'));
+        await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 0)));
+        await handler.handle(cb(f.telegramId, productData(f.product.id, { origin: 'category', categoryId: f.category.id, page: 0 })));
+        await handler.handle(cb(f.telegramId, choice('adjust')));
+        expect((await cart.get(f.user.id)).items[0]?.qty).toBe(f.product.min);
+        await handler.handle(cb(f.telegramId, 'cart'));
+        await handler.handle(cb(f.telegramId, choice('checkout')));
+        await handler.handle(cb(f.telegramId, choice('flow', 'pickup')));
+        const state = await session(f); expect(state.step).toBe('TIME');
+        await handler.handle(text(f.telegramId, '-', state.promptMessageId!));
+        const confirmation = choice('flow', 'confirm');
+        await handler.handle(cb(f.telegramId, confirmation));
+        await handler.handle(cb(f.telegramId, confirmation));
+        expect(await db.order.count({ where: { userId: f.user.id } })).toBe(1);
+        const order = await db.order.findFirstOrThrow({ where: { userId: f.user.id }, include: { items: true } });
+        expect(order.items[0]?.qty).toBe(f.product.min); expect(order.items[0]?.price).toBeGreaterThan(0);
+        expect(payloads().filter(payload => payload.rich_message).length).toBeGreaterThanOrEqual(7);
+        await writeFile(config + '.next', '{"enabled":false}'); await rename(config + '.next', config);
+        await handler.handle(cb(f.telegramId, 'cart'));
+        const last = payloads().filter(payload => payload.parse_mode === 'HTML').at(-1);
+        expect(last).toMatchObject({ message_id: 5, parse_mode: 'HTML' }); expect(last).not.toHaveProperty('rich_message');
+        expect(await db.order.count({ where: { userId: f.user.id } })).toBe(1);
+      } finally { await rm(directory, { recursive: true, force: true }); }
+    });
 
     it('native single-step buttons keep acknowledged quantities across card/basket and deduplicate one Telegram update', async () => {
       const f = await fixture('BUNCH');
