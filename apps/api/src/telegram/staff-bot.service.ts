@@ -12,12 +12,13 @@ import { StaffBotFlowService } from './staff-bot-flow.service.js';
 import { reviewSnapshot, flowError, knownFlowError, uncertainMutation } from './staff-flow.js';
 import { parseStaffAction, parseStaffQueue, staffData, staffQueueData, staffUpdate, staffOrderCommand, clean,
   type StaffCallback, type StaffMessage, type StaffQueueFilter } from './staff-bot.js';
-import { activeStatuses, assemblyView, canQuickConfirm, canReview, dashboard, extraPage, issuePage, itemPage, itemView, staffHelp, workOverview, statusText,
+import { activeStatuses, assemblyView, canQuickConfirm, canReview, dashboard, extraPage, issuePage, itemPage, itemView, staffHelp, workOverview, queueOrderButton,
   type Keyboard } from './staff-bot-view.js';
 import { TelegramService } from './telegram.service.js';
 import { serialUpdate } from './updates.js';
 import { pageInfo } from './page.js';
 import type { TelegramScreen } from './rich.js';
+import { staffCommand } from './staff-commands.js';
 
 type Identity = { id: number; userId: number; user: { role: 'USER' | 'SELLER' | 'ADMIN'; ownedPoints?: { marketPointId: number }[] } };
 
@@ -104,7 +105,7 @@ export class StaffBotService {
 
   private async message(message: StaffMessage, identity: Identity): Promise<void> {
     const chatId = message.chat.id;
-    const text = message.text?.trim() ?? '';
+    const text = staffCommand(message.text?.trim() ?? '');
     if (text === '/cancel') {
       const canceled = await this.flows.cancel(identity.id);
       await this.telegram.sendStaff(chatId, canceled ? 'Ввод отменён. Отправьте /orders.' : uncertainMutation);
@@ -119,7 +120,7 @@ export class StaffBotService {
     }
     if (text === '/help' || text === '/order') {
       const view = staffHelp();
-      return this.render(chatId, null, view.text, view.keyboard);
+      return this.render(chatId, null, view.text, view.keyboard, view);
     }
     if (text === '/work') return this.overview(chatId);
     if (text === '/orders') return this.orders(chatId);
@@ -129,7 +130,7 @@ export class StaffBotService {
     if (orderId && (text.startsWith('/') || !message.reply_to_message)) return this.order(chatId, null, orderId);
     if (text.startsWith('/')) {
       const view = staffHelp();
-      return this.render(chatId, null, view.text, view.keyboard);
+      return this.render(chatId, null, view.text, view.keyboard, view);
     }
     const result = await this.flows.input(message, identity.id, staffActor({ id: identity.userId, ...identity.user }));
     if (result) await this.refreshSaved(chatId, result.dashboardMessageId, result.orderId, result.itemId);
@@ -157,7 +158,7 @@ export class StaffBotService {
     ]);
     const view = workOverview({ new: counts[0]!, confirmed: counts[1]!, assembly: counts[2]!,
       ready: counts[3]!, delivery: counts[4]!, seller, customer });
-    await this.render(chatId, messageId, view.text, view.keyboard);
+    await this.render(chatId, messageId, view.text, view.keyboard, view);
   }
 
   private async orders(chatId: number, messageId?: number, filter: StaffQueueFilter = 'all', page = 0): Promise<void> {
@@ -177,12 +178,13 @@ export class StaffBotService {
       this.db.order.count({ where: { ...active, issues: { some: customerIssue } } }),
     ]);
     const total = filter === 'seller' ? sellerCount : filter === 'customer' ? customerCount : await this.db.order.count({ where });
-    const info = pageInfo(total, page, 12);
+    // Six orders keep every urgent/replacement shortcut within Telegram's 32-row budget.
+    const info = pageInfo(total, page, 6);
     page = info.page;
     const found = await this.db.order.findMany({
         where,
-        take: 13, skip: page * 12, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-        select: { id: true, status: true, customerName: true, type: true,
+        take: 7, skip: page * 6, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: { id: true, status: true, type: true, total: true, finalTotal: true, createdAt: true,
           issues: { where: issueFilter ?? { OR: [sellerIssue, customerIssue] }, take: 3,
             orderBy: [{ status: 'desc' }, { id: 'asc' }], select: { orderItemId: true, status: true,
               resolution: true, replacementItemId: true,
@@ -190,32 +192,30 @@ export class StaffBotService {
               orderItem: { select: { productName: true } } } } },
       });
     if (!found.length && page) return this.orders(chatId, messageId, filter, 0);
-    const orders = found.slice(0, 12);
+    const orders = found.slice(0, 6);
     const labels = { all: 'Активные заказы', seller: 'Нужно вам', customer: 'Ждём покупателя',
       new: 'Новые заказы', assembly: 'Подтверждены и в сборке', ready: 'Готовы к выдаче и доставке', delivery: 'Доставляются' };
-    const lines = [labels[filter] + '\n' + info.label,
-      'Заказов: нужно вам ' + sellerCount + ' · ждём покупателя ' + customerCount];
+    const lines = [labels[filter] + (info.pages > 1 ? '\n' + info.label : ''), 'Время — Москва. Выберите заказ или нужное действие.'];
     const rows: Keyboard['inline_keyboard'] = [[
       { text: 'Все', callback_data: staffQueueData('all') },
       { text: '❗ Нужно вам · ' + sellerCount, callback_data: staffQueueData('seller') },
     ], [{ text: '⏳ Ждём покупателя · ' + customerCount, callback_data: staffQueueData('customer') }]];
     for (const order of orders) {
-      lines.push('', '#' + order.id + ' · ' + statusText[order.status] + ' · ' + clean(order.customerName, 35) +
-        (order.type === 'PICKUP' ? ' · самовывоз' : ' · доставка'));
-      rows.push([{ text: '#' + order.id + ' · ' + statusText[order.status], callback_data: staffData(order.id, 'o') }]);
+      rows.push([queueOrderButton(order)]);
       for (const issue of order.issues.slice(0, 2)) {
         const replacement = issue.status === 'RESOLVED' && issue.resolution === 'ACCEPT_REPLACEMENT' &&
           issue.replacementItem?.status === 'PENDING' ? issue.replacementItem : null;
         const text = (replacement ? '✅ Замена одобрена: ' : issue.status === 'WAITING_SELLER' ? '❗ Исправить: ' : '⏳ Ждём: ') +
           clean(replacement?.productName ?? issue.orderItem.productName, 32);
-        lines.push(text);
-        rows.push([{ text: '#' + order.id + ' · ' + text, callback_data: staffData(order.id, 'v', replacement?.id ?? issue.orderItemId) }]);
+        rows.push([{ text: '№' + order.id + ' · ' + text, callback_data: staffData(order.id, 'v', replacement?.id ?? issue.orderItemId),
+          ...(replacement || issue.status === 'WAITING_SELLER' ? { style: 'primary' as const } : {}) }]);
       }
+      if (order.issues.length > 2) rows.push([{ text: '№' + order.id + ' · Ещё вопросы и замены', callback_data: staffData(order.id, 'j'), style: 'primary' }]);
     }
     if (!orders.length) lines.push('', page ? 'На этой странице заказов нет. Вернитесь назад.' : 'В этой очереди заказов нет.');
     const nav: Keyboard['inline_keyboard'][number] = [];
     if (page > 0) nav.push({ text: '← Предыдущие', callback_data: staffQueueData(filter, page - 1) });
-    if (found.length > 12 && page < 10000) nav.push({ text: 'Следующие →', callback_data: staffQueueData(filter, page + 1) });
+    if (found.length > 6 && page < 10000) nav.push({ text: 'Следующие →', callback_data: staffQueueData(filter, page + 1) });
     if (nav.length) rows.push(nav);
     rows.push([{ text: 'Рабочий обзор', callback_data: 'sw' }]);
     rows.push([{ text: '🔄 Обновить очередь', callback_data: staffQueueData(filter, page) }]);
@@ -232,12 +232,12 @@ export class StaffBotService {
     afterItemId?: number, savedItemId?: number): Promise<void> {
     const order = await this.staff.get(orderId);
     const view = assemblyView(order, this.telegram.staffOrderUrl(orderId), afterItemId, savedItemId);
-    await this.render(chatId, messageId, view.text, view.keyboard);
+    await this.render(chatId, messageId, view.text, view.keyboard, view);
   }
 
   private async render(chatId: number, messageId: number | null | undefined, text: string,
     keyboard: Keyboard, view?: TelegramScreen): Promise<void> {
-    const presentation = view ? [{ rich: view.rich, fallback: view.fallback }] : [];
+    const presentation = view && (view.rich || view.fallback) ? [{ rich: view.rich, fallback: view.fallback }] : [];
     if (messageId) await this.telegram.editStaff(chatId, messageId, text.slice(0, 3900), keyboard, ...presentation);
     else await this.telegram.sendStaff(chatId, text.slice(0, 3900), keyboard, ...presentation);
   }
@@ -245,7 +245,7 @@ export class StaffBotService {
   private async callback(callback: StaffCallback, identity: Identity): Promise<string> {
     if (callback.data === 'sh') {
       const view = staffHelp();
-      await this.render(callback.message.chat.id, callback.message.message_id, view.text, view.keyboard);
+      await this.render(callback.message.chat.id, callback.message.message_id, view.text, view.keyboard, view);
       return 'Помощь';
     }
     if (callback.data === 'sw') {
@@ -349,7 +349,7 @@ export class StaffBotService {
         return 'Позиция изменилась. Обновите заказ.';
       if (variableWeight(item)) {
         const view = itemView(order, item, this.telegram.staffOrderUrl(orderId));
-        await this.render(chatId, messageId, view.text, view.keyboard);
+        await this.render(chatId, messageId, view.text, view.keyboard, view);
         return 'Взвесьте каждый экземпляр на сайте';
       }
       const started = await this.flows.start(identity.id, chatId, messageId, orderId, item.id,
@@ -407,26 +407,26 @@ export class StaffBotService {
     } else if (action === 'j') {
       if (!await this.flows.cancel(identity.id)) return uncertainMutation;
       const view = issuePage(order, parsed?.arg ?? 0);
-      await this.render(chatId, messageId, view.text, view.keyboard);
+      await this.render(chatId, messageId, view.text, view.keyboard, view);
       return 'Вопросы обновлены';
     } else if (action === 'i') {
       if (order.status !== 'ASSEMBLING') return 'Сборка уже завершена';
       if (!await this.flows.cancel(identity.id)) return uncertainMutation;
       const view = itemPage(order, parsed?.arg ?? 0);
-      await this.render(chatId, messageId, view.text, view.keyboard);
+      await this.render(chatId, messageId, view.text, view.keyboard, view);
       return 'Позиции обновлены';
     } else if (action === 'v') {
       const item = order.items.find(value => value.id === parsed?.arg);
       if (!item) return 'Позиция не найдена';
       if (!await this.flows.cancel(identity.id)) return uncertainMutation;
       const view = itemView(order, item, this.telegram.staffOrderUrl(orderId));
-      await this.render(chatId, messageId, view.text, view.keyboard);
+      await this.render(chatId, messageId, view.text, view.keyboard, view);
       return 'Позиция обновлена';
     } else if (action === 'xl') {
       if (order.status !== 'ASSEMBLING') return 'Сборка уже завершена';
       if (!await this.flows.cancel(identity.id)) return uncertainMutation;
       const view = extraPage(order, parsed?.arg ?? 0);
-      await this.render(chatId, messageId, view.text, view.keyboard);
+      await this.render(chatId, messageId, view.text, view.keyboard, view);
       return 'Дополнительные позиции обновлены';
     } else if (action !== 'refresh' && action !== 'o') {
       return 'Некорректная кнопка';

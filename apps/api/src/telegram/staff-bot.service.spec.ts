@@ -5,6 +5,7 @@ import type { TelegramService } from './telegram.service.js';
 import type { StaffLinkService } from './staff-link.service.js';
 import type { StaffBotFlowService } from './staff-bot-flow.service.js';
 import { StaffBotService } from './staff-bot.service.js';
+import { validScreen } from './rich.js';
 
 const callback = (data = 'order:6:confirm', chatType = 'private') => ({
   callback_query: {
@@ -21,7 +22,7 @@ function setup(role: 'SELLER' | 'ADMIN' | 'USER' = 'SELLER') {
     id: 6, status: 'NEW' as string, type: 'PICKUP', customerName: 'Покупатель',
     customerPhone: '+79990000000', city: null, street: null, house: null, flat: null,
     comment: null, subtotal: 10000, deliveryPrice: null, total: 10000,
-    finalSubtotal: null, finalTotal: null,
+    finalSubtotal: null, finalTotal: null, createdAt: new Date('2026-10-23T21:35:00Z'),
     assemblyFinalizedAt: null as Date | null,
     payment: null as null | { status: string; amount?: number },
     delivery: null as null | { provider: string; status: string; externalOrderId?: string },
@@ -32,7 +33,7 @@ function setup(role: 'SELLER' | 'ADMIN' | 'USER' = 'SELLER') {
   };
   const findIdentity = vi.fn(async () => ({ id: 3, userId: 7, user: { role } }));
   const updateIdentity = vi.fn(async () => ({}));
-  const findMany = vi.fn(async () => [{ id: 6, status: 'NEW', customerName: 'Покупатель', type: 'PICKUP',
+  const findMany = vi.fn(async () => [{ id: 6, status: 'NEW', customerName: 'Покупатель', type: 'PICKUP', total: 10000, finalTotal: null, createdAt: order.createdAt,
     issues: [] as { orderItemId: number; status: string; orderItem: { productName: string };
       resolution?: string | null; replacementItemId?: number | null;
       replacementItem?: { id: number; status: string; productName: string } | null }[] }]);
@@ -157,7 +158,7 @@ describe('STAFF Telegram authorization and legacy callbacks', () => {
   it('/orders is bounded and routes to staff order dashboards', async () => {
     const s = setup();
     await s.handler.handle(message('/orders'));
-    expect(s.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 13, skip: 0 }));
+    expect(s.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 7, skip: 0 }));
     expect(s.telegram.sendStaff).toHaveBeenCalled();
   });
 
@@ -168,7 +169,7 @@ describe('STAFF Telegram authorization and legacy callbacks', () => {
     })));
     await s.handler.handle(callback('sq:seller:2'));
     expect(s.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      take: 13, skip: 24, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: 7, skip: 12, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       where: expect.objectContaining({ issues: { some: { OR: [
         { status: 'WAITING_SELLER' },
         { status: 'RESOLVED', resolution: 'ACCEPT_REPLACEMENT', replacementItemId: { not: null },
@@ -190,8 +191,8 @@ describe('STAFF Telegram authorization and legacy callbacks', () => {
       issues: [{ orderItemId: 8, status: 'WAITING_SELLER', orderItem: { productName: 'Картофель' } }] }]);
     await s.handler.handle(message('/attention'));
     const keyboard = s.telegram.sendStaff.mock.calls.at(-1)?.[2];
-    expect(keyboard.inline_keyboard.flat()).toContainEqual({ text: '#6 · ❗ Исправить: Картофель', callback_data: 's:6:v:8' });
-    expect(s.telegram.sendStaff.mock.calls.at(-1)?.[1]).toContain('Заказов: нужно вам 1');
+    expect(keyboard.inline_keyboard.flat()).toContainEqual({ text: '№6 · ❗ Исправить: Картофель', callback_data: 's:6:v:8', style: 'primary' });
+    expect(s.telegram.sendStaff.mock.calls.at(-1)?.[1]).not.toContain('Картофель');
     expect(s.staff.item).not.toHaveBeenCalled();
   });
 
@@ -215,9 +216,9 @@ describe('STAFF Telegram authorization and legacy callbacks', () => {
       select: expect.objectContaining({ issues: expect.objectContaining({ where: sellerIssue }) }),
     }));
     const keyboard = s.telegram.sendStaff.mock.calls.at(-1)?.[2];
-    expect(keyboard.inline_keyboard.flat()).toContainEqual({ text: '#6 · ✅ Замена одобрена: Батат', callback_data: 's:6:v:9' });
+    expect(keyboard.inline_keyboard.flat()).toContainEqual({ text: '№6 · ✅ Замена одобрена: Батат', callback_data: 's:6:v:9', style: 'primary' });
     expect(keyboard.inline_keyboard.flat().some((button: { callback_data: string }) => button.callback_data === 's:6:v:8')).toBe(false);
-    expect(s.telegram.sendStaff.mock.calls.at(-1)?.[1]).toContain('Заказов: нужно вам 1');
+    expect(s.telegram.sendStaff.mock.calls.at(-1)?.[1]).not.toContain('Батат');
     expect(s.staff.item).not.toHaveBeenCalled();
     expect(s.flows.start).not.toHaveBeenCalled();
   });
@@ -258,9 +259,9 @@ describe('STAFF seller domain operations use linked audit actor', () => {
     s.flows.input.mockResolvedValueOnce({ orderId: 6, dashboardMessageId: 44, itemId: 8 });
     await s.handler.handle(message('742'));
     expect(s.telegram.editStaff).toHaveBeenLastCalledWith(123, 44,
-      expect.stringContaining('✅ Сохранено: Картофель'), expect.anything());
+      expect.stringContaining('✅ Сохранено: Картофель'), expect.anything(), expect.objectContaining({ rich: expect.anything() }));
     const screen = s.telegram.editStaff.mock.calls.at(-1)?.[2];
-    expect(screen).toContain('Заказ #6 · Огурцы');
+    expect(screen).toContain('Заказ №6 · Огурцы');
     expect(screen).toContain('Сумма: 445,2 ₽');
     expect(s.staff.item).not.toHaveBeenCalled();
   });
@@ -272,7 +273,7 @@ describe('STAFF seller domain operations use linked audit actor', () => {
     await s.handler.handle(callback('s:6:v:9'));
     expect(s.flows.cancel).toHaveBeenCalledWith(3);
     expect(s.telegram.editStaff).toHaveBeenLastCalledWith(123, 44,
-      expect.stringContaining('Заказ #6 · Огурцы'), expect.anything());
+      expect.stringContaining('Заказ №6 · Огурцы'), expect.anything(), expect.objectContaining({ rich: expect.anything() }));
     expect(s.staff.item).not.toHaveBeenCalled();
     s.flows.cancel.mockResolvedValueOnce(false);
     s.telegram.editStaff.mockClear();
@@ -293,7 +294,7 @@ describe('STAFF seller domain operations use linked audit actor', () => {
     await s.handler.handle(callback('s:6:a:8'));
     const screen = s.telegram.editStaff.mock.calls.at(-1)?.[2];
     expect(screen).toContain('✅ Сохранено: Картофель');
-    expect(screen).toContain('Заказ #6 · Огурцы');
+    expect(screen).toContain('Заказ №6 · Огурцы');
     expect(s.flows.start).not.toHaveBeenCalled();
   });
 
@@ -309,7 +310,7 @@ describe('STAFF seller domain operations use linked audit actor', () => {
     expect(s.staff.item).toHaveBeenCalledWith(6, 8, { status: 'MISSING' }, 7, { userId: 7, role: 'SELLER' });
     const screen = s.telegram.editStaff.mock.calls.at(-1)?.[2];
     expect(screen).toContain('❌ Нет в наличии: Картофель');
-    expect(screen).toContain('Заказ #6 · Огурцы');
+    expect(screen).toContain('Заказ №6 · Огурцы');
   });
 
   it('prompts for GRAM and PIECE actual quantities without editing snapshot price', async () => {
@@ -510,6 +511,27 @@ describe('STAFF recovery command authorization and business error UX', () => {
 
 
 describe('STAFF work overview and safe reviews', () => {
+  it.each(['/start', '/work', '/orders', '/attention', '/waiting', '/resume', '/cancel', '/help'])(
+    'handles registered command %s without a business mutation', async command => {
+      const s = setup();
+      await s.handler.handle(message(command));
+      expect(s.telegram.sendStaff.mock.calls.length + s.flows.resume.mock.calls.length).toBeGreaterThan(0);
+      expect(s.staff.confirm).not.toHaveBeenCalled(); expect(s.staff.item).not.toHaveBeenCalled();
+      expect(s.staff.confirmPayment).not.toHaveBeenCalled(); expect(s.staff.finishAssembly).not.toHaveBeenCalled();
+    });
+  it('keeps every order, urgent shortcut and more-issues link within Rich/inline limits on the largest queue page', async () => {
+    const s = setup();
+    s.findMany.mockResolvedValueOnce(Array.from({ length: 7 }, (_, index) => ({ ...s.order, id: index + 1, status: 'ASSEMBLING',
+      issues: Array.from({ length: 3 }, (_, item) => ({ orderItemId: item + 10, status: 'WAITING_SELLER', orderItem: { productName: 'Длинный товар '.repeat(20) } })) })));
+    await s.handler.handle(callback('sq:seller:1'));
+    const call = s.telegram.editStaff.mock.calls.at(-1)!;
+    expect(validScreen({ text: call[2], keyboard: call[3] })).toBe(true);
+    expect(call[3].inline_keyboard.length).toBeLessThanOrEqual(32);
+    expect(call[3].inline_keyboard.flat().filter((button: { callback_data?: string }) => button.callback_data?.endsWith(':o'))).toHaveLength(6);
+    expect(call[3].inline_keyboard.flat().filter((button: { callback_data?: string }) => button.callback_data?.endsWith(':j'))).toHaveLength(6);
+    expect(call[2]).not.toContain('Длинный товар'); expect(call[2]).not.toContain('100 ₽');
+    expect(s.staff.item).not.toHaveBeenCalled(); expect(s.flows.start).not.toHaveBeenCalled();
+  });
   it('opens a read-only overview with bounded status counts and actionable queue buttons', async () => {
     const s = setup();
     s.count.mockResolvedValueOnce(2).mockResolvedValueOnce(3).mockResolvedValueOnce(4)
@@ -517,8 +539,9 @@ describe('STAFF work overview and safe reviews', () => {
     await s.handler.handle(message('/work'));
     expect(s.count).toHaveBeenCalledTimes(7);
     const screen = s.telegram.sendStaff.mock.calls.at(-1);
-    expect(screen?.[1]).toContain('В сборке: 4 · готовы: 5 · доставляются: 6');
-    expect(screen?.[2].inline_keyboard.flat()).toContainEqual({ text: '🧺 В работе · 7', callback_data: 'sq:assembly:0' });
+    expect(screen?.[1]).not.toContain('4');
+    expect(screen?.[2].inline_keyboard.flat()).toContainEqual({ text: '🧺 В сборке · 7', callback_data: 'sq:assembly:0' });
+    expect(screen?.[2].inline_keyboard.flat()).toContainEqual({ text: '📋 Все заказы · 20', callback_data: 'sq:all:0' });
     expect(s.staff.item).not.toHaveBeenCalled();
     expect(s.flows.cancel).not.toHaveBeenCalled();
   });

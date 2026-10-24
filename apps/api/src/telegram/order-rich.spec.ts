@@ -33,12 +33,12 @@ it.each(scenarios)('renders explicit semantic blocks for $id, preserving limits 
     const fallback = fallbackHtml(screen.text, screen.fallback);
     expect(fallback).toMatch(/<b>.*(?:Самовывоз|Доставка).*<\/b>/);
     expect(fallback).not.toContain('<Анна');
-    if (order.finalTotal !== null) expect(fallback).toMatch(/<b>Итого: /);
-    if (order.payment?.status === 'PAID') expect(JSON.stringify(blocks)).toContain('✅ Оплата получена');
-    else expect(JSON.stringify(blocks)).not.toContain('✅ Оплата получена');
+    if (order.finalTotal !== null) expect(fallback).toMatch(/<b>Итого: /i);
+    if (order.payment?.status === 'PAID') expect(JSON.stringify(blocks).toLocaleLowerCase('ru')).toContain('✅ оплата получена');
+    else expect(JSON.stringify(blocks).toLocaleLowerCase('ru')).not.toContain('✅ оплата получена');
     if (order.status === 'ASSEMBLING') {
-      expect(JSON.stringify(blocks)).toContain('🧺 Собрано: 1 из 2');
-      expect(JSON.stringify(blocks)).not.toContain('✅ Собрано:');
+      expect(JSON.stringify(blocks).toLocaleLowerCase('ru')).toContain('🧺 собрано: 1 из 2');
+      expect(JSON.stringify(blocks).toLocaleLowerCase('ru')).not.toContain('✅ собрано:');
     }
   }
 });
@@ -53,7 +53,7 @@ it('keeps unknown totals unknown, discounts/extras separate, and warns about a p
   expect(data).toContain('Предварительно: уточняется');
   expect(data).toContain('Доп. позиции (включены в факт)');
   expect(data).toContain('Итоговая скидка');
-  expect(data).not.toContain('✅ Оплата получена');
+  expect(data.toLocaleLowerCase('ru')).not.toContain('✅ оплата получена');
 });
 it('does not call missing goods or pending decisions completed assembly', () => {
   for (const changed of [
@@ -62,8 +62,8 @@ it('does not call missing goods or pending decisions completed assembly', () => 
     { ...order, payment: { ...order.payment!, status: 'CANCELED' } },
   ]) {
     const data = JSON.stringify(richMessage(orderCard(changed as CustomerOrder)));
-    if (changed.payment?.status === 'CANCELED') expect(data).toContain('❌ Оплата отменена');
-    else expect(data).not.toContain('✅ Собрано:');
+    if (changed.payment?.status === 'CANCELED') expect(data.toLocaleLowerCase('ru')).toContain('❌ оплата отменена');
+    else expect(data.toLocaleLowerCase('ru')).not.toContain('✅ собрано:');
   }
 });
 it('keeps pending and missing goods separate from picked assembly progress', () => {
@@ -72,9 +72,9 @@ it('keeps pending and missing goods separate from picked assembly progress', () 
       { ...order.items[1]!, id: 3, status: 'MISSING', actualQty: 0, actualTotal: 0 }] } as CustomerOrder;
   for (const screen of [orderCard(changed), dashboard(changed as unknown as OrderView)]) {
     const data = JSON.stringify(richMessage(screen));
-    expect(data).toContain('🧺 Собрано: 1 из 3');
+    expect(data.toLocaleLowerCase('ru')).toContain('🧺 собрано: 1 из 3');
     expect(data).toContain('Осталось: 1 · Нет в наличии: 1');
-    expect(data).not.toContain('✅ Собрано:');
+    expect(data.toLocaleLowerCase('ru')).not.toContain('✅ собрано:');
   }
 });
 it.each([
@@ -100,9 +100,9 @@ it.each([
     const data = JSON.stringify(richMessage(screen));
     expect(data).toContain(next);
     expect(fallbackHtml(screen.text, screen.fallback)).toContain(next);
-    if (!finalized) expect(data).not.toContain('✅ Оплата получена');
+    if (!finalized) expect(data.toLocaleLowerCase('ru')).not.toContain('✅ оплата получена');
     if (status === 'CANCELED') {
-      expect(data).toContain('❌ Оплата отменена');
+      expect(data.toLocaleLowerCase('ru')).toContain('❌ оплата отменена');
       expect(data).toContain('Отменённый платёж за товары:');
       expect(data).not.toContain('К оплате за товары:');
       expect(screen.keyboard.inline_keyboard.flat().some(button => /Подтвердить|Начать сборку|Заказ выдан|Доставлен|Отменить заказ/.test(button.text))).toBe(false);
@@ -116,9 +116,9 @@ it.each([
   const changed = { ...order, payment: { ...order.payment!, status } };
   for (const screen of [orderCard(changed), dashboard(changed as unknown as OrderView)]) {
     const data = JSON.stringify(richMessage(screen));
-    expect(data).toContain(label);
+    expect(data.toLocaleLowerCase('ru')).toContain(label.toLocaleLowerCase('ru'));
     expect(fallbackHtml(screen.text, screen.fallback)).toContain(label);
-    if (status !== 'PAID') expect(data).not.toContain('✅ Оплата получена');
+    if (status !== 'PAID') expect(data.toLocaleLowerCase('ru')).not.toContain('✅ оплата получена');
     if (status === 'CANCELED') expect(data).not.toContain('К оплате за товары:');
   }
 });

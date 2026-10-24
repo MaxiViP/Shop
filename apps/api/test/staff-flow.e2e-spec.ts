@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { Logger } from '@nestjs/common';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -103,6 +104,45 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
     return staffConfirmData(f.order.id, 'xs', (await session(f)).confirmationCode!);
   }
   const audits = (f: Fixture, action: string) => db.orderStaffAudit.findMany({ where: { orderId: f.order.id, action } });
+
+  it('opens all registered STAFF commands and an explicit order without mutating order, items or payments', async () => {
+    const f = await fixture();
+    const before = await db.order.findUniqueOrThrow({ where: { id: f.order.id }, include: { items: true, payment: true } });
+    for (const command of ['/start', '/work', '/orders', '/attention', '/waiting', '/resume', '/cancel', '/help', '/order@ShopStaff_bot ' + f.order.id])
+      await f.bot.handle(message(f, command));
+    const after = await db.order.findUniqueOrThrow({ where: { id: f.order.id }, include: { items: true, payment: true } });
+    expect(after).toEqual(before);
+    expect(await db.orderStaffAudit.count({ where: { orderId: f.order.id } })).toBe(0);
+    const payloads = fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+    expect(payloads.some(value => String(value.text).includes('Рабочий обзор KorzinaMarket'))).toBe(true);
+    expect(payloads.some(value => String(value.text).includes('Заказ №' + f.order.id))).toBe(true);
+  });
+  it('sends and edits STAFF Rich overview, queues and actual-weight detail while retaining bound actions', async () => {
+    const f = await fixture(), directory = await mkdtemp(join(tmpdir(), 'staff-ux33-'));
+    const config = join(directory, 'policy.json');
+    await writeFile(config, JSON.stringify({ enabled: true, customer: [], staff: [String(f.telegramId)] }));
+    vi.stubEnv('TELEGRAM_RICH_CONFIG_FILE', config);
+    fetcher.mockImplementation(async (_url, init) => {
+      const input = JSON.parse(String(init?.body));
+      return Response.json({ ok: true, result: { message_id: ++sequence, ...(input.rich_message ? { rich_message: input.rich_message } : {}) } });
+    });
+    try {
+      await f.bot.handle(message(f, '/work'));
+      await f.bot.handle(callback(f, 'sq:assembly:0'));
+      await f.bot.handle(callback(f, staffData(f.order.id, 'v', f.order.items[0]!.id)));
+      const payloads = fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body))).filter(value => value.rich_message);
+      expect(payloads).toHaveLength(3);
+      for (const payload of payloads) for (const block of payload.rich_message.blocks)
+        if (block.type === 'buttons') expect(block.align).toBe('left');
+      const queue = payloads[1].rich_message.blocks;
+      expect(queue.filter((block: { type: string }) => block.type === 'paragraph').every((block: { text: unknown }) => !JSON.stringify(block.text).includes('Fixture'))).toBe(true);
+      const item = payloads[2].rich_message.blocks;
+      expect(item.some((block: { type: string }) => block.type === 'table')).toBe(true);
+      expect(JSON.stringify(item)).toContain(staffData(f.order.id, 'w', f.order.items[0]!.id));
+      expect((await db.orderItem.findUniqueOrThrow({ where: { id: f.order.items[0]!.id } })).actualQty).toBeNull();
+      expect(await db.orderStaffAudit.count({ where: { orderId: f.order.id } })).toBe(0);
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
 
   it('keeps checkout price, computes final weight at corrected price, and enqueues one notice per linked ADMIN', async () => {
     const f = await fixture();

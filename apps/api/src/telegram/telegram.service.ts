@@ -7,6 +7,7 @@ import { botRequest, botSendMessageId, type BotMethod } from './bot-api.js';
 import { staffBotToken, staffWebhookSecret, validWebhookSecret, staffPageUrl } from './bot-config.js';
 import { deliverScreen } from './delivery.js';
 import type { TelegramKeyboard, TelegramScreen } from './rich.js';
+import { customerScreen as alignedScreen } from './rich.js';
 
 @Injectable()
 export class TelegramService {
@@ -34,7 +35,7 @@ export class TelegramService {
   }
 
   async sendStaff(chatId: number, text: string, replyMarkup?: TelegramKeyboard, view?: Pick<TelegramScreen, 'rich' | 'fallback'>): Promise<number | null> {
-    const result = await deliverScreen('staff', { chatId }, { text, keyboard: replyMarkup ?? { inline_keyboard: [] }, ...view });
+    const result = await deliverScreen('staff', { chatId }, alignedScreen({ text, keyboard: replyMarkup ?? { inline_keyboard: [] }, ...view }));
     if (result.status !== 'sent' && result.status !== 'unchanged') this.logger.warn('Telegram staff send failed');
     return result.status === 'sent' ? result.messageId : null;
   }
@@ -49,7 +50,7 @@ export class TelegramService {
   }
 
   async editStaff(chatId: number, messageId: number, text: string, replyMarkup: TelegramKeyboard, view?: Pick<TelegramScreen, 'rich' | 'fallback'>): Promise<number | null> {
-    const result = await deliverScreen('staff', { chatId, messageId }, { text, keyboard: replyMarkup, ...view });
+    const result = await deliverScreen('staff', { chatId, messageId }, alignedScreen({ text, keyboard: replyMarkup, ...view }));
     if (result.status !== 'sent' && result.status !== 'unchanged') this.logger.warn('Telegram staff dashboard update failed');
     return result.status === 'sent' ? result.messageId : result.status === 'unchanged' ? messageId : null;
   }

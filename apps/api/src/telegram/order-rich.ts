@@ -21,7 +21,7 @@ export function paymentLabel(payment: Summary['payment']): string {
   if (!payment) return 'Оплата — после сборки';
   return { PAID: '✅ Оплата получена', REPORTED: '⚠️ Требуется проверить оплату', AWAITING: '⏳ Ожидаем оплату', CANCELED: '❌ Оплата отменена' }[payment.status];
 }
-export function orderRich(order: Summary, content: { title: string; person: string; next: string; details: string[]; items: string[]; sellerActions?: number }): InputRichMessage {
+export function orderRich(order: Summary, content: { title: string; person: string; next: string; details: string[]; items: string[]; sellerActions?: number; audience?: 'staff' }): InputRichMessage {
   const financial: [string, string][] = [
     ['Товары при заказе', money(order.subtotal)], ['Запрошено при заказе', money(order.total)],
     ['Факт товаров и доп. позиций', money(order.finalSubtotal)],
@@ -36,10 +36,13 @@ export function orderRich(order: Summary, content: { title: string; person: stri
   const mismatch = order.payment && Number.isSafeInteger(order.payment.amount) && due != null && order.payment.amount !== due;
   const waiting = order.status === 'ASSEMBLING' ? order.issues.filter(issue => issue.status === 'WAITING_CUSTOMER').length : 0;
   const seller = order.status === 'ASSEMBLING' ? content.sellerActions ?? order.issues.filter(issue => issue.status === 'WAITING_SELLER').length : 0;
+  const staff = content.audience === 'staff';
+  const receipt = order.type === 'PICKUP' ? '🛍 Самовывоз' : '🚚 Доставка';
   return { blocks: [heading(content.title),
-    paragraph([bold(order.type === 'PICKUP' ? '🛍 Самовывоз' : '🚚 Доставка'), ...(content.person ? [' · ' + content.person] : [])]),
-    heading(order.finalTotal != null ? 'ИТОГО: ' + money(order.finalTotal) : 'Предварительно: ' + (order.total == null ? 'уточняется' : '≈ ' + money(order.total))),
-    paragraph([bold(paymentLabel(order.payment)), '\n', bold(progressLabel(order))]),
+    paragraph([bold(staff ? receipt.toLocaleUpperCase('ru') : receipt), ...(content.person ? [' · ' + content.person] : [])]),
+    heading(order.finalTotal != null ? 'ИТОГО: ' + money(order.finalTotal) : (staff ? 'ИТОГО ПРЕДВАРИТЕЛЬНО: ' : 'Предварительно: ') + (order.total == null ? 'уточняется' : '≈ ' + money(order.total))),
+    paragraph([...(staff ? [order.payment?.status === 'REPORTED' ? marked(paymentLabel(order.payment).toLocaleUpperCase('ru')) : bold(paymentLabel(order.payment).toLocaleUpperCase('ru'))] : [bold(paymentLabel(order.payment))]),
+      '\n', bold(staff ? progressLabel(order).toLocaleUpperCase('ru') : progressLabel(order))]),
     ...(order.status === 'ASSEMBLING' ? [paragraph('Осталось: ' + order.items.filter(item => item.status === 'PENDING').length +
       ' · Нет в наличии: ' + order.items.filter(item => item.status === 'MISSING').length)] : []),
     ...(order.payment ? [paragraph((order.payment.status === 'PAID' ? 'Подтверждено за товары: ' :

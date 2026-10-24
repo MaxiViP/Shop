@@ -5,7 +5,7 @@ import { reviewCallback, type FlowPayload, type ReviewFlow } from './staff-flow.
 import { clean, money, quantity, staffConfirmData, staffData, staffQueueData } from './staff-bot.js';
 import { orderChatPath } from './chat-notice.js';
 import { orderRich, orderFallback, paymentLabel, progressLabel } from './order-rich.js';
-import type { TelegramScreen } from './rich.js';
+import { bold, marked, heading, paragraph, richTable, screenNotice, type TelegramScreen } from './rich.js';
 
 export type OrderView = Awaited<ReturnType<StaffService['get']>>;
 export type Button = ({ text: string; callback_data: string } | { text: string; url: string } |
@@ -17,6 +17,16 @@ export const statusText = {
   NEW: 'Новый', CONFIRMED: 'Подтверждён', ASSEMBLING: 'Собирается',
   READY: 'Готов', DELIVERING: 'Доставляется', COMPLETED: 'Завершён', CANCELED: 'Отменён',
 } as const;
+export const statusBadge: Record<OrderView['status'], string> = {
+  NEW: '🆕 Новый', CONFIRMED: '✅ Подтверждён', ASSEMBLING: '🧺 Собирается', READY: '📦 Готов',
+  DELIVERING: '🚚 Доставляется', COMPLETED: '✅ Завершён', CANCELED: '❌ Отменён',
+};
+export function queueOrderButton(order: Pick<OrderView, 'id' | 'status' | 'type' | 'total' | 'finalTotal' | 'createdAt'>): Button {
+  const total = order.finalTotal != null ? 'Итог ' + money(order.finalTotal) : order.total != null ? 'Предв. ≈' + money(order.total) : 'Сумма уточняется';
+  const date = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' }).format(order.createdAt);
+  return { text: '№' + order.id + ' · ' + statusBadge[order.status] + ' · ' + total + '\n' + date +
+    (order.type === 'PICKUP' ? ' · 🛍 Самовывоз' : ' · 🚚 Доставка'), callback_data: staffData(order.id, 'o') };
+}
 const deliveryText = { PENDING: 'ожидается', ASSIGNED: 'назначена',
   PICKED_UP: 'у курьера', DELIVERED: 'доставлена', CANCELED: 'отменена' } as const;
 const itemStatusText = { PENDING: 'в сборке', PICKED: 'собран', MISSING: 'нет в наличии' } as const;
@@ -81,16 +91,15 @@ export function issuePage(order: OrderView, offset = 0): { text: string; keyboar
     .sort((a, b) => Number(Boolean(sellerIssueItem(order, b))) - Number(Boolean(sellerIssueItem(order, a))) || a.id - b.id);
   offset = Math.min(offset, Math.max(0, Math.floor((issues.length - 1) / 5) * 5));
   const visible = issues.slice(offset, offset + 5);
-  const lines = ['Заказ #' + order.id + ' · вопросы и ответы', assemblyProgress(order)];
+  const lines = ['Заказ №' + order.id + ' · вопросы и ответы', assemblyProgress(order)];
   const rows: Button[][] = [];
   for (const issue of visible) {
     const item = sellerIssueItem(order, issue) ?? order.items.find(value => value.id === issue.orderItemId);
     if (!item) continue;
-    lines.push('', clean(item.productName, 100), ...issueText(order, item));
     const label = issue.status === 'WAITING_SELLER' ? '❗ Исправить: '
       : issue.resolution === 'ACCEPT_REPLACEMENT' ? '✅ Замена одобрена: ' : '⏳ Открыть: ';
     rows.push([{ text: label + clean(item.productName, 35),
-      callback_data: staffData(order.id, 'v', item.id) }]);
+      callback_data: staffData(order.id, 'v', item.id), ...(sellerIssueItem(order, issue) ? { style: 'primary' as const } : {}) }]);
   }
   if (!visible.length) lines.push('', 'Нерешённых вопросов нет. Согласованные изменения показаны в карточках товаров.');
   const nav: Button[] = [];
@@ -145,7 +154,7 @@ function itemResult(order: OrderView, itemId: number): string {
 }
 
 export function assemblyView(order: OrderView, url?: string, afterItemId?: number, savedItemId?: number):
-  { text: string; keyboard: Keyboard } {
+  TelegramScreen & { keyboard: Keyboard } {
   const next = nextAssemblyItem(order, afterItemId);
   const view = next ? itemView(order, next, url) : dashboard(order, url);
   const saved = savedItemId === undefined ? '' : itemResult(order, savedItemId);
@@ -153,7 +162,7 @@ export function assemblyView(order: OrderView, url?: string, afterItemId?: numbe
   if (saved && item && canReset(order, item)) view.keyboard.inline_keyboard.unshift([{
     text: '✏️ Исправить ' + clean(item.productName, 32), callback_data: staffData(order.id, 'v', item.id),
   }]);
-  return { ...view, text: saved ? saved + '\n\n' + view.text : view.text };
+  return saved ? { ...screenNotice(view, saved), keyboard: view.keyboard } : view;
 }
 
 export function canQuickConfirm(order: OrderView, item: OrderView['items'][number]): boolean {
@@ -211,7 +220,7 @@ export function canReview(order: OrderView, action: ReviewFlow, itemId?: number 
 
 export function reviewView(order: OrderView, action: ReviewFlow, data: FlowPayload, code: string, itemId?: number | null):
   { text: string; keyboard: Keyboard } {
-  const lines = ['Заказ #' + order.id + ' · проверка перед действием'];
+  const lines = ['Заказ №' + order.id + ' · проверка перед действием'];
   const rows: Button[][] = [];
   const item = order.items.find(value => value.id === itemId);
   if (action === 'PAYMENT') {
@@ -273,40 +282,37 @@ export function staffHelp(): { text: string; keyboard: Keyboard } {
 export function workOverview(counts: Record<'new' | 'confirmed' | 'assembly' | 'ready' | 'delivery' | 'seller' | 'customer', number>):
   { text: string; keyboard: Keyboard } {
   return { text: ['Рабочий обзор KorzinaMarket',
-    'Новые: ' + counts.new + ' · подтверждены: ' + counts.confirmed,
-    'В сборке: ' + counts.assembly + ' · готовы: ' + counts.ready + ' · доставляются: ' + counts.delivery,
-    'Нужно вам: ' + counts.seller + ' · ждём покупателя: ' + counts.customer,
-    'Вопросы покупателей — в первую очередь. /order 123 — открыть заказ.',
+    'Выберите очередь. /order 123 — открыть заказ по номеру.',
   ].join('\n'), keyboard: { inline_keyboard: [
     [{ text: '❗ Нужно вам · ' + counts.seller, callback_data: staffQueueData('seller'), ...(counts.seller ? { style: 'primary' as const } : {}) }],
     [{ text: '🆕 Новые · ' + counts.new, callback_data: staffQueueData('new') },
-      { text: '🧺 В работе · ' + (counts.confirmed + counts.assembly), callback_data: staffQueueData('assembly') }],
-    [{ text: '✅ Готовы · ' + counts.ready, callback_data: staffQueueData('ready') },
+      { text: '🧺 В сборке · ' + (counts.confirmed + counts.assembly), callback_data: staffQueueData('assembly') }],
+    [{ text: '✅ Готовы к выдаче · ' + counts.ready, callback_data: staffQueueData('ready') },
       { text: '🚚 Доставляются · ' + counts.delivery, callback_data: staffQueueData('delivery') }],
     [{ text: '⏳ Ждём покупателя · ' + counts.customer, callback_data: staffQueueData('customer') }],
-    [{ text: 'Все активные заказы', callback_data: staffQueueData('all') }],
+    [{ text: '📋 Все заказы · ' + (counts.new + counts.confirmed + counts.assembly + counts.ready + counts.delivery), callback_data: staffQueueData('all') }],
     [{ text: '🔄 Обновить', callback_data: 'sw' }, { text: 'Помощь', callback_data: 'sh' }],
   ] } };
 }
 
 export function dashboard(order: OrderView, url?: string): TelegramScreen & { keyboard: Keyboard } {
   const id = order.id;
+  const totalLine = order.finalTotal != null ? 'ИТОГО: ' + money(order.finalTotal) :
+    'ИТОГО ПРЕДВАРИТЕЛЬНО: ' + (order.total == null ? 'уточняется' : '≈ ' + money(order.total));
   const lines = [
-    'Заказ #' + id + ' · ' + statusText[order.status],
-    clean(order.customerName, 100) + ' · ' + clean(order.customerPhone, 40),
+    'Заказ №' + id + ' · ' + statusBadge[order.status],
     order.type === 'PICKUP' ? 'Самовывоз' : 'Доставка',
+    totalLine, paymentLabel(order.payment), progressLabel(order), nextStaffAction(order),
+    clean(order.customerName, 100) + ' · ' + clean(order.customerPhone, 40),
   ];
   if (order.type === 'DELIVERY')
     lines.push(clean(formatAddress(order), 200));
-  lines.push(nextStaffAction(order));
   if (order.comment) lines.push('Комментарий: ' + clean(order.comment, 300));
-  lines.push('Товары: ' + money(order.subtotal), 'Доставка: ' + money(order.deliveryPrice),
-    'Запрошено: ' + money(order.total));
-  if (order.finalSubtotal !== null)
-    lines.push('Факт товаров: ' + money(order.finalSubtotal), 'Итого: ' + money(order.finalTotal));
+  lines.push('Товары при заказе: ' + money(order.subtotal), 'Доставка: ' + money(order.deliveryPrice));
+  if (order.finalTotal != null) lines.push('Запрошено при заказе: ' + money(order.total));
+  if (order.finalSubtotal != null) lines.push('Факт товаров: ' + money(order.finalSubtotal));
   if (order.promoCodeSnapshot) lines.push('Промокод: ' + clean(order.promoCodeSnapshot, 32) +
     ' · скидка ' + money(order.finalPromoDiscount ?? order.promoDiscount));
-  lines.push(paymentLabel(order.payment), progressLabel(order));
   if (order.payment) lines.push((order.payment.status === 'PAID' ? 'Подтверждено за товары: ' : 'Сумма платежа за товары: ') + money(order.payment.amount));
   if (order.payment?.status === 'REPORTED') lines.push('⚠️ Покупатель сообщил об оплате. Проверьте поступление денег.');
   if (order.delivery) lines.push('Доставка: ' +
@@ -320,11 +326,11 @@ export function dashboard(order: OrderView, url?: string): TelegramScreen & { ke
     lines.push('Доп. позиции: ' + order.extras.filter(extra => extra.status === 'ACTIVE').length);
 
   const rows: Button[][] = [];
-  const add = (text: string, action: Parameters<typeof staffData>[1]) =>
-    rows.push([{ text, callback_data: staffData(id, action) }]);
-  if (order.status === 'NEW') rows.push([{ text: '✅ Подтвердить', callback_data: 'order:' + id + ':confirm' }]);
+  const add = (text: string, action: Parameters<typeof staffData>[1], style?: Button['style']) =>
+    rows.push([{ text, callback_data: staffData(id, action), ...(style ? { style } : {}) }]);
+  if (order.status === 'NEW') rows.push([{ text: '✅ Подтвердить', callback_data: 'order:' + id + ':confirm', style: 'primary' }]);
   if (order.status === 'CONFIRMED')
-    rows.push([{ text: '▶️ Начать сборку', callback_data: 'order:' + id + ':assembly' }]);
+    rows.push([{ text: '▶️ Начать сборку', callback_data: 'order:' + id + ':assembly', style: 'primary' }]);
   if (order.status === 'ASSEMBLING') {
     const waiting = order.issues.filter(issue => waitingStatuses.includes(issue.status) || sellerIssueItem(order, issue));
     const urgent = waiting.find(issue => sellerIssueItem(order, issue));
@@ -333,30 +339,30 @@ export function dashboard(order: OrderView, url?: string): TelegramScreen & { ke
       clean(urgentItem.productName, 40), callback_data: staffData(id, 'v', urgentItem.id), style: 'primary' }]);
     if (waiting.length) add('❗ Вопросы и ответы · ' + waiting.length, 'j');
     const next = nextAssemblyItem(order);
-    if (next) rows.push([{ text: '▶️ Продолжить сборку', callback_data: staffData(id, 'v', next.id) }]);
+    if (next) rows.push([{ text: '▶️ Продолжить сборку', callback_data: staffData(id, 'v', next.id), ...(!urgentItem ? { style: 'primary' as const } : {}) }]);
     add('🧺 Позиции', 'i');
     if (order.items.some(item => canQuickConfirm(order, item)))
       add('✅ Подтвердить все штучные', 'k');
     add('➕ Доп. позиция / услуга', 'x');
     if (order.extras.some(extra => extra.status === 'ACTIVE')) add('📋 Доп. позиции', 'xl');
     if (canReview(order, 'FINISH_ASSEMBLY'))
-      add('✅ Проверить и завершить сборку', 'f');
+      rows.unshift([{ text: '✅ Проверить и завершить сборку', callback_data: staffData(id, 'f'), style: 'primary' }]);
   }
   if (order.status === 'READY') {
-    if (['AWAITING', 'REPORTED'].includes(order.payment?.status ?? '')) add('💳 Оплата получена', 'p');
-    if (order.payment?.status === 'PAID' && order.type === 'PICKUP') add('✅ Заказ выдан', 'u');
+    if (['AWAITING', 'REPORTED'].includes(order.payment?.status ?? '')) rows.push([{ text: '💳 Проверить оплату', callback_data: staffData(id, 'p'), style: 'primary' }]);
+    if (order.payment?.status === 'PAID' && order.type === 'PICKUP') add('✅ Выдать заказ', 'u', 'primary');
     if (order.payment?.status === 'PAID' && order.type === 'DELIVERY' &&
       order.delivery?.provider !== 'YANDEX') {
-      if (order.delivery?.status === 'ASSIGNED') add('🚚 Передать курьеру', 'h');
-      else add('🚚 Оформить доставку', 'd');
+      if (order.delivery?.status === 'ASSIGNED') add('🚚 Передать курьеру', 'h', 'primary');
+      else add('🚚 Оформить доставку', 'd', 'primary');
     }
     if (['AWAITING', 'CANCELED'].includes(order.payment?.status ?? '') &&
       !order.delivery?.externalOrderId && order.delivery?.provider !== 'OTHER')
       add('↩️ Вернуть к сборке', 'b');
   }
   if (order.status === 'DELIVERING' && order.delivery?.provider === 'OTHER')
-    add('✅ Доставлен', 'c');
-  if (!['COMPLETED', 'CANCELED'].includes(order.status)) add('❌ Отменить заказ', 'z');
+    add('✅ Подтвердить доставку', 'c', 'primary');
+  if (!['COMPLETED', 'CANCELED'].includes(order.status)) rows.push([{ text: '❌ Отменить заказ', callback_data: staffData(id, 'z'), style: 'danger' }]);
   rows.push([{ text: '← Рабочая очередь', callback_data: staffQueueData('all') }]);
   add('🔄 Обновить', 'o');
   if (url) {
@@ -366,8 +372,8 @@ export function dashboard(order: OrderView, url?: string): TelegramScreen & { ke
   const text = lines.join('\n').slice(0, 3900);
   return { text, keyboard: { inline_keyboard: rows },
     fallback: orderFallback(text.split('\n'), [lines[0]!, order.type === 'PICKUP' ? 'Самовывоз' : 'Доставка', nextStaffAction(order),
-      'Итого: ' + money(order.finalTotal), paymentLabel(order.payment), progressLabel(order)]),
-    rich: orderRich(order, { title: lines[0]!, person: clean(order.customerName, 100), next: nextStaffAction(order), sellerActions: order.issues.filter(issue => sellerIssueItem(order, issue)).length,
+      totalLine, paymentLabel(order.payment), progressLabel(order)]),
+    rich: orderRich(order, { audience: 'staff', title: lines[0]!, person: clean(order.customerName, 100), next: nextStaffAction(order), sellerActions: order.issues.filter(issue => sellerIssueItem(order, issue)).length,
       details: [clean(order.customerPhone, 40), ...(order.type === 'DELIVERY' ? [clean(formatAddress(order), 200)] : []),
         ...(order.comment ? [clean(order.comment, 300)] : []), ...(order.delivery ? ['Доставка: ' + deliveryText[order.delivery.status]] : [])],
       items: [...order.items.slice(0, 5).map(item => clean(item.productName, 160) + '\nЗаказано: ' + quantity(item.qty, item.unit) + ' · ' + itemStatusText[item.status] +
@@ -406,15 +412,15 @@ export function itemPage(order: OrderView, offset: number): { text: string; keyb
     rows.push([{ text: '✅ Подтвердить все штучные', callback_data: staffData(order.id, 'k') }]);
   rows.push([{ text: '⬅️ Назад к заказу', callback_data: staffData(order.id, 'o') }]);
   return {
-    text: 'Заказ #' + order.id + ' · позиции ' + (page.length ? offset + 1 : 0) + '–' + (offset + page.length) +
+    text: 'Заказ №' + order.id + ' · позиции ' + (page.length ? offset + 1 : 0) + '–' + (offset + page.length) +
       ' из ' + order.items.length + '\n' + assemblyProgress(order), keyboard: { inline_keyboard: rows },
   };
 }
 
 export function itemView(order: OrderView, item: OrderView['items'][number], url?: string):
-  { text: string; keyboard: Keyboard } {
+  TelegramScreen & { keyboard: Keyboard } {
   const lines = [
-    'Заказ #' + order.id + ' · ' + clean(item.productName, 120),
+    'Заказ №' + order.id + ' · ' + clean(item.productName, 120),
     assemblyProgress(order),
     'Заказано: ' + quantity(item.qty, item.unit),
     'Цена: ' + money(item.price) + ' / ' + quantity(item.priceQty, priceUnit(item)),
@@ -440,13 +446,13 @@ export function itemView(order: OrderView, item: OrderView['items'][number], url
   if (order.status === 'ASSEMBLING') {
     if (item.status === 'PENDING') {
       if (canQuickConfirm(order, item))
-        rows.push([{ text: '✅ По заказу', callback_data: staffData(order.id, 'a', item.id) }]);
+        rows.push([{ text: '✅ По заказу', callback_data: staffData(order.id, 'a', item.id), style: 'primary' }]);
       if (!variableWeight(item)) rows.push([{ text: item.unit === 'GRAM' ? '⚖️ Ввести вес' : '✏️ Изменить количество',
-        callback_data: staffData(order.id, item.unit === 'GRAM' ? 'w' : 'q', item.id) }]);
-      rows.push([{ text: '❌ Нет в наличии', callback_data: staffData(order.id, 'm', item.id) }]);
+        callback_data: staffData(order.id, item.unit === 'GRAM' ? 'w' : 'q', item.id), ...(!canQuickConfirm(order, item) ? { style: 'primary' as const } : {}) }]);
+      rows.push([{ text: '❌ Нет в наличии', callback_data: staffData(order.id, 'm', item.id), style: 'danger' }]);
     } else if (canReset(order, item)) rows.push([{
       text: issue?.status === 'WAITING_SELLER' ? '⚖️ Исправить вес' : '↩️ Вернуть в сборку',
-      callback_data: staffData(order.id, 'r', item.id),
+      callback_data: staffData(order.id, 'r', item.id), ...(issue?.status === 'WAITING_SELLER' ? { style: 'primary' as const } : {}),
     }]);
   }
   if (order.status === 'ASSEMBLING') {
@@ -458,7 +464,12 @@ export function itemView(order: OrderView, item: OrderView['items'][number], url
   }
   if ((item.unit === 'GRAM' || variableWeight(item)) && url) {
     const weigh = staffWeighUrl(url, item.id);
-    if (weigh) rows.push([{ text: '⚖️ Открыть форму взвешивания', url: weigh, style: 'primary' }]);
+    if (weigh) {
+      const button: Button = { text: '⚖️ Открыть форму взвешивания', url: weigh,
+        ...(variableWeight(item) && item.status === 'PENDING' ? { style: 'primary' as const } : {}) };
+      if (variableWeight(item) && item.status === 'PENDING') rows.unshift([button]);
+      else rows.push([button]);
+    }
   }
   if (issue && waitingStatuses.includes(issue.status) && /^\+?[0-9]{10,15}$/.test(order.customerPhone ?? ''))
     rows.push([{ text: 'Скопировать телефон покупателя', copy_text: { text: order.customerPhone } }]);
@@ -467,7 +478,23 @@ export function itemView(order: OrderView, item: OrderView['items'][number], url
   rows.push([{ text: '⬅️ К позициям', callback_data: staffData(order.id, 'i',
     Math.floor(order.items.findIndex(value => value.id === item.id) / 8) * 8) }],
     [{ text: 'К заказу', callback_data: staffData(order.id, 'o') }]);
-  return { text: lines.join('\n'), keyboard: { inline_keyboard: rows } };
+  const values: [string, string][] = [
+    ['Заказано', quantity(item.qty, item.unit)],
+    ['Цена', money(item.actualPrice ?? item.price) + ' / ' + quantity(item.priceQty, priceUnit(item))],
+    ['Предварительно за товар', item.total == null ? 'после взвешивания' : '≈ ' + money(item.total)],
+    ...(item.actualPrice != null && item.actualPrice !== item.price ? [['Цена при заказе', money(item.price) + ' / ' + quantity(item.priceQty, priceUnit(item))] as [string, string]] : []),
+    ...(item.actualQty != null ? [['Собрано', quantity(item.actualQty, item.unit)] as [string, string]] : []),
+    ...(variableWeight(item) && item.actualWeightGrams != null ? [['Фактический вес', quantity(item.actualWeightGrams, 'GRAM')] as [string, string]] : []),
+    ...(item.actualTotal != null ? [['Фактически за товар', money(item.actualTotal)] as [string, string]] : []),
+  ];
+  return { text: lines.join('\n'), keyboard: { inline_keyboard: rows }, rich: { blocks: [heading(lines[0]!),
+    paragraph(bold(assemblyProgress(order))), paragraph(marked('Статус: ' + (item.status === 'PICKED' ? '✅ Собран' : item.status === 'MISSING' ? '❌ Нет в наличии' : '⚖️ В сборке'))),
+    richTable(values), ...issueText(order, item).map(text => paragraph(marked(text))),
+    ...(variableWeight(item) ? [paragraph('Взвесьте каждый экземпляр на сайте. Оплата по фактическому весу.')] : []),
+    ...(order.comment ? [paragraph('Комментарий к заказу: ' + clean(order.comment, 300))] : []),
+    ...(canReset(order, item) && issue?.orderItemId === item.id && issue.status === 'RESOLVED' && issue.resolution === 'ACCEPT_ACTUAL'
+      ? [paragraph(marked('При возврате в сборку прежнее согласование перестанет действовать. Новый результат проверим заново.'))] : []),
+  ] } };
 }
 
 export function extraPage(order: OrderView, offset = 0): { text: string; keyboard: Keyboard } {
@@ -475,16 +502,14 @@ export function extraPage(order: OrderView, offset = 0): { text: string; keyboar
   offset = Math.min(Math.max(0, Math.floor(offset / 10) * 10), Math.max(0, Math.floor((active.length - 1) / 10) * 10));
   const extras = active.slice(offset, offset + 10);
   const rows: Button[][] = extras.flatMap(extra => [[
-    { text: '✏️ ' + clean(extra.title, 30), callback_data: staffData(order.id, 'xe', extra.id) },
-    { text: '❌', callback_data: staffData(order.id, 'xd', extra.id) },
+    { text: '✏️ ' + clean(extra.title, 50) + ' · ' + extra.quantity + ' × ' + money(extra.unitPrice) + ' = ' + money(extra.amount), callback_data: staffData(order.id, 'xe', extra.id) },
+    { text: '❌', callback_data: staffData(order.id, 'xd', extra.id), style: 'danger' as const },
   ]]);
   rows.push([{ text: '⬅️ Назад к заказу', callback_data: staffData(order.id, 'o') }]);
   const nav: Button[] = [];
   if (offset > 0) nav.push({ text: '← Предыдущие', callback_data: staffData(order.id, 'xl', offset - 10) });
   if (offset + 10 < active.length) nav.push({ text: 'Следующие →', callback_data: staffData(order.id, 'xl', offset + 10) });
   if (nav.length) rows.unshift(nav);
-  return { text: 'Доп. позиции заказа #' + order.id + '\n' +
-    extras.map(extra => clean(extra.title, 80) + ' · ' + extra.quantity + ' × ' +
-      money(extra.unitPrice) + ' = ' + money(extra.amount)).join('\n'),
+  return { text: 'Доп. позиции заказа №' + order.id + (extras.length ? '\nВыберите позицию для изменения.' : '\nДополнительных позиций нет.'),
   keyboard: { inline_keyboard: rows } };
 }
