@@ -41,6 +41,7 @@ executable = ts.transpileModule(executable, {
 function fixture(t, viewport) {
   let size = { ...viewport }, nextFrame = 0;
   const frames = new Map(), events = new Map(), media = new Map(), mounted = [], unmounted = [];
+  const route = reactive({ path: '/catalog', fullPath: '/catalog' });
   const notice = reactive({ current: null, clear() { this.current = null; } });
   const cart = reactive({ count: 1, displayTotal: 12500000, quoteReady: true });
   const match = query => query === '(width < 768px)'
@@ -63,7 +64,7 @@ function fixture(t, viewport) {
     cancelAnimationFrame: id => frames.delete(id),
   };
   const context = { ref, computed, watch, window,
-    useRoute: () => reactive({ path: '/catalog', fullPath: '/catalog' }),
+    useRoute: () => route,
     useAuthStore: () => reactive({ user: null }), useCartStore: () => cart,
     useFavoritesStore: () => ({ count: 0 }), useOrdersAction: () => ({}),
     useBasketScene: () => ({ sceneKey: ref(0), sceneState: ref('full') }),
@@ -75,10 +76,10 @@ function fixture(t, viewport) {
   };
   const scope = effectScope();
   const state = scope.run(() => new Function(...Object.keys(context), executable +
-    '\nreturn { mobileHeaderHidden, floatingCartVisible, mobileOpen, loginOpen };')(...Object.values(context)));
+    '\nreturn { mobileHeaderHidden, floatingCartVisible, cartControlVisible, mobileOpen, loginOpen };')(...Object.values(context)));
   mounted.forEach(callback => callback());
   t.after(() => { unmounted.forEach(callback => callback()); scope.stop(); });
-  return { ...state, cart, notice,
+  return { ...state, cart, notice, route,
     scroll(y) {
       window.scrollY = y; events.get('scroll')?.();
       const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback());
@@ -184,4 +185,25 @@ test('opening menu and switching to login never moves the cart or its notice bac
     assert.equal(f.floatingCartVisible.value, true);
     assert.equal(f.notice.current.text, 'Добавлено в корзину');
   }
+});
+
+test('cart page omits the redundant cart control on mobile and desktop and restores it on navigation', t => {
+  for (const viewport of [{ width: 390, height: 844, pointer: 'coarse' }, { width: 1280, height: 900, pointer: 'fine' }]) {
+    const f = fixture(t, viewport);
+    assert.equal(f.cartControlVisible.value, true);
+    f.route.path = '/cart';
+    f.route.fullPath = '/cart?source=catalog';
+    assert.equal(f.cartControlVisible.value, false);
+    f.route.path = '/cart/';
+    assert.equal(f.cartControlVisible.value, false);
+    f.mobileOpen.value = true;
+    f.cart.count = 0;
+    assert.equal(f.cartControlVisible.value, false);
+    f.mobileOpen.value = false;
+    for (const path of ['/catalog', '/product/apple', '/favorites']) {
+      f.route.path = path;
+      assert.equal(f.cartControlVisible.value, true);
+    }
+  }
+  assert.match(header, /<div v-if="cartControlVisible" class="header__action header__action--cart"/);
 });

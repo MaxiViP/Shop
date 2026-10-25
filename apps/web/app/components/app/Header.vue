@@ -106,7 +106,7 @@
           <AppHeaderNotice target="favorites" />
         </div>
         <Teleport to="#floating-cart-anchor" :disabled="!floatingCartVisible">
-          <div class="header__action header__action--cart" :class="{ 'header__action--floating': floatingCartVisible }">
+          <div v-if="cartControlVisible" class="header__action header__action--cart" :class="{ 'header__action--floating': floatingCartVisible }">
             <NuxtLink
               to="/cart"
               class="cart-control"
@@ -352,6 +352,7 @@ const mobileHeaderHidden = computed(
     notice.current?.target !== "favorites",
 );
 const floatingCartVisible = computed(() => narrow.value);
+const cartControlVisible = computed(() => !["/cart", "/cart/"].includes(route.path));
 
 let stopScroll = () => {};
 onMounted(() => {
