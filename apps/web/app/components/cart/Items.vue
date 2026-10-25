@@ -124,7 +124,8 @@ async function setQty(id: number, qty: number) {
 <style scoped>
 .cart-items {
   container: cart-items / inline-size;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
 }
 .cart-items__entry { min-width: 0; }
