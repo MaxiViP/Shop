@@ -30,7 +30,6 @@
     </div>
 
     <div class="card__body">
-      <p v-if="productIllustration(product.images[0])" class="card__illustration">Иллюстрация товара</p>
       <NuxtLink
         v-if="!compact"
         :to="`/catalog/${product.category.slug}`"
@@ -104,7 +103,6 @@ import { nextCartQty, previousCartQty } from "~/utils/cart";
 import { qtyText } from "~/utils/qty";
 import { money } from "~/utils/money";
 import { saleExplanation, variableWeight } from '~/utils/sale';
-import { productIllustration } from '~/utils/product-illustration';
 
 const { product, eagerImage = false, density = 2 } = defineProps<{
   product: ProductListItem;
@@ -560,7 +558,7 @@ async function subtract() {
 
 }
 
-.card__sale, .card__illustration { margin-block: 0.25rem; font-size: 0.75rem; line-height: 1.3; color: var(--ui-text-muted); }
+.card__sale { margin-block: 0.25rem; font-size: 0.75rem; line-height: 1.3; color: var(--ui-text-muted); }
 
 .card__badges { position: absolute; top: var(--card-inset); left: 0; z-index: 4; display: grid; justify-items: start; gap: 0.25rem; pointer-events: none; }
 .card__ribbon { padding: 0.25rem 0.625rem 0.25rem 0.5rem; border-radius: 0 0.375rem 0.375rem 0; color: #fff; font-size: clamp(0.625rem, 1.8vw, 0.6875rem); font-weight: 800; line-height: 1.25; letter-spacing: 0.025em; box-shadow: 0 1px 3px rgb(0 0 0 / 15%); }
@@ -584,7 +582,7 @@ async function subtract() {
 }
 @media (width < 40rem) {
   .card--dense { --card-inset: 0.25rem; --card-price-size: 0.75rem; border-radius: 0.5rem; }
-  .card--dense .card__category, .card--dense .card__sale, .card--dense .card__illustration,
+  .card--dense .card__category, .card--dense .card__sale,
   .card--dense .card__favorite, .card--dense .card__badges,
   .card--dense :deep(.origin) { display: none; }
   .card--dense .card__title { margin-top: 0; font-size: 0.6875rem; }

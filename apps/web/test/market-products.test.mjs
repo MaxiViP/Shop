@@ -94,11 +94,12 @@ test('product card renders backend customer price once, market link and a calm n
   assert.ok(html.includes('Цена по открытому источнику и может измениться при сборке.'));
   assert.ok(!html.includes('sourceUrl') && !html.includes('220 ₽') && !html.includes('role="alert"'));
 });
-test('card and selected gallery image visibly label only the exact imported illustration', async () => {
+test('compact cards omit the illustration note while the selected gallery retains its label', async () => {
   const url = Object.entries(photoOrigins).find(([, slug]) => slug === product.slug)?.[0];
   assert.ok(url);
   const images = [{ url, alt: null }];
-  assert.match(await render(Card, { product: { ...product, images } }), /Иллюстрация товара/);
+  const card = await render(Card, { product: { ...product, images } });
+  assert.ok(!card.includes('card__illustration') && !card.includes('Иллюстрация товара'));
   assert.match(await render(Gallery, { images, name: product.name, slug: product.slug }), /Иллюстрация товара/);
   const real = [{ url: '/uploads/products/real-photo.webp', alt: 'Иллюстрация товара' }];
   assert.ok(!(await render(Card, { product: { ...product, images: real } })).includes('card__illustration'));

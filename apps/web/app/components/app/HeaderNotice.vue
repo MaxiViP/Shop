@@ -59,12 +59,12 @@ onBeforeUnmount(reset);
   z-index: 1;
 }
 .header-notice--floating {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 0.75rem);
   width: min(
-    12rem,
-    calc(
-      100vw - max(0.5rem, env(safe-area-inset-left, 0px)) -
-        max(0.5rem, env(safe-area-inset-right, 0px)) - 50% + 1rem
-    )
+    16rem,
+    calc(100vw - max(0.75rem, env(safe-area-inset-left, 0px)) - max(0.75rem, env(safe-area-inset-right, 0px)))
   );
 }
 .header-notice__panel {
@@ -87,6 +87,14 @@ onBeforeUnmount(reset);
   background: var(--ui-bg);
   border-top: 1px solid var(--ui-border);
   border-left: 1px solid var(--ui-border);
+}
+.header-notice--floating .header-notice__panel::after {
+  top: auto;
+  bottom: -0.3125rem;
+  right: 1.75rem;
+  border: 0;
+  border-right: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
 }
 .header-notice__text {
   font-size: 0.8125rem;

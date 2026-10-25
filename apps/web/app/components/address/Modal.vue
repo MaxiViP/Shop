@@ -41,53 +41,14 @@
           </UFormField>
         </div>
 
-        <div class="form__row">
-          <UFormField label="Дом">
-            <UInput
-              v-model="form.house"
-              placeholder="Номер дома"
-              size="lg"
-            />
-          </UFormField>
-
-          <UFormField label="Корпус / строение">
-            <UInput v-model="form.buildingPart" placeholder="к. 2 или стр. 1" maxlength="50" size="lg" />
-          </UFormField>
-        </div>
-
         <div class="form__row form__row--small">
-          <UFormField label="Квартира">
-            <UInput
-              v-model="form.flat"
-              placeholder="Номер квартиры"
-              size="lg"
-            />
-          </UFormField>
-
-          <UFormField label="Подъезд">
-            <UInput
-              v-model="form.entrance"
-              placeholder="Номер подъезда"
-              size="lg"
-            />
-          </UFormField>
-
-          <UFormField label="Этаж">
-            <UInput
-              v-model="form.floor"
-              placeholder="Номер этажа"
-              size="lg"
-            />
-          </UFormField>
+          <UFormField label="Дом"><UInput v-model="form.house" placeholder="Дом" size="lg" /></UFormField>
+          <UFormField label="Корпус / строение"><UInput v-model="form.buildingPart" placeholder="к. / стр." maxlength="50" size="lg" /></UFormField>
+          <UFormField label="Квартира"><UInput v-model="form.flat" placeholder="Кв." size="lg" /></UFormField>
+          <UFormField label="Подъезд"><UInput v-model="form.entrance" placeholder="Подъезд" size="lg" /></UFormField>
+          <UFormField label="Этаж"><UInput v-model="form.floor" placeholder="Этаж" size="lg" /></UFormField>
+          <UFormField label="Домофон"><UInput v-model="form.intercom" placeholder="Код" size="lg" /></UFormField>
         </div>
-
-        <UFormField label="Домофон">
-          <UInput
-            v-model="form.intercom"
-            placeholder="Код домофона"
-            size="lg"
-          />
-        </UFormField>
 
         <UFormField label="Комментарий курьеру">
           <UTextarea
@@ -258,17 +219,18 @@ async function save() {
 .form {
   display: grid;
   min-width: 0;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .form__row {
   display: grid;
   min-width: 0;
-  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 0.5rem;
 }
 
 .form__row--small {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .form__actions {
@@ -288,15 +250,12 @@ async function save() {
   font-size: 1rem;
 }
 
+.form__row > * { min-width: 0; }
+.form__row :deep([data-slot="root"]), .form__row :deep(input) { min-width: 0; width: 100%; }
+@media (max-width: 39.999rem) {
+  .form__row--small :deep(label) { font-size: 0.75rem; line-height: 1rem; min-height: 2rem; display: flex; align-items: end; }
+}
 @media (min-width: 40rem) {
-  .form__row {
-    grid-template-columns: 11.25rem minmax(0, 1fr);
-  }
-
-  .form__row--small {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .form__actions {
     justify-content: flex-end;
   }

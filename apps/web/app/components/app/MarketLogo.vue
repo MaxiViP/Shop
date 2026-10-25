@@ -10,7 +10,8 @@
 <style scoped>
 .market-logo {
   display: inline-flex;
-  min-width: 44px;
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
   align-items: center;
   white-space: nowrap;
@@ -21,7 +22,7 @@
 
 .market-logo__full {
   display: inline-flex;
-  font-size: clamp(0.875rem, calc(0.45rem + 1.8vw), 1.45rem);
+  font-size: clamp(0.875rem, 15cqi, 1.45rem);
   letter-spacing: -0.055em;
 }
 

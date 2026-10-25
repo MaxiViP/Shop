@@ -152,17 +152,18 @@ test("one cart notice moves with the one cart control without resetting its prog
     new URL("../app/components/app/HeaderNotice.vue", import.meta.url), "utf8",
   );
   assert.match(header, /<Teleport to="#floating-cart-anchor" :disabled="!floatingCartVisible">/);
-  assert.match(header, /<div\s+id="floating-cart-anchor"[\s\S]*floating-cart-anchor--visible/);
+  const layout = await readFile(new URL("../app/layouts/default.vue", import.meta.url), "utf8");
+  assert.match(layout, /<div id="floating-cart-anchor" class="floating-cart-anchor"/);
   assert.equal((header.match(/<AppHeaderNotice target="cart"/g) ?? []).length, 1);
   assert.equal((header.match(/<AppBasketScene /g) ?? []).length, 1);
   assert.match(header, /<AppHeaderNotice target="cart" :floating="floatingCartVisible" \/>/);
   assert.doesNotMatch(header, /<AppHeaderNotice v-if=/);
-  assert.match(header, /mobileHeaderHidden\.value && \(cart\.count > 0 \|\| notice\.current\?\.target === "cart"\)/);
+  assert.match(header, /const floatingCartVisible = computed\(\(\) => narrow\.value\)/);
   assert.match(header, /notice\.current\?\.target !== "favorites"/);
   assert.equal((header.match(/role="status"/g) ?? []).length, 1);
   assert.equal((panel.match(/role="status"/g) ?? []).length, 0);
   assert.match(header, /<AppHeaderNotice target="favorites" \/>/);
   assert.match(panel, /\.header-notice--floating\s*\{[^}]*safe-area-inset-left[^}]*safe-area-inset-right/);
-  assert.match(header, /\.floating-cart-anchor\s*\{[^}]*position:\s*fixed;[^}]*safe-area-inset-top[^}]*safe-area-inset-right/);
+  assert.match(panel, /\.header-notice--floating\s*\{[^}]*top: auto;[^}]*right: 0;[^}]*bottom: calc\(100% \+ 0\.75rem\)/);
   assert.match(panel, /Date\.now\(\) - active\.shownAt/);
 });

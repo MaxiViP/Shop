@@ -33,8 +33,9 @@
         <NuxtLink v-for="item in items" :key="item.id" :to="link(`/catalog/${item.slug}`)" class="categories__item" :class="{ 'categories__item--active': active === item.slug }" :aria-current="current(item.slug)" @click="chooseCategory($event, item.slug)">{{ item.name }}</NuxtLink>
       </nav>
       <span v-show="overflowing" class="categories__hint" aria-hidden="true">
-        <svg width="44" height="10" viewBox="0 0 44 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M15 5H2m4-3L2 5l4 3m23-3h13m-4-3 4 3-4 3" />
+        <svg width="56" height="10" viewBox="-6 0 56 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path class="categories__hint-arrow categories__hint-arrow--left" d="M15 5H2m4-3L2 5l4 3" />
+          <path class="categories__hint-arrow categories__hint-arrow--right" d="M29 5h13m-4-3 4 3-4 3" />
           <path d="M21 5h2" opacity=".45" />
         </svg>
       </span>
@@ -155,6 +156,16 @@ watch(open, value => { if (!value) resetSearch(); });
 .categories { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
 .categories__scroller { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
 .categories__hint { position: absolute; top: calc(100% + 0.125rem); left: 50%; display: flex; transform: translateX(-50%); color: var(--ui-primary); opacity: 0.75; pointer-events: none; user-select: none; }
+.categories__hint-arrow { animation: categories-hint-right 2.8s ease-in-out infinite; }
+.categories__hint-arrow--left { animation-name: categories-hint-left; }
+@keyframes categories-hint-right {
+  0%, 12%, 62%, 100% { transform: translateX(0); }
+  32%, 42% { transform: translateX(6px); }
+}
+@keyframes categories-hint-left {
+  0%, 42%, 92%, 100% { transform: translateX(0); }
+  62%, 72% { transform: translateX(-6px); }
+}
 .categories__strip { display: flex; flex: 1; min-width: 0; justify-content: flex-start; gap: 0.5rem; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; padding-block: 0.125rem; }
 .categories__strip::-webkit-scrollbar { display: none; }
 .categories__item { display: inline-flex; min-height: var(--touch-target); align-items: center; flex: none; padding: 0.6rem 1rem; border: 1px solid var(--ui-border); border-radius: 999px; background: var(--ui-bg-elevated); font-weight: 500; white-space: nowrap; transition: background-color 0.2s, border-color 0.2s, color 0.2s; }
@@ -184,5 +195,6 @@ watch(open, value => { if (!value) resetSearch(); });
 }
 @media (prefers-reduced-motion: reduce) {
   .categories__search-field { transition: none; }
+  .categories__hint-arrow { animation: none; }
 }
 </style>

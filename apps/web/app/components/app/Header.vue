@@ -1,9 +1,4 @@
 <template>
-  <div
-    id="floating-cart-anchor"
-    class="floating-cart-anchor"
-    :class="{ 'floating-cart-anchor--visible': floatingCartVisible }"
-  />
   <header class="header" :class="{ 'header--hidden': mobileHeaderHidden }">
     <UContainer class="header__inner" :inert="mobileHeaderHidden">
       <UButton
@@ -356,9 +351,7 @@ const mobileHeaderHidden = computed(
   () => narrow.value && scrolled.value && !mobileOpen.value && !loginOpen.value &&
     notice.current?.target !== "favorites",
 );
-const floatingCartVisible = computed(
-  () => mobileHeaderHidden.value && (cart.count > 0 || notice.current?.target === "cart"),
-);
+const floatingCartVisible = computed(() => narrow.value);
 
 let stopScroll = () => {};
 onMounted(() => {
@@ -457,9 +450,10 @@ function closeMenuLink(event: MouseEvent) {
 
 .header__brand {
   display: flex;
-  min-width: 44px;
+  min-width: 6rem;
   min-height: 44px;
-  flex: 0 0 auto;
+  flex: 0 1 10rem;
+  container-type: inline-size;
   align-items: center;
   border-radius: 0.5rem;
 }
@@ -673,21 +667,8 @@ function closeMenuLink(event: MouseEvent) {
   overflow-wrap: anywhere;
 }
 
-.floating-cart-anchor {
-  position: fixed;
-  top: max(0.5rem, env(safe-area-inset-top, 0px));
-  right: max(0.5rem, env(safe-area-inset-right, 0px));
-  z-index: 31;
-  max-width: calc(100vw - max(0.5rem, env(safe-area-inset-left, 0px)) - max(0.5rem, env(safe-area-inset-right, 0px)));
-  pointer-events: none;
-}
-
-.floating-cart-anchor--visible .header__action {
-  pointer-events: auto;
-}
-
 .header__action--floating .cart-control {
-  min-height: 3.25rem;
+  min-height: var(--bottom-control-height);
   padding: 0.25rem 0.5rem;
   border-radius: 1rem;
   box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
@@ -865,16 +846,12 @@ function closeMenuLink(event: MouseEvent) {
     padding-inline: 0.375rem;
   }
 
-  .floating-cart-anchor {
-    display: none;
-  }
 }
 
 @media (orientation: landscape) and (pointer: coarse) {
   .header__inner { gap: 0; }
   .header__menu { display: inline-flex; }
   .header__nav, .header__profile { display: none; }
-  .floating-cart-anchor { display: block; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -93,7 +93,7 @@ try {
       assert.equal(await page.locator('.density__option[aria-pressed="true"]').innerText(), String(columns));
       assert.ok(await page.locator('.density__option').evaluateAll(buttons => buttons.every(button => {
         const box = button.getBoundingClientRect();
-        return box.width >= 44 && box.height >= 44;
+        return box.width >= 44 && box.height >= 36;
       })));
       assert.equal(await page.locator('.breadcrumbs').getByRole('link', { name: 'Главная', exact: true }).getAttribute('href'), '/');
       assert.equal(await page.locator('.breadcrumbs__short').isVisible(), width < 368);

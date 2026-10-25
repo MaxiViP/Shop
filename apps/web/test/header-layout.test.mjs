@@ -6,6 +6,7 @@ import { money } from "../app/utils/money.ts";
 const header = await readFile(new URL("../app/components/app/Header.vue", import.meta.url), "utf8");
 const brand = await readFile(new URL("../app/components/app/MarketLogo.vue", import.meta.url), "utf8");
 const orders = await readFile(new URL("../app/components/app/OrdersAction.vue", import.meta.url), "utf8");
+const layout = await readFile(new URL("../app/layouts/default.vue", import.meta.url), "utf8");
 const beforeDrawer = header.slice(0, header.indexOf("<LazyUDrawer"));
 
 test("brand, navigation and actions follow the requested order", () => {
@@ -40,7 +41,7 @@ test("icon navigation keeps labels, active routes, theme and staff actions", () 
 });
 
 test("one animated cart link keeps its quote status while moving between anchors", () => {
-  assert.ok(header.indexOf('id="floating-cart-anchor"') < header.indexOf('<Teleport to="#floating-cart-anchor"'));
+  assert.ok(layout.indexOf('id="floating-cart-anchor"') < layout.indexOf('<AppHeader'));
   assert.equal((beforeDrawer.match(/<AppBasketScene /g) ?? []).length, 1);
   assert.equal((beforeDrawer.match(/<AppHeaderNotice target="cart"/g) ?? []).length, 1);
   assert.match(beforeDrawer, /<Teleport to="#floating-cart-anchor" :disabled="!floatingCartVisible">/);
@@ -97,10 +98,20 @@ test("mobile layout, menu controls and visible-cart logic retain safe boundaries
   assert.match(header, /:should-scale-background="false"/);
   assert.match(header, /:no-body-styles="true"/);
   assert.match(header, /notice\.current\?\.target !== "favorites"/);
-  assert.match(header, /mobileHeaderHidden\.value && \(cart\.count > 0 \|\| notice\.current\?\.target === "cart"\)/);
+  assert.match(header, /const floatingCartVisible = computed\(\(\) => narrow\.value\)/);
   assert.match(header, /safe-area-inset-top/);
-  assert.match(header, /safe-area-inset-right/);
+  assert.match(layout, /var\(--safe-right\)/);
   assert.match(header, /prefers-reduced-motion: reduce/);
   assert.ok(header.indexOf("<template>") < header.indexOf('<script setup lang="ts">'));
   assert.ok(header.indexOf('<script setup lang="ts">') < header.indexOf("<style scoped>"));
+});
+
+test('search and cart share a bottom row with space for the fixed checkout submit panel', async () => {
+  const search = await readFile(new URL('../app/components/app/BottomSearch.vue', import.meta.url), 'utf8');
+  assert.ok(layout.indexOf('<AppBottomSearch') < layout.indexOf('id="floating-cart-anchor"'));
+  assert.match(layout, /\.layout__bottom-controls\s*\{[^}]*position: fixed;[^}]*bottom: calc\([^;]*--bottom-controls-offset[^}]*display: flex;[^}]*align-items: end;/);
+  assert.match(layout, /\.layout:has\(\.checkout \.summary__submit\)[^}]*--bottom-controls-offset: 6rem/);
+  assert.match(layout, /\.layout:has\(\.checkout--delivery-notice \.summary__submit\)[^}]*--bottom-controls-offset: 9rem/);
+  assert.match(search, /height: var\(--bottom-control-height\)/);
+  assert.match(header, /\.header__action--floating \.cart-control[^}]*min-height: var\(--bottom-control-height\)/);
 });

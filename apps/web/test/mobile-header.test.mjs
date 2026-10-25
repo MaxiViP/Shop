@@ -94,17 +94,17 @@ function fixture(t, viewport) {
   };
 }
 
-test('portrait, landscape and unfolded touch widths use the same down/up scroll and one floating cart', t => {
+test('portrait, landscape and unfolded touch widths keep the cart docked while the header scrolls', t => {
   for (const [width, height] of [[390, 844], [667, 375], [1024, 768], [1368, 912], [1800, 900]]) {
     const f = fixture(t, { width, height, pointer: 'coarse' });
     assert.equal(f.mobileHeaderHidden.value, false, 'visible at ' + width + '×' + height);
-    assert.equal(f.floatingCartVisible.value, false);
+    assert.equal(f.floatingCartVisible.value, true);
     f.scroll(120);
     assert.equal(f.mobileHeaderHidden.value, true);
     assert.equal(f.floatingCartVisible.value, true);
     f.scroll(102);
     assert.equal(f.mobileHeaderHidden.value, false);
-    assert.equal(f.floatingCartVisible.value, false);
+    assert.equal(f.floatingCartVisible.value, true);
   }
 });
 
@@ -117,17 +117,18 @@ test('a wide fine-pointer desktop stays visible, including a short landscape win
   }
 });
 
-test('landscape retains drawer/login/notice exceptions and the existing empty-cart behavior', t => {
+test('landscape keeps the cart docked through drawer/login states and an empty cart', t => {
   const f = fixture(t, { width: 1024, height: 768, pointer: 'coarse' });
   f.scroll(180);
   f.mobileOpen.value = true;
-  assert.equal(f.mobileHeaderHidden.value, false); assert.equal(f.floatingCartVisible.value, false);
+  assert.equal(f.mobileHeaderHidden.value, false); assert.equal(f.floatingCartVisible.value, true);
   f.mobileOpen.value = false; f.loginOpen.value = true;
   assert.equal(f.mobileHeaderHidden.value, false);
+  assert.equal(f.floatingCartVisible.value, true);
   f.loginOpen.value = false; f.notice.current = { target: 'favorites' };
   assert.equal(f.mobileHeaderHidden.value, false);
   f.notice.current = null; f.cart.count = 0;
-  assert.equal(f.mobileHeaderHidden.value, true); assert.equal(f.floatingCartVisible.value, false);
+  assert.equal(f.mobileHeaderHidden.value, true); assert.equal(f.floatingCartVisible.value, true);
   f.notice.current = { target: 'cart' };
   assert.equal(f.floatingCartVisible.value, true);
 });
@@ -153,9 +154,34 @@ test('landscape reserves header height and safe-area with no forced transform or
   assert.match(header, /prefers-reduced-motion: reduce/);
   assert.match(css, /--page-x: max\(clamp\([^;]*var\(--safe-left\)[^;]*var\(--safe-right\)/);
   assert.match(header, /narrow\.value && scrolled\.value && !mobileOpen\.value && !loginOpen\.value/);
-  assert.match(header, /mobileHeaderHidden\.value && \(cart\.count > 0/);
+  assert.match(header, /const floatingCartVisible = computed\(\(\) => narrow\.value\)/);
   assert.match(header, /<Teleport to="#floating-cart-anchor" :disabled="!floatingCartVisible">/);
   assert.match(header, /:should-scale-background="false"/);
   assert.match(header, /:no-body-styles="true"/);
   assert.equal((header.match(/class="header__burger-line"/g) ?? []).length, 3);
+});
+
+test('cart notices stay attached at the page top, during header scrolling and after removing the last item', t => {
+  const f = fixture(t, { width: 390, height: 844, pointer: 'coarse' });
+  f.cart.count = 0;
+  assert.equal(f.floatingCartVisible.value, true);
+  f.notice.current = { target: 'cart', text: 'Удалено из корзины' };
+  assert.equal(f.floatingCartVisible.value, true);
+  f.scroll(180);
+  assert.equal(f.mobileHeaderHidden.value, true);
+  assert.equal(f.floatingCartVisible.value, true);
+  f.scroll(160);
+  assert.equal(f.mobileHeaderHidden.value, false);
+  assert.equal(f.floatingCartVisible.value, true);
+});
+
+test('opening menu and switching to login never moves the cart or its notice back into the header', t => {
+  const f = fixture(t, { width: 390, height: 844, pointer: 'coarse' });
+  f.notice.current = { target: 'cart', text: 'Добавлено в корзину' };
+  for (const [menu, login] of [[false,false],[true,false],[false,true],[false,false]]) {
+    f.mobileOpen.value = menu;
+    f.loginOpen.value = login;
+    assert.equal(f.floatingCartVisible.value, true);
+    assert.equal(f.notice.current.text, 'Добавлено в корзину');
+  }
 });
