@@ -4,7 +4,7 @@
       <h1 class="sr-only">{{ site.title }}</h1>
       <HomeHeroCarousel />
 
-      <section class="home__section home__section--categories">
+      <section class="home__section home__section--categories" :style="{ top: `${headerOffset}px` }">
         <CategoryList v-model:sort="sort" :items="categories" :query="sortQuery" active="" />
       </section>
 
@@ -49,6 +49,7 @@ const { data: categories } = await useApi<Category[]>("/categories", {
   default: () => [],
 });
 
+const headerOffset = useHeaderOffset();
 const { sort, sortQuery } = useProductSort();
 const { items, status, error, stale, hasMore, loadingMore, loadMore, retry } =
   await useProductFeed(() => ({ feed: sort.value === 'recommended' ? 'home' : 'catalog', sort: sort.value, limit: 24 }), 'home-products');
@@ -66,6 +67,11 @@ const { items, status, error, stale, hasMore, loadingMore, loadMore, retry } =
   margin-top: var(--section-gap);
 }
 .home__section--categories {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 20;
+  padding-block: 0.25rem;
+  background: var(--ui-bg);
   margin-top: clamp(1rem, 2vw, 1.5rem);
 }
 .home__head {

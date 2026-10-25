@@ -65,15 +65,11 @@ async function clearTag() { const query = { ...route.query }; delete query.tag; 
 const activeCategory = ref(category ?? '');
 const navigation = ref<HTMLElement | null>(null);
 const groupList = ref<HTMLElement | null>(null);
-const headerOffset = ref(64);
+const headerOffset = useHeaderOffset();
 let frame = 0;
 
 function trackCategory() {
   frame = 0;
-  const header = document.querySelector<HTMLElement>('header.header');
-  const cart = document.querySelector<HTMLElement>('.floating-cart-anchor--visible');
-  const offset = Math.max(0, header?.getBoundingClientRect().bottom ?? 0, cart?.getBoundingClientRect().bottom ?? 0);
-  if (offset !== headerOffset.value) { headerOffset.value = offset; void nextTick(scheduleTrack); return; }
   if (!category || !groupList.value) return;
   const anchor = (navigation.value?.getBoundingClientRect().bottom ?? 0) + 8;
   const bounds = [...groupList.value.querySelectorAll<HTMLElement>('[data-category]')].flatMap(section => {
@@ -88,26 +84,16 @@ function trackCategory() {
 function scheduleTrack() {
   if (!frame) frame = requestAnimationFrame(trackCategory);
 }
-let headerObserver: MutationObserver | undefined;
+watch(headerOffset, scheduleTrack, { flush: 'post' });
 onMounted(() => {
   window.addEventListener('scroll', scheduleTrack, { passive: true });
   window.addEventListener('resize', scheduleTrack, { passive: true });
   scheduleTrack();
-  const header = document.querySelector('header.header');
-  if (header) {
-    headerObserver = new MutationObserver(scheduleTrack);
-    headerObserver.observe(header, { attributes: true, attributeFilter: ['class'] });
-    const cart = document.querySelector('.floating-cart-anchor');
-    if (cart) headerObserver.observe(cart, { attributes: true, attributeFilter: ['class'] });
-    header.addEventListener('transitionend', scheduleTrack);
-  }
 });
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', scheduleTrack);
   window.removeEventListener('resize', scheduleTrack);
   cancelAnimationFrame(frame);
-  headerObserver?.disconnect();
-  document.querySelector('header.header')?.removeEventListener('transitionend', scheduleTrack);
 });
 
 const { search, q, sort, categoryQuery, items, groups, total, groupTotals, status, error, stale, loadingMore,
