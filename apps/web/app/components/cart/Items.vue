@@ -123,7 +123,6 @@ async function setQty(id: number, qty: number) {
 
 <style scoped>
 .cart-items {
-  container: cart-items / inline-size;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -213,7 +212,7 @@ async function setQty(id: number, qty: number) {
 }
 .item__correction { display: grid; gap: 0.25rem; }
 .item__correction :deep(button) { min-height: var(--touch-target); white-space: normal; }
-@container cart-items (min-width: 19rem) {
+@media (min-width: 24rem) {
   .item { grid-template-columns: 5rem minmax(0, 1fr); gap: 0.5rem; }
   .item__img { width: 5rem; height: 5rem; }
   .item__content { grid-template-rows: 2.25rem var(--touch-target); }
