@@ -583,7 +583,7 @@ async function subtract() {
 @media (width < 40rem) {
   .card--dense { --card-inset: 0.25rem; --card-price-size: 0.75rem; border-radius: 0.5rem; }
   .card--dense .card__category, .card--dense .card__sale,
-  .card--dense .card__favorite, .card--dense .card__badges,
+  .card--dense:not(.card--compact) .card__favorite, .card--dense .card__badges,
   .card--dense :deep(.origin) { display: none; }
   .card--dense .card__title { margin-top: 0; font-size: 0.6875rem; }
   .card--dense .card__bottom { gap: 0.125rem; padding-top: 0.125rem; }

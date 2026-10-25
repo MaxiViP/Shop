@@ -87,9 +87,9 @@ test("empty and filled cart keep the same right edge without a reserved amount s
 
 test("mobile layout, menu controls and visible-cart logic retain safe boundaries", () => {
   assert.match(header, /@media \(min-width: 24rem\)/);
-  assert.match(header, /@media \(min-width: 28rem\)/);
   assert.match(header, /@media \(min-width: 48rem\)/);
-  assert.match(header, /\.header__profile,\s*\.header__orders,\s*\.header__favorites[^}]*display:\s*none/);
+  assert.match(header, /\.header__profile,\s*\.header__orders[^}]*display:\s*none/);
+  assert.match(header, /\.header__favorites\s*\{[^}]*display:\s*inline-flex/);
   assert.match(header, /@media \(width < 768px\)/);
   assert.match(header, /:aria-expanded="mobileOpen"/);
   assert.match(header, /aria-controls="mobile-menu"/);

@@ -172,7 +172,7 @@ watch(open, value => { if (!value) resetSearch(); });
 .categories__item:hover { border-color: var(--ui-primary); color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 8%, var(--ui-bg-elevated)); }
 .categories:not(.categories--tracked) .categories__item.router-link-exact-active, .categories__item--active { border-color: var(--ui-primary); color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-bg-elevated)); }
 .categories__item:focus-visible, .categories__card:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: -2px; }
-.categories__toggle { flex: none; width: var(--touch-target); height: var(--touch-target); padding: 0; }
+.categories__toggle { border: 1px solid var(--search-background); flex: none; width: var(--touch-target); height: var(--touch-target); padding: 0; }
 .categories__search { display: grid; width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr) var(--touch-target); align-items: center; gap: 0.25rem; }
 .categories__search-field { width: 0; min-width: 0; justify-self: end; overflow: hidden; opacity: 0; transition: width 200ms ease, opacity 200ms ease; }
 .categories__search--open .categories__search-field { width: 100%; opacity: 1; }

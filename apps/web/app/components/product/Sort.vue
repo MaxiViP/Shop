@@ -39,7 +39,7 @@ function navigateSort(event: KeyboardEvent) {
 </script>
 
 <style scoped>
-.product-sort__toggle { flex: none; width: var(--touch-target); height: var(--touch-target); padding: 0; }
+.product-sort__toggle { border: 1px solid var(--search-background); flex: none; width: var(--touch-target); height: var(--touch-target); padding: 0; }
 :global(.product-sort__content) { width: 100vw; max-width: 100vw; }
 .product-sort__panel { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.25rem; width: 100%; padding: 0.25rem; }
 .product-sort__option { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 0.375rem; min-height: var(--touch-target); padding: 0.375rem 0.25rem; border-radius: 0.5rem; color: var(--ui-text-muted); cursor: pointer; }

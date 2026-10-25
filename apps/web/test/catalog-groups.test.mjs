@@ -37,6 +37,7 @@ async function fixture(t, initial = response([product(1)], 'cursor-1'), category
   const state = { next: response([]) };
   const context = {
     ref, shallowRef, computed, toValue, queryText, catalogGroups,
+    useHeaderOffset: () => ref(0),
     watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
     onScopeDispose: fn => stops.push(fn),
     useRoute: () => route,

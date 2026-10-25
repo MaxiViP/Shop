@@ -518,15 +518,8 @@ function closeMenuLink(event: MouseEvent) {
 }
 
 .header__profile,
-.header__orders,
-.header__favorites,
-.header__action--favorites .header__count {
+.header__orders {
   display: none;
-}
-
-/* Keep the favorites notice mounted beside the cart when its icon moves to the drawer. */
-.header__action--favorites {
-  width: 0;
 }
 
 .header__orders :deep(.orders-action__label) {
@@ -539,6 +532,7 @@ function closeMenuLink(event: MouseEvent) {
 }
 
 .header__favorites {
+  display: inline-flex;
   padding: 0;
 }
 
@@ -692,20 +686,6 @@ function closeMenuLink(event: MouseEvent) {
 @media (min-width: 24rem) {
   .header__orders {
     display: block;
-  }
-}
-
-@media (min-width: 28rem) {
-  .header__action--favorites {
-    width: auto;
-  }
-
-  .header__favorites {
-    display: inline-flex;
-  }
-
-  .header__action--favorites .header__count {
-    display: grid;
   }
 }
 
