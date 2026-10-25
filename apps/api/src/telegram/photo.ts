@@ -7,6 +7,19 @@ import { mediaDiagnostic } from './media.js';
 
 const prepared = new Map<string, Promise<Uint8Array>>();
 let placeholder: Promise<Uint8Array> | undefined;
+async function photoFile(url: string, root: string) {
+  if (!productPhoto(url)) return;
+  const match = /^\/uploads\/products\/([A-Za-z0-9_-]{1,128}\.(?:webp|png|jpe?g))$/.exec(new URL(url).pathname);
+  if (!match) return;
+  const base = await realpath(root), file = resolve(base, match[1]!);
+  const info = await lstat(file);
+  if (!info.isFile() || info.size < 1 || info.size > 5 * 1024 * 1024 || !(await realpath(file)).startsWith(base + sep)) return;
+  return { file, key: file + ':' + info.mtimeMs + ':' + info.ctimeMs + ':' + info.size };
+}
+export async function photoVersion(url: string | undefined, root = productUploadRoot): Promise<string | undefined> {
+  if (!url) return;
+  try { return (await photoFile(url, root))?.key; } catch { return; }
+}
 // Telegram-only in-memory JPEG derivative. Never modifies source WebP or image-runner state.
 export async function localPhoto(url: string, root = productUploadRoot, thumbnail = false): Promise<Uint8Array | undefined> {
   if (url === galleryPlaceholder) {
@@ -18,14 +31,10 @@ export async function localPhoto(url: string, root = productUploadRoot, thumbnai
       return await placeholder;
     } catch { placeholder = undefined; mediaDiagnostic('no_image'); return; }
   }
-  if (!productPhoto(url)) return;
-  const match = /^\/uploads\/products\/([A-Za-z0-9_-]{1,128}\.(?:webp|png|jpe?g))$/.exec(new URL(url).pathname);
-  if (!match) return;
   try {
-    const base = await realpath(root), file = resolve(base, match[1]!);
-    const info = await lstat(file);
-    if (!info.isFile() || info.size < 1 || info.size > 5 * 1024 * 1024 || !(await realpath(file)).startsWith(base + sep)) return;
-    const key = file + ':' + info.mtimeMs + ':' + info.ctimeMs + ':' + info.size + ':' + thumbnail;
+    const sourceFile = await photoFile(url, root);
+    if (!sourceFile) return;
+    const { file } = sourceFile, key = sourceFile.key + ':' + thumbnail;
     let task = prepared.get(key);
     if (!task) {
       task = (async () => {

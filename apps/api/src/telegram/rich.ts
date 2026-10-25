@@ -19,6 +19,7 @@ export type InputRichBlock =
   | { type: 'photo'; photo: { type: 'photo'; media: string }; caption?: { text: RichText } };
 export type InputRichMessage = { blocks: InputRichBlock[]; skip_entity_detection?: boolean };
 export type TelegramScreen = { text: string; keyboard: TelegramKeyboard; rich?: InputRichMessage; fallback?: RichText[];
+  richKeyboard?: TelegramKeyboard; mediaFallback?: InputRichBlock[];
   buttonsAlign?: 'left'; thumbnailPhotos?: true; mediaReason?: 'no_image' | 'invalid_url' };
 
 export const bold = (text: string): RichText => ({ type: 'bold', text });
@@ -31,6 +32,7 @@ export function customerScreen(screen: TelegramScreen): TelegramScreen {
 export function screenNotice(screen: TelegramScreen, notice: string): TelegramScreen {
   return { ...screen, text: notice + '\n\n' + screen.text,
     ...(screen.fallback ? { fallback: [bold(notice), '', ...screen.fallback] } : {}),
+    ...(screen.mediaFallback ? { mediaFallback: [paragraph(bold(notice)), ...screen.mediaFallback] } : {}),
     ...(screen.rich ? { rich: { ...screen.rich, blocks: [paragraph(bold(notice)), ...screen.rich.blocks] } } : {}) };
 }
 export function richTable(rows: readonly (readonly [string, string])[]): InputRichBlock {
@@ -58,7 +60,7 @@ export function richMessage(screen: TelegramScreen): InputRichMessage {
   const embedded = new Set(blocks.filter(block => block.type === 'buttons').map(block => JSON.stringify(block.buttons)));
   const tableActions = new Set(blocks.flatMap(block => block.type === 'table' ? block.cells.flatMap(row => row.flatMap(cell => textButtons(cell.text))) : []).map(buttonAction));
   // Table controls are enabled only for explicitly accepted chats. Hidden captions never suppress rows.
-  const complete = [...blocks, ...screen.keyboard.inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row)) &&
+  const complete = [...blocks, ...(screen.richKeyboard ?? screen.keyboard).inline_keyboard.filter(row => row.length && !embedded.has(JSON.stringify(row)) &&
     !row.every(button => tableActions.has(buttonAction(button)))).map(buttons => ({
     type: 'buttons' as const, buttons,
   }))];
@@ -88,8 +90,8 @@ function emphasis(text: string): RichText {
   return parts.length ? parts : text;
 }
 export function validScreen(screen: TelegramScreen): boolean {
-  const rows = screen.keyboard.inline_keyboard;
-  return screen.text.length > 0 && screen.text.length <= 4096 && rows.length <= 32 && rows.every(row => row.length <= 8 && row.every(button => {
+  const keyboards = [screen.keyboard, ...(screen.richKeyboard ? [screen.richKeyboard] : [])];
+  return screen.text.length > 0 && screen.text.length <= 4096 && keyboards.every(keyboard => keyboard.inline_keyboard.length <= 32 && keyboard.inline_keyboard.every(row => row.length <= 8 && row.every(button => {
     if (!button.text || button.text.length > 180) return false;
     if ('callback_data' in button) return Buffer.byteLength(button.callback_data) > 0 && Buffer.byteLength(button.callback_data) <= 64;
     if ('copy_text' in button) return button.copy_text.text.length > 0 && button.copy_text.text.length <= 256;
@@ -98,7 +100,8 @@ export function validScreen(screen: TelegramScreen): boolean {
       const url = new URL('url' in button ? button.url : button.web_app.url);
       return ['https:', 'http:', 'tg:', 'tel:'].includes(url.protocol) && !url.username && !url.password;
     } catch { return false; }
-  })) && richMessage(screen).blocks.length <= 40 && Buffer.byteLength(JSON.stringify(richMessage(screen))) <= 48 * 1024;
+  }))) && [screen, ...(screen.mediaFallback ? [{ ...screen, rich: { blocks: screen.mediaFallback } }] : [])].every(value =>
+    richMessage(value).blocks.length <= 40 && Buffer.byteLength(JSON.stringify(richMessage(value))) <= 48 * 1024);
 }
 
 // Only public media from the configured shop origin. No arbitrary URL or API fetch.

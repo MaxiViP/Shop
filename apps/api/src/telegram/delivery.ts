@@ -4,6 +4,7 @@ import { richEnabled, type BotKind } from './rich-policy.js';
 import { fallbackHtml, richMessage, validScreen, type TelegramScreen } from './rich.js';
 import { mapPhotos, withoutPhotos, mediaDiagnostic, rememberPhotos, reusePhotos } from './media.js';
 import { localPhoto } from './photo.js';
+import { catalogImage, isCatalogPhoto } from './catalog-photo.js';
 
 export type ScreenTarget = { chatId: number; messageId?: number };
 export async function deliverScreen(bot: BotKind, target: ScreenTarget, screen: TelegramScreen): Promise<BotOutcome> {
@@ -20,6 +21,7 @@ export async function deliverScreen(bot: BotKind, target: ScreenTarget, screen: 
   if (await richEnabled(bot, target.chatId)) {
     const rich = richMessage(screen);
     const original = rich.blocks;
+    const mediaFallback = () => screen.mediaFallback ? richMessage({ ...screen, rich: { blocks: screen.mediaFallback } }).blocks : withoutPhotos(rich.blocks);
     rich.blocks = reusePhotos(bot, original, screen.thumbnailPhotos);
     const send = async () => {
       const uploads = new Map<string, Uint8Array>();
@@ -28,11 +30,11 @@ export async function deliverScreen(bot: BotKind, target: ScreenTarget, screen: 
       let missingGalleryPhoto = false;
       // Bounded page (8 images), sequential local preparation; never fetch a remote gallery URL.
       for (const source of sources) {
-        const photo = await localPhoto(source.media, undefined, source.thumbnail);
+        const photo = isCatalogPhoto(source.media) ? (await catalogImage(source.media))?.bytes : await localPhoto(source.media, undefined, source.thumbnail);
         if (photo) uploads.set(source.thumbnail + ':' + source.media, photo);
-        else if (source.thumbnail && /^https?:/.test(source.media)) missingGalleryPhoto = true;
+        else if (isCatalogPhoto(source.media) || source.thumbnail && /^https?:/.test(source.media)) missingGalleryPhoto = true;
       }
-      if (missingGalleryPhoto) { rich.blocks = withoutPhotos(rich.blocks); uploads.clear(); mediaDiagnostic('fallback_used'); }
+      if (missingGalleryPhoto) { rich.blocks = mediaFallback(); uploads.clear(); mediaDiagnostic('fallback_used'); }
       const files = new Map<string, Uint8Array>();
       const blocks = mapPhotos(rich.blocks, (block, thumbnail) => {
         const photo = uploads.get(thumbnail + ':' + block.photo.media);
@@ -54,7 +56,7 @@ export async function deliverScreen(bot: BotKind, target: ScreenTarget, screen: 
         }
         if (result.status === 'rejected' && result.confirmed && !result.uneditable) {
           mediaDiagnostic('fallback_used');
-          rich.blocks = withoutPhotos(rich.blocks);
+          rich.blocks = mediaFallback();
           result = await send();
         }
       }

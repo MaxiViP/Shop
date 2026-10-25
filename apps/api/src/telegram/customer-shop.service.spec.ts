@@ -145,12 +145,12 @@ it('does not reapply a stale add or display an uncommitted success', async () =>
   expect(customerShow).not.toHaveBeenCalled();
 });
 
-it('labels cart mutations with their weight step and preserves the explicit remove action', async () => {
+it('keeps compact weight information and the explicit remove action without redundant step text', async () => {
   const s = setup();
   await s.service.handle(target, identity, { kind: 'cart' });
   expect(screen().keyboard.inline_keyboard.flat().map(button => button.text))
     .toEqual(expect.arrayContaining(['−', '+', '✕']));
-  expect(screen().text).toContain('Шаг покупки: 250 г');
+  expect(screen().text).toContain('500 г · ≈160 ₽');
   expect(screen().text).not.toContain('≈ 80 ₽');
 });
 

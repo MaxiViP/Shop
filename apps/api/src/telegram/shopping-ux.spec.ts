@@ -13,6 +13,7 @@ import { requestedLine } from '../order/pricing.js';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { customerScreen, fallbackHtml, richMessage, validScreen } from './rich.js';
+import { quantity } from './customer-view.js';
 
 vi.mock('./customer-send.js', () => ({ customerShow: vi.fn(async () => true), customerPrompt: vi.fn() }));
 const target = { chatId: 70001, messageId: 90 }, identity = { id: 3, userId: 7 };
@@ -78,17 +79,17 @@ it.each([
   const s = setup(product);
   await s.service.handle(target, identity, { kind: 'products', categoryId: 2, page: 1 });
   const first = categoryAdjustment(product.min);
-  const photos = screen().rich!.blocks.flatMap(block => block.type === 'collage' ? block.blocks : [])
-    .map(block => block.type === 'photo' ? block.photo : null);
+  const photos = screen().rich!.blocks.filter(block => block.type === 'photo').map(block => block.photo);
+  expect(photos).toHaveLength(4);
   await s.service.handle(target, identity, first);
   expect(s.snapshot().items[0]?.qty).toBe(product.min);
-  expect(screen().text).toMatch(/^Зелень/); expect(screen().text).toContain('Страница 2 из 5');
+  expect(screen().text).toMatch(/^Зелень/); expect(screen().text).toContain('9–16/37 · 2/5');
   expect(screen().keyboard.inline_keyboard.flat().find(button => {
     const action = 'callback_data' in button ? shoppingAction(button.callback_data) : null;
     return action?.kind === 'open' && action.productId === 11;
-  })?.text).toContain('🛒');
-  expect(screen().rich!.blocks.flatMap(block => block.type === 'collage' ? block.blocks : [])
-    .map(block => block.type === 'photo' ? block.photo : null)).toEqual(photos);
+  })).toBeDefined();
+  expect(screen().text).toContain('В корзине: ' + quantity(product.min, product.unit));
+  expect(screen().rich!.blocks.filter(block => block.type === 'photo').map(block => block.photo)).toEqual(photos);
   expect(s.db.product.findFirst).not.toHaveBeenCalled();
   await expect(s.service.handle(target, identity, first)).rejects.toBeInstanceOf(ConflictException);
   expect(s.cart.change).toHaveBeenCalledTimes(1); expect(screen().text).toContain('Старое действие не применено');
@@ -136,7 +137,7 @@ it('repeats single steps and keeps the acknowledged quantity across basket and p
   }
   expect(screen().text).toContain('✅ +1 пучок · +165 ₽');
   await s.service.basket(target, identity);
-  expect(screen().text).toContain('В корзине: 4 пучка\nЗа товар: ≈ 660 ₽');
+  expect(screen().text).toContain('4 пучка · 660 ₽');
   const open = actions().find(action => action?.kind === 'open'); if (!open) throw new Error('Open action missing');
   await s.service.handle(target, identity, open);
   expect(screen().text).toContain('В корзине этого товара: 4 пучка');
@@ -199,7 +200,7 @@ it('counts available categories on the server, clamps pages and lays them out in
 });
 it('shows product ranges/counts and retains the originating category page', async () => {
   const s = setup(); await s.service.handle(target, identity, { kind: 'products', categoryId: 2, page: 1 });
-  expect(screen().text).toContain('Страница 2 из 5'); expect(screen().text).toContain('Товары 9–16 из 37');
+  expect(screen().text).toContain('9–16/37 · 2/5');
   const open = actions().find(action => action?.kind === 'open' && action.productId === 11); if (!open) throw new Error('Product missing');
   await s.service.handle(target, identity, open);
   expect(screen().keyboard.inline_keyboard.flat()).toContainEqual({ text: '← К товарам', callback_data: 's:l:2:1' });
@@ -270,7 +271,7 @@ it.each([1, 8, 16, 48, 49, 2000])('fits %i categories or automatically paginates
   for (const row of screen().keyboard.inline_keyboard) expect(row.length).toBeLessThanOrEqual(2);
 });
 
-it.each(['GRAM', 'PIECE', 'BUNCH', 'PACK'] as const)('renders a compact four-button basket row and exact +/- step for %s', async unit => {
+it.each(['GRAM', 'PIECE', 'BUNCH', 'PACK'] as const)('separates left basket text from three right controls and retains HTML open/+/- for %s', async unit => {
   const step = unit === 'GRAM' ? 500 : 1;
   const source: Source = { ...dill, name: 'Очень длинное полное название товара без сокращений в корзине',
     unit, priceUnit: unit, saleModel: unit === 'GRAM' ? 'WEIGHT_LOOSE' : unit === 'PIECE' ? 'PIECE_FIXED' : unit,
@@ -279,12 +280,15 @@ it.each(['GRAM', 'PIECE', 'BUNCH', 'PACK'] as const)('renders a compact four-but
   await s.service.basket(target, identity);
   const row = screen().keyboard.inline_keyboard.find(row => row.some(button => button.text === '✕'))!;
   expect(row.map(button => button.text)).toEqual([expect.stringContaining('…'), '−', '+', '✕']);
-  expect(row.map(button => button.style)).toEqual(['primary', undefined, 'success', 'danger']);
-  expect(row[0]!.text.length).toBe(40);
+  expect(row.map(button => button.style)).toEqual([undefined, undefined, 'success', 'danger']);
+  expect(row[0]!.text.length).toBe(26);
   expect(screen().text).toContain(source.name);
-  const embedded = richMessage(customerScreen(screen())).blocks.filter(block => block.type === 'buttons' && block.buttons.length === 4);
+  const rendered = richMessage(customerScreen(screen()));
+  const embedded = rendered.blocks.filter(block => block.type === 'buttons' && block.buttons.some(button => button.text === '✕'));
   expect(embedded).toHaveLength(1);
-  expect(embedded[0]).toMatchObject({ align: 'right', buttons: row });
+  expect(embedded[0]).toMatchObject({ align: 'right', buttons: row.slice(1) });
+  expect(rendered.blocks.some(block => block.type === 'paragraph' && JSON.stringify(block.text).includes(source.name))).toBe(true);
+  expect(rendered.blocks.some(block => block.type === 'buttons' && block.buttons.some(button => button.text.includes('Очень длинное')))).toBe(false);
   expect(adjustment(-step)).toMatchObject({ delta: -step, origin: 'basket', page: 0, revision: s.snapshot().revision });
   await s.service.handle(target, identity, adjustment(step));
   expect(s.snapshot().items[0]?.qty).toBe(2 * step);
@@ -320,23 +324,22 @@ it('separates basket total, signed change and current line while keeping one pro
   expect(screen().text).toContain('1 товар');
   expect(screen().text).toMatch(/ИТОГО ПРЕДВАРИТЕЛЬНО\n≈ 2\u00a0178 ₽$/);
   expect(screen().text).toContain('✅ +100 г · +≈ 198 ₽');
-  expect(screen().text).toContain('⚖️ В корзине: 1,1 кг\nЗа товар: ≈ 2\u00a0178 ₽\nШаг покупки: 100 г');
+  expect(screen().text).toContain('1,1 кг · ≈2\u00a0178 ₽\nМинимум: 500 г · шаг 100 г');
   expect(screen().text).not.toContain('Товары предварительно:');
   expect(screen().text.match(/198 ₽/g)).toHaveLength(1);
   expect(s.snapshot().items).toHaveLength(1);
   const rich = richMessage(screen());
   expect(rich.blocks.some(block => block.type === 'divider')).toBe(true);
   expect(JSON.stringify(rich)).toContain(JSON.stringify({ type: 'bold', text: '1,1 кг' }));
-  expect(JSON.stringify(rich)).toContain(JSON.stringify({ type: 'bold', text: '≈ 2\u00a0178 ₽' }));
-  expect(rich.blocks.filter(block => block.type === 'paragraph' && JSON.stringify(block.text).includes('Фисташки'))).toHaveLength(0);
+  expect(JSON.stringify(rich)).toContain(JSON.stringify({ type: 'bold', text: '≈2\u00a0178 ₽' }));
+  expect(rich.blocks.filter(block => block.type === 'paragraph' && JSON.stringify(block.text).includes('Фисташки'))).toHaveLength(1);
   const html = fallbackHtml(screen().text, screen().fallback);
-  expect(html).toContain('⚖️ В корзине: <b>1,1 кг</b>');
-  expect(html).toContain('За товар: <b>≈ 2\u00a0178 ₽</b>');
+  expect(html).toContain('<b>1,1 кг</b> · <b>≈2\u00a0178 ₽</b>');
   await s.service.handle(target, identity, adjustment(-100));
   expect(screen().text).toContain('➖ −100 г · −≈ 198 ₽');
   expect(screen().text).toMatch(/ИТОГО ПРЕДВАРИТЕЛЬНО\n≈ 1\u00a0980 ₽$/);
   expect(screen().text).not.toContain('✅ +100 г');
-  expect(screen().text).toContain('⚖️ В корзине: 1 кг');
+  expect(screen().text).toContain('1 кг · ≈1\u00a0980 ₽');
   await s.service.basket(target, identity);
   expect(screen().text).not.toContain('➖');
   expect(screen().text).not.toContain('✅');
@@ -383,7 +386,7 @@ it('derives the money delta from rounded server totals rather than the price of 
   await s.service.basket(target, identity);
   await s.service.handle(target, identity, adjustment(1));
   expect(screen().text).toContain('✅ +1 г · +≈ 0,02 ₽');
-  expect(screen().text).toContain('За товар: ≈ 0,03 ₽');
+  expect(screen().text).toContain('2 г · ≈0,03 ₽');
 });
 
 it('uses confirmed quantities in a new-line receipt instead of echoing the requested delta', async () => {
@@ -405,7 +408,7 @@ it('does not invent a money delta when the price changes during a mutation', asy
   expect(screen().text).toContain('✅ Количество обновлено\nСтоимость пересчитана');
   expect(screen().text).not.toContain('+235 ₽');
   expect(screen().text).not.toContain('+165 ₽');
-  expect(screen().text).toContain('За товар: ≈ 400 ₽');
+  expect(screen().text).toContain('2 пучка · 400 ₽');
 });
 
 it('does not use an invalid line as the basis of a monetary receipt', async () => {
@@ -424,7 +427,7 @@ it('keeps unknown weighted prices unknown after a successful quantity update', a
   await s.service.basket(target, identity);
   await s.service.handle(target, identity, adjustment(1));
   expect(screen().text).toContain('✅ Количество обновлено\nСтоимость пересчитана');
-  expect(screen().text).toContain('В корзине: 2 шт.\nЗа товар: после взвешивания');
+  expect(screen().text).toContain('2 шт. · Стоимость после взвешивания');
   expect(screen().text).not.toContain('0 ₽');
   expect(screen().text).not.toContain('Фактический');
 });
@@ -437,8 +440,8 @@ it('counts distinct products without counting their quantity as positions', asyn
   await s.service.basket(target, identity);
   expect(screen().text).toContain('2 товара');
   expect(screen().text).not.toContain('8 товаров');
-  expect(screen().text).toContain('В корзине: 6 пучков');
-  expect(screen().text).toContain('В корзине: 2 шт.');
+  expect(screen().text).toContain('6 пучков ·');
+  expect(screen().text).toContain('2 шт. ·');
 });
 
 it('does not replay a confirmed cart write if Telegram presentation fails', async () => {
@@ -484,6 +487,16 @@ it('fences two concurrent presses of the same rendered revision', async () => {
   const results = await Promise.allSettled([s.service.handle(target, identity, action), s.service.handle(target, identity, action)]);
   expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
   expect(s.snapshot().items[0]?.qty).toBe(1);
+});
+it('disables plus at the variable-weight quantity limit while leaving minus/remove available', async () => {
+  const s = setup({ ...dill, unit: 'PIECE', priceUnit: 'GRAM', saleModel: 'WHOLE_VARIABLE_WEIGHT', priceQty: 1000 }, 100);
+  await s.service.basket(target, identity);
+  const row = richMessage(customerScreen(screen())).blocks.find(block => block.type === 'buttons' && block.buttons.some(button => button.text === '✕'));
+  if (row?.type !== 'buttons') throw new Error('Native basket controls missing');
+  expect(row.align).toBe('right'); expect(row.buttons.map(button => button.text)).toEqual(['−', '+', '✕']);
+  expect(row.buttons[1]).toEqual({ text: '+', style: 'success', disabled: {} });
+  expect(row.buttons[0]).toHaveProperty('callback_data'); expect(row.buttons[2]).toHaveProperty('callback_data');
+  expect(JSON.stringify(row)).not.toContain(dill.name); expect(screen().text).toContain('100 шт.');
 });
 
 it.each(['missing', 'invalid', 'valid'] as const)('reports %s image availability safely', async mode => {
