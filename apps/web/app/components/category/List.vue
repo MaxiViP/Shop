@@ -27,22 +27,17 @@
       </template>
     </UModal>
     <div class="categories__scroller">
-      <nav ref="nav" class="categories__strip" aria-label="Категории товаров">
+      <nav ref="nav" class="categories__strip" aria-label="Категории товаров" @focusin="revealFocused">
         <NuxtLink :to="link('/catalog')" class="categories__item" :class="{ 'categories__item--active': active === '' && !route.query.marketPoint }" :aria-current="current('')" @click="chooseCategory($event, '')">Все</NuxtLink>
-        <NuxtLink v-for="point in points" :key="'point-' + point.id" :to="pointLink(point.slug)" class="categories__item" :class="{ 'categories__item--active': route.query.marketPoint === point.slug }" :style="{ borderColor: point.cardColor ?? undefined }" :aria-current="route.query.marketPoint === point.slug ? 'page' : undefined">{{ point.name }}</NuxtLink>
-        <NuxtLink v-for="item in items" :key="item.id" :to="link(`/catalog/${item.slug}`)" class="categories__item" :class="{ 'categories__item--active': active === item.slug }" :aria-current="current(item.slug)" @click="chooseCategory($event, item.slug)">{{ item.name }}</NuxtLink>
+        <NuxtLink v-for="point in points" :key="'point-' + point.id" :to="pointLink(point.slug)" class="categories__item" :class="{ 'categories__item--active': route.query.marketPoint === point.slug }" :style="{ borderColor: point.cardColor ?? undefined }" :title="point.name" :aria-current="route.query.marketPoint === point.slug ? 'page' : undefined"><span class="categories__label">{{ point.name }}</span></NuxtLink>
+        <NuxtLink v-for="item in items" :key="item.id" :to="link(`/catalog/${item.slug}`)" class="categories__item" :class="{ 'categories__item--active': active === item.slug }" :aria-current="current(item.slug)" :title="item.name" @click="chooseCategory($event, item.slug)"><span class="categories__label">{{ item.name }}</span></NuxtLink>
       </nav>
-      <span v-show="overflowing" class="categories__hint" aria-hidden="true">
-        <svg width="56" height="10" viewBox="-6 0 56 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path class="categories__hint-arrow categories__hint-arrow--left" d="M15 5H2m4-3L2 5l4 3" />
-          <path class="categories__hint-arrow categories__hint-arrow--right" d="M29 5h13m-4-3 4 3-4 3" />
-          <path d="M21 5h2" opacity=".45" />
-        </svg>
-      </span>
     </div>
-    <slot name="trailing">
-      <ProductSort v-if="sort" :model-value="sort" @update:model-value="emit('update:sort', $event)" />
-    </slot>
+    <div class="categories__trailing">
+      <slot name="trailing">
+        <ProductSort v-if="sort" :model-value="sort" @update:model-value="emit('update:sort', $event)" />
+      </slot>
+    </div>
   </div>
 </template>
 
@@ -57,13 +52,7 @@ const { data: points } = await useApi<CatalogPoint[]>('/categories/points', { de
 const filteredPoints = computed(() => points.value.filter(point => point.name.toLocaleLowerCase('ru-RU').includes(search.value.trim().toLocaleLowerCase('ru-RU'))));
 function pointLink(slug: string) { return { path: '/catalog', query: { ...props.query, marketPoint: slug } }; }
 const nav = ref<HTMLElement | null>(null);
-const overflowing = ref(true);
 let stripObserver: ResizeObserver | undefined;
-function updateScroll() {
-  const strip = nav.value;
-  if (!strip) return;
-  overflowing.value = strip.scrollWidth > strip.clientWidth + 1;
-}
 const panel = ref<HTMLElement | null>(null);
 const searchBar = ref<HTMLElement | null>(null);
 const open = ref(false);
@@ -86,13 +75,22 @@ function chooseCategory(event: MouseEvent, slug: string) {
   open.value = false;
   emit('choose', slug);
 }
-function revealActive() {
-  const strip = nav.value, tab = strip?.querySelector<HTMLElement>('[aria-current="page"]');
-  if (!strip || !tab) return;
+function revealTab(tab: HTMLElement) {
+  const strip = nav.value;
+  if (!strip) return;
   const outer = strip.getBoundingClientRect(), inner = tab.getBoundingClientRect();
-  if (inner.left >= outer.left && inner.right <= outer.right) return;
-  strip.scrollTo({ left: strip.scrollLeft + inner.left - outer.left - (strip.clientWidth - inner.width) / 2,
+  const style = getComputedStyle(strip);
+  const left = outer.left + parseFloat(style.paddingLeft), right = outer.right - parseFloat(style.paddingRight);
+  if (inner.left >= left - 1 && inner.right <= right + 1) return;
+  strip.scrollTo({ left: strip.scrollLeft + inner.left - left - (right - left - inner.width) / 2,
     behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+}
+function revealActive() {
+  const tab = nav.value?.querySelector<HTMLElement>('[aria-current="page"]');
+  if (tab) revealTab(tab);
+}
+function revealFocused(event: FocusEvent) {
+  if (event.target instanceof HTMLElement && event.target.classList.contains('categories__item')) revealTab(event.target);
 }
 function fitPanel() {
   const dialog = panel.value?.closest<HTMLElement>('[role="dialog"]');
@@ -131,9 +129,8 @@ function focusPanel(event: Event) {
   });
 }
 onMounted(() => {
-  updateScroll();
   revealActive();
-  stripObserver = new ResizeObserver(updateScroll);
+  stripObserver = new ResizeObserver(revealActive);
   if (nav.value) stripObserver.observe(nav.value);
   window.visualViewport?.addEventListener('resize', fitPanel);
   window.visualViewport?.addEventListener('scroll', fitPanel);
@@ -146,33 +143,43 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', fitPanel);
 });
 watch(() => [props.active, route.query.marketPoint, props.items, points.value], () => {
-  updateScroll();
   revealActive();
 }, { flush: 'post', deep: true });
 watch(open, value => { if (!value) resetSearch(); });
 </script>
 
 <style scoped>
-.categories { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
-.categories__scroller { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
-.categories__hint { position: absolute; top: calc(100% + 0.125rem); left: 50%; display: flex; transform: translateX(-50%); color: var(--ui-primary); opacity: 0.75; pointer-events: none; user-select: none; }
-.categories__hint-arrow { animation: categories-hint-right 2.8s ease-in-out infinite; }
-.categories__hint-arrow--left { animation-name: categories-hint-left; }
-@keyframes categories-hint-right {
-  0%, 12%, 62%, 100% { transform: translateX(0); }
-  32%, 42% { transform: translateX(6px); }
+.categories {
+  --categories-edge: var(--page-x);
+  --categories-inset: calc(var(--categories-edge) + var(--touch-target) + 0.75rem);
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
+  width: calc(100% + 2 * var(--page-x));
+  min-width: 0;
+  margin-inline: calc(-1 * var(--page-x));
+  background: var(--ui-bg);
 }
-@keyframes categories-hint-left {
-  0%, 42%, 92%, 100% { transform: translateX(0); }
-  62%, 72% { transform: translateX(-6px); }
+.categories__scroller { position: relative; min-width: 0; }
+.categories__scroller::before, .categories__scroller::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  z-index: 1;
+  width: var(--categories-inset);
+  pointer-events: none;
 }
-.categories__strip { display: flex; flex: 1; min-width: 0; justify-content: flex-start; gap: 0.5rem; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; padding-block: 0.125rem; }
+.categories__scroller::before { left: 0; background: linear-gradient(to right, var(--ui-bg) calc(100% - 0.75rem), transparent); }
+.categories__scroller::after { right: 0; background: linear-gradient(to left, var(--ui-bg) calc(100% - 0.75rem), transparent); }
+.categories__strip { display: flex; min-width: 0; gap: 0.5rem; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; padding: 0.375rem var(--categories-inset); scroll-padding-inline: var(--categories-inset); }
 .categories__strip::-webkit-scrollbar { display: none; }
-.categories__item { display: inline-flex; min-height: var(--touch-target); align-items: center; flex: none; padding: 0.6rem 1rem; border: 1px solid var(--ui-border); border-radius: 999px; background: var(--ui-bg-elevated); font-weight: 500; white-space: nowrap; transition: background-color 0.2s, border-color 0.2s, color 0.2s; }
+.categories__item { display: inline-flex; min-height: var(--touch-target); align-items: center; flex: none; max-width: min(20rem, calc(100cqw - 2 * var(--categories-inset))); padding: 0.6rem 1rem; border: 1px solid var(--ui-border); border-radius: 999px; background: var(--ui-bg-elevated); font-weight: 500; white-space: nowrap; transition: background-color 0.2s, border-color 0.2s, color 0.2s; }
+.categories__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .categories__item:hover { border-color: var(--ui-primary); color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 8%, var(--ui-bg-elevated)); }
 .categories:not(.categories--tracked) .categories__item.router-link-exact-active, .categories__item--active { border-color: var(--ui-primary); color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-bg-elevated)); }
 .categories__item:focus-visible, .categories__card:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: -2px; }
-.categories__toggle { border: 1px solid var(--search-background); flex: none; width: var(--touch-target); height: var(--touch-target); padding: 0; }
+.categories__toggle { position: absolute; top: 50%; left: var(--categories-edge); z-index: 2; transform: translateY(-50%); border: 1px solid var(--search-background); width: var(--touch-target); height: var(--touch-target); padding: 0; border-radius: 0.875rem; background: var(--ui-bg-elevated); box-shadow: 0 4px 12px light-dark(#0f172a18, #0004); }
+.categories__trailing { position: absolute; top: 50%; right: var(--categories-edge); z-index: 2; display: flex; align-items: center; transform: translateY(-50%); }
 .categories__search { display: grid; width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr) var(--touch-target); align-items: center; gap: 0.25rem; }
 .categories__search-field { width: 0; min-width: 0; justify-self: end; overflow: hidden; opacity: 0; transition: width 200ms ease, opacity 200ms ease; }
 .categories__search--open .categories__search-field { width: 100%; opacity: 1; }
@@ -195,6 +202,5 @@ watch(open, value => { if (!value) resetSearch(); });
 }
 @media (prefers-reduced-motion: reduce) {
   .categories__search-field { transition: none; }
-  .categories__hint-arrow { animation: none; }
 }
 </style>
