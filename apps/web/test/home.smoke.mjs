@@ -107,6 +107,13 @@ try {
     await command('Page.bringToFront', {}, sessionId);
     const evaluate = async expression => {
       const result = await command('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId);
+      if (result.exceptionDetails) {
+        const filename = `failure-${path.replaceAll('/', '-')}-${width}`;
+        const dom = await command('Runtime.evaluate', { expression: 'document.documentElement.outerHTML', returnByValue: true }, sessionId);
+        await writeFile(join(artifacts, filename + '.html'), dom.result.value);
+        const screenshot = await command('Page.captureScreenshot', { format: 'png' }, sessionId);
+        await writeFile(join(artifacts, filename + '.png'), Buffer.from(screenshot.data, 'base64'));
+      }
       assert.ok(!result.exceptionDetails, JSON.stringify(result.exceptionDetails)); return result.result.value;
     };
     await evaluate(`(async()=>{for(let i=0;i<200;i++){if(document.querySelector('#__nuxt')?.__vue_app__?.config.globalProperties.$nuxt?.isHydrating===false)return;await new Promise(r=>setTimeout(r,50))}throw new Error('Hydration timeout')})()`);
@@ -211,9 +218,12 @@ try {
     button('Создать шаблон').click();await wait(()=>document.querySelector('.seasons__templates')?.textContent.includes('Зимний сезон'));
     const checks=[...document.querySelectorAll('.seasons__product button[role="checkbox"]')];checks[0].click();checks[1].click();
     await wait(()=>document.querySelector('.seasons__selection')?.children.length===2);
-    const combos=document.querySelectorAll('.seasons__assignment button[role="combobox"]');combos[1].click();
+    const mode=document.querySelector('.seasons__assignment [role="combobox"]');
+    const template=document.querySelector('.seasons__assignment button[aria-haspopup="listbox"]');
+    if(!mode||!template)throw new Error('Season mode/template controls missing');template.click();
     await wait(()=>!![...document.querySelectorAll('[role="option"]')].find(item=>item.textContent.includes('Зимний сезон')));
     [...document.querySelectorAll('[role="option"]')].find(item=>item.textContent.includes('Зимний сезон')).click();
+    await wait(()=>!button('Проверить назначение').disabled);
     button('Проверить назначение').click();await wait(()=>!!document.querySelector('.seasons__confirm'));
     if(document.querySelectorAll('.seasons__confirm li').length!==2)throw new Error('Assignment confirmation lost selected products');
     button('Подтвердить для 2 товаров').click();await wait(()=>!document.querySelector('.seasons__confirm'));
@@ -229,7 +239,9 @@ try {
     await new Promise(r=>setTimeout(r,500));
   })()`);
   results.push({hitRanking:true,manualRecalculation:true}); await hit.close();
-  assert.ok(requests.some(request => request.path === '/api/admin/seasons/assign' && request.input?.ids.length === 2));
+  const assignment = requests.find(request => request.path === '/api/admin/seasons/assign');
+  assert.deepEqual(assignment?.input, { ids: products.slice(0, 2).map(product => product.id), seasonalMode: 'AUTO',
+    seasonTemplateId: seasonTemplates.find(template => template.name === 'Зимний сезон').id });
   assert.ok(requests.some(request => request.path === '/api/admin/hits/recalculate' && request.method === 'POST'));
   assert.ok(requests.some(request => request.path === '/api/admin/home-slides' && request.input?.published === false));
   assert.ok(requests.some(request => request.path.startsWith('/api/admin/home-slides/') && request.method === 'PATCH' && request.input?.published === true));

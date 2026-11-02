@@ -26,28 +26,28 @@ function fixture(t, saved, lineEnding) {
 }
 
 for (const lineEnding of ['\n', '\r\n']) {
-test(`a new address can omit building text or save its free form (${JSON.stringify(lineEnding)})`, async t => {
-  for (const part of ['', ' к. 2 ', 'стр. 1']) {
-    const f = fixture(t, undefined, lineEnding);
-    Object.assign(f.form, address, { buildingPart: part });
-    await f.save();
-    assert.equal(f.requests[0].method, 'POST');
-    assert.equal(f.requests[0].body.buildingPart, part.trim());
-    assert.equal(f.open.value, false);
-  }
-});
+  test(`a new address can omit building text or save its free form (${JSON.stringify(lineEnding)})`, async t => {
+    for (const part of ['', ' к. 2 ', 'стр. 1']) {
+      const f = fixture(t, undefined, lineEnding);
+      Object.assign(f.form, address, { buildingPart: part });
+      await f.save();
+      assert.equal(f.requests[0].method, 'POST');
+      assert.equal(f.requests[0].body.buildingPart, part.trim());
+      assert.equal(f.open.value, false);
+    }
+  });
 
-test(`editing retains or clears the saved building part (${JSON.stringify(lineEnding)})`, async t => {
-  const legacy = fixture(t, address, lineEnding);
-  assert.equal(legacy.form.buildingPart, '');
-  const f = fixture(t, { ...address, buildingPart: 'корпус 3' }, lineEnding);
-  assert.equal(f.form.buildingPart, 'корпус 3');
-  f.form.buildingPart = '';
-  await f.save();
-  assert.equal(f.requests[0].path, '/addresses/7');
-  assert.equal(f.requests[0].method, 'PATCH');
-  assert.equal(f.requests[0].body.buildingPart, '');
-});
+  test(`editing retains or clears the saved building part (${JSON.stringify(lineEnding)})`, async t => {
+    const legacy = fixture(t, address, lineEnding);
+    assert.equal(legacy.form.buildingPart, '');
+    const f = fixture(t, { ...address, buildingPart: 'корпус 3' }, lineEnding);
+    assert.equal(f.form.buildingPart, 'корпус 3');
+    f.form.buildingPart = '';
+    await f.save();
+    assert.equal(f.requests[0].path, '/addresses/7');
+    assert.equal(f.requests[0].method, 'PATCH');
+    assert.equal(f.requests[0].body.buildingPart, '');
+  });
 }
 
 test('customer, staff and admin representations share a formatter that keeps old addresses readable', () => {
