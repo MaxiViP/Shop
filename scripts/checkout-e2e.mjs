@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { mkdir, symlink } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { devNull } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -11,6 +11,7 @@ import { startWeb } from '../apps/web/test/browser.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const artifacts = resolve(root, 'work/checkout/artifacts');
+const apiBuild = resolve(root, 'apps/api/work/checkout');
 await mkdir(artifacts, { recursive: true });
 const log = createWriteStream(resolve(artifacts, 'runner.log'));
 // Do not pass inherited database/notification/provider credentials to the test server.
@@ -97,15 +98,15 @@ try {
   environment.DATABASE_URL = databaseUrl;
   await run('pnpm', ['--filter', 'api', 'exec', 'prisma', 'generate', '--config', 'prisma7.config.ts']);
   await run('pnpm', ['--filter', 'api', 'exec', 'tsc', '-p', 'tsconfig.checkout.json']);
-  await mkdir(resolve(root, 'work/checkout/api'), { recursive: true });
-  try { await symlink(resolve(root, 'apps/api/node_modules'), resolve(root, 'work/checkout/api/node_modules'), process.platform === 'win32' ? 'junction' : 'dir'); }
-  catch (error) { if (error.code !== 'EEXIST') throw error; }
+  // Keep emitted modules under the API package so pnpm dependencies resolve
+  // through their real ancestor, without nested Windows junctions.
+  await mkdir(apiBuild, { recursive: true });
   // Emitted ESM must stay ESM even though the root package has no type field.
   const { writeFile } = await import('node:fs/promises');
-  await writeFile(resolve(root, 'work/checkout/api/package.json'), '{"type":"module"}\n');
+  await writeFile(resolve(apiBuild, 'package.json'), '{"type":"module"}\n');
   await run('pnpm', ['--filter', 'web', 'build']);
   server = spawn(process.execPath, ['--import', pathToFileURL(resolve(root, 'scripts/checkout-network.mjs')).href,
-    resolve(root, 'work/checkout/api/test/checkout/server.js')],
+    resolve(apiBuild, 'test/checkout/server.js')],
   { cwd: resolve(root, 'apps/api'), env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
   server.stdout.pipe(log, { end: false }); server.stderr.pipe(log, { end: false });
   const ready = await new Promise((resolveReady, reject) => {
