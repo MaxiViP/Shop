@@ -1,6 +1,9 @@
 <template>
   <UContainer class="favorites-page">
-    <h1 class="favorites-page__title">Избранное</h1>
+    <div class="favorites-page__head">
+      <h1 class="favorites-page__title">Избранное</h1>
+      <ProductDensity scope="favorites" />
+    </div>
 
     <p v-if="loading" class="favorites-page__state">Загружаем...</p>
 
@@ -17,7 +20,7 @@
         <h2 class="favorites-page__group-title">
           <NuxtLink :to="`/catalog/${group.slug}`">{{ group.name }} <UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></NuxtLink>
         </h2>
-        <ProductGrid :items="group.items" compact :eager-images="group === groups[0]" />
+        <ProductGrid :items="group.items" compact :columns="columns" :eager-images="group === groups[0]" />
       </section>
     </div>
 
@@ -37,6 +40,7 @@ import { favoriteGroups } from "~/utils/favorite-groups";
 const auth = useAuthStore();
 const favorites = useFavoritesStore();
 const api = useApiClient();
+const { columns } = useMobileGrid("favorites");
 const guestItems = ref<ProductListItem[]>([]);
 const loading = ref(false);
 const loadError = ref(false);
@@ -130,8 +134,9 @@ useSeoMeta({
   padding-block: var(--page-start) var(--page-end);
 }
 
+.favorites-page__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; }
+
 .favorites-page__title {
-  margin-bottom: 1rem;
   font-size: var(--page-title);
   font-weight: 700;
   line-height: 1.1;

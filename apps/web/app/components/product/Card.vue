@@ -30,7 +30,6 @@
     </div>
 
     <div class="card__body">
-      <p v-if="productIllustration(product.images[0])" class="card__illustration">Иллюстрация товара</p>
       <NuxtLink
         v-if="!compact"
         :to="`/catalog/${product.category.slug}`"
@@ -60,6 +59,7 @@
         >
           <UIcon
             name="i-lucide-plus"
+            mode="svg"
             class="card__add-icon"
             aria-hidden="true"
           />
@@ -103,7 +103,6 @@ import { nextCartQty, previousCartQty } from "~/utils/cart";
 import { qtyText } from "~/utils/qty";
 import { money } from "~/utils/money";
 import { saleExplanation, variableWeight } from '~/utils/sale';
-import { productIllustration } from '~/utils/product-illustration';
 
 const { product, eagerImage = false, density = 2 } = defineProps<{
   product: ProductListItem;
@@ -235,7 +234,7 @@ async function subtract() {
   width: 100%;
   height: 100%;
 
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
 
   transition:
@@ -244,56 +243,31 @@ async function subtract() {
     transform 0.2s ease;
 }
 
-/*
-  Товар в корзине:
-  вместо grayscale оставляем продукт цветным,
-  лишь немного приглушаем его.
-*/
-.card--added .card__img img {
-  opacity: 0.9;
-  filter: saturate(0.88) brightness(0.94) contrast(0.96);
-}
-
-/*
-  Эффект плетёной корзины.
-  Накладывается ТОЛЬКО поверх фотографии.
-*/
-.card--added .card__img::after {
+/* Единая заливка и плетение покрывают всю область фото, включая поля. */
+.card--added .card__media::after {
   content: "";
-
   position: absolute;
   inset: 0;
   z-index: 1;
-
   pointer-events: none;
 
-  background:
-    repeating-linear-gradient(
+  background-color: rgb(15 23 42 / 10%);
+  background-image:
+    linear-gradient(
       0deg,
-      transparent 0,
-      transparent 7px,
-      rgba(105, 66, 31, 0.13) 7px,
-      rgba(105, 66, 31, 0.13) 9px,
-      rgba(207, 158, 96, 0.2) 9px,
-      rgba(207, 158, 96, 0.2) 12px,
-      transparent 12px,
-      transparent 16px
+      rgb(120 80 40 / 14%) 0 1px,
+      rgb(255 245 222 / 20%) 1px 2px,
+      rgb(120 80 40 / 10%) 2px 3px,
+      transparent 3px
     ),
-    repeating-linear-gradient(
+    linear-gradient(
       90deg,
-      transparent 0,
-      transparent 8px,
-      rgba(181, 128, 68, 0.16) 8px,
-      rgba(181, 128, 68, 0.16) 11px,
-      rgba(101, 63, 30, 0.11) 11px,
-      rgba(101, 63, 30, 0.11) 14px,
-      transparent 14px,
-      transparent 19px
-    ),
-    linear-gradient(rgba(171, 119, 61, 0.04), rgba(116, 75, 34, 0.08));
-
-  mix-blend-mode: multiply;
-  opacity: 0.58;
+      rgb(120 80 40 / 14%) 0 1px,
+      rgb(255 245 222 / 20%) 1px 2px,
+      rgb(120 80 40 / 10%) 2px 3px,
+      transparent 3px
+    );
+  background-size: 18px 18px;
 }
 
 /* =========================================================
@@ -343,23 +317,30 @@ async function subtract() {
    FAVORITE
    ========================================================= */
 
-.card__favorite {
+.card__media .card__favorite {
   position: absolute;
 
   top: 0.25rem;
   right: 0.25rem;
   z-index: 4;
 
-  width: var(--touch-target);
-  min-width: var(--touch-target);
+  width: 2.375rem;
+  min-width: 2.375rem;
 
-  height: var(--touch-target);
-  min-height: var(--touch-target);
+  height: 2.375rem;
+  min-height: 2.375rem;
+  padding: 0;
 
   border: 1px solid var(--ui-border);
   border-radius: 0.5rem;
 
   background: var(--ui-bg);
+}
+
+.card__favorite::after {
+  content: "";
+  position: absolute;
+  inset: -0.1875rem;
 }
 
 /* =========================================================
@@ -403,7 +384,7 @@ async function subtract() {
 
 .card__title {
   display: -webkit-box;
-  height: 2.6em;
+  min-height: 1.95em;
 
   margin-top: 0.125rem;
 
@@ -489,11 +470,23 @@ async function subtract() {
   padding-inline: 0.5rem;
 }
 
+.card__add { cursor: pointer; transition: background-color 160ms ease, box-shadow 160ms ease; }
+.card__add:disabled { cursor: not-allowed; }
 .card__add-icon {
   flex: none;
-
-  width: 1rem;
-  height: 1rem;
+  width: 1.625rem;
+  height: 1.625rem;
+  transition: transform 160ms ease;
+}
+.card__add-icon :deep(path) { stroke-width: 2.5; stroke-linecap: round; }
+.card__add:not(:disabled):active .card__add-icon { transform: scale(0.9); }
+@media (hover: hover) and (pointer: fine) {
+  .card__add:not(:disabled):hover { box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%); }
+  .card__add:not(:disabled):hover .card__add-icon { transform: scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card__add, .card__add-icon { transition: none; }
+  .card__add:not(:disabled):hover .card__add-icon, .card__add:not(:disabled):active .card__add-icon { transform: none; }
 }
 
 /* =========================================================
@@ -554,7 +547,7 @@ async function subtract() {
     font-size: 0.7rem;
   }
 
-  .card__favorite {
+  .card__media .card__favorite {
     top: 0.1875rem;
     right: 0.1875rem;
   }
@@ -565,7 +558,7 @@ async function subtract() {
 
 }
 
-.card__sale, .card__illustration { margin-block: 0.25rem; font-size: 0.75rem; line-height: 1.3; color: var(--ui-text-muted); }
+.card__sale { margin-block: 0.25rem; font-size: 0.75rem; line-height: 1.3; color: var(--ui-text-muted); }
 
 .card__badges { position: absolute; top: var(--card-inset); left: 0; z-index: 4; display: grid; justify-items: start; gap: 0.25rem; pointer-events: none; }
 .card__ribbon { padding: 0.25rem 0.625rem 0.25rem 0.5rem; border-radius: 0 0.375rem 0.375rem 0; color: #fff; font-size: clamp(0.625rem, 1.8vw, 0.6875rem); font-weight: 800; line-height: 1.25; letter-spacing: 0.025em; box-shadow: 0 1px 3px rgb(0 0 0 / 15%); }
@@ -589,8 +582,8 @@ async function subtract() {
 }
 @media (width < 40rem) {
   .card--dense { --card-inset: 0.25rem; --card-price-size: 0.75rem; border-radius: 0.5rem; }
-  .card--dense .card__category, .card--dense .card__sale, .card--dense .card__illustration,
-  .card--dense .card__favorite, .card--dense .card__badges,
+  .card--dense .card__category, .card--dense .card__sale,
+  .card--dense:not(.card--compact) .card__favorite, .card--dense .card__badges,
   .card--dense :deep(.origin) { display: none; }
   .card--dense .card__title { margin-top: 0; font-size: 0.6875rem; }
   .card--dense .card__bottom { gap: 0.125rem; padding-top: 0.125rem; }

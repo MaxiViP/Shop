@@ -57,6 +57,12 @@ const addressFields = {
   INTERCOM: 'intercom',
   COMMENT: 'comment',
 } as const;
+export function addressInput(step: string, text: string, address: CheckoutPayload['address']) {
+  if (!Object.hasOwn(addressFields, step)) throw new Error('INPUT');
+  const field = addressFields[step as keyof typeof addressFields];
+  const value = text.trim() === '-' && !['city', 'street', 'house'].includes(field) ? '' : text;
+  return { ...address, [field]: addressSchema.shape[field].parse(value) };
+}
 export function checkoutInput(
   step: CheckoutStep,
   text: string,
@@ -88,15 +94,7 @@ export function checkoutInput(
       next.fulfillmentMode = 'SCHEDULED';
     }
   } else if (Object.hasOwn(addressFields, step)) {
-    const field = addressFields[step as keyof typeof addressFields];
-    const value =
-      text.trim() === '-' && !['city', 'street', 'house'].includes(field)
-        ? ''
-        : text;
-    next.address = {
-      ...data.address,
-      [field]: addressSchema.shape[field].parse(value),
-    };
+    next.address = addressInput(step, text, data.address);
   } else throw new Error('INPUT');
   return checkoutPayload.parse(next);
 }

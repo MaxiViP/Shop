@@ -167,7 +167,7 @@ try {
       await view.visit('/catalog'); await loaded(view.page);
       const result = await geometry(view.page);
       assert.equal(result.src, base + fixture.images[0].url);
-      assert.equal(result.fit, 'contain');
+      assert.equal(result.fit, 'cover');
       assert.equal(result.loading, 'eager');
       assert.equal(result.decoding, 'auto');
       const priorities = await view.page.locator('.card__img img').evaluateAll(images =>

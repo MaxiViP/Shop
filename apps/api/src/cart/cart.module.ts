@@ -10,6 +10,6 @@ import { QuickShopService } from './quick-shop.service.js';
   imports: [AuthModule, DbModule, OrderModule],
   controllers: [CartCtrl, QuickShopCtrl],
   providers: [CartService, QuickShopService],
-  exports: [CartService],
+  exports: [CartService, QuickShopService],
 })
 export class CartModule {}

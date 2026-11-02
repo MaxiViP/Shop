@@ -94,11 +94,12 @@ test('product card renders backend customer price once, market link and a calm n
   assert.ok(html.includes('Цена по открытому источнику и может измениться при сборке.'));
   assert.ok(!html.includes('sourceUrl') && !html.includes('220 ₽') && !html.includes('role="alert"'));
 });
-test('card and selected gallery image visibly label only the exact imported illustration', async () => {
+test('compact cards omit the illustration note while the selected gallery retains its label', async () => {
   const url = Object.entries(photoOrigins).find(([, slug]) => slug === product.slug)?.[0];
   assert.ok(url);
   const images = [{ url, alt: null }];
-  assert.match(await render(Card, { product: { ...product, images } }), /Иллюстрация товара/);
+  const card = await render(Card, { product: { ...product, images } });
+  assert.ok(!card.includes('card__illustration') && !card.includes('Иллюстрация товара'));
   assert.match(await render(Gallery, { images, name: product.name, slug: product.slug }), /Иллюстрация товара/);
   const real = [{ url: '/uploads/products/real-photo.webp', alt: 'Иллюстрация товара' }];
   assert.ok(!(await render(Card, { product: { ...product, images: real } })).includes('card__illustration'));
@@ -228,7 +229,10 @@ test('a compact card keeps its cart quantity centered above both photo ribbons',
 
 test('estimated and audited product cards render their own price provenance without exposing seller price', async () => {
   const estimated = await render(Card, { product: { ...product, priceStatus: 'ESTIMATED' } });
-  assert.ok(estimated.includes('Ориентировочная цена. Актуальную стоимость продавец подтвердит при сборке.'));
+  assert.match(estimated, /<details[^>]*class="origin__disclosure"[^>]*>/);
+  assert.ok(!/<details[^>]*\sopen(?:[\s=>])/.test(estimated), 'Estimated price explanation starts collapsed');
+  assert.match(estimated, /<summary[^>]*>[\s\S]*?Ориентировочная цена\.[\s\S]*?<\/summary>/);
+  assert.ok(estimated.includes('Актуальную стоимость продавец подтвердит при сборке'));
   const audited = await render(Card, { product: { ...product, priceStatus: 'AUDITED' } });
   assert.ok(!audited.includes('Ориентировочная цена') && !audited.includes('Цена по открытому источнику'));
   for (const html of [estimated, audited]) {

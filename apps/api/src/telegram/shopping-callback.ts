@@ -3,10 +3,29 @@ import type { SaleUnit } from '../product/sale.js';
 const id = z.number().int().positive().max(2147483647);
 const page = z.number().int().min(0).max(10000);
 const qty = z.number().int().positive().max(1000000);
+const unitCodes: Record<SaleUnit, string> = { GRAM: 'g', PIECE: 'p', BUNCH: 'b', PACK: 'k' };
+function quantityUnit(value: string | undefined): SaleUnit | null {
+  switch (value) {
+    case 'GRAM': case 'g': return 'GRAM';
+    case 'PIECE': case 'p': return 'PIECE';
+    case 'BUNCH': case 'b': return 'BUNCH';
+    case 'PACK': case 'k': return 'PACK';
+    default: return null;
+  }
+}
 function number(value: string | undefined, schema: z.ZodNumber) {
   if (!value || !/^(0|[1-9a-z][0-9a-z]{0,5})$/.test(value)) return null;
   const result = schema.safeParse(Number.parseInt(value, 36));
   return result.success ? result.data : null;
+}
+function shopContext(value: string | undefined, page: number): ShopContext | null {
+  if (value === 'k' || value === 'q' || value === 'c') return { page, origin: value === 'k' ? 'basket' : value === 'q' ? 'quick' : 'category' };
+  const categoryId = value?.startsWith('c') ? number(value.slice(1), id) : null;
+  return categoryId ? { page, origin: 'category', categoryId } : null;
+}
+function contextCode(context: ShopContext) {
+  return context.origin === 'basket' ? 'k' : context.origin === 'quick' ? 'q' :
+    'c' + (context.categoryId === undefined ? '' : context.categoryId.toString(36));
 }
 export const compact = (value: string) => value.replaceAll('-', '');
 export function expand(value: string | undefined) {
@@ -26,10 +45,16 @@ export function expand(value: string | undefined) {
 export type ShoppingAction =
   | { kind: 'catalog' | 'cart' | 'resume' | 'help' }
   | { kind: 'categories' | 'basket'; page: number }
+  | { kind: 'quick'; page: number }
+  | { kind: 'receiving' }
+  | { kind: 'receive'; revision: string; choice: 'pickup' | 'delivery' | 'view' | 'use' | 'edit' | 'new' | 'save' | 'page'; value?: number }
+  | { kind: 'repeat'; revision: string; orderId: number }
   | { kind: 'products'; categoryId: number; page: number }
   | { kind: 'product'; productId: number; qty: number }
+  | ({ kind: 'open' | 'details'; productId: number } & ShopContext)
+  | ({ kind: 'adjust'; productId: number; delta: number; quantityUnit: SaleUnit; revision: string; inCategory?: true } & ShopContext)
   | { kind: 'add'; productId: number; qty: number; revision: string; quantityUnit?: SaleUnit }
-  | { kind: 'plus' | 'minus' | 'remove'; productId: number; revision: string }
+  | { kind: 'plus' | 'minus' | 'remove'; productId: number; revision: string; page?: number }
   | { kind: 'clear'; revision: string }
   | { kind: 'clearConfirmed'; revision: string }
   | { kind: 'checkout'; revision: string }
@@ -47,6 +72,8 @@ export type ShoppingAction =
     };
 export function shoppingAction(data: string): ShoppingAction | null {
   if (Buffer.byteLength(data, 'utf8') > 64) return null;
+  if (data === 'quick') return { kind: 'quick', page: 0 };
+  if (data === 'delivery') return { kind: 'receiving' };
   if (
     data === 'catalog' ||
     data === 'cart' ||
@@ -54,6 +81,48 @@ export function shoppingAction(data: string): ShoppingAction | null {
     data === 'help'
   )
     return { kind: data };
+  const parts = data.split(':');
+  if (parts[0] === 's' && parts[1] === 'g' && (parts.length === 4 || parts.length === 5)) {
+    const revision = expand(parts[2]), choice = parts[3];
+    if (!revision) return null;
+    if ((choice === 'view' || choice === 'page') && parts.length === 5) {
+      const value = number(parts[4], choice === 'page' ? page : id);
+      return value === null ? null : { kind: 'receive', revision, choice, value };
+    }
+    if (parts.length === 4 && (choice === 'pickup' || choice === 'delivery' || choice === 'use' || choice === 'edit' || choice === 'new' || choice === 'save'))
+      return { kind: 'receive', revision, choice };
+    return null;
+  }
+  if (parts[0] === 's' && parts[1] === 'x' && parts.length === 5) {
+    const revision = expand(parts[2]), productId = number(parts[3], id), p = number(parts[4], page);
+    return revision && productId && p !== null ? { kind: 'remove', revision, productId, page: p } : null;
+  }
+  if (parts[0] === 's' && parts[1] === 'q' && parts.length === 3) {
+    const p = number(parts[2], page);
+    return p === null ? null : { kind: 'quick', page: p };
+  }
+  if (parts[0] === 's' && parts[1] === 'e' && parts.length === 4) {
+    const revision = expand(parts[2]), orderId = number(parts[3], id);
+    return revision && orderId ? { kind: 'repeat', revision, orderId } : null;
+  }
+  if (parts[0] === 's' && ['o', 'd'].includes(parts[1] ?? '') && parts.length === 5) {
+    const productId = number(parts[2], id), p = number(parts[3], page), origin = parts[4];
+    const context = p === null ? null : shopContext(origin, p);
+    return productId && context ? {
+      kind: parts[1] === 'o' ? 'open' : 'details', productId, ...context,
+    } : null;
+  }
+  if (parts[0] === 's' && (parts[1] === 'u' || parts[1] === 'j') && parts.length === 8) {
+    const revision = expand(parts[2]), productId = number(parts[3], id), value = parts[4] ?? '';
+    const delta = /^[pm]/.test(value) ? number(value.slice(1), qty) : null;
+    const unit = quantityUnit(parts[5]), p = number(parts[6], page), origin = parts[7];
+    const context = p === null ? null : shopContext(origin, p);
+    if (parts[1] === 'j' && (!context || context.origin !== 'category' || context.categoryId === undefined)) return null;
+    return revision && productId && delta && context && unit ? {
+        kind: 'adjust', productId, delta: value[0] === 'm' ? -delta : delta, revision,
+        quantityUnit: unit, ...context, ...(parts[1] === 'j' ? { inCategory: true as const } : {}),
+      } : null;
+  }
   const [prefix, action, a, b, c, unit, ...extra] = data.split(':');
   if (prefix !== 's' || extra.length || (unit !== undefined && action !== 'a')) return null;
   const rev = expand(a);
@@ -144,3 +213,12 @@ export const shoppingData = (action: string, ...values: (number | string)[]) =>
       typeof value === 'number' ? value.toString(36) : compact(value),
     )
     .join(':');
+
+export type ShopContext = { page: number; origin: 'category' | 'basket' | 'quick'; categoryId?: number };
+export function productData(productId: number, context: ShopContext, details = false) {
+  return shoppingData(details ? 'd' : 'o', productId, context.page, contextCode(context));
+}
+export function adjustData(revision: string, productId: number, delta: number, unit: SaleUnit, context: ShopContext, inCategory = false) {
+  return shoppingData(inCategory ? 'j' : 'u', revision, productId, (delta < 0 ? 'm' : 'p') + Math.abs(delta).toString(36),
+    context.origin === 'category' && context.categoryId !== undefined ? unitCodes[unit] : unit, context.page, contextCode(context));
+}

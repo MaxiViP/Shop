@@ -1,10 +1,8 @@
 <template>
   <UContainer class="checkout" :class="{ 'checkout--delivery-notice': freeDelivery }">
     <header class="checkout__head">
-      <h1 class="checkout__title">Корзина и оформление</h1>
-      <UButton v-if="cart.restored && cart.count" variant="ghost" color="neutral" :disabled="loading || cart.serverBusy" class="checkout__clear" @click="clearCart">
-        Очистить
-      </UButton>
+      <h1 class="checkout__title">Корзина</h1>
+      <CartClear v-if="cart.restored" v-show="cart.count" :disabled="loading || cart.serverBusy" @cleared="lastRemoved = null" />
     </header>
     <AppShopStatus class="mb-4" />
 
@@ -54,7 +52,7 @@
               <span class="section__undo-label">Вернуть</span>
             </UButton>
           </div>
-          <CartItems :disabled="loading" @removed="lastRemoved = $event" />
+          <CartItems :disabled="loading" @remove="removeItem" />
           <p v-if="!ready || !settings || settingsError" class="section__hint" role="status">
             {{ quoteError || settingsError
               ? 'Оформление будет доступно после проверки корзины. Товары можно редактировать.'
@@ -117,7 +115,7 @@
 
         <section class="section">
           <h2 class="section__title">Получатель</h2>
-          <div v-if="auth.user?.role === 'USER'" class="recipient-tabs" role="group" aria-label="Кому заказ">
+          <div class="recipient-tabs" role="group" aria-label="Кому заказ">
             <button type="button" class="recipient-tabs__item" :class="{ 'recipient-tabs__item--active': recipientMode === 'self' }" :aria-pressed="recipientMode === 'self'" @click="recipientMode = 'self'">Для себя</button>
             <button type="button" class="recipient-tabs__item" :class="{ 'recipient-tabs__item--active': recipientMode === 'other' }" :aria-pressed="recipientMode === 'other'" @click="recipientMode = 'other'">Другому человеку</button>
           </div>
@@ -242,33 +240,26 @@
               </UFormField>
             </div>
 
-            <div class="form__row">
-              <UFormField class="form__field" label="Дом" :error="errors.house" data-checkout-field="house" :class="fieldClass('house')">
-                <UInput v-model="recipient.house" placeholder="Номер дома" :aria-invalid="Boolean(errors.house)" />
-              </UFormField>
-
-              <UFormField label="Корпус / строение">
-                <UInput v-model="recipient.buildingPart" placeholder="к. 2 или стр. 1" maxlength="50" />
-              </UFormField>
-            </div>
-
             <div class="form__grid">
+              <UFormField class="form__field" label="Дом" :error="errors.house" data-checkout-field="house" :class="fieldClass('house')">
+                <UInput v-model="recipient.house" placeholder="Дом" :aria-invalid="Boolean(errors.house)" />
+              </UFormField>
+              <UFormField label="Корпус / строение">
+                <UInput v-model="recipient.buildingPart" placeholder="к. / стр." maxlength="50" />
+              </UFormField>
               <UFormField label="Квартира">
-                <UInput v-model="recipient.flat" placeholder="Номер квартиры" />
+                <UInput v-model="recipient.flat" placeholder="Кв." />
               </UFormField>
-
               <UFormField label="Подъезд">
-                <UInput v-model="recipient.entrance" placeholder="Номер подъезда" />
+                <UInput v-model="recipient.entrance" placeholder="Подъезд" />
               </UFormField>
-
               <UFormField label="Этаж">
-                <UInput v-model="recipient.floor" placeholder="Номер этажа" />
+                <UInput v-model="recipient.floor" placeholder="Этаж" />
+              </UFormField>
+              <UFormField label="Домофон">
+                <UInput v-model="recipient.intercom" placeholder="Код" />
               </UFormField>
             </div>
-
-            <UFormField label="Домофон">
-              <UInput v-model="recipient.intercom" placeholder="Код домофона" />
-            </UFormField>
 
             <UFormField label="Комментарий курьеру">
               <UTextarea
@@ -280,18 +271,7 @@
           </div>
         </section>
 
-        <section v-if="form.type === 'DELIVERY'" class="section">
-          <h2 class="section__title">Время доставки</h2>
-
-          <UAlert
-            color="neutral"
-            variant="soft"
-            title="Доставим как можно скорее"
-            description="Точные интервалы доставки добавим следующим этапом."
-          />
-        </section>
-
-        <section v-else class="section">
+        <section v-if="form.type === 'PICKUP'" class="section">
           <h2 class="section__title">Самовывоз</h2>
           <OrderPickupPoint />
         </section>
@@ -573,6 +553,13 @@ const canSubmit = computed(
 );
 const notice = useHeaderNotice();
 const lastRemoved = shallowRef<CartItem | null>(null);
+async function removeItem(item: CartItem) {
+  if (loading.value || cart.serverBusy) return;
+  if (await actions.remove(item.product.id)) {
+    lastRemoved.value = item;
+    notice.show({ target: 'cart', text: 'Удалено из корзины' });
+  }
+}
 async function undoRemoval() {
   if (!lastRemoved.value || loading.value) return;
   const { product, qty } = lastRemoved.value;
@@ -582,10 +569,6 @@ async function undoRemoval() {
   } else {
     notice.show({ target: 'cart', text: 'Не удалось вернуть товар. Проверьте количество и лимит позиций.' });
   }
-}
-async function clearCart() {
-  if (await actions.clear())
-    notice.show({ target: 'cart', text: 'Корзина очищена' });
 }
 async function retryQuote() {
   await Promise.all([refreshQuote(), refreshSettings(), refreshQueueOffer()]);
@@ -850,7 +833,7 @@ function getMessage(cause: unknown) {
 }
 
 useSeoMeta({
-  title: "Корзина и оформление",
+  title: "Корзина",
 });
 </script>
 
@@ -894,7 +877,7 @@ useSeoMeta({
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
 }
 
 .recipient-tabs__item {
@@ -922,7 +905,7 @@ useSeoMeta({
   align-items: center;
   justify-content: space-between;
   gap: 0.25rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
 }
 
 .section__items-head .section__title {
@@ -951,7 +934,6 @@ useSeoMeta({
   --submit-space: 9rem;
 }
 
-.checkout__clear,
 .checkout__empty :deep(a) {
   min-height: var(--touch-target);
   flex-shrink: 0;
@@ -1153,13 +1135,13 @@ useSeoMeta({
 .checkout__layout {
   display: grid;
   min-width: 0;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .checkout__main {
   display: grid;
   min-width: 0;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .section {
@@ -1178,7 +1160,7 @@ useSeoMeta({
 }
 
 .section__title {
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
   font-size: var(--section-title);
   font-weight: 700;
 }
@@ -1195,17 +1177,18 @@ useSeoMeta({
 
 .type {
   display: grid;
-  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
 .type__item {
   display: flex;
   min-height: calc(var(--touch-target) + 1rem);
   align-items: center;
-  gap: 1rem;
-  padding: var(--card-padding);
+  gap: 0.5rem;
+  padding: 0.625rem;
   border: 1px solid var(--ui-border);
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   text-align: left;
   overflow-wrap: anywhere;
 }
@@ -1236,21 +1219,21 @@ useSeoMeta({
 .form__row {
   display: grid;
   min-width: 0;
-  gap: 1rem;
-
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
 .form__grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem 0.5rem;
 }
 
 .address {
   display: grid;
   min-width: 0;
-  gap: 1rem;
+  gap: 0.75rem;
   margin-top: 1rem;
 }
 
@@ -1352,16 +1335,15 @@ useSeoMeta({
   font-size: 1rem;
 }
 
-@media (min-width: 40rem) {
-  .type,
-  .form__row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .form__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+@media (max-width: 39.999rem) {
+  .section { padding: 0.75rem; }
+  .type__item { font-size: 0.8125rem; }
+  .type__item > :first-child { flex-shrink: 0; }
+  .form__grid :deep(label) { font-size: 0.75rem; line-height: 1rem; min-height: 2rem; display: flex; align-items: end; }
 }
+.form__row > *, .form__grid > * { min-width: 0; }
+.form__row :deep(input), .form__grid :deep(input) { min-width: 0; width: 100%; }
+.form__row :deep([data-slot="root"]), .form__grid :deep([data-slot="root"]) { min-width: 0; width: 100%; }
 
 @media (min-width: 48rem) {
   .addresses {

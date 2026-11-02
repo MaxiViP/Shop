@@ -115,12 +115,14 @@ try {
         ? { body: body instanceof FormData ? body : JSON.stringify(body) }
         : {}),
     });
-    const data = await response.json();
+    const text = await response.text();
     assert.equal(
       response.status,
       expected,
-      `${method} ${path}: ${JSON.stringify(data)}`,
+      `${method} ${path}: ${text}`,
     );
+    assert.ok(text.length, `${method} ${path}: expected a JSON response`);
+    const data = JSON.parse(text);
     return { data, response };
   }
   assert.deepEqual(
@@ -295,7 +297,7 @@ try {
     201,
     '',
   );
-  const userCookie = shopper.response.headers.getSetCookie()[0].split(';')[0];
+  let userCookie = shopper.response.headers.getSetCookie()[0].split(';')[0];
   await api('/admin/products', 'GET', undefined, 403, userCookie);
   await api(`/admin/users/${shopper.data.id}/role`, 'PATCH', {
     role: 'SELLER',
@@ -316,6 +318,8 @@ try {
     '',
   );
   assert.equal(sellerLogin.data.role, 'SELLER');
+  await api('/staff/orders', 'GET', undefined, 401, userCookie);
+  userCookie = sellerLogin.response.headers.getSetCookie()[0].split(';')[0];
   console.log(
     'PASS method PASSWORD → admin session; method OTP → USER and SELLER OTP login',
   );
@@ -338,6 +342,11 @@ try {
     { role: 'USER' },
     403,
   );
+  await api('/staff/orders', 'GET', undefined, 401, userCookie);
+  const userCode = (await api('/auth/code', 'POST', { phone: shopper.data.phone }, 201)).data;
+  const userLogin = await api('/auth/login', 'POST', { phone: shopper.data.phone, code: userCode.devCode }, 201, '');
+  assert.equal(userLogin.data.role, 'USER');
+  userCookie = userLogin.response.headers.getSetCookie()[0].split(';')[0];
   await api('/staff/orders', 'GET', undefined, 403, userCookie);
   console.log(
     'PASS USER / SELLER admin 403, USER ↔ SELLER, current staff rights, ADMIN promotion/demotion blocked',

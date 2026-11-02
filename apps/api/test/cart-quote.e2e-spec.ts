@@ -364,7 +364,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         marketPointId: null, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
         isSeasonal: false, isHit: false, seasonalStartsAt: null, seasonalEndsAt: null,
         seasonalMode: 'OFF', seasonTemplateId: null, hitOrders: 0, hitSoldUnits: '0.000', hitRank: null,
-        hitMode: 'AUTO', saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null,
+        hitMode: 'AUTO', serviceMarkupPercent: 10, saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null,
       normalizedPrice: (Math.floor((Number(product.price) * 110 + 50) / 100) * (product.unit === 'GRAM' ? 1000 : 1) / Number(product.priceQty)).toFixed(12),
       })));
       const column = await connection.query<{ is_nullable: string }>(

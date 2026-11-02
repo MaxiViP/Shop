@@ -34,7 +34,8 @@ export function productImageSizes(context: ProductImageContext, ratio = 1) {
     const padding = landscape ? '1rem' : 'clamp(0.75rem, 0.4rem + 1.5vw, 2rem)';
     const box = 'calc((min(100vw, 80rem) - 2 * ' + padding + ' - ' +
       (columns - 1) * gap + 'rem) / ' + columns + ' - 2px)';
-    const factor = Math.min(1, ratio * (context === 'compact' && !breakpoint ? .75 : 1));
+    // Cover fills the 4:3 card; wide originals need extra pixels before cropping.
+    const factor = Math.max(1, ratio * .75);
     return (media ? media + ' ' : '') + scale(box, factor);
   })).join(', ');
 }

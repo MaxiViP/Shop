@@ -1,7 +1,9 @@
+import { QuickShopService } from '../src/cart/quick-shop.service.js';
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, mkdtemp, writeFile, rename, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { Logger } from '@nestjs/common';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -17,9 +19,11 @@ import { TelegramService } from '../src/telegram/telegram.service.js';
 import { CustomerCheckoutService } from '../src/telegram/customer-checkout.service.js';
 import { CustomerShopService } from '../src/telegram/customer-shop.service.js';
 import { CustomerUpdateService } from '../src/telegram/customer-update.service.js';
+import { receivingPayload } from '../src/telegram/receiving.js';
 import { checkoutPayload } from '../src/telegram/checkout.js';
-import { shoppingData } from '../src/telegram/shopping-callback.js';
+import { shoppingData, shoppingAction, productData, adjustData } from '../src/telegram/shopping-callback.js';
 import { customerView } from '../src/telegram/customer-callback.js';
+import type { InputRichBlock, InputRichMessage, RichText, RichMessageButton } from '../src/telegram/rich.js';
 
 describe.skipIf(!process.env.DATABASE_URL)(
   'CUSTOMER shopping PostgreSQL',
@@ -46,6 +50,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     let messageId = 100;
     type Sent = {
       text?: string;
+      parse_mode?: string;
       reply_markup?: {
         force_reply?: boolean;
         inline_keyboard?: {
@@ -56,9 +61,24 @@ describe.skipIf(!process.env.DATABASE_URL)(
         }[][];
       };
     };
+    const request = (init?: RequestInit): Sent & { rich_message?: InputRichMessage; message_id?: number } => init?.body instanceof FormData
+      ? { rich_message: JSON.parse(String(init.body.get('rich_message'))), message_id: Number(init.body.get('message_id')) }
+      : JSON.parse(String(init?.body));
+    const captionButtons = (text: RichText): RichMessageButton[] => typeof text === 'string' ? [] : Array.isArray(text)
+      ? text.flatMap(captionButtons) : text.type === 'button' ? [text.button] : captionButtons(text.text);
+    const nativeRows = (blocks: InputRichBlock[]): { text: string; callback_data?: string }[][] => blocks.flatMap(block => block.type === 'buttons' ? [block.buttons]
+      : block.type === 'table' ? block.cells.flatMap(row => row.map(cell => captionButtons(cell.text)))
+      : block.type === 'photo' && block.caption ? [captionButtons(block.caption.text)]
+      : block.type === 'collage' || block.type === 'details' ? nativeRows(block.blocks) : []);
     const sent = () =>
       fetcher.mock.calls.map(
-        ([, init]) => JSON.parse(String(init?.body)) as Sent,
+        ([, init]) => {
+          const value = request(init);
+          // Assert visible semantics here; raw escaping/Rich payloads have dedicated transport tests.
+          if (value.parse_mode === 'HTML' && value.text) value.text = value.text.replace(/<\/?b>/g, '')
+            .replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&amp;', '&');
+          return value;
+        },
       );
     const bot = () => {
       const typed = db as unknown as DbService;
@@ -67,7 +87,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         typed,
         coordination,
         orders,
-        new CustomerShopService(typed, cart, flow, orders),
+        new CustomerShopService(typed, cart, flow, orders, new QuickShopService(typed, cart)),
         flow,
       );
     };
@@ -308,6 +328,241 @@ describe.skipIf(!process.env.DATABASE_URL)(
       return o;
     }
 
+    it.each([
+      { unit: 'GRAM', rich: true, min: 500, step: 100, variable: false },
+      { unit: 'PIECE', rich: false, min: 1, step: 1, variable: false },
+      { unit: 'PACK', rich: false, min: 2, step: 1, variable: false },
+      { unit: 'BUNCH', rich: false, min: 3, step: 1, variable: false },
+      { unit: 'PIECE', rich: true, min: 1, step: 1, variable: true },
+    ] satisfies { unit: Unit; rich: boolean; min: number; step: number; variable: boolean }[])(
+      'direct category $unit/$variable Rich=$rich binds min/step and ignores duplicate/stale actions on the same page', async spec => {
+        const f = await fixture(spec.unit), handler = bot(), directory = await mkdtemp(join(tmpdir(), 'category-ux34-'));
+        const config = join(directory, 'policy.json');
+        await writeFile(config, JSON.stringify({ enabled: spec.rich, global: { customer: true } })); vi.stubEnv('TELEGRAM_RICH_CONFIG_FILE', config);
+        await db.product.update({ where: { id: f.product.id }, data: { min: spec.min, step: spec.step, sort: 100,
+          name: 'Очень длинное название продукции '.repeat(8),
+          ...(spec.variable ? { saleModel: 'WHOLE_VARIABLE_WEIGHT', priceUnit: 'GRAM', priceQty: 1000, estimatedWeightGrams: null } : {}) } });
+        await db.product.createMany({ data: Array.from({ length: 8 }, (_, index) => ({ name: 'Другой товар ' + index,
+          slug: randomUUID(), categoryId: f.category.id, price: 11000, unit: 'PIECE', min: 1, step: 1, portionQty: 1 })) });
+        const payloads = () => fetcher.mock.calls.map(([, init]) => request(init));
+        const fixedAdd = () => {
+          const payload = payloads().filter(payload => payload.rich_message || payload.parse_mode === 'HTML').at(-1);
+          const rows = payload?.reply_markup?.inline_keyboard ?? nativeRows(payload?.rich_message?.blocks ?? []);
+          const open = rows.flat().find((button: { callback_data?: string }) => {
+            const action = shoppingAction(button.callback_data ?? '');
+            return action?.kind === 'open' && action.productId === f.product.id;
+          });
+          const add = rows.flat().find((button: { callback_data?: string; text: string }) => {
+            const action = shoppingAction(button.callback_data ?? '');
+            return button.text === 'Добавить в ' && action?.kind === 'adjust' && action.productId === f.product.id;
+          });
+          expect(open).toBeDefined(); expect(add).toBeDefined();
+          expect(shoppingAction(add!.callback_data!)).toMatchObject({ kind: 'adjust', productId: f.product.id, inCategory: true, page: 1 });
+          if (spec.rich) {
+            const blocks = payload!.rich_message!.blocks;
+            const actual = blocks.filter(block => block.type === 'buttons').flatMap(block => block.buttons);
+            expect(actual).toContainEqual(expect.objectContaining({ text: 'Добавить в ', callback_data: add!.callback_data }));
+            expect(open!.text).toBe('Открыть товар');
+            expect(blocks.filter(block => block.type === 'photo')).toHaveLength(1);
+            expect(blocks.some(block => block.type === 'table' || block.type === 'collage')).toBe(false);
+            for (const block of blocks) if (block.type === 'photo') expect(block).not.toHaveProperty('caption');
+          }
+        };
+        const button = (delta: number) => {
+          const buttons = payloads().flatMap(payload => payload.reply_markup?.inline_keyboard?.flat() ?? nativeRows(payload.rich_message?.blocks ?? []).flat()).reverse();
+          const found = buttons.find((button: { callback_data?: string }) => {
+            const action = shoppingAction(button.callback_data ?? '');
+            return action?.kind === 'adjust' && action.inCategory && action.productId === f.product.id && action.delta === delta;
+          });
+          if (!found?.callback_data) throw new Error('Bound category callback missing');
+          return found.callback_data as string;
+        };
+        try {
+          await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 1)));
+          fixedAdd();
+          const write = vi.spyOn(cart, 'change'), first = button(spec.min);
+          const update = { ...cb(f.telegramId, first), update_id: 4000000 + f.user.id * 10 };
+          await Promise.all([handler.handle(update), handler.handle(update)]);
+          expect(write).toHaveBeenCalledTimes(1); expect((await cart.get(f.user.id)).items[0]?.qty).toBe(spec.min);
+          fixedAdd();
+          await handler.handle(cb(f.telegramId, first));
+          expect(write).toHaveBeenCalledTimes(1);
+          const plus = button(spec.step);
+          await Promise.all([handler.handle(cb(f.telegramId, plus)), handler.handle(cb(f.telegramId, plus))]);
+          expect(write).toHaveBeenCalledTimes(2); expect((await cart.get(f.user.id)).items[0]?.qty).toBe(spec.min + spec.step);
+          fixedAdd();
+          await handler.handle(cb(f.telegramId, button(-spec.step)));
+          expect((await cart.get(f.user.id)).items[0]?.qty).toBe(spec.min);
+          fixedAdd();
+          const last = payloads().filter(payload => payload.rich_message || payload.parse_mode === 'HTML').at(-1);
+          expect(JSON.stringify(last)).toContain('9–9/9 · 2/2');
+          expect(JSON.stringify(last)).toContain(shoppingData('l', f.category.id, 0));
+          expect(JSON.stringify(last)).toContain(productData(f.product.id, { origin: 'category', categoryId: f.category.id, page: 1 }));
+          expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+        } finally { await rm(directory, { recursive: true, force: true }); }
+      });
+    it.each(['GRAM', 'PIECE'] as const)('paired raster gallery keeps %s mutations, returns, stale checks and HTML rollback', async unit => {
+      const f = await fixture(unit), handler = bot(), directory = await mkdtemp(join(tmpdir(), 'gallery-table-'));
+      const config = join(directory, 'policy.json'), name = 'Длинное полное название продукта '.repeat(8);
+      await db.product.update({ where: { id: f.product.id }, data: { name } });
+      await db.product.create({ data: { name: 'Второй товар', slug: randomUUID(), categoryId: f.category.id,
+        price: 11000, unit: 'PIECE', min: 1, step: 1, portionQty: 1 } });
+      await writeFile(config, JSON.stringify({ enabled: true, global: { customer: true }, customerGalleryTables: [String(f.telegramId)] }));
+      vi.stubEnv('TELEGRAM_RICH_CONFIG_FILE', config);
+      const latest = () => fetcher.mock.calls.map(([, init]) => request(init)).filter(value => value.rich_message || value.parse_mode === 'HTML').at(-1)!;
+      const gallery = () => {
+        const blocks = latest().rich_message!.blocks;
+        expect(blocks.filter(block => block.type === 'photo')).toHaveLength(1);
+        expect(blocks.some(block => block.type === 'table' || block.type === 'collage')).toBe(false);
+        const rows = nativeRows(blocks); expect(rows[0]!.map(button => button.text)).toEqual(['Открыть товар', 'Открыть товар']);
+        expect(rows[1]!.map(button => button.text)).toEqual(['Добавить в ', 'Добавить в ']);
+        return rows;
+      };
+      const adjust = (delta: number) => {
+        const found = nativeRows(latest().rich_message?.blocks ?? []).flat().find(button => {
+          const action = shoppingAction(button.callback_data ?? '');
+          return action?.kind === 'adjust' && action.productId === f.product.id && action.delta === delta;
+        });
+        if (!found?.callback_data) throw new Error('Gallery adjustment missing');
+        return found.callback_data;
+      };
+      try {
+        await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 0)));
+        gallery();
+        const write = vi.spyOn(cart, 'change'), first = adjust(f.product.min);
+        const update = { ...cb(f.telegramId, first), update_id: 9000000 + f.user.id };
+        await Promise.all([handler.handle(update), handler.handle(update)]);
+        expect(write).toHaveBeenCalledTimes(1); expect((await cart.get(f.user.id)).items[0]?.qty).toBe(f.product.min);
+        expect(JSON.stringify(latest().rich_message)).toContain('В корзине: ');
+        expect(gallery().flat().map(button => button.text)).toContain('+');
+        await handler.handle(cb(f.telegramId, first)); expect(write).toHaveBeenCalledTimes(1);
+        await handler.handle(cb(f.telegramId, adjust(f.product.step)));
+        expect((await cart.get(f.user.id)).items[0]?.qty).toBe(f.product.min + f.product.step);
+        const minus = adjust(-f.product.step);
+        await handler.handle(cb(f.telegramId, minus)); expect((await cart.get(f.user.id)).items[0]?.qty).toBe(f.product.min);
+        const open = gallery()[0]![0]!;
+        if (!('callback_data' in open)) throw new Error('Open callback missing');
+        await handler.handle(cb(f.telegramId, open.callback_data));
+        expect(JSON.stringify(latest())).toContain('← К товарам');
+        await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 0))); gallery();
+        const saved = adjust(f.product.step);
+        await writeFile(config, JSON.stringify({ enabled: true, global: { customer: true }, customerGalleryTables: [] }));
+        await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 0)));
+        expect(latest().rich_message?.blocks.some(block => block.type === 'table')).toBe(false);
+        expect(latest().rich_message?.blocks.some(block => block.type === 'buttons' && block.buttons.some(button => button.text === 'Добавить в '))).toBe(true);
+        await writeFile(config, '{"enabled":false}');
+        await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 0)));
+        expect(latest()).toMatchObject({ parse_mode: 'HTML' }); expect(latest().reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === saved)).toBe(true);
+        const count = write.mock.calls.length;
+        await db.telegramIdentity.update({ where: { id: f.identity.id }, data: { phoneVerified: false } });
+        await handler.handle(cb(f.telegramId, saved)); expect(write).toHaveBeenCalledTimes(count);
+        expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+      } finally { await rm(directory, { recursive: true, force: true }); }
+    });
+    it('requires own phone verification instead of mutating the basket from a saved category callback', async () => {
+      const f = await fixture('PIECE'), handler = bot();
+      await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 0)));
+      const buttons = sent().flatMap(screen => screen.reply_markup?.inline_keyboard?.flat() ?? []);
+      const add = buttons.find(button => {
+        const action = shoppingAction(button.callback_data ?? ''); return action?.kind === 'adjust' && action.inCategory;
+      });
+      if (!add?.callback_data) throw new Error('Direct add callback missing');
+      await db.telegramIdentity.update({ where: { id: f.identity.id }, data: { phoneVerified: false } });
+      const write = vi.spyOn(cart, 'change'), read = vi.spyOn(cart, 'get'); fetcher.mockClear();
+      await handler.handle(cb(f.telegramId, add.callback_data));
+      expect(write).not.toHaveBeenCalled(); expect(read).not.toHaveBeenCalled();
+      expect(JSON.stringify(sent())).toContain('request_contact');
+      expect((await cart.get(f.user.id)).items).toHaveLength(0);
+    });
+
+    it('global Rich preserves catalog, min/step, cart, checkout and immediate HTML rollback outside the old allowlist', async () => {
+      const f = await fixture('GRAM'), handler = bot(), directory = await mkdtemp(join(tmpdir(), 'customer-rich-global-'));
+      const config = join(directory, 'policy.json');
+      await writeFile(config, JSON.stringify({ enabled: true, customer: ['123'], global: { customer: true } }));
+      vi.stubEnv('TELEGRAM_RICH_CONFIG_FILE', config);
+      const payloads = () => fetcher.mock.calls.map(([, init]) => request(init));
+      const choice = (kind: 'adjust' | 'checkout' | 'flow', value?: 'pickup' | 'confirm') => {
+        const buttons = payloads().flatMap(payload => nativeRows(payload.rich_message?.blocks ?? []).flat()).reverse();
+        const found = buttons.find((button: { callback_data?: string }) => {
+          const action = shoppingAction(button.callback_data ?? '');
+          return action?.kind === kind && (action.kind !== 'flow' || action.choice === value);
+        });
+        if (!found?.callback_data) throw new Error('Rich callback missing');
+        return found.callback_data as string;
+      };
+      try {
+        await handler.handle(text(f.telegramId, '/catalog'));
+        await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 0)));
+        await handler.handle(cb(f.telegramId, productData(f.product.id, { origin: 'category', categoryId: f.category.id, page: 0 })));
+        await handler.handle(cb(f.telegramId, choice('adjust')));
+        expect((await cart.get(f.user.id)).items[0]?.qty).toBe(f.product.min);
+        await handler.handle(cb(f.telegramId, 'cart'));
+        const cartPayload = payloads().filter(payload => payload.rich_message).at(-1)!;
+        const cartRows = cartPayload.rich_message!.blocks.filter(block => block.type === 'buttons' && block.buttons.some(button => button.text === '✕'));
+        expect(cartRows).toHaveLength(1);
+        expect(cartRows[0]).toMatchObject({ align: 'right', buttons: [expect.objectContaining({ text: '−' }), expect.objectContaining({ text: '+' }), expect.objectContaining({ text: '✕' })] });
+        await handler.handle(cb(f.telegramId, choice('checkout')));
+        await handler.handle(cb(f.telegramId, choice('flow', 'pickup')));
+        const state = await session(f); expect(state.step).toBe('TIME');
+        await handler.handle(text(f.telegramId, '-', state.promptMessageId!));
+        const confirmation = choice('flow', 'confirm');
+        await handler.handle(cb(f.telegramId, confirmation));
+        await handler.handle(cb(f.telegramId, confirmation));
+        expect(await db.order.count({ where: { userId: f.user.id } })).toBe(1);
+        const order = await db.order.findFirstOrThrow({ where: { userId: f.user.id }, include: { items: true } });
+        expect(order.items[0]?.qty).toBe(f.product.min); expect(order.items[0]?.price).toBeGreaterThan(0);
+        expect(payloads().filter(payload => payload.rich_message).length).toBeGreaterThanOrEqual(7);
+        await writeFile(config + '.next', '{"enabled":false}'); await rename(config + '.next', config);
+        await handler.handle(cb(f.telegramId, 'cart'));
+        const last = payloads().filter(payload => payload.parse_mode === 'HTML').at(-1);
+        expect(last).toMatchObject({ message_id: 5, parse_mode: 'HTML' }); expect(last).not.toHaveProperty('rich_message');
+        expect(await db.order.count({ where: { userId: f.user.id } })).toBe(1);
+      } finally { await rm(directory, { recursive: true, force: true }); }
+    });
+
+    it('native single-step buttons keep acknowledged quantities across card/basket and deduplicate one Telegram update', async () => {
+      const f = await fixture('BUNCH');
+      await db.product.update({ where: { id: f.product.id }, data: {
+        name: 'Укроп', price: 15000, serviceMarkupPercent: 10, saleModel: 'BUNCH', priceUnit: 'BUNCH',
+      } });
+      const handler = bot(), context = { page: 2, origin: 'category' as const };
+      const button = (delta: number) => {
+        const candidates = sent().flatMap(screen => screen.reply_markup?.inline_keyboard?.flat() ?? []).reverse();
+        const found = candidates.find(button => {
+          const action = shoppingAction(button.callback_data ?? '');
+          return action?.kind === 'adjust' && action.productId === f.product.id && action.delta === delta;
+        });
+        if (!found?.callback_data) throw new Error('Immediate action not rendered');
+        return found.callback_data;
+      };
+      await handler.handle(cb(f.telegramId, productData(f.product.id, context)));
+      let sequence = 1000000 + f.user.id * 10;
+      for (const [delta, expected] of [[1, 1], [1, 2], [1, 3], [-1, 2], [1, 3], [1, 4]] as const) {
+        const update = { ...cb(f.telegramId, button(delta)), update_id: sequence++ };
+        await Promise.all([handler.handle(update), handler.handle(update)]);
+        const stored = await cart.get(f.user.id);
+        expect(stored.items[0]?.qty).toBe(expected);
+        expect(stored.items[0]?.lineTotal).toBe(expected * 16500);
+      }
+      await handler.handle(cb(f.telegramId, 'cart'));
+      await handler.handle(cb(f.telegramId, productData(f.product.id, context)));
+      expect((await cart.get(f.user.id)).items[0]?.qty).toBe(4);
+      expect(sent().at(-2)?.text).toContain('4 пучка');
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+    });
+    it('lost native-adjust response reads committed PostgreSQL state and never repeats the write', async () => {
+      const f = await fixture('BUNCH'), handler = bot();
+      const current = await cart.get(f.user.id), original = cart.change.bind(cart);
+      const write = vi.spyOn(cart, 'change').mockImplementationOnce(async (...args) => {
+        await original(...args); throw new Error('Lost response after cart commit');
+      });
+      const update = { ...cb(f.telegramId, adjustData(current.revision, f.product.id, 2, 'BUNCH', { page: 0, origin: 'category' })),
+        update_id: 2000000 + f.user.id };
+      await handler.handle(update); await handler.handle(update);
+      expect(write).toHaveBeenCalledTimes(1);
+      expect((await cart.get(f.user.id)).items[0]?.qty).toBe(2);
+      expect(sent().some(screen => screen.text?.includes('Корзина перечитана'))).toBe(true);
+    });
     it('creates one user-owned cart and never shares it with another user', async () => {
       const a = await fixture(),
         b = await fixture();
@@ -541,6 +796,61 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await expect(checkout.confirm(other.actor, s.id)).rejects.toThrow();
       expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
     });
+    it('keeps a receiving preference across menu/cart navigation and creates no order', async () => {
+      const f = await fixture(), handler = bot();
+      await handler.handle(text(f.telegramId, '/delivery'));
+      let state = await session(f);
+      expect(state.action).toBe('CHECKOUT');
+      await handler.handle(cb(f.telegramId, shoppingData('g', state.id, 'pickup')));
+      state = await session(f);
+      expect(receivingPayload.parse(state.payload).stage).toBe('DONE');
+      await handler.handle(text(f.telegramId, '/menu'));
+      await handler.handle(text(f.telegramId, '/cart'));
+      expect((await session(f)).id).toBe(state.id);
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+      await add(f);
+      await checkout.start(f.actor, (await cart.get(f.user.id)).revision);
+      const checkoutState = await session(f);
+      expect(checkoutState.action).toBe('CHECKOUT');
+      expect(checkoutPayload.parse(checkoutState.payload).type).toBe('PICKUP');
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+    });
+    it('saves an address through bound input exactly once without an order or cart change', async () => {
+      const f = await fixture(), handler = bot();
+      const before = await cart.get(f.user.id);
+      await handler.handle(text(f.telegramId, '/delivery'));
+      await handler.handle(cb(f.telegramId, shoppingData('g', (await session(f)).id, 'delivery')));
+      await handler.handle(cb(f.telegramId, shoppingData('g', (await session(f)).id, 'new')));
+      for (const input of ['Москва', 'Сохранённая', '5', '12', '-', '-', '-', 'Позвоните']) {
+        const state = await session(f);
+        expect(state.promptMessageId).not.toBeNull();
+        await handler.handle(text(f.telegramId, input, state.promptMessageId!));
+      }
+      const review = await session(f);
+      expect(receivingPayload.parse(review.payload).stage).toBe('REVIEW');
+      expect(await db.address.count({ where: { userId: f.user.id } })).toBe(0);
+      const action = { kind: 'receive' as const, revision: review.id, choice: 'save' as const };
+      const attempts = await Promise.allSettled([checkout.chooseReceiving(f.actor, action), checkout.chooseReceiving(f.actor, action)]);
+      expect(attempts.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+      expect(attempts.filter(result => result.status === 'rejected')).toHaveLength(1);
+      expect(await db.address.count({ where: { userId: f.user.id } })).toBe(1);
+      expect(await db.address.findFirst({ where: { userId: f.user.id } })).toMatchObject({ city: 'Москва', street: 'Сохранённая', house: '5', isDefault: true });
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+      expect((await cart.get(f.user.id)).revision).toBe(before.revision);
+    });
+    it('rejects foreign addresses and stale edits against a concurrently changed saved address', async () => {
+      const f = await fixture(), other = await fixture();
+      const foreign = await db.address.create({ data: { userId: other.user.id, label: 'Чужой', city: 'Москва', street: 'Чужая', house: '1' } });
+      let state = await checkout.receiving(f.actor);
+      state = await checkout.chooseReceiving(f.actor, { kind: 'receive', revision: state.id, choice: 'delivery' });
+      await expect(checkout.chooseReceiving(f.actor, { kind: 'receive', revision: state.id, choice: 'view', value: foreign.id })).rejects.toThrow();
+      const own = await db.address.create({ data: { userId: f.user.id, label: 'Дом', city: 'Москва', street: 'Своя', house: '2', isDefault: true } });
+      state = await checkout.chooseReceiving(f.actor, { kind: 'receive', revision: state.id, choice: 'view', value: own.id });
+      await db.address.update({ where: { id: own.id }, data: { street: 'Изменено на сайте', updatedAt: new Date(own.updatedAt.getTime() + 1000) } });
+      await expect(checkout.chooseReceiving(f.actor, { kind: 'receive', revision: state.id, choice: 'use' })).rejects.toThrow();
+      expect((await db.address.findUniqueOrThrow({ where: { id: own.id } })).street).toBe('Изменено на сайте');
+      expect(await db.order.count({ where: { userId: f.user.id } })).toBe(0);
+    });
     it('reuses only owned saved address and prefers own account contact over verified Telegram defaults', async () => {
       const f = await fixture();
       await db.user.update({
@@ -640,7 +950,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
         cb(f.telegramId, customerView('w', o.publicId)),
       );
       await started;
-      await bot().handle(text(f.telegramId, '/cancel'));
+      // Simulate cancellation by a second process while delivery is in flight.
+      await db.customerTelegramSession.deleteMany({ where: { identityId: f.identity.id } });
       release(Response.json({ ok: true, result: { message_id: 98765 } }));
       await opening;
       expect(
@@ -684,7 +995,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         .toEqual(['cancel', 'menu']);
       await bot().handle(text(f.telegramId, '/menu'));
       expect(await db.customerTelegramSession.findUnique({ where: { identityId: f.identity.id } })).toBeNull();
-      const menu = sent().findLast(message => message.text?.startsWith('Привет,'));
+      const menu = sent().findLast(message => message.text?.startsWith('KorzinaMarket'));
       expect(menu?.reply_markup?.inline_keyboard?.flat().map(button => button.callback_data))
         .toEqual(expect.arrayContaining(['catalog', 'cart', 'orders', 'help']));
       await bot().handle(text(f.telegramId, '-', pending.promptMessageId!));
@@ -854,7 +1165,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await bot().handle(text(f.telegramId, '/help'));
       await bot().handle(cb(f.telegramId, shoppingData('l', f.category.id, 0)));
       await bot().handle(cb(f.telegramId, shoppingData('v', f.product.id, f.product.min)));
-      const preview = sent().find(message => message.text?.includes('Для корзины и оформления подтвердите'));
+      const preview = sent().find(message => message.text?.includes('Для покупок подтвердите'));
       expect(preview?.text).toContain('500 г');
       expect(preview?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data === 'verify_phone')).toBe(true);
       expect(preview?.reply_markup?.inline_keyboard?.flat().some(button => button.callback_data?.startsWith('s:a:'))).toBe(false);
@@ -920,15 +1231,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await bot().handle(
         cb(f.telegramId, shoppingData('v', f.product.id, f.product.min)),
       );
-      const screen = sent().find((x) => x.text?.includes('Добавить ещё:'));
+      const screen = sent().find((x) => x.text?.includes('В корзине:'));
       expect(screen?.text).toContain('500 г');
-      expect(screen?.reply_markup?.inline_keyboard?.flat().find(button => button.text === 'Фото и описание')?.web_app?.url)
-        .toBe('https://shop.example/telegram?returnTo=' + encodeURIComponent('/product/' + f.product.slug));
+      const details = screen?.reply_markup?.inline_keyboard?.flat().find(button => button.text === '📷 Фото и описание');
+      expect(shoppingAction(details?.callback_data ?? '')).toMatchObject({ kind: 'details', productId: f.product.id });
       expect(
         screen?.reply_markup?.inline_keyboard
           ?.flat()
           .some(
-            (b) => b.callback_data === shoppingData('v', f.product.id, 1000),
+            (b) => {
+              const action = shoppingAction(b.callback_data ?? '');
+              return action?.kind === 'adjust' && action.productId === f.product.id && action.delta === 500;
+            },
           ),
       ).toBe(true);
       await db.category.update({
@@ -1020,11 +1334,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
       });
       const first = bot().handle(text(f.telegramId, '/resume'));
       await started;
-      await bot().handle(text(f.telegramId, '/resume'));
-      const current = await session(f);
+      const second = bot().handle(text(f.telegramId, '/resume'));
       release(Response.json({ ok: true, result: { message_id: 76543 } }));
-      await first;
-      expect(await session(f)).toEqual(current);
+      await Promise.all([first, second]);
+      expect((await session(f)).promptMessageId).not.toBe(76543);
       await expect(
         checkout.reply(f.actor, '-', 76543),
       ).rejects.toThrow();

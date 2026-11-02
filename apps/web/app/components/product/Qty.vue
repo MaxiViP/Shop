@@ -4,13 +4,13 @@
       icon="i-lucide-minus"
       variant="soft"
       color="neutral"
-      :disabled="decreased === null || decreased === value"
+      :disabled="disabled || decreased === null || decreased === value"
       aria-label="Уменьшить"
       @click="dec"
     />
 
     <span class="qty__value">
-      {{ label }}
+      <slot>{{ label }}</slot>
     </span>
 
     <UButton
@@ -18,7 +18,7 @@
       variant="soft"
       color="neutral"
       aria-label="Увеличить"
-      :disabled="increased === null"
+      :disabled="disabled || removeOnly || increased === null"
       @click="inc"
     />
   </div>
@@ -28,25 +28,30 @@
 import type { ProductListItem } from "~/types/product";
 import { qtyText } from "~/utils/qty";
 import { manualQuantity } from "~/utils/assembly";
-import { validCartQty } from '~/utils/cart';
+import { previousCartQty, validCartQty } from '~/utils/cart';
 
-const { product } = defineProps<{
+const { product, removable, disabled, removeOnly } = defineProps<{
   product: ProductListItem;
+  removable?: boolean;
+  disabled?: boolean;
+  removeOnly?: boolean;
 }>();
 
 const value = defineModel<number>({ required: true });
-const decreased = computed(() => manualQuantity(value.value, product, -1));
+const decreased = computed(() => removable
+  ? removeOnly ? 0 : previousCartQty(value.value, product) ?? 0
+  : manualQuantity(value.value, product, -1));
 const increased = computed(() => {
   const next = manualQuantity(value.value, product, 1);
   return next !== null && validCartQty(next, product) ? next : null;
 });
 
 function dec() {
-  if (decreased.value !== null) value.value = decreased.value;
+  if (!disabled && decreased.value !== null) value.value = decreased.value;
 }
 
 function inc() {
-  if (increased.value !== null) value.value = increased.value;
+  if (!disabled && !removeOnly && increased.value !== null) value.value = increased.value;
 }
 
 const label = computed(() => qtyText(product.unit, value.value, product));
