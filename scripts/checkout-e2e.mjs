@@ -5,6 +5,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { mkdir, symlink } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { devNull } from 'node:os';
 import { startWeb } from '../apps/web/test/browser.mjs';
 
 const root = resolve(import.meta.dirname, '..');
@@ -12,10 +13,10 @@ const artifacts = resolve(root, 'work/checkout/artifacts');
 await mkdir(artifacts, { recursive: true });
 const log = createWriteStream(resolve(artifacts, 'runner.log'));
 // Do not pass inherited database/notification/provider credentials to the test server.
-const environment = Object.fromEntries(['PATH', 'HOME', 'TMPDIR', 'SYSTEMROOT', 'HTTP_PROXY',
+const environment = Object.fromEntries(['PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP', 'SYSTEMROOT', 'HTTP_PROXY',
   'HTTPS_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'COREPACK_HOME',
   'PNPM_HOME', 'CI'].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]]));
-Object.assign(environment, { NODE_ENV: 'test', DOTENV_CONFIG_PATH: '/dev/null',
+Object.assign(environment, { NODE_ENV: 'test', DOTENV_CONFIG_PATH: devNull,
   AUTH_SECRET: randomBytes(32).toString('hex'), OTP_DELIVERY_MODE: 'DEV',
   ORDER_SMS_ENABLED: 'false', TEST_PHONE_AUTH_ENABLED: 'false' });
 
@@ -23,7 +24,14 @@ const dockerArgs = ['--host=unix:///var/run/docker.sock'];
 const dockerEnv = { ...process.env };
 for (const key of ['DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH']) delete dockerEnv[key];
 async function run(command, args, options = {}) {
-  const child = spawn(command, args, { cwd: root, env: environment, ...options, stdio: ['ignore', 'pipe', 'pipe'] });
+  if (command === 'pnpm') {
+    // Execute the same pnpm as the parent script, including Windows .cmd installs,
+    // without invoking a shell or changing argument quoting.
+    assert.ok(process.env.npm_execpath, 'Run checkout E2E with pnpm test:checkout');
+    args = [process.env.npm_execpath, ...args];
+    command = process.execPath;
+  }
+  const child = spawn(command, args, { cwd: root, env: environment, windowsHide: true, ...options, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdout.pipe(log, { end: false });
   child.stderr.pipe(log, { end: false });
   let output = '';
@@ -89,7 +97,7 @@ try {
   await run('pnpm', ['--filter', 'api', 'exec', 'prisma', 'generate', '--config', 'prisma7.config.ts']);
   await run('pnpm', ['--filter', 'api', 'exec', 'tsc', '-p', 'tsconfig.checkout.json']);
   await mkdir(resolve(root, 'work/checkout/api'), { recursive: true });
-  try { await symlink(resolve(root, 'apps/api/node_modules'), resolve(root, 'work/checkout/api/node_modules'), 'dir'); }
+  try { await symlink(resolve(root, 'apps/api/node_modules'), resolve(root, 'work/checkout/api/node_modules'), process.platform === 'win32' ? 'junction' : 'dir'); }
   catch (error) { if (error.code !== 'EEXIST') throw error; }
   // Emitted ESM must stay ESM even though the root package has no type field.
   const { writeFile } = await import('node:fs/promises');
