@@ -39,6 +39,7 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
   let connection: pg.Client, db: PrismaClient, app: INestApplication<Server>;
   let created = false, userId: number, adminId: number;
   let oldProducts: Record<string, unknown>[], oldItems: Record<string, unknown>[];
+  let ownershipUpdatedAt: Date;
   const http = () => request(app.getHttpServer());
   const cookie = (role: 'USER' | 'ADMIN') => `${SID}=${role}`;
   const slugs = marketProducts.map(row => row.slug);
@@ -68,7 +69,23 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
         oldProducts = (await connection.query<Record<string, unknown>>('SELECT * FROM "Product" ORDER BY id')).rows;
         oldItems = (await connection.query<Record<string, unknown>>('SELECT * FROM "OrderItem" ORDER BY id')).rows;
       }
-      await connection.query(await readFile(join(root, entry.name, 'migration.sql'), 'utf8'));
+      const sql = await readFile(join(root, entry.name, 'migration.sql'), 'utf8');
+      if (entry.name === '20261018120000_point_owners') {
+        // CURRENT_TIMESTAMP is fixed within the migration transaction, including
+        // the intended ownership update. Compare its exact stored precision.
+        await connection.query('BEGIN');
+        try {
+          const result = await connection.query<{ updatedAt: Date }>('SELECT CURRENT_TIMESTAMP::timestamp(3) AS "updatedAt"');
+          ownershipUpdatedAt = result.rows[0]!.updatedAt;
+          await connection.query(sql);
+          await connection.query('COMMIT');
+        } catch (error) {
+          await connection.query('ROLLBACK');
+          throw error;
+        }
+      } else {
+        await connection.query(sql);
+      }
     }
     db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL,
       options: `-c search_path=${schema}` }, { schema }) });
@@ -107,8 +124,9 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
 
   it('migrates nullable product fields without changing seller prices or historical orders', async () => {
     const ourPoint = await db.marketPoint.findFirstOrThrow({ where: { isOurPoint: true } });
+    expect(ownershipUpdatedAt.getTime()).toBeGreaterThan(new Date('2026-10-05').getTime());
     expect((await connection.query('SELECT * FROM "Product" ORDER BY id')).rows).toEqual(oldProducts.map(row => ({
-      ...row, marketPointId: ourPoint.id, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
+      ...row, updatedAt: ownershipUpdatedAt, marketPointId: ourPoint.id, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
       isSeasonal: false, isHit: false, hitMode: 'AUTO', seasonalStartsAt: null, seasonalEndsAt: null,
       seasonalMode: 'OFF', seasonTemplateId: null, hitOrders: 0, hitSoldUnits: '0.000', hitRank: null, serviceMarkupPercent: 10,
       saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null,
