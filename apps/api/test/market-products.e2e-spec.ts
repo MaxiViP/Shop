@@ -106,10 +106,11 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
   });
 
   it('migrates nullable product fields without changing seller prices or historical orders', async () => {
+    const ourPoint = await db.marketPoint.findFirstOrThrow({ where: { isOurPoint: true } });
     expect((await connection.query('SELECT * FROM "Product" ORDER BY id')).rows).toEqual(oldProducts.map(row => ({
-      ...row, marketPointId: null, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
+      ...row, marketPointId: ourPoint.id, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
       isSeasonal: false, isHit: false, hitMode: 'AUTO', seasonalStartsAt: null, seasonalEndsAt: null,
-      seasonalMode: 'OFF', seasonTemplateId: null, hitOrders: 0, hitSoldUnits: '0.000', hitRank: null,
+      seasonalMode: 'OFF', seasonTemplateId: null, hitOrders: 0, hitSoldUnits: '0.000', hitRank: null, serviceMarkupPercent: 10,
       saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null,
       normalizedPrice: (Math.floor((Number(row.price) * 110 + 50) / 100) * (row.unit === 'GRAM' ? 1000 : 1) / Number(row.priceQty)).toFixed(12),
     })));
@@ -141,7 +142,7 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
       await expect(importMarketProducts(db, false)).rejects.toThrow('Не найдены MarketPoint');
       expect(await db.category.count()).toBe(3);
       expect(await db.product.count()).toBe(2);
-      expect(await db.marketPoint.count()).toBe(59);
+      expect(await db.marketPoint.count()).toBe(60);
     } finally { await db.marketPoint.create({ data: point }); }
   });
 
@@ -166,7 +167,7 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
       expect(row).toMatchObject({ price: source.sellerPrice, unit: source.unit, priceQty: 1, step: 1, min: 1, portionQty: 1,
         sourceUrl: source.sourceUrl, sourceCheckedAt: new Date(sourceCheckedAt), marketPoint: { slug: source.marketPointSlug }, images: [] });
     }
-    expect(await db.marketPoint.count()).toBe(60);
+    expect(await db.marketPoint.count()).toBe(61);
     expect(await db.product.count({ where: { marketPoint: { slug: 'goldfish' } } })).toBe(0);
     expect(await db.product.count({ where: { price: 0 } })).toBe(0);
     expect(await db.category.count()).toBe(10);
@@ -304,7 +305,7 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
     expect(await db.orderItemPriceChange.findFirstOrThrow({ where: { itemId: item.id } }))
       .toMatchObject({ sellerPrice: 25000, previousPrice: 24200, newPrice: 27500 });
     expect((await staff.get(order.id)).items[0]).toMatchObject({ actualSellerPrice: 25000 });
-    await db.product.update({ where: { id: product.id }, data: { price: 30000 } });
+    await db.product.update({ where: { id: product.id }, data: { price: 30000, serviceMarkupPercent: 15 } });
     const original = pricing.customerPrice;
     const changedRate = vi.spyOn(pricing, 'customerPrice').mockImplementation((seller, percent) => original(seller, percent ?? 15));
     try {
