@@ -9,5 +9,7 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.spec.ts'],
+    // Native file fixtures take longer on Windows. Keep Linux CI budgets intact.
+    ...(process.platform === 'win32' ? { maxWorkers: 1, testTimeout: 15000, hookTimeout: 30000 } : {}),
   },
 });
