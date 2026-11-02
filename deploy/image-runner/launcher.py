@@ -189,6 +189,7 @@ def mount_policy(items: list[Mount]) -> dict[str, object]:
     root = mount_at(items, "/")
     storage = mount_at(items, "/storage")
     source = mount_at(items, "/storage/products")
+    source_mount_policy(items)
     require("ro" in root.options, "ROOT_NOT_READONLY")
     require(storage.path == "/storage" and "rw" in storage.options, "MOUNT_UNVERIFIED")
     require(
@@ -469,6 +470,14 @@ def digest(path: Path, maximum: int, expected: object) -> None:
         os.close(fd)
 
 
+def source_mount_policy(items: list[Mount]) -> None:
+    source = mount_at(items, "/storage/products")
+    require(source.path == "/storage/products" and "ro" in source.options,
+            "ORIGINALS_NOT_READONLY")
+    require(not any(item.path != source.path and beneath(item.path, source.path)
+                    for item in items), "SOURCE_NESTED_MOUNT")
+
+
 def storage_policy(uid: int, gid: int) -> None:
     parent = STORAGE.lstat()
     require(parent.st_uid == 0 and parent.st_mode & 0o022 == 0, "STORAGE_PARENT_UNSAFE")
@@ -492,15 +501,26 @@ def storage_policy(uid: int, gid: int) -> None:
             "PRIVATE_ROOT_UNSAFE",
         )
         require(not os.listxattr(path), "STORAGE_ACL_UNVERIFIED")
+    products = STORAGE / "products"
+    require(products.resolve(strict=True) == products and products.is_dir(), "UNSAFE_PATH")
     count = 0
-    with os.scandir(STORAGE / "products") as entries:
+    with os.scandir(products) as entries:
         for entry in entries:
             count += 1
             require(count <= 100000, "SOURCE_SCAN_LIMIT")
-            require(SOURCE.fullmatch(entry.name) is not None, "SOURCE_ALIAS_UNVERIFIED")
             info = entry.stat(follow_symlinks=False)
+            if entry.name == "telegram":
+                path = products / entry.name
+                require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and info.st_gid == 0
+                        and stat.S_IMODE(info.st_mode) == 0o755
+                        and info.st_dev == products.stat().st_dev
+                        and path.resolve(strict=True) == path, "TELEGRAM_ROOT_UNSAFE")
+                require(not os.listxattr(path, follow_symlinks=False), "STORAGE_ACL_UNVERIFIED")
+                continue  # Opaque, read-only legacy media; never descend or modify.
+            require(SOURCE.fullmatch(entry.name) is not None, "SOURCE_ALIAS_UNVERIFIED")
             require(
-                stat.S_ISREG(info.st_mode) and info.st_nlink == 1,
+                stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+                and info.st_dev == products.stat().st_dev,
                 "SOURCE_ALIAS_UNVERIFIED",
             )
 

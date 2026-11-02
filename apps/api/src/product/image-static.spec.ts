@@ -58,6 +58,20 @@ async function readonly<T>(operation: () => Promise<T>) {
 }
 
 describe('read-only variant HTTP namespace', () => {
+  it('preserves existing nested Telegram JPEG URLs beside product WebP', async () => {
+    const directory = join(fixture.sourceRoot, 'telegram');
+    await mkdir(directory);
+    const jpeg = await sharp(fixture.source).jpeg().toBuffer();
+    await writeFile(join(directory, 'existing.jpg'), jpeg);
+    const response = await readonly(() =>
+      http().get('/uploads/products/telegram/existing.jpg').expect(200),
+    );
+    expect(response.headers['content-type']).toMatch(/^image\/jpeg/);
+    expect(response.body).toEqual(jpeg);
+    await readonly(() => http().head('/uploads/products/telegram/existing.jpg').expect(200));
+    await readonly(() => http().get(imageUrl()).expect(200));
+  });
+
   it('serves verified WebP before generic static, with strong immutable caching', async () => {
     const response = await readonly(() =>
       http().get(candidate().url).expect(200),

@@ -1,11 +1,12 @@
 // Fixed-root, read-only discovery inside the same Linux sandbox as the runner.
 // Upload/import keep writing originals only. No queue or HTTP encoder is needed.
-import { mkdtemp, opendir, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import sharp from 'sharp';
 import { ImageStorage } from '../../src/product/image-storage.js';
 import { productImageId } from '../../src/product/image-manifest.js';
 import { dryRun } from './runner.js';
 import { batchSchema, jsonBytes, RunnerError, type Entry } from './model.js';
+import { sourceNames } from './discovery.js';
 
 sharp.concurrency(1);
 sharp.cache({ memory: 32, files: 0, items: 50 });
@@ -23,13 +24,7 @@ const roots = {
 const storage = await ImageStorage.open({
   sourceRoot: roots.sourceRoot, publicRoot: roots.variantsRoot, stateRoot: roots.stateRoot,
 });
-const names: string[] = [];
-for await (const file of await opendir(roots.sourceRoot)) {
-  if (names.length >= 100_000) throw new RunnerError('SOURCE_SCAN_LIMIT');
-  productImageId('/uploads/products/' + file.name);
-  names.push(file.name);
-}
-names.sort();
+const names = await sourceNames(roots.sourceRoot);
 const pending: Entry[] = [];
 let next = '', scanned = 0;
 for (const name of names) {

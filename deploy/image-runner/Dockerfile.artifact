@@ -17,10 +17,11 @@ COPY apps/api/ apps/api/
 # Generate code without a network or a real database address.
 RUN --network=none cd apps/api && DATABASE_URL=postgresql://fixture:fixture@127.0.0.1:1/forbidden \
     pnpm exec prisma generate --config prisma7.config.ts
-RUN --network=none pnpm --filter api exec tsc --noEmit -p tsconfig.build.json \
+RUN --network=none pnpm --filter api typecheck \
     && pnpm --filter api lint && pnpm --filter api build
 RUN --network=none cd apps/api && DOTENV_CONFIG_PATH=/dev/null pnpm exec vitest run \
     src/product/image-registry.spec.ts src/product/image-static.spec.ts src/admin/images-upload.spec.ts \
+    data/product-image-production/discovery.spec.ts \
     --reporter=verbose --reporter=json --outputFile.json=/source/linux-tests.json
 COPY deploy/image-runner/ deploy/image-runner/
 COPY source.json source.json
