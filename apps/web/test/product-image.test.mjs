@@ -49,13 +49,16 @@ test('deduplicates equal actual widths instead of using file bounds as descripto
   assert.equal(attrs(value).srcset, asset(source) + ' 1w');
 });
 
-test('portrait actual widths and contain/compact geometry preserve resolution', () => {
+test('portrait, square and wide photographs retain enough resolution to cover a 4:3 card', () => {
   const value = { ...image(), width: 512, height: 1024,
     variants: { version: 'v1', webp: [candidate(192, 96, 192), candidate(384, 192, 384), candidate(640, 320, 640)] } };
   assert.match(attrs(value).srcset, /96w, .*192w, .*320w, .*512w/);
-  assert.match(attrs(value).sizes, /\* 0\.5\)/);
-  assert.match(attrs(value, 'compact').sizes, /\* 0\.375\)/);
-  assert.match(attrs(image(), 'compact').sizes, /\* 0\.75\)/);
+  assert.equal(attrs(value).sizes, productImageSizes('card'));
+  assert.equal(attrs(value, 'compact').sizes, productImageSizes('card'));
+  assert.equal(attrs(image(), 'compact').sizes, productImageSizes('card'));
+  const wide = { ...image([candidate(192, 192, 96)]), width: 1024, height: 512 };
+  assert.match(attrs(wide).sizes, /\* 1\.5\)/);
+  assert.equal(attrs(wide, 'compact').sizes, attrs(wide).sizes);
   assert.equal(attrs(value, 'thumbnail').sizes, 'calc(3.6rem - 4px)');
   assert.match(attrs({ ...image([candidate(192, 192, 96)]), width: 1024, height: 512 }, 'thumbnail').sizes, /\* 2\)/);
 });
@@ -230,7 +233,7 @@ test('catalog, home and favorites use the shared grid with bounded initial prior
   assert.match(grid, /:data-product-index="start \+ index"/);
   assert.match(card, /:eager-image="eagerImage"/);
   assert.match(grid, /eagerImages && start \+ index < 4/);
-  assert.match(card, /object-fit: contain/);
+  assert.match(card, /object-fit: cover/);
   assert.match(gallery, /context="original"/);
   assert.match(gallery, /loading="lazy"/);
 });

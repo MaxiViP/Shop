@@ -39,6 +39,7 @@ const api = createServer(async (req, res) => {
   if (url.pathname === '/api/__stale-home') { staleSeed = 'next'; res.end('{}'); return; }
   if (url.pathname === '/api/auth/me') body = null;
   else if (url.pathname === '/api/categories') body = categories;
+  else if (url.pathname === '/api/categories/points') body = [{ id: 1, slug: 'our-point', name: 'Наша точка «Овощи и фрукты»', cardColor: '#00c570', isOurPoint: true }];
   else if (url.pathname === '/api/home/slides') body = { serverNow: new Date().toISOString(), validUntil: new Date(Date.now() + 60_000).toISOString(),
     slides: [{ id: 1, content: 'CUSTOM', title: 'Продукты с настоящего рынка', text: 'Выбирайте товары из разных лавок в одном каталоге.',
       eyebrow: 'Прилавки рынка', image: '/images/hero/hero-0.webp', position: 'center', buttonLabel: 'В каталог', to: '/catalog', endsAt: null }] };
@@ -99,13 +100,22 @@ try {
   {
     const fixed=document.querySelector('.categories__toggle'), strip=document.querySelector('.categories__strip'), sort=document.querySelector('.product-sort__toggle');
     const menuBox=fixed.getBoundingClientRect(), stripBox=strip.getBoundingClientRect(), sortBox=sort.getBoundingClientRect();
-    check(menuBox.right<=stripBox.left&&stripBox.right<=sortBox.left,'catalog control order');
+    check(stripBox.left<=menuBox.left&&stripBox.right>=sortBox.right&&menuBox.right<sortBox.left,'floating controls cover the full-width strip');
     check(Math.abs(menuBox.width-sortBox.width)<1&&Math.abs(menuBox.height-sortBox.height)<1&&menuBox.width>=44,'equal icon touch targets');
     check(!fixed.textContent.trim()&&!sort.textContent.trim()&&fixed.getAttribute('aria-label')==='Все категории'&&sort.getAttribute('aria-label')==='Сортировка','icon-only accessible controls');
     check(Math.abs(menuBox.top+menuBox.height/2-sortBox.top-sortBox.height/2)<1,'controls wrapped');
     const fixedX=menuBox.left, sortX=sortBox.left;
-    check(Math.abs(strip.firstElementChild.getBoundingClientRect().left-stripBox.left)<1,'categories not aligned to the left');
+    const stripStyle=getComputedStyle(strip);
+    const safeLeft=stripBox.left+parseFloat(stripStyle.paddingLeft), safeRight=stripBox.right-parseFloat(stripStyle.paddingRight);
+    check(safeLeft>menuBox.right&&safeRight<sortBox.left,'strip reserves room for both controls');
+    check(!document.querySelector('.categories__hint'),'old animated hints removed');
+    check(getComputedStyle(strip.parentElement,'::before').pointerEvents==='none','fades do not block scrolling');
     strip.scrollLeft=strip.scrollWidth;check(Math.abs(fixed.getBoundingClientRect().left-fixedX)<1&&Math.abs(sort.getBoundingClientRect().left-sortX)<1,'controls moved with strip');strip.scrollLeft=0;
+    for(const tab of [strip.lastElementChild,strip.children[1],strip.firstElementChild]) {
+      tab.focus({preventScroll:true});
+      await wait(()=>{const box=tab.getBoundingClientRect();return box.left>=safeLeft-1&&box.right<=safeRight+1;},'focused category clear of floating controls');
+      check(tab.getBoundingClientRect().width<=safeRight-safeLeft+1,'long category fits the visible area');
+    }
     if(!home) {
     const head=document.querySelector('.catalog__head'), crumbs=head.querySelector('.breadcrumbs'), total=head.querySelector('.catalog__total');
     check(crumbs.tagName==='NAV'&&crumbs.querySelector('ol.breadcrumbs__list')&&!crumbs.contains(total),'breadcrumbs semantics');
@@ -117,7 +127,7 @@ try {
     current.textContent='Очень длинное название выбранной категории свежих продуктов';await settle();
     check(document.documentElement.scrollWidth<=document.documentElement.clientWidth&&current.getBoundingClientRect().right<=total.getBoundingClientRect().left,'long breadcrumb overflow');current.textContent=original;
     }
-    fixed.click();await wait(()=>document.querySelector('[role="dialog"]'),'category panel');
+    fixed.focus({preventScroll:true});fixed.click();await wait(()=>document.querySelector('[role="dialog"]'),'category panel');
     const dialog=document.querySelector('[role="dialog"]');
     await wait(()=>document.activeElement===dialog,'category neutral focus');
     check(document.activeElement===dialog,'category dialog focus without keyboard');
@@ -183,11 +193,11 @@ try {
   if(!home&&innerWidth<768) {
     await wait(()=>document.querySelector('.card__add')&&!document.querySelector('.card__add').disabled,'cart restoration');
     document.querySelector('.card__add').click();window.scrollTo(0,700);
-    await wait(()=>document.querySelector('.floating-cart-anchor--visible'),'floating mobile cart');
+    await wait(()=>{const cart=document.querySelector('.floating-cart-anchor .cart-control');return cart&&cart.getBoundingClientRect().width>0&&cart.getBoundingClientRect().bottom<=innerHeight;},'floating mobile cart');
     await settle();const sortBox=document.querySelector('.product-sort__toggle').getBoundingClientRect();
     check(document.querySelector('.product-sort__toggle').contains(document.elementFromPoint(sortBox.left+sortBox.width/2,sortBox.top+sortBox.height/2)),'floating cart covers sorting');
     document.querySelector('.categories__toggle').click();await wait(()=>document.querySelector('[role="dialog"]'),'sheet over cart');
-    const dialog=document.querySelector('[role="dialog"]'), cart=document.querySelector('.floating-cart-anchor');
+    const dialog=document.querySelector('[role="dialog"]'), cart=document.querySelector('.layout__bottom-controls');
     check(Number(getComputedStyle(dialog).zIndex)>Number(getComputedStyle(cart).zIndex),'cart covers category sheet');
     const box=dialog.getBoundingClientRect();check(dialog.contains(document.elementFromPoint(box.left+box.width/2,box.top+40)),'sheet is not topmost');
     document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await wait(()=>!document.querySelector('[role="dialog"]'),'sheet close over cart');
@@ -236,7 +246,7 @@ try {
       window.scrollTo(0,window.scrollY+grid.getBoundingClientRect().top-anchor);
       await wait(()=>activeTab()===label,'active category '+label);
       const strip=document.querySelector('.categories__strip'), tab=strip.querySelector('[aria-current="page"]');
-      await wait(()=>{const outer=strip.getBoundingClientRect(),inner=tab.getBoundingClientRect();return inner.left>=outer.left-1&&inner.right<=outer.right+1},'active tab hidden');
+      await wait(()=>{const outer=strip.getBoundingClientRect(),inner=tab.getBoundingClientRect(),style=getComputedStyle(strip);return inner.left>=outer.left+parseFloat(style.paddingLeft)-1&&inner.right<=outer.right-parseFloat(style.paddingRight)+1},'active tab hidden behind floating controls');
     }
     const count=loaded();
     document.querySelector('.categories a[href*="/catalog/vegetables"]').click();

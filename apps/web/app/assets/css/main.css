@@ -11,10 +11,15 @@
   --section-title: clamp(1.25rem, 1.1rem + 0.65vw, 1.5rem);
   --touch-target: 2.75rem;
   --header-height: 4rem;
+  --search-background: #00c1ff;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
+}
+
+:root.dark {
+  --search-background: #00a5db;
 }
 
 *,

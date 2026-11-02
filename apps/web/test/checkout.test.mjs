@@ -67,6 +67,7 @@ async function fixture(t, authenticated = false, preserveDefault = false) {
     useCartStore: () => cart,
     useCartActions: () => ({
       put: async (p, qty) => cart.put(p, qty),
+      remove: async id => { cart.remove(id); return true; },
       clear: async () => { cart.clear(); return true; },
     }),
     useAuthStore: () => ({ loggedIn: authenticated, user }),
@@ -117,7 +118,7 @@ async function fixture(t, authenticated = false, preserveDefault = false) {
     checkoutErrors, checkoutFieldOrder,
   };
   const setup = new AsyncFunction(...Object.keys(context),
-    executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, errors, shakeFields, selectAddress, selectedAddressId, selectedPhone, choosePhone, onPhoneInput, availablePhones, phoneData, deliveryQuote, deliveryNote };");
+    executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, errors, shakeFields, selectAddress, selectedAddressId, selectedPhone, choosePhone, onPhoneInput, availablePhones, phoneData, deliveryQuote, deliveryNote, removeItem, undoRemoval, lastRemoved };");
   const result = await setup(...Object.values(context));
   Object.assign(result.recipient.value, { name: "Recipient", ...(preserveDefault ? {} : { phone: "+79990000000" }) });
   if (!authenticated) Object.assign(result.recipient.value, { city: "City", street: "Street", house: "10", comment: "Call" });
@@ -539,8 +540,8 @@ test("phone validation and neutral checkout placeholders match backend input sha
   assert.ok(value.phone);
   assert.equal(value.city, "");
   for (const placeholder of ["Введите имя", "+7 (___) ___-__-__", "Название города",
-    "Название улицы", "Номер дома", "Номер квартиры", "Номер подъезда",
-    "Номер этажа", "Код домофона", "Комментарий для курьера"])
+    "Название улицы", "Дом", "Кв.", "Подъезд",
+    "Этаж", "Код", "Комментарий для курьера"])
     assert.ok(page.includes('placeholder="' + placeholder + '"'), placeholder);
   assert.match(page, /prefers-reduced-motion:\s*reduce/);
   assert.match(page, /novalidate @submit\.prevent="submit"/);
@@ -556,4 +557,30 @@ test("invalid saved delivery address opens its fields before checkout error navi
   assert.equal(f.errors.city, "Введите город");
   assert.equal(f.state.requests.length, 0);
   assert.equal(f.cart.count, 1);
+});
+
+test("guest can switch recipient drafts and submit another person's order", async t => {
+  const f = await fixture(t);
+  const originalName = f.self.name;
+  f.recipientMode.value = "other";
+  Object.assign(f.other, { name: "Друг", phone: "+79990000004", city: "Москва", street: "Новая", house: "7" });
+  f.recipientMode.value = "self";
+  assert.equal(f.recipient.value.name, originalName);
+  f.recipientMode.value = "other";
+  await f.submit();
+  assert.equal(f.state.requests[0].body.customerName, "Друг");
+  assert.equal(f.state.requests[0].body.customerPhone, "+79990000004");
+  assert.equal(f.state.requests[0].body.address.street, "Новая");
+  assert.equal(f.state.remembered, false);
+});
+
+test("removing the final item retains its undo draft until the page restores it", async t => {
+  const f = await fixture(t);
+  const item = { ...f.cart.items[0] };
+  await f.removeItem(item);
+  assert.equal(f.cart.count, 0);
+  assert.deepEqual(f.lastRemoved.value, item);
+  await f.undoRemoval();
+  assert.equal(f.cart.qty(item.product.id), item.qty);
+  assert.equal(f.lastRemoved.value, null);
 });

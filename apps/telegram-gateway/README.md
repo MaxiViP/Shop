@@ -34,11 +34,15 @@ GET /health returns only {"ok":true}, including when tokens are absent.
 It does not test Telegram, credentials or the tunnel.
 
 POST /v1/customer/<method> and POST /v1/staff/<method> accept only:
-sendMessage, answerCallbackQuery, editMessageReplyMarkup, editMessageText.
+sendMessage, sendRichMessage, answerCallbackQuery, editMessageReplyMarkup, editMessageText.
 No incoming URL contains a token; no arbitrary destination or method is allowed.
 The gateway has no webhook routes.
 
-JSON object bodies only; 64 KiB byte limit, no compression/file upload.
+JSON object bodies retain their 64 KiB byte limit and reject compression.
+Only sendRichMessage/editMessageText additionally accept bounded multipart:
+2 MiB total, one JPEG photo part up to 1 MiB with a JPEG signature, and only
+chat_id, message_id, rich_message, photo fields without duplicates. The Rich
+document must reference attach://photo. Other methods reject multipart.
 Request/header timeout is 10 seconds, upstream fetch timeout 5 seconds, upstream
 body limit 256 KiB. Each valid configured request gets exactly ONE upstream POST,
 redirect:error, with no retry and no queue. The token is used only in the outbound

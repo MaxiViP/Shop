@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { canReview, extraPage, nextStaffAction, reviewView, staffHelp, workOverview, assemblyProgress, assemblyView, dashboard, issuePage, itemPage, itemView, nextAssemblyItem, staffWeighUrl, type OrderView } from './staff-bot-view.js';
+import { richMessage } from './rich.js';
 
 function fixture(): OrderView {
   return {
@@ -102,9 +103,9 @@ describe('seller actions and received customer decisions', () => {
     order.issues = [{ id: 10, orderItemId: 4, replacementItemId: null, status: 'WAITING_SELLER', resolution: 'REQUEST_REDUCE' }] as OrderView['issues'];
     expect(dashboard(order).text).toContain('Нужно вам: 1');
     expect(buttons(dashboard(order)).some(button => button.callback_data === 's:6:f')).toBe(false);
-    expect(buttons(issuePage(order))).toContainEqual({ text: '❗ Исправить: Виноград', callback_data: 's:6:v:4' });
+    expect(buttons(issuePage(order))).toContainEqual({ text: '❗ Исправить: Виноград', callback_data: 's:6:v:4', style: 'primary' });
     expect(itemView(order, order.items[3]!).text).toContain('покупатель просит уменьшить вес');
-    expect(buttons(itemView(order, order.items[3]!))).toContainEqual({ text: '⚖️ Исправить вес', callback_data: 's:6:r:4' });
+    expect(buttons(itemView(order, order.items[3]!))).toContainEqual({ text: '⚖️ Исправить вес', callback_data: 's:6:r:4', style: 'primary' });
   });
 
   it('makes receipt correction a read-only transition and explains invalidating approval', () => {
@@ -139,10 +140,10 @@ describe('seller actions and received customer decisions', () => {
     ] as OrderView['issues'];
     const view = issuePage(order);
     expect(assemblyProgress(order)).toContain('Нужно вам: 2');
-    expect(view.text).toContain('Покупатель принял замену: Клубника');
-    expect(view.text).toContain('Соберите эту позицию как принятую замену');
+    expect(view.text).not.toContain('Клубника');
+    expect(itemView(order, order.items[1]!).text).toContain('Соберите эту позицию как принятую замену');
     const actions = buttons(view);
-    expect(actions).toContainEqual({ text: '✅ Замена одобрена: Клубника', callback_data: 's:6:v:2' });
+    expect(actions).toContainEqual({ text: '✅ Замена одобрена: Клубника', callback_data: 's:6:v:2', style: 'primary' });
     expect(actions.some(button => button.callback_data === 's:6:v:1')).toBe(false);
     expect(actions.slice(0, 3).map(button => button.callback_data)).toEqual(['s:6:v:2', 's:6:v:3', 's:6:v:4']);
     expect(order.issues[1]!.status).toBe('RESOLVED');
@@ -250,6 +251,19 @@ function premiumFixture(): OrderView {
 }
 
 describe('STAFF clear actions, reviews and bounded pages', () => {
+  it('distinguishes requested quantities from confirmed actual weight and cost in Rich item details', () => {
+    const order = premiumFixture();
+    const data = JSON.stringify(richMessage(dashboard(order)));
+    expect(data).toContain('Виноград\\nЗаказано: 500 г · собран\\nСобрано: 524 г\\nФактически за товар: 167,68 ₽');
+    Object.assign(order.items[3]!, { unit: 'PIECE', priceUnit: 'GRAM', saleModel: 'WHOLE_VARIABLE_WEIGHT',
+      qty: 2, actualQty: 2, actualWeightGrams: 1500, actualTotal: 48000 });
+    const whole = JSON.stringify(richMessage(dashboard(order)));
+    expect(whole).toContain('Заказано: 2 шт. · собран\\nСобрано: 2 шт.\\nФактический вес: 1,5 кг\\nФактически за товар: 480 ₽');
+    Object.assign(order.items[3]!, { status: 'MISSING', actualQty: 0, actualTotal: 0 });
+    const missing = JSON.stringify(richMessage(dashboard(order)));
+    expect(missing).not.toContain('Фактический вес: 1,5 кг');
+    expect(missing).not.toContain('Фактически за товар: 0 ₽');
+  });
   it('prioritizes a received buyer correction over unrelated pending goods', () => {
     expect(nextStaffAction(premiumFixture())).toBe('Далее: исправьте Виноград.');
     const order = premiumFixture();
@@ -296,7 +310,8 @@ describe('STAFF clear actions, reviews and bounded pages', () => {
       status: 'ACTIVE', version: 1, quantity: 1, unitPrice: 100, amount: 100 })) as OrderView['extras'];
     expect(buttons(extraPage(order))).toContainEqual({ text: 'Следующие →', callback_data: 's:6:xl:10' });
     const last = extraPage(order, 10000);
-    expect(last.text).toContain('Доп. позиция 23');
+    expect(last.text).not.toContain('Доп. позиция 23');
+    expect(buttons(last).some(button => button.text.includes('Доп. позиция 23 · 1 × 1 ₽ = 1 ₽'))).toBe(true);
     expect(buttons(last)).toContainEqual({ text: '← Предыдущие', callback_data: 's:6:xl:10' });
     expect(buttons(last).some(button => button.callback_data === 's:6:xl:30')).toBe(false);
   });

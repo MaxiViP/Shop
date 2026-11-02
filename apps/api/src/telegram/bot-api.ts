@@ -1,6 +1,6 @@
 import { customerBotToken, staffBotToken } from './bot-config.js';
 
-const methods = ['sendMessage', 'answerCallbackQuery', 'editMessageReplyMarkup', 'editMessageText'] as const;
+const methods = ['sendMessage', 'sendRichMessage', 'answerCallbackQuery', 'editMessageReplyMarkup', 'editMessageText'] as const;
 export type BotMethod = typeof methods[number];
 
 type DeliveryStatus = 'sent' | 'rejected' | 'blocked' | 'retryable' | 'unknown';
@@ -58,17 +58,24 @@ async function request(
   method: BotMethod,
   payload: object,
   timeout: number,
-): Promise<{ ok: boolean; result?: unknown; failure?: Exclude<DeliveryStatus, 'sent'>; retryAfter?: number; unchanged?: boolean; uneditable?: boolean }> {
+  photo?: Uint8Array | ReadonlyMap<string, Uint8Array>,
+): Promise<{ ok: boolean; result?: unknown; failure?: Exclude<DeliveryStatus, 'sent'>; retryAfter?: number; unchanged?: boolean; uneditable?: boolean; confirmed?: boolean }> {
   if (!token) return { ok: false, failure: 'rejected' };
   const url = destination(token, method);
   if (!url) return { ok: false, failure: 'rejected' };
   try {
+    const form = photo ? new FormData() : null;
+    if (form && photo) {
+      for (const [key, value] of Object.entries(payload)) form.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+      const uploads = photo instanceof Uint8Array ? new Map([['photo', photo]]) : photo;
+      for (const [name, bytes] of uploads) form.set(name, new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' }), name + '.jpg');
+    }
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      ...(form ? {} : { headers: { 'Content-Type': 'application/json' } }),
       redirect: 'error',
       signal: AbortSignal.timeout(timeout),
-      body: JSON.stringify(payload),
+      body: form ?? JSON.stringify(payload),
     });
     if (!response.ok) {
       if (response.status === 429) {
@@ -76,11 +83,11 @@ async function request(
         const body: unknown = await response.json().catch(() => null);
         return { ok: false, failure: 'retryable', retryAfter: retryAfter(body) };
       }
-      if (response.status === 400) {
+      if (response.status === 400 || response.status === 404) {
         const body: unknown = await response.json().catch(() => null);
         const edit = editState(method, body);
         if (edit === 'unchanged') return { ok: true, unchanged: true };
-        return { ok: false, failure: 'rejected', ...(edit === 'uneditable' ? { uneditable: true } : {}) };
+        return { ok: false, failure: 'rejected', confirmed: confirmedRejection(body), ...(edit === 'uneditable' ? { uneditable: true } : {}) };
       }
       await response.body?.cancel();
       return { ok: false, failure: response.status === 403 ? 'blocked' :
@@ -92,14 +99,51 @@ async function request(
       if (code === 429) return { ok: false, failure: 'retryable', retryAfter: retryAfter(body) };
       const edit = editState(method, body);
       if (edit === 'unchanged') return { ok: true, unchanged: true };
-      if (edit === 'uneditable') return { ok: false, failure: 'rejected', uneditable: true };
+      if (edit === 'uneditable') return { ok: false, failure: 'rejected', uneditable: true, confirmed: true };
       return { ok: false, failure: code === 403 ? 'blocked' :
-        typeof code === 'number' && Number.isInteger(code) && code >= 400 && code < 500 ? 'rejected' : 'unknown' };
+        typeof code === 'number' && Number.isInteger(code) && code >= 400 && code < 500 ? 'rejected' : 'unknown', confirmed: confirmedRejection(body) };
     }
     return { ok: true, result: 'result' in body ? body.result : undefined };
   } catch {
     return { ok: false, failure: 'unknown' };
   }
+}
+
+function confirmedRejection(body: unknown): boolean {
+  return Boolean(body && typeof body === 'object' && 'ok' in body && body.ok === false &&
+    'error_code' in body && [400, 404].includes(Number(body.error_code)) &&
+    'description' in body && typeof body.description === 'string');
+}
+export type BotOutcome =
+  | { status: 'sent'; messageId: number; rich?: true; photoFileIds?: string[] }
+  | { status: 'unchanged' }
+  | { status: 'rejected'; confirmed?: boolean; uneditable?: boolean }
+  | { status: 'blocked' | 'unknown' | 'retryable' };
+export async function botExchange(token: string, method: 'sendMessage' | 'sendRichMessage' | 'editMessageText', payload: object, photo?: Uint8Array | ReadonlyMap<string, Uint8Array>): Promise<BotOutcome> {
+  // Uploading a gallery needs a larger bounded window than cached JSON edits.
+  // Leave margin over the gateway's 25s upload timeout so UNKNOWN stays observable.
+  const result = await request(token, method, payload, photo ? 30000 : 7000, photo);
+  if (result.unchanged) return { status: 'unchanged' };
+  if (result.ok) {
+    const messageId = sentMessageId(result.result);
+    const rich = result.result && typeof result.result === 'object' && 'rich_message' in result.result && result.result.rich_message;
+    const photoFileIds = receivedPhotos(rich);
+    return messageId ? { status: 'sent', messageId, ...(rich ? { rich: true as const } : {}), ...(photoFileIds.length ? { photoFileIds } : {}) } : { status: 'unknown' };
+  }
+  return result.failure === 'rejected' ? { status: 'rejected', confirmed: result.confirmed, uneditable: result.uneditable }
+    : { status: result.failure ?? 'unknown' };
+}
+
+function receivedPhotos(rich: unknown): string[] {
+  if (!rich || typeof rich !== 'object' || !('blocks' in rich) || !Array.isArray(rich.blocks)) return [];
+  const ids: string[] = [];
+  for (const block of rich.blocks as unknown[]) {
+    if (block && typeof block === 'object' && 'type' in block && ['collage', 'details'].includes(String(block.type))) { ids.push(...receivedPhotos(block)); continue; }
+    if (!block || typeof block !== 'object' || !('type' in block) || block.type !== 'photo' || !('photo' in block) || !Array.isArray(block.photo)) continue;
+    const largest: unknown = block.photo.at(-1);
+    if (largest && typeof largest === 'object' && 'file_id' in largest && typeof largest.file_id === 'string' && /^[A-Za-z0-9_-]{1,1024}$/.test(largest.file_id)) ids.push(largest.file_id);
+  }
+  return ids;
 }
 
 function sentMessageId(result: unknown): number | null {

@@ -47,8 +47,8 @@ function setup() {
   };
   const telegram = {
     promptStaff: vi.fn<() => Promise<number | null>>(async () => nextPrompt++),
-    sendStaff: vi.fn(async () => {}),
-    editStaff: vi.fn(async () => {}),
+    sendStaff: vi.fn(async () => 44),
+    editStaff: vi.fn(async () => 44),
   };
   const restart = () => new StaffBotFlowService(db, staff as unknown as StaffService,
     telegram as unknown as TelegramService);
@@ -478,7 +478,7 @@ describe('durable STAFF reviews and atomic domain preconditions', () => {
   it.each(reviewCases)('%s renders a read-only review and claims concurrent confirmations once', async (action, method) => {
     const s = setup(); const { payload, code } = await openReview(s, action);
     expect(s.staff[method]).not.toHaveBeenCalled();
-    expect(s.telegram.editStaff).toHaveBeenCalledWith(123, 44, expect.stringContaining('Заказ #6'), expect.any(Object));
+    expect(s.telegram.editStaff).toHaveBeenCalledWith(123, 44, expect.stringContaining('Заказ №6'), expect.any(Object));
     const result = await Promise.all([s.flow.finish(3, actor, 6, action, code), s.flow.finish(3, actor, 6, action, code)]);
     expect(result.sort()).toEqual([false, true]);
     expect(s.staff[method]).toHaveBeenCalledTimes(1);

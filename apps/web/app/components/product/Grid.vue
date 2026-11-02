@@ -1,5 +1,5 @@
 <template>
-  <div ref="root" class="grid" :style="{ '--mobile-columns': columns }" :data-windowed="windowed || undefined">
+  <div ref="root" class="grid" :class="{ 'grid--fixed': props.columns !== undefined }" :style="{ '--mobile-columns': columns, '--fixed-columns': props.columns }" :data-windowed="windowed || undefined">
     <slot>
       <div v-if="top" class="grid__spacer" :style="{ height: `${top}px` }" aria-hidden="true" />
       <ProductCard
@@ -18,14 +18,17 @@
 
 <script setup lang="ts">
 import type { ProductListItem } from "~/types/product";
+import type { MobileColumns } from "~/composables/useMobileGrid";
 
 const props = withDefaults(defineProps<{
   items: ProductListItem[];
   compact?: boolean;
+  columns?: MobileColumns;
   windowed?: boolean;
   eagerImages?: boolean;
-}>(), { eagerImages: true });
-const { columns } = useMobileGrid();
+}>(), { eagerImages: true, columns: undefined });
+const { columns: mobileColumns } = useMobileGrid();
+const columns = computed(() => props.columns ?? mobileColumns.value);
 const root = ref<HTMLElement | null>(null);
 const { start, end, top, bottom } = useGridWindow(root, () => props.items.length, () => !!props.windowed);
 const visible = computed(() => props.items.slice(start.value, props.windowed ? end.value : undefined));
@@ -72,4 +75,5 @@ const visible = computed(() => props.items.slice(start.value, props.windowed ? e
     grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 }
+.grid--fixed { grid-template-columns: repeat(var(--fixed-columns, 4), minmax(0, 1fr)); }
 </style>

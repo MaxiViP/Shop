@@ -1,3 +1,4 @@
+import type { QuickShopService } from '../cart/quick-shop.service.js';
 import { ConflictException } from '@nestjs/common';
 import type { DbService } from '../db/db.service.js';
 import type { CartService } from '../cart/cart.service.js';
@@ -6,6 +7,7 @@ import { CustomerShopService } from './customer-shop.service.js';
 import type { CustomerCheckoutService } from './customer-checkout.service.js';
 import { customerShow } from './customer-send.js';
 import { shoppingAction } from './shopping-callback.js';
+import { fallbackHtml, richMessage, bold } from './rich.js';
 
 vi.mock('./customer-send.js', () => ({ customerShow: vi.fn().mockResolvedValue(true), customerPrompt: vi.fn() }));
 const revision = '11111111-1111-4111-8111-111111111111';
@@ -15,7 +17,7 @@ const identity = { userId: 7, id: 3 };
 const product = { id: 11, name: 'Помидоры розовые', slug: 'pink-tomatoes', price: 32000,
   serviceMarkupPercent: 0, priceQty: 1000, unit: 'GRAM', priceUnit: 'GRAM',
   saleModel: 'WEIGHT_LOOSE', min: 250, step: 250, portionQty: 500, estimatedWeightGrams: null as number | null,
-  marketPoint: null, categoryId: 2, active: true };
+  marketPoint: null, categoryId: 2, active: true, images: [] };
 type Basket = Awaited<ReturnType<CartService['get']>>;
 function setup(source = product, qty = 500, lineTotal: number | null = 16000) {
   const basket = { revision, items: [{ productId: source.id, qty, product: source,
@@ -23,12 +25,46 @@ function setup(source = product, qty = 500, lineTotal: number | null = 16000) {
   const db = { product: { findFirst: vi.fn().mockResolvedValue(source) } };
   const cart = { get: vi.fn().mockResolvedValue(basket), change: vi.fn().mockResolvedValue({ ...basket, revision: freshRevision }) };
   const service = new CustomerShopService(db as unknown as DbService, cart as unknown as CartService,
-    {} as CustomerCheckoutService, {} as OrderService);
+    {} as CustomerCheckoutService, {} as OrderService, {} as QuickShopService);
   return { service, db, cart, basket };
 }
 const screen = () => vi.mocked(customerShow).mock.calls.at(-1)![1];
 beforeEach(() => { vi.clearAllMocks(); vi.stubEnv('ORDER_SITE_URL', 'https://shop.example'); });
 afterEach(() => vi.unstubAllEnvs());
+
+it('puts the whole discounted cart total last on every page, directly before checkout in Rich and HTML', async () => {
+  const s = setup();
+  const basket = { ...s.basket, items: Array.from({ length: 6 }, (_, index) => ({ ...s.basket.items[0]!, productId: index + 1,
+    product: { ...s.basket.items[0]!.product!, name: 'Товар ' + index } })),
+    subtotal: 60000, goodsTotal: 53999, promo: { code: 'SAVE', discount: 6001 } } as Basket;
+  s.cart.get.mockResolvedValue(basket);
+  for (const page of [0, 1]) {
+    await s.service.basket(target, identity, page);
+    const value = screen(), blocks = richMessage(value).blocks;
+    const total = blocks.findIndex(block => block.type === 'heading' && JSON.stringify(block.text) === JSON.stringify(bold('≈ 539,99 ₽')));
+    expect(total).toBeGreaterThan(0);
+    expect(blocks[total - 1]).toMatchObject({ type: 'heading', size: 3, text: bold('ИТОГО ПРЕДВАРИТЕЛЬНО') });
+    expect(blocks[total]).toMatchObject({ type: 'heading', size: 2 });
+    expect(blocks[total + 1]).toMatchObject({ type: 'buttons', buttons: [{ text: '✅ Оформить заказ' }] });
+    expect(blocks.slice(0, total).some(block => block.type === 'buttons' && block.buttons.some(button => button.text === '✕'))).toBe(true);
+    expect(value.text).toMatch(/^🛒 Ваша корзина\n6 товаров\nСтраница/);
+    expect(value.text.match(/ИТОГО ПРЕДВАРИТЕЛЬНО/g)).toHaveLength(1);
+    expect(value.text).toMatch(/ИТОГО ПРЕДВАРИТЕЛЬНО\n≈ 539,99 ₽$/);
+    expect(value.text).toContain('скидка 60,01 ₽'); expect(value.text).toContain('До скидки: ≈ 600 ₽');
+    expect(fallbackHtml(value.text, value.fallback)).toMatch(/<b>ИТОГО ПРЕДВАРИТЕЛЬНО<\/b>\n<b>≈ 539,99 ₽<\/b>$/);
+    expect(value.keyboard.inline_keyboard[0]).toMatchObject([{ text: '✅ Оформить заказ' }]);
+  }
+});
+it('does not fabricate an unknown total or offer checkout for invalid or empty baskets', async () => {
+  const s = setup();
+  s.cart.get.mockResolvedValueOnce({ ...s.basket, goodsTotal: null, valid: false });
+  await s.service.basket(target, identity);
+  expect(screen().text).toMatch(/ИТОГО ПРЕДВАРИТЕЛЬНО\nпосле взвешивания$/);
+  expect(screen().keyboard.inline_keyboard.flat().some(button => button.text === '✅ Оформить заказ')).toBe(false);
+  s.cart.get.mockResolvedValueOnce({ ...s.basket, items: [], goodsTotal: 0 });
+  await s.service.basket(target, identity);
+  expect(screen().text).not.toContain('ИТОГО'); expect(screen().text).not.toContain('0 ₽');
+});
 
 it('keeps a stale cart quantity in its stored unit and offers removal instead of invalid steps', async () => {
   const s = setup({ ...product, unit: 'PIECE', saleModel: 'WHOLE_VARIABLE_WEIGHT', min: 1, step: 1, portionQty: 1 });
@@ -39,21 +75,23 @@ it('keeps a stale cart quantity in its stored unit and offers removal instead of
   expect(screen().text).toContain('500 г');
   expect(screen().text).not.toContain('500 шт.');
   const buttons = screen().keyboard.inline_keyboard.flat();
-  expect(buttons.some(button => button.text === 'Удалить')).toBe(true);
+  expect(buttons.some(button => button.text === '✕')).toBe(true);
   expect(buttons.some(button => button.text === '+1 шт.')).toBe(false);
 });
 
-it('distinguishes the quantity to add from the current cart and labels configured steps', async () => {
+it('shows acknowledged cart quantity and immediate priced step controls without a quantity draft', async () => {
   const s = setup();
   await s.service.handle(target, identity, { kind: 'product', productId: 11, qty: 250 });
   expect(screen().text).toContain('Цена: 320 ₽ / 1 кг');
-  expect(screen().text).toContain('Добавить ещё: 250 г · ≈ 80 ₽');
+  expect(screen().text).not.toContain('Добавить ещё');
   expect(screen().text).toContain('В корзине этого товара: 500 г · ≈ 160 ₽');
   expect(screen().text).toContain('Вся корзина: 1 поз. · ≈ 160 ₽');
   const buttons = screen().keyboard.inline_keyboard.flat();
-  expect(buttons.map(button => button.text)).toContain('+250 г');
-  expect(buttons.map(button => button.text)).toContain('+500 г · ≈ 160 ₽');
-  expect(buttons.map(button => button.text)).toContain('➕ Добавить 250 г');
+  expect(buttons.map(button => button.text)).toContain('➕ Увеличить');
+  expect(screen().keyboard.inline_keyboard[0]?.map(button => button.text)).toEqual(['➖ Уменьшить', '➕ Увеличить']);
+  expect(fallbackHtml(screen().text, screen().fallback)).toContain('<b>500 г · ≈ 160 ₽</b>');
+  expect(buttons.map(button => button.text)).not.toContain('+500 г · ≈ 160 ₽');
+  expect(buttons.every(button => !button.text.startsWith('➕ Добавить'))).toBe(true);
 });
 
 it('keeps the product open after adding and uses the returned cart revision and quoted total', async () => {
@@ -63,14 +101,14 @@ it('keeps the product open after adding and uses the returned cart revision and 
   await s.service.handle(target, identity, { kind: 'add', productId: 11, qty: 250, revision, quantityUnit: 'GRAM' });
   expect(s.cart.change).toHaveBeenCalledWith(7, revision,
     { kind: 'add', productId: 11, qty: 250, revision, quantityUnit: 'GRAM' });
-  expect(s.cart.get).not.toHaveBeenCalled();
-  expect(screen().text).toContain('✅ Добавлено: +250 г · ≈ 80 ₽');
+  expect(s.cart.get).toHaveBeenCalledWith(7);
+  expect(screen().text).toContain('✅ +250 г · +≈ 80 ₽');
   expect(screen().text).toContain('В корзине этого товара: 750 г · ≈ 240 ₽');
   const adds = screen().keyboard.inline_keyboard.flat().flatMap(button => {
     if (!('callback_data' in button)) return [];
     expect(Buffer.byteLength(button.callback_data)).toBeLessThanOrEqual(64);
     const action = shoppingAction(button.callback_data);
-    return action?.kind === 'add' ? [action] : [];
+    return action?.kind === 'adjust' ? [action] : [];
   });
   expect(adds.length).toBeGreaterThan(0);
   expect(adds.every(action => action.revision === freshRevision && action.quantityUnit === 'GRAM')).toBe(true);
@@ -82,20 +120,20 @@ it('shows whole weighted goods as pieces with a per-kilogram price and no invent
   const s = setup(whole, 1, null);
   await s.service.handle(target, identity, { kind: 'product', productId: 11, qty: 1 });
   expect(screen().text).toContain('Цена: 650 ₽ / 1 кг');
-  expect(screen().text).toContain('Добавить ещё: 1 шт. · после взвешивания');
+  expect(screen().keyboard.inline_keyboard.flat().map(button => button.text)).toContain('➕ Увеличить');
   expect(screen().text).toContain('В корзине этого товара: 1 шт. · после взвешивания');
   expect(screen().text).not.toContain('1 000 шт.');
   expect(screen().text).not.toContain('≈ 0');
   const adds = screen().keyboard.inline_keyboard.flat().flatMap(button =>
     'callback_data' in button ? [shoppingAction(button.callback_data)] : []);
-  expect(adds).toContainEqual({ kind: 'add', productId: 11, qty: 1, revision, quantityUnit: 'PIECE' });
+  expect(adds).toContainEqual({ kind: 'adjust', productId: 11, delta: 1, revision, quantityUnit: 'PIECE', page: 0, origin: 'category' });
 });
 
 it('uses estimated grams for a whole item when a confirmed estimate exists', async () => {
   const s = setup({ ...product, unit: 'PIECE', priceUnit: 'GRAM', saleModel: 'WHOLE_VARIABLE_WEIGHT',
     min: 1, step: 1, portionQty: 1, estimatedWeightGrams: 1500 }, 1, 48000);
   await s.service.handle(target, identity, { kind: 'product', productId: 11, qty: 1 });
-  expect(screen().text).toContain('Добавить ещё: 1 шт. · ≈ 480 ₽');
+  expect(screen().text).toContain('Ожидаемый вес экземпляра: 1,5 кг · ≈ 480 ₽');
 });
 
 it('does not reapply a stale add or display an uncommitted success', async () => {
@@ -107,11 +145,13 @@ it('does not reapply a stale add or display an uncommitted success', async () =>
   expect(customerShow).not.toHaveBeenCalled();
 });
 
-it('labels cart mutations with their weight step and preserves the explicit remove action', async () => {
+it('keeps compact weight information and the explicit remove action without redundant step text', async () => {
   const s = setup();
   await s.service.handle(target, identity, { kind: 'cart' });
   expect(screen().keyboard.inline_keyboard.flat().map(button => button.text))
-    .toEqual(expect.arrayContaining(['−250 г', '+250 г', 'Удалить']));
+    .toEqual(expect.arrayContaining(['−', '+', '✕']));
+  expect(screen().text).toContain('500 г · ≈160 ₽');
+  expect(screen().text).not.toContain('≈ 80 ₽');
 });
 
 it('uses the authoritative cart value in the main menu, including unknown weighted totals', async () => {
@@ -119,6 +159,27 @@ it('uses the authoritative cart value in the main menu, including unknown weight
   expect(await s.service.cartLabel(identity)).toBe('🛒 Корзина · 1 поз. · ≈ 160 ₽');
   s.cart.get.mockResolvedValueOnce({ ...s.basket, goodsTotal: null });
   expect(await s.service.cartLabel(identity)).toBe('🛒 Корзина · 1 поз. · после взвешивания');
+});
+it('shows current unit prices on quick buttons once and retains repeat, paging and direct product context', async () => {
+  const s = setup();
+  const quick = { get: vi.fn().mockResolvedValue({ cart: s.basket, items: Array.from({ length: 9 }, (_, index) => ({
+    product: { ...s.basket.items[0]!.product!, id: index + 10, name: 'Очень длинное название товара 🥬 '.repeat(6), price: 35999 },
+    suggestedQty: 1000, lineTotal: 35999,
+  })), lastOrder: { id: 125 } }) };
+  const service = new CustomerShopService(s.db as unknown as DbService, s.cart as unknown as CartService,
+    {} as CustomerCheckoutService, {} as OrderService, quick as unknown as QuickShopService);
+  await service.handle(target, identity, { kind: 'quick', page: 0 });
+  expect(screen().text).not.toContain('359,99'); expect(screen().text).not.toContain('Очень длинное');
+  const buttons = screen().keyboard.inline_keyboard.flat();
+  const items = buttons.filter(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'open');
+  expect(items).toHaveLength(8); expect(items[0]!.text).toContain('№10 · 359,99 ₽ / 1 кг');
+  expect(items.every(button => button.text.length <= 180)).toBe(true);
+  expect(new Set(items.map(button => button.text)).size).toBe(8);
+  expect(items[0]).toHaveProperty('callback_data', 's:o:a:0:q');
+  expect(buttons.some(button => 'callback_data' in button && shoppingAction(button.callback_data)?.kind === 'repeat')).toBe(true);
+  expect(buttons.some(button => button.text === 'Следующие →')).toBe(true);
+  await service.handle(target, identity, { kind: 'quick', page: 1 });
+  expect(screen().keyboard.inline_keyboard[0]![0]).toHaveProperty('callback_data', 's:o:i:1:q');
 });
 
 it('preserves the original quantity unit when sale terms changed and blocks more additions', async () => {
@@ -158,7 +219,7 @@ it('confirmed clear uses the original authoritative revision and only then retur
   await s.service.handle(target, identity, { kind: 'clearConfirmed', revision });
   expect(s.cart.change).toHaveBeenCalledOnce();
   expect(s.cart.change).toHaveBeenCalledWith(7, revision, { kind: 'clear' });
-  expect(screen().text).toContain('Корзина');
+  expect(screen().text).toContain('Ваша корзина');
 });
 
 it('a rejected confirmed clear is never retried or shown as successful', async () => {

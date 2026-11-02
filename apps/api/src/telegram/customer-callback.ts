@@ -11,6 +11,7 @@ const from = z.object({
 });
 const chat = z.object({ id: actorId, type: z.string() });
 export const customerUpdate = z.object({
+  update_id: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
   message: z.object({
     message_id: messageId, from, chat,
     text: z.string().max(4096).optional(),
@@ -51,6 +52,7 @@ function expand(value: string): string | null {
 }
 export function customerAction(data: string): CustomerAction | null {
   if (Buffer.byteLength(data, 'utf8') > 64) return null;
+  if (data === 'contact') return { kind: 'orders', page: 0 };
   if (data === 'menu' || data === 'current' || data === 'cancel' || data === 'verify_phone') return { kind: data };
   if (data === 'attention') return { kind: 'attention', page: 0 };
   if (data === 'orders') return { kind: 'orders', page: 0 };
