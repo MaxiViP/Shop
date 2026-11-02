@@ -113,7 +113,7 @@ try {
     return { targetId, sessionId, evaluate, async close() { await command('Target.closeTarget', { targetId }); } };
   }
 
-  for (const width of [320, 360, 390, 768, 1024, 1440]) {
+  for (const width of [320, 360, 390, 768, 1024, 1280, 1440]) {
     const html = await (await fetch(web.base)).text(); assert.ok(html.includes(original[0].title) && html.includes('hero__slide'));
     const p = await page('/', width);
     const layout = await p.evaluate(`(async()=>{

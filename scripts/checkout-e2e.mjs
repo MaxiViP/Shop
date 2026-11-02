@@ -6,6 +6,7 @@ import { createWriteStream } from 'node:fs';
 import { mkdir, symlink } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { devNull } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { startWeb } from '../apps/web/test/browser.mjs';
 
 const root = resolve(import.meta.dirname, '..');
@@ -103,7 +104,7 @@ try {
   const { writeFile } = await import('node:fs/promises');
   await writeFile(resolve(root, 'work/checkout/api/package.json'), '{"type":"module"}\n');
   await run('pnpm', ['--filter', 'web', 'build']);
-  server = spawn(process.execPath, ['--import', resolve(root, 'scripts/checkout-network.mjs'),
+  server = spawn(process.execPath, ['--import', pathToFileURL(resolve(root, 'scripts/checkout-network.mjs')).href,
     resolve(root, 'work/checkout/api/test/checkout/server.js')],
   { cwd: resolve(root, 'apps/api'), env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
   server.stdout.pipe(log, { end: false }); server.stderr.pipe(log, { end: false });

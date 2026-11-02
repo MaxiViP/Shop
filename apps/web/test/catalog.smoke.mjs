@@ -316,8 +316,8 @@ try {
   const profile = await mkdtemp(join(artifacts, 'browser-'));
   browser = await openBrowser(profile);
   const command = browser.command;
-  for (const [index, item] of [...[320, 360, 390, 768, 1024, 1440].map(width => ({ width, mode: 'layout', path: '/catalog/fruits' })),
-    ...[320,360,390,768,1024,1440].map(width=>({width,mode:'home',path:'/'})),
+  for (const [index, item] of [...[320, 360, 390, 768, 1024, 1280, 1440].map(width => ({ width, mode: 'layout', path: '/catalog/fruits' })),
+    ...[320,360,390,768,1024,1280,1440].map(width=>({width,mode:'home',path:'/'})),
     ...['price_asc','price_desc','name','newest'].map(sort=>({width:390,mode:'home-sort-'+sort,path:'/'})),
     { width: 390, mode: 'all', path: '/catalog' }, { width: 390, mode: 'home-change', path: '/' }]
     .filter(item => !process.env.CATALOG_SMOKE_WIDTH || item.width === Number(process.env.CATALOG_SMOKE_WIDTH)).entries()) {
