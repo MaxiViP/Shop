@@ -53,6 +53,9 @@ def select_suite(scope: str) -> unittest.TestSuite:
                 "readiness-production": readiness_test.ProductionTests,
             }[scope]
         )
+        if scope == 'readiness-production':
+            for module in ('manage_test', 'storage_test', 'test_native'):
+                suite.addTests(unittest.defaultTestLoader.loadTestsFromName(module))
     elif scope in ("application", "application-api", "application-worker"):
         import application_test
 

@@ -56,9 +56,11 @@ def run(root: Path, manifest: dict[str, object]) -> None:
 
     def fingerprint() -> str:
         data = []
-        for path in sorted((storage / 'products').iterdir()):
+        for path in sorted((storage / 'products').rglob('*')):
             info = path.stat()
-            data.append([path.name, info.st_ino, info.st_mtime_ns, info.st_mode, artifact.sha(path)])
+            data.append([str(path.relative_to(storage)), info.st_ino, info.st_mtime_ns,
+                         info.st_mode, info.st_uid, info.st_gid,
+                         artifact.sha(path) if path.is_file() else None])
         return hashlib.sha256(json.dumps(data).encode()).hexdigest()
 
     def call(*args: str) -> str:
@@ -72,7 +74,36 @@ def run(root: Path, manifest: dict[str, object]) -> None:
         assert child.returncode == 0, child.returncode
         return child.stdout
 
+    telegram = storage / 'products/telegram'
+    telegram.mkdir(mode=0o755)
+    telegram.chmod(0o755)
+    jpeg = subprocess.check_output([
+        'chroot', str(base / 'rootfs'), '/usr/bin/node', '-e',
+        "const sharp=require('/artifact/apps/api/node_modules/sharp');"
+        "sharp({create:{width:960,height:556,channels:3,background:'#5a83ad'}})"
+        ".jpeg().toBuffer().then(b=>process.stdout.write(b))",
+    ], timeout=30)
+    (telegram / 'existing.jpg').write_bytes(jpeg)
     original(first)
+    # Real systemd prepare failures must archive evidence and unload their units.
+    unsupported = storage / 'products/unknown'
+    unsupported.mkdir()
+    baseline = fingerprint()
+    for _ in range(3):
+        child = subprocess.run(['/usr/bin/python3', '-I', str(tools / 'manage.py'),
+                                'batch', '--size', '1', '--image', first],
+                               capture_output=True, text=True, timeout=650)
+        assert child.returncode != 0 and 'PREPARATION_FAILED' in child.stderr
+        assert not list((base / 'requests').iterdir())
+        assert not list(Path('/run/systemd/system').glob('shop-image-prepare-*.service'))
+        assert not application.command('systemctl', 'list-units', '--failed', '--no-legend',
+                                       'shop-image-prepare-*').strip()
+        assert fingerprint() == baseline
+    assert len(list((base / 'preparations').iterdir())) == 3
+    for folder in (base / 'preparations').iterdir():
+        for name, digest in json.loads((folder / 'sha256.json').read_text()).items():
+            assert artifact.sha(folder / name) == digest
+    unsupported.rmdir()  # Only the known fixture object, never Telegram.
     before = fingerprint()
     call('batch', '--size', '1', '--image', first)
     assert fingerprint() == before
@@ -80,6 +111,17 @@ def run(root: Path, manifest: dict[str, object]) -> None:
     assert sorted(item['width'] for item in ready['candidates']) == [192, 384, 640]
     assert all((storage / 'product-variants' / item['url'].removeprefix('/uploads/products/')).is_file()
                for item in ready['candidates'])
+    for item in ready['candidates']:
+        path = storage / 'product-variants' / item['url'].removeprefix('/uploads/products/')
+        decoded = json.loads(subprocess.check_output([
+            'chroot', str(base / 'rootfs'), '/usr/bin/node', '-e',
+            "const sharp=require('/artifact/apps/api/node_modules/sharp');"
+            "const fs=require('node:fs'); const b=fs.readFileSync(0);"
+            "(async()=>{const m=await sharp(b).metadata();"
+            "const d=await sharp(b).raw().toBuffer({resolveWithObject:true});"
+            "console.log(JSON.stringify({format:m.format,width:d.info.width,height:d.info.height}));})();",
+        ], input=path.read_bytes(), timeout=30))
+        assert decoded == {'format': 'webp', 'width': item['width'], 'height': item['height']}
     # New upload/import is discovered without HTTP hooks or a database.
     original(second)
     before = fingerprint()
@@ -97,4 +139,5 @@ def run(root: Path, manifest: dict[str, object]) -> None:
         'webpWidths': [192, 384, 640], 'originalsUnchanged': True,
         'repeatNoWrites': True, 'immutableArtifact': True, 'fenceReleasedAfterQuiescence': True,
         'uid': 997, 'gid': 55001,
+        'telegramPreserved': True, 'prepareFailureRecovery': True, 'realWebpDecoded': True,
     }), flush=True)

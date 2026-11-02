@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 import uuid
+from typing import BinaryIO
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import artifact
@@ -24,6 +25,7 @@ BASE = Path('/var/lib/korzinamarket-image-runner')
 UNIT = Path('/etc/systemd/system/shop-image-runner@.service')
 PIN = UNIT.with_name('shop-image-runner-pin@.target')
 FENCE = Path('/run/lock/korzinamarket-deploy.lock')
+RUNTIME = Path('/run/systemd/system')
 
 
 def command(*args: str, timeout: int = 30) -> str:
@@ -84,27 +86,87 @@ def release(instance: str) -> None:
     print(json.dumps({'released': instance, 'imageLocksUntouched': True}), flush=True)
 
 
+def preparation_body(template: str, token: str, size: int, after: str, image: str | None) -> str:
+    lines = []
+    for line in template.splitlines():
+        if line.startswith('ExecStart='):
+            line = f'ExecStart=/usr/bin/python3 -I -B /opt/image-runner/prepare.py {size} "{after}"'
+            if image:
+                line += f' "{image}"'
+        elif line.startswith('BindReadOnlyPaths=') and (
+            ':/run/image-manager.sock' in line or ':/input/' in line
+        ):
+            continue  # Read-only discovery needs neither apply inputs nor broker.
+        elif line.startswith('FileDescriptorStoreMax='):
+            line = 'FileDescriptorStoreMax=0'
+        elif line.startswith('FileDescriptorStorePreserve='):
+            line = 'FileDescriptorStorePreserve=no'
+        lines.append(line.replace('%i', token))
+    return '\n'.join(lines) + '\nReadOnlyPaths=+/storage\n'
+
+
+def finish_preparation(path: Path, body: bytes, evidence: Path) -> None:
+    """Only this invocation's unit; evidence precedes exact-unit reset/unlink.
+
+    A timeout, unknown cgroup, changed unit or failed evidence write retains the
+    unit for review. No request, image lock, runner pin or FD store is removed.
+    """
+    initial = launcher.show(path.name)
+    if initial.get('ActiveState') not in ('inactive', 'failed'):
+        command('systemctl', 'stop', path.name)
+    state = launcher.show(path.name)
+    launcher.require(state.get('LoadState') == 'loaded' and
+                     state.get('ActiveState') in ('inactive', 'failed') and
+                     state.get('MainPID') == '0' and state.get('NRestarts') == '0' and
+                     state.get('NFileDescriptorStore') == '0', 'PREP_NOT_QUIESCENT')
+    group = state.get('ControlGroup', '')
+    launcher.require(group in ('', f'/system.slice/{path.name}'), 'CGROUP_UNVERIFIED')
+    location = Path('/sys/fs/cgroup/system.slice') / path.name
+    if location.exists():
+        launcher.require('populated 0' in (location / 'cgroup.events').read_text().splitlines()
+                         and not (location / 'cgroup.procs').read_text().strip(), 'PREP_NOT_QUIESCENT')
+    launcher.regular(path, 65536, owner=0)
+    launcher.require(path.read_bytes() == body, 'PREP_UNIT_CHANGED')
+    journal = command('journalctl', '-u', path.name, '-o', 'json', '--no-pager').encode()
+    evidence.mkdir(mode=0o700, parents=True, exist_ok=False)
+    for name, data in (('unit.service', body), ('journal.jsonl', journal),
+                       ('state.json', (json.dumps({'beforeStop': initial, 'afterStop': state},
+                                                sort_keys=True) + '\n').encode())):
+        private(evidence / name, data)
+    checksums = {item.name: artifact.sha(item) for item in evidence.iterdir()}
+    private(evidence / 'sha256.json', (json.dumps(checksums, sort_keys=True) + '\n').encode())
+    # Persist the new evidence directory entries too, before forgetting failure.
+    for parent in (evidence.parent, evidence.parent.parent):
+        fd = os.open(parent, os.O_DIRECTORY | os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    # Successful inactive units can be garbage-collected between manager calls.
+    # Only failed units retain failure state and require an explicit reset.
+    if state.get('ActiveState') == 'failed':
+        command('systemctl', 'reset-failed', path.name)
+    path.unlink()
+    command('systemctl', 'daemon-reload')
+
+
 def batch(size: int, after: str | None, image: str | None = None) -> None:
     # Hold the existing deployment lock during preparation. The supervisor takes
     # it again before apply; its FDSTORE duplicate survives failure/stop/OOM.
-    fence = launcher.acquire_fence(FENCE)
-    try:
+    with os.fdopen(launcher.acquire_fence(FENCE), 'rb') as fence:
         for path in (UNIT, PIN, BASE / 'manifest.json'):
             launcher.regular(path, 16 * 1024 * 1024, owner=0)
         artifact.verify(BASE / 'rootfs', json.loads((BASE / 'manifest.json').read_text()))
-    except BaseException:
-        os.close(fence)
-        raise
+        prepare_batch(size, after, image, fence)
+
+
+def prepare_batch(size: int, after: str | None, image: str | None, fence: BinaryIO) -> None:
     token = str(uuid.uuid4())
     requests = BASE / 'requests'
     requests.mkdir(mode=0o700, exist_ok=True)
     with os.scandir(requests) as entries:
-        for count, _ in enumerate(entries):
+        for count, _ in enumerate(entries, start=1):
             launcher.require(count < 1000, 'CONTROL_LIMIT')
-    temporary = requests / token
-    temporary.mkdir(mode=0o700)
-    for name in ('request.json', 'inventory.jsonl', 'approval.json'):
-        private(temporary / name, b'{}\n')
     cursor = BASE / 'cursor.json'
     if image:
         launcher.require(size == 1 and launcher.SOURCE.fullmatch(image), "INVALID_IMAGE")
@@ -113,22 +175,11 @@ def batch(size: int, after: str | None, image: str | None = None) -> None:
         after = json.loads(cursor.read_text()) if cursor.exists() else ''
     launcher.require(not after or launcher.SOURCE.fullmatch(after), 'INVALID_CURSOR')
     prep = f'shop-image-prepare-{token}.service'
-    template = UNIT.read_text()
-    lines = []
-    for line in template.splitlines():
-        if line.startswith('ExecStart='):
-            line = f'ExecStart=/usr/bin/python3 -I -B /opt/image-runner/prepare.py {size} "{after}"'
-        elif line.startswith('BindReadOnlyPaths=') and line.endswith(':/run/image-manager.sock'):
-            continue
-        if line.startswith("ExecStart=") and image:
-            line += f' "{image}"'
-        lines.append(line.replace('%i', token))
-    body = '\n'.join(lines) + '\nReadOnlyPaths=+/storage\n'
-    prep_path = Path('/run/systemd/system') / prep
-    private(prep_path, body.encode())
+    body = preparation_body(UNIT.read_text(), token, size, after, image).encode()
+    prep_path = RUNTIME / prep
+    private(prep_path, body)
     broker_name = None
     broker_fd = -1
-    finished = False
     try:
         command('systemctl', 'daemon-reload')
         command('systemctl', 'start', prep)
@@ -166,8 +217,7 @@ def batch(size: int, after: str | None, image: str | None = None) -> None:
             broker.bind(instance, target / 'request.json', UNIT, PIN)
             print(json.dumps({'runId': instance, 'approvalSha256': request['approvalSha256'],
                               'batchSize': approval['batchSize']}), flush=True)
-            os.close(fence)
-            fence = -1
+            fence.close()
             command('systemctl', 'start', f'shop-image-runner-pin@{instance}.target')
             completed = wait(f'shop-image-runner@{instance}.service')
             print(command('journalctl', '-u', f'shop-image-runner@{instance}.service',
@@ -181,22 +231,16 @@ def batch(size: int, after: str | None, image: str | None = None) -> None:
             private(new_cursor, json.dumps(report['next']).encode())
             os.replace(new_cursor, cursor)
         print(json.dumps({'next': report['next'], 'scanned': report['scanned']}), flush=True)
-        finished = True
     finally:
-        if fence >= 0:
-            os.close(fence)
-        command('systemctl', 'stop', prep)
-        if broker_name:
-            command('systemctl', 'stop', broker_name)
-        if broker_fd >= 0:
-            os.close(broker_fd)
-        if finished:
-            # Only this call's empty preparation placeholders and stopped unit.
-            # Frozen apply approvals, journals and all image/run locks are retained.
-            for name in ('request.json', 'inventory.jsonl', 'approval.json'):
-                (temporary / name).unlink()
-            temporary.rmdir()
-            prep_path.unlink()
+        try:
+            finish_preparation(prep_path, body, BASE / 'preparations' / token)
+        finally:
+            try:
+                if broker_name:
+                    command('systemctl', 'stop', broker_name)
+            finally:
+                if broker_fd >= 0:
+                    os.close(broker_fd)
 
 
 if __name__ == '__main__':

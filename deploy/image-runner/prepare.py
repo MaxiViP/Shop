@@ -17,6 +17,8 @@ if __name__ == "__main__":
         launcher.require(launcher.SOURCE.fullmatch(sys.argv[3]), "INVALID_IMAGE")
     account = pwd.getpwnam("shop")
     launcher.require(account.pw_uid == 997 and account.pw_gid > 0, "SHOP_IDENTITY_UNVERIFIED")
+    launcher.source_mount_policy(launcher.mounts(Path('/proc/self/mountinfo').read_text()))
+    launcher.storage_policy(account.pw_uid, account.pw_gid)
     result = subprocess.run(
         ["/usr/bin/node", "--import", "tsx", "data/product-image-production/prepare.ts", *sys.argv[1:]],
         cwd="/artifact/apps/api", user=account.pw_uid, group=account.pw_gid,
