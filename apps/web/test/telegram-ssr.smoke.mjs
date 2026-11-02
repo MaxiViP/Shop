@@ -10,6 +10,7 @@ const fixture = createServer((request, response) => {
   const path = new URL(request.url, "http://localhost").pathname;
   const body = path === "/api/categories" ? []
     : path === "/api/products" ? { items: [], total: 0, page: 1, limit: 8, pages: 0 }
+      : path === "/api/home/slides" ? { slides: [], serverNow: new Date().toISOString(), validUntil: new Date(Date.now() + 60000).toISOString() }
       : null;
   response.setHeader("Content-Type", "application/json");
   response.end(JSON.stringify(body));
@@ -50,7 +51,7 @@ try {
 
   async function html(path) {
     const response = await fetch(base + path, { signal: AbortSignal.timeout(10_000) });
-    assert.equal(response.status, 200, path + " HTTP status");
+    assert.equal(response.status, 200, path + " HTTP status; Nitro log: " + startup.slice(-2000));
     return response.text();
   }
 
