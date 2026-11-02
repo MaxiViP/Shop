@@ -4,6 +4,7 @@ import io
 import hashlib
 import uuid
 import json
+import os
 import stat
 from pathlib import Path
 import sys
@@ -111,6 +112,8 @@ class ManageTests(unittest.TestCase):
             (root / 'runner.service').write_text('[Service]\nExecStart=old\n')
             (root / 'pin.target').write_text('fixture')
             (root / 'manifest.json').write_text('{}')
+            for item in ('runner.service', 'pin.target', 'manifest.json'):
+                (root / item).chmod(0o600)
             fence = root / 'fence'
             fence.write_bytes(b'fence inode must survive')
             fence.chmod(0o600)
@@ -136,12 +139,18 @@ class ManageTests(unittest.TestCase):
             def command(*args: str) -> str:
                 commands.append(args)
                 return 'ImageManifestError fixture\n' if args[0] == 'journalctl' else ''
+            check_file = manage.launcher.regular
+            def regular(path: Path, maximum: int, owner: int | None = None):
+                # This synthetic root belongs to the unprivileged CI account.
+                # Keep the real path/type/link/mode checks and flock operations.
+                return check_file(path, maximum, os.geteuid() if owner == 0 else owner)
             with patch.object(manage, 'BASE', root), \
                  patch.object(manage, 'UNIT', root / 'runner.service'), \
                  patch.object(manage, 'PIN', root / 'pin.target'), \
                  patch.object(manage, 'FENCE', fence), \
                  patch.object(manage, 'RUNTIME', runtime), \
                  patch.object(manage.artifact, 'verify'), \
+                 patch.object(manage.launcher, 'regular', side_effect=regular), \
                  patch.object(manage.launcher, 'show', return_value=state), \
                  patch.object(manage, 'wait', return_value={'Result': 'exit-code'}), \
                  patch.object(manage, 'command', side_effect=command), \
