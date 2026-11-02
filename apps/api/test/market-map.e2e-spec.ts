@@ -73,13 +73,15 @@ describe.skipIf(!process.env.DATABASE_URL)('Market map / local PostgreSQL', () =
 
   it('migrates reference data with empty numbers/photos and real relative positions', async () => {
     const seeded = await db.marketPoint.findMany();
-    expect(seeded).toHaveLength(60);
-    expect(seeded.filter(point => point.kind !== 'ENTRY')).toHaveLength(58);
-    expect(new Set(seeded.map(point => point.slug)).size).toBe(60);
-    expect(new Set(seeded.map(point => point.name.trim().toLocaleLowerCase('ru-RU'))).size).toBe(60);
+    expect(seeded).toHaveLength(61);
+    expect(seeded.filter(point => point.kind !== 'ENTRY')).toHaveLength(59);
+    expect(new Set(seeded.map(point => point.slug)).size).toBe(61);
+    expect(new Set(seeded.map(point => point.name.trim().toLocaleLowerCase('ru-RU'))).size).toBe(61);
     expect(seeded.every(point => point.unitNumber === null && point.photoUrl === null
       && point.isPublished && point.floor === 2)).toBe(true);
-    expect(seeded.every(point => point.mapWidth === null && point.mapHeight === null && point.mapColor === null && !point.isOurPoint && point.ourLabel === null)).toBe(true);
+    expect(seeded.filter(point => !point.isOurPoint).every(point => point.mapWidth === null && point.mapHeight === null && point.mapColor === null && point.ourLabel === null)).toBe(true);
+    expect(seeded.filter(point => point.isOurPoint).map(point => ({ slug: point.slug, cardColor: point.cardColor })))
+      .toEqual([{ slug: 'our-vegetables-fruits', cardColor: '#00FF00' }]);
     expect(await db.marketLayout.findUniqueOrThrow({ where: { floor: 2 } })).toMatchObject({ escalator: null });
     const bar = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'fresh-bar' } });
     const batumi = await db.marketPoint.findUniqueOrThrow({ where: { slug: 'batumi' } });
@@ -87,7 +89,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Market map / local PostgreSQL', () =
     expect(bar).toMatchObject({ floor: 2, unitNumber: null, photoUrl: null, isPublished: true });
     expect(bar.mapY).toBeGreaterThan(batumi.mapY);
     const publicPoints = (await admin().get('/api/market-map').expect(200)).body;
-    expect(publicPoints).toHaveLength(60);
+    expect(publicPoints).toHaveLength(61);
     expect(publicPoints.filter((row: { kind: string }) => row.kind === 'ENTRY')).toHaveLength(2);
     expect(await db.marketPoint.findUniqueOrThrow({ where: { slug: 'beri-zaryad' } })).toMatchObject({ kind: 'SERVICE' });
     expect((await admin().get('/api/market-map?floor=3').expect(200)).body).toEqual([]);
@@ -136,7 +138,8 @@ describe.skipIf(!process.env.DATABASE_URL)('Market map / local PostgreSQL', () =
     expect(changed.body).toMatchObject({ unitNumber: 'Д1', mapX: 45.5, mapY: 62 });
     await admin().get('/api/market-map/test-fresh-bar').expect(200);
     const points = (await admin().get('/api/market-map').expect(200)).body as Point[];
-    expect(points[0]?.id).toBe(point.id);
+    expect(points[0]?.slug).toBe('our-vegetables-fruits');
+    expect(points[1]?.id).toBe(point.id);
     expect(points.filter(row => row.id === point.id)).toHaveLength(1);
     await admin().patch(`/api/admin/market-map/points/${point.id}`).set('Cookie', `${SID}=ADMIN`)
       .send({ unitNumber: '', isPublished: false }).expect(200);
