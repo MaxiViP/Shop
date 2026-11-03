@@ -24,7 +24,18 @@
       <span>Способ входа</span>
       <strong>{{ user.role === "ADMIN" ? "Пароль администратора" : "По телефону" }}</strong>
     </div>
-    <div v-if="user.telegram" class="account__row">
+    <div class="account__row">
+      <span>Основной телефон</span>
+      <div class="account__value">
+        <strong v-if="user.phone">{{ user.phone }}</strong>
+        <span v-else class="account__muted">Не указан</span>
+        <UBadge :color="user.phone && user.verifiedAt ? 'success' : 'neutral'" variant="soft">
+          {{ user.phone && user.verifiedAt ? "Подтверждён" : "Не подтверждён" }}
+        </UBadge>
+      </div>
+    </div>
+    <AuthPhoneVerification v-if="user.role === 'USER' && (!user.phone || !user.verifiedAt)" class="account__row" />
+    <div v-if="user.telegram && !user.phone" class="account__row">
       <span>Телефон Telegram</span>
       <div class="account__value">
         <template v-if="user.telegram.phoneNumber">
@@ -35,7 +46,7 @@
             variant="soft"
             icon="i-lucide-badge-check"
           >
-            Подтверждено Telegram
+            Номер из Telegram · подтвердите основной номер
           </UBadge>
         </template>
         <span v-else class="account__muted">Номер Telegram не предоставлен</span>

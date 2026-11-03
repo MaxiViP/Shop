@@ -37,16 +37,16 @@ async function render(changes = {}) {
       : h("span", { "data-avatar-fallback": true }, props.text),
   }));
   app.component("UBadge", defineComponent({ setup: (_, { slots }) => () => h("span", slots.default?.()) }));
+  app.component("AuthPhoneVerification", defineComponent({ setup: () => () => h("button", "Подтвердить основной номер") }));
   return renderToString(app);
 }
 
-test("Telegram profile uses verified Telegram phone as the effective order phone", async () => {
+test("legacy Telegram phone is separate from the unverified primary phone", async () => {
   const html = await render();
-  for (const value of ["Максим", "@max", "Telegram подключен", "Телефон Telegram", "+79991234567", "Подтверждено Telegram"])
+  for (const value of ["Максим", "@max", "Telegram подключен", "Телефон Telegram", "+79991234567", "Основной телефон", "Не подтверждён", "Подтвердить основной номер"])
     assert.ok(html.includes(value), value);
   assert.match(html, /src="https:\/\/example\.test\/avatar\.webp"/);
-  assert.match(html, /Телефон для заказов<\/span><strong>\+79991234567<\/strong>/);
-  assert.ok(!html.includes("Телефон для заказов не указан"));
+  assert.ok(html.includes("Телефон для заказов не указан"));
   assert.ok(!html.includes("telegramUserId"));
 });
 
@@ -72,8 +72,15 @@ test("absent optional metadata has readable avatar and phone fallbacks", async (
 test("unverified Telegram phone never gets the verified badge and remains separate from User.phone", async () => {
   const html = await render({ phone: "+79997654321", telegram: { ...telegram, phoneVerified: false } });
   assert.ok(html.includes("+79997654321"));
-  assert.ok(html.includes("+79991234567"));
+  assert.ok(!html.includes("+79991234567"));
   assert.ok(!html.includes("Подтверждено Telegram"));
+});
+
+test("verified primary phone is used for both account and default order contact", async () => {
+  const html = await render({ phone: "+79997654321", verifiedAt: "2026-11-03T00:00:00Z" });
+  assert.ok(html.includes("Подтверждён"));
+  assert.match(html, /Телефон для заказов<\/span><strong>\+79997654321<\/strong>/);
+  assert.ok(!html.includes("Подтвердить основной номер"));
 });
 
 test("user-chosen name takes precedence and all profile text is escaped", async () => {

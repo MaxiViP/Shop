@@ -53,7 +53,7 @@ test("profile phone editor uses owner API for add/edit/delete/primary without to
   assert.match(profile, /<AuthOrderPhones/);
   assert.match(profile, /:preferred-phone="orderPhoneData\?\.primaryPhone"/);
   assert.equal(value.sourceLabel("ACCOUNT"), "Телефон аккаунта");
-  assert.equal(value.sourceLabel("TELEGRAM"), "Подтверждённый Telegram");
+  assert.equal(value.sourceLabel("TELEGRAM"), "Номер из Telegram");
   assert.match(value.sourceLabel("MANUAL"), /не подтверждён/);
 
   value.draft.value = "+7 999";

@@ -84,7 +84,7 @@ const manualCount = computed(() => props.snapshot?.manualCount ?? 0);
 
 function sourceLabel(source: OrderPhone["source"]) {
   if (source === "ACCOUNT") return "Телефон аккаунта";
-  if (source === "TELEGRAM") return "Подтверждённый Telegram";
+  if (source === "TELEGRAM") return "Номер из Telegram";
   return "Добавлен вручную · не подтверждён";
 }
 

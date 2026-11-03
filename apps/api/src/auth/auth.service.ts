@@ -235,8 +235,10 @@ export class AuthService {
         return { token, user: authUser(user) };
       }
       // Serialize phone attachment for the same account as well as the OTP phone.
-      if (currentUserId)
+      if (currentUserId) {
         await db.$executeRaw`SELECT pg_advisory_xact_lock(704004, ${currentUserId}::integer)`;
+        await db.$queryRaw`SELECT id FROM "User" WHERE id = ${currentUserId} FOR UPDATE`;
+      }
       const owner = currentUserId
         ? await db.user.findUnique({ where: { phone }, select })
         : null;

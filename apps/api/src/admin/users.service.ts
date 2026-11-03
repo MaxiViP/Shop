@@ -21,6 +21,7 @@ const select = {
     select: { marketPointId: true, marketPoint: { select: { name: true } } },
   },
   verifiedAt: true,
+  telegramIdentity: { select: { phoneNumber: true, phoneVerified: true } },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.UserSelect;
@@ -64,6 +65,9 @@ export class AdminUsersService {
   }
   async list(query: UserQuery) {
     const { page, limit, search, role } = query;
+    const digits = search && /^[+\d\s().-]+$/.test(search) ? search.replace(/\D/g, '') : undefined;
+    const phoneSearch = digits?.length === 11 && digits.startsWith('8')
+      ? '7' + digits.slice(1) : digits;
     const where: Prisma.UserWhereInput = {
       ...(role === 'POINT_OWNER'
         ? { ownedPoints: { some: {} } }
@@ -73,7 +77,11 @@ export class AdminUsersService {
       ...(search
         ? {
             OR: [
-              { phone: { contains: search } },
+              { phone: { contains: phoneSearch || search } },
+              { phone: null, telegramIdentity: { is: {
+                phoneVerified: true,
+                phoneNumber: { contains: phoneSearch || search },
+              } } },
               { name: { contains: search, mode: 'insensitive' } },
             ],
           }

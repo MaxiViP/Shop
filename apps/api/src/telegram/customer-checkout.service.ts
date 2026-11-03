@@ -82,7 +82,9 @@ export class CustomerCheckoutService {
         ? receivingPayload.safeParse(previous.payload).data : undefined;
       const user = await db.user.findUniqueOrThrow({
         where: { id: identity.userId },
-        select: { name: true, phone: true, telegramIdentity: { select: { phoneNumber: true, phoneVerified: true } } },
+        select: { name: true, phone: true, orderPhone: true,
+          orderPhones: { select: { phone: true } },
+          telegramIdentity: { select: { phoneNumber: true, phoneVerified: true } } },
       });
       const last = await db.order.findFirst({
         where: { userId: identity.userId, status: { not: 'CANCELED' } },
@@ -96,7 +98,11 @@ export class CustomerCheckoutService {
       const name = orderSchema.shape.customerName.safeParse(user.name);
       let ownPhone: string | undefined;
       try {
-        const value = user.phone || (user.telegramIdentity?.phoneVerified ? user.telegramIdentity.phoneNumber : null);
+        const selected = user.orderPhone;
+        const telegramPhone = user.telegramIdentity?.phoneVerified ? user.telegramIdentity.phoneNumber : null;
+        const available = selected && (selected === user.phone || selected === telegramPhone ||
+          user.orderPhones.some((entry) => entry.phone === selected));
+        const value = available ? selected : user.phone;
         if (value) ownPhone = phone(value);
       } catch { /* Incomplete profile uses the normal PHONE step. */ }
       const data: CheckoutPayload = {

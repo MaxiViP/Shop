@@ -46,13 +46,15 @@ onMounted(async () => {
       const currentUser = await api<User | null>("/auth/me");
       if (stopped) return;
       auth.set(currentUser);
-      if (currentUser) {
+      if (currentUser && !route.query.error) {
         await navigateTo(destination, { replace: true });
         return;
       }
     }
     if (route.query.error) {
-      message.value = "Вход не завершён. Откройте страницу заново из Telegram.";
+      message.value = route.query.error === "phone-conflict"
+        ? apiError({ message: "ACCOUNT_LINK_REQUIRED" })
+        : "Вход не завершён. Откройте страницу заново из Telegram.";
       showFallback.value = true;
       return;
     }

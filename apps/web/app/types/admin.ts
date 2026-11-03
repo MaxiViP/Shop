@@ -68,6 +68,7 @@ export interface AdminUser {
   id: number;
   name: string | null;
   phone: string | null;
+  telegramIdentity: { phoneNumber: string | null; phoneVerified: boolean } | null;
   role: "USER" | "SELLER" | "ADMIN";
   verifiedAt: string | null;
   createdAt: string;

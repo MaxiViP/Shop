@@ -444,7 +444,7 @@ const selectedPhone = ref("");
 const phoneEdited = ref(false);
 function phoneSource(source: OrderPhone["source"]) {
   if (source === "ACCOUNT") return "телефон аккаунта";
-  if (source === "TELEGRAM") return "подтверждённый Telegram";
+  if (source === "TELEGRAM") return "номер из Telegram";
   return "добавлен вручную";
 }
 function choosePhone() {
@@ -534,6 +534,10 @@ watch(() => auth.user?.id, (userId) => {
   phoneEdited.value = false;
   selectedPhone.value = value.phone;
   void refreshAddresses();
+  if (auth.user?.role === "USER") void refreshPhones();
+});
+
+watch(() => auth.user?.phone, () => {
   if (auth.user?.role === "USER") void refreshPhones();
 });
 
