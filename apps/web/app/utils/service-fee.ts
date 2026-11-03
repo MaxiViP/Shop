@@ -6,12 +6,15 @@ export function servicePercent(value: string | number): number | null {
   return percent <= 100 ? percent : null;
 }
 
+export function serviceFeeConflict(cause: unknown): boolean {
+  if (!cause || typeof cause !== 'object') return false;
+  const error = cause as { status?: number; statusCode?: number; response?: { status?: number } };
+  return [error.status, error.statusCode, error.response?.status].includes(409);
+}
+
 export function serviceFeeError(cause: unknown): string {
-  if (cause && typeof cause === 'object') {
-    const error = cause as { status?: number; statusCode?: number; response?: { status?: number } };
-    if ([error.status, error.statusCode, error.response?.status].includes(409)) {
-      return 'Настройки сейчас обновляются или используются при оформлении заказа. Повторите попытку';
-    }
+  if (serviceFeeConflict(cause)) {
+    return 'Настройки сейчас обновляются или используются при оформлении заказа. Повторите попытку';
   }
   return apiError(cause);
 }

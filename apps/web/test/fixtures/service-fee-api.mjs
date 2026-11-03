@@ -59,6 +59,8 @@ export async function serviceFeeApi() {
     await db.product.update({ where: { id: 1 }, data: { marketPointId: point.id } });
     const { DbService } = await load('db/db.service');
     const { AuthService, SID } = await load('auth/auth.service');
+    const { ServiceFeeCtrl } = await load('admin/service-fee.ctrl');
+    const { ServiceFeeService } = await load('admin/service-fee.service');
     const { AdminProductsCtrl } = await load('admin/products.ctrl');
     const { AdminProductsService } = await load('admin/products.service');
     const { SettingsCtrl, PublicSettingsCtrl } = await load('admin/settings.ctrl');
@@ -70,7 +72,8 @@ export async function serviceFeeApi() {
     const images = new ImagesService(db);
     const users = { ADMIN: admin.id, OWNER: owner.id, SELLER: seller.id, OTHER_ADMIN: otherAdmin.id };
     const me = async token => users[token] ? db.user.findUnique({ where: { id: users[token] }, include: { ownedPoints: { select: { marketPointId: true } } } }) : null;
-    const module = await Test.createTestingModule({ controllers: [AdminProductsCtrl, SettingsCtrl, PublicSettingsCtrl, OwnerCtrl, AdminCategoriesCtrl], providers: [
+    const module = await Test.createTestingModule({ controllers: [ServiceFeeCtrl, AdminProductsCtrl, SettingsCtrl, PublicSettingsCtrl, OwnerCtrl, AdminCategoriesCtrl], providers: [
+      { provide: ServiceFeeService, useValue: new ServiceFeeService(db) },
       { provide: DbService, useValue: db }, { provide: AdminProductsService, useValue: new AdminProductsService(db, images) },
       { provide: SettingsService, useValue: new SettingsService(db) }, { provide: ImagesService, useValue: images },
       { provide: AdminCategoriesService, useValue: new AdminCategoriesService(db) }, { provide: AuthService, useValue: { me } },

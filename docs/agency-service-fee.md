@@ -581,3 +581,180 @@ capability управления процентами с backend, не огран
 или production-БД. Можно задать CATALOG_BROWSER_PATH для отдельного Chromium;
 существующий профиль браузера пользователя не используется. Снимки и логи — в Temp,
 секреты и .env в git не добавляются.
+
+## ЭТАП 1.4 — безопасное массовое управление сервисным процентом
+
+Основа: `fd87e8a`, ветка `feat/agency-service-fee`. Операции доступны только
+основному ADMIN через существующий AdminGuard; роль и телефон дополнительно
+проверяются внутри транзакции. Checkout, платежи и Telegram не изменены.
+
+### Bulk API и выборка
+
+- `POST /admin/products/service-fee/bulk/preview` принимает
+  `{ selection, mode: "global" }`. Selection — `{ kind: "ids", ids: [...] }`
+  или `{ kind: "filter", filter: {...} }`. Лимит — 1000 уникальных товаров;
+  пустой выбор, отсутствующие ID и превышение лимита отклоняются.
+- Preview возвращает подписанный `previewToken`, срок действия, общий процент,
+  количество выбранных/изменяемых товаров, серверные цены продавца/покупателя,
+  прежний override/review, будущий режим, разницу в копейках и базисных пунктах.
+  Итоги — сумма цен за указанные единицы товаров, а не сумма заказа.
+  Preview выполняется в READ ONLY / REPEATABLE READ и ничего не записывает.
+- `POST /admin/products/service-fee/bulk/apply` принимает только
+  `{ previewToken, requestId: UUID, confirmed: true }`. Цены клиента не принимаются.
+  Результат содержит requestId, count, changedCount, skippedCount, globalPercent,
+  appliedAt и productIds. Оба POST возвращают HTTP 201 при успехе.
+- `GET /admin/products` поддерживает `serviceFeeMode=global|individual|review`
+  и фильтр эффективного `serviceMarkupPercent`, включая 0. Фильтры поиска,
+  категории, точки, активности и остальных прежних полей общие для списка,
+  count и bulk. Фильтрация выполняется до пагинации; list/count читаются
+  из одного REPEATABLE READ snapshot. Filter selection охватывает весь результат.
+
+В UI отдельный выбор процентов сохраняется между страницами и не смешивается
+с выбором ХИТ. Можно выбрать отмеченные товары, все review, все индивидуальные
+(включая подтверждённый 0%) или весь применённый фильтр. Preview имеет пагинацию
+по 20 строк и обязательное явное подтверждение. По умолчанию ничего не выбрано.
+Ни открытие списка, ни preview, ни миграция не переводят старые 173 товара.
+
+### Устаревший preview и атомарность
+
+HMAC-SHA256 связывает токен с ADMIN, выбранным набором, режимом, nonce,
+сроком действия 10 минут и SHA256 fingerprint. Fingerprint включает настройку
+и её updatedAt, выбранные ID, имена, исходные цены, единицы/priceQty,
+режим, review и updatedAt товаров. При apply сервер повторяет ту же выборку
+и расчёт под блокировками. Изменение состава фильтра, товара или настройки
+(даже изменение и возврат прежнего процента) требует нового подтверждения.
+Устаревший preview возвращает HTTP 409 / SERVICE_FEE_STALE без записи.
+
+Порядок apply: User FOR SHARE NOWAIT, advisory lock requestId без ожидания,
+проверка сохранённого результата, Product EXCLUSIVE NOWAIT, ShopSettings
+FOR UPDATE NOWAIT, проверка fingerprint, обновление, AdminAudit и durable result.
+Циклы ожидания с прежним checkout не добавляются. Занятые блокировки дают 409.
+Ошибка товара, аудита или сохранения результата откатывает всю операцию.
+Цена продавца сохраняется; эффективный процент, nullable override и review
+обновляются вместе; PostgreSQL пересчитывает прежний generated normalizedPrice.
+На каждый изменённый товар создаётся один PRODUCT_MARKUP_CHANGED со старым/новым
+состоянием, ценами, единицами и requestId. Уже глобальные неизменённые строки
+пропускаются без изменения updatedAt и без повторного аудита.
+
+### Потеря ответа после commit
+
+Аддитивная миграция `20261104090000_service_fee_bulk_operation` создаёт только
+ServiceFeeBulkOperation; Product, настройки, заказы и generated expression не меняются.
+UUID requestId — PK; запись связывает ADMIN, hash исходного токена и JSON результата.
+Она фиксируется в одной транзакции с товарами и AdminAudit. Промежуточных записей
+о незавершённых операциях в таблице нет.
+
+При сетевой ошибке UI сохраняет requestId и токен. Повтор идентичного запроса
+возвращает сохранённый результат ДО проверки срока токена и текущих цен:
+повторной записи товаров/аудита нет даже после смены настройки или ключа подписи.
+Другой токен с тем же requestId даёт 409; другой ADMIN не получает результат.
+Одновременный запрос с тем же UUID получает SERVICE_FEE_IN_PROGRESS / 409
+или уже зафиксированный результат. После IN_PROGRESS разрешён явный повтор
+с прежним UUID. После stale нужно получить и подтвердить новый preview.
+Сохранённые результаты нельзя очищать без отдельного решения о сроке идемпотентности.
+
+### Конфигурация и воспроизведение
+
+В production требуется отдельный секрет SERVICE_FEE_PREVIEW_SECRET длиной не менее
+32 байт, одинаковый у всех API-процессов и сохраняемый между перезапусками.
+Его значение хранится только в secrets окружения. Без него preview/apply нового
+запроса закрыты с 503. Уже сохранённый результат можно повторно получить без
+проверки подписи прежним ADMIN. В development/test используется случайный ключ
+процесса; перезапуск требует нового preview, но не отменяет committed requestId.
+
+Новая миграция применяется обычным migrate deploy при отдельно разрешённом
+развёртывании. На этом этапе production не изменялся; feature flags агентского
+checkout не включались, юридическая инфраструктура и ЭТАП 2 не начинались.
+
+Профильные интеграции из apps/api (только SERVICE_FEE_TEST_DATABASE_URL
+с отдельной локальной БД service_fee_test_<32 hex>, без fallback на DATABASE_URL):
+
+```text
+pnpm exec vitest run --config vitest.config.e2e.ts test/service-fee-bulk.e2e-spec.ts test/service-fee-bulk-migration.e2e-spec.ts
+```
+
+Browser smoke из корня после сборки API/web:
+`node apps/web/test/service-fee-bulk.smoke.mjs` с той же отдельной тестовой БД.
+Фикстуры создают уникальные схемы и удаляют только их после завершения;
+логи, скриншоты и сборки остаются вне коммита.
+
+### Финальные проверки ЭТАПА 1.4
+
+Восстановление после разрыва потока: HEAD оставался fd87e8a, итогового коммита
+не было, изменения 1.4 были на диске. Найдены завершённые журналы полного
+unit-прогона: backend 2052 passed / 23 skipped, frontend 472 passed / 0 failed.
+Эти полные прогоны не повторялись. Предыдущий bulk browser smoke также завершился
+успешно; сообщение stream disconnected само по себе не означало сбоя транзакции.
+
+После восстановления исправлено только сжатие шапки длинного bulk preview на
+320 px: шапка/нижние кнопки не сжимаются, текст не заходит под закрытие.
+Smoke дополнен проверкой геометрии заголовка/описания, точного сохранённого
+результата и неизменности всех товаров (включая updatedAt) и AdminAudit при replay.
+
+Завершены на актуальном коде:
+
+- Prisma format, validate и generate.
+- TypeScript, lint и build API и web; отдельная строгая типизация обоих новых
+  e2e-файлов с experimentalDecorators/emitDecoratorMetadata.
+- 34 интеграционных теста (30 bulk + 4 additive migration) на отдельном
+  временном PostgreSQL: 1/10/173 товара, 0%, цены, generated normalizedPrice,
+  поиск/фильтры/count/пагинация, устаревшие настройки и строки, tampering/expiry,
+  права доступа, одинаковые/разные конкурентные UUID, занятые Product/ShopSettings,
+  гонка глобального процента, реальные cart/guest checkout, откат при ошибке
+  AdminAudit и durable result, сохранность истории и SQL-сортировки цен.
+- 20 профильных frontend unit-тестов после исправления modal.
+- Повторный service-fee-bulk.smoke на собранных реальных API/web: commit,
+  искусственная потеря ответа через route.fetch + abort, идентичный повтор,
+  точный возврат durable result, отсутствие повторных Product/AdminAudit,
+  неизменные цены/история; 1/10/173 товара, серверные фильтры, 409 при смене
+  глобального процента, новый preview и повторное подтверждение.
+- Исходные all-preview-320.png, all-preview-1280.png, single-preview-320.png
+  просмотрены. Новые снимки и проверки 320/768/1280 px прошли: заголовки видны,
+  кнопки доступны, горизонтального переполнения страницы/диалога нет;
+  длинный список прокручивается внутри диалога.
+
+Point-grid сравнен с исходным origin/main
+`508463cfade2112f375dca89d46f2c9e0c9cabdc`. У 254 файлов app/public/config/lock
+экспортированного main проверено совпадение содержимого с Git (с нормализацией
+LF/CRLF). На main и на текущей ветке smoke одинаково останавливается при
+2 колонках / 320 px на равенстве высоты карточек: 280.96875 и 289.078125 px;
+короткий заголовок 24.328125 px при line-height 16.224. Массивы всех измерений
+совпадают. Это подтверждённый исходный дефект карточек/ожиданий, не регрессия
+bulk. Ни Card.vue, ни ожидания point-grid в 1.4 не менялись; общий point-grid
+smoke НЕ объявляется успешным. Исправление каталога остаётся отдельной задачей.
+
+Временный PostgreSQL использовался только на localhost:8929. После тестов
+не осталось тестовых схем, других client backends, активных/idle-in-transaction
+или prepared transactions. Созданные smoke API/Nitro закрыты; PostgreSQL оставлен
+работающим, существующие временные файлы не удалены. Заказы/исторические снимки
+сравнены до/после. Старые 173 исключения изменяются только явно подтверждённым
+apply; автоматического перевода нет. Push, merge, deploy не выполнялись.
+
+Для checkout-конкурентных тестов дополнительно задаётся синтетический AUTH_SECRET
+только в окружении тестового процесса. Значения secrets, локальные URL, базы,
+скриншоты и сборки в коммит не включаются.
+
+### Файлы ЭТАПА 1.4
+
+- apps/api/.env.example (только пустой пример нового ключа)
+- apps/api/prisma/schema.prisma
+- apps/api/prisma/migrations/20261104090000_service_fee_bulk_operation/migration.sql
+- apps/api/src/admin/admin.module.ts
+- apps/api/src/admin/product-filter.ts
+- apps/api/src/admin/products.service.ts
+- apps/api/src/admin/schema.ts
+- apps/api/src/admin/service-fee-token.ts
+- apps/api/src/admin/service-fee.ctrl.ts
+- apps/api/src/admin/service-fee.schema.ts
+- apps/api/src/admin/service-fee.service.ts
+- apps/api/src/admin/service-fee.spec.ts
+- apps/api/test/service-fee-bulk-migration.e2e-spec.ts
+- apps/api/test/service-fee-bulk.e2e-spec.ts
+- apps/web/app/components/admin/ServiceFeeBulk.vue
+- apps/web/app/pages/admin/products/index.vue
+- apps/web/app/types/service-fee.ts
+- apps/web/app/utils/service-fee.ts
+- apps/web/test/fixtures/service-fee-api.mjs
+- apps/web/test/service-fee-bulk.smoke.mjs
+- apps/web/test/service-fee-bulk.test.mjs
+- docs/agency-service-fee.md

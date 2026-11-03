@@ -267,14 +267,15 @@ model User {
   issues                OrderIssue[]
   messages              OrderChatMessage[]
   staffAudits           OrderStaffAudit[]
-  priceChanges          OrderItemPriceChange[]   @relation("ItemPriceActor")
-  priceNotices          OrderNotification[]      @relation("StaffPriceRecipient")
-  chatImageRevisions    OrderChatImageRevision[] @relation("ChatImageRevisionActor")
+  priceChanges          OrderItemPriceChange[]    @relation("ItemPriceActor")
+  priceNotices          OrderNotification[]       @relation("StaffPriceRecipient")
+  chatImageRevisions    OrderChatImageRevision[]  @relation("ChatImageRevisionActor")
+  serviceFeeOperations  ServiceFeeBulkOperation[]
   adminAudits           AdminAudit[]
   payouts               PartnerPayout[]
   cart                  Cart?
-  promoCodes            PromoCode[]              @relation("PromoOwner")
-  issuedPromoCodes      PromoCode[]              @relation("PromoIssuer")
+  promoCodes            PromoCode[]               @relation("PromoOwner")
+  issuedPromoCodes      PromoCode[]               @relation("PromoIssuer")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1206,4 +1207,16 @@ model ResearchProductDraft {
   updatedAt DateTime @updatedAt
 
   @@index([datasetId])
+}
+
+// Only committed bulk operations: inserted atomically with Product changes and AdminAudit.
+model ServiceFeeBulkOperation {
+  requestId   String   @id @db.Uuid
+  actorId     Int
+  actor       User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  previewHash String   @db.Char(64)
+  result      Json
+  createdAt   DateTime @default(now())
+
+  @@index([actorId, createdAt])
 }

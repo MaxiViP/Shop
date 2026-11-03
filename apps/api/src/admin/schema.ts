@@ -84,16 +84,20 @@ export const pageSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().max(160).optional(),
 });
-export const productQuery = pageSchema.extend({
+export const productFilters = z.strictObject({
   category: idSchema.optional(),
   marketPoint: idSchema.optional(),
-  serviceMarkupPercent: z.number().int().min(0).max(100).optional(),
+  serviceMarkupPercent: z.coerce.number().int().min(0).max(100).optional(),
+  serviceFeeMode: z.enum(['global', 'individual', 'review']).optional(),
+  search: z.string().trim().max(160).optional(),
   priceStatus: priceStatusSchema.optional(),
   active: z.enum(['true', 'false']).optional(),
   hitMode: z.enum(['AUTO', 'MANUAL', 'OFF']).optional(),
   seasonTemplateId: idSchema.optional(),
   settlementMode: z.enum(['UNSET', 'SHARED_MARKUP', 'NO_MARKUP']).optional(),
 });
+export const productQuery = pageSchema.extend(productFilters.shape);
+export type ProductFilters = z.infer<typeof productFilters>;
 export const userQuery = pageSchema.extend({
   role: z.enum(['USER', 'SELLER', 'ADMIN', 'POINT_OWNER']).optional(),
 });
