@@ -159,6 +159,7 @@ model Product {
   description String?
 
   // Original seller price in kopecks; service markup is calculated on the backend.
+  // Transitional effective value; phase 1.1 does not change pricing writers.
   serviceMarkupPercent Int                @default(10)
   price                Int
   // Customer price per kilogram for GRAM prices, otherwise per one sale unit.
@@ -176,6 +177,10 @@ model Product {
   priceUnit            Unit?
   wholeLabel           String?            @db.VarChar(20)
   estimatedWeightGrams Int?
+
+  // Null selects the global policy when phase 1.2 enables it.
+  serviceMarkupPercentOverride Int?
+  serviceMarkupNeedsReview     Boolean @default(false)
 
   active Boolean @default(true)
   sort   Int     @default(0)
@@ -638,6 +643,8 @@ model Favorite {
 }
 
 model ShopSettings {
+  globalServiceMarkupPercent Int @default(10)
+
   minDeliverySubtotal     Int       @default(300000)
   maxOrderExtraUnitPrice  Int       @default(500000)
   maxOrderExtrasTotal     Int       @default(1000000)

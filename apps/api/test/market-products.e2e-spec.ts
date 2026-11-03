@@ -129,6 +129,7 @@ describe.skipIf(!process.env.DATABASE_URL)('market pricing/import / temporary Po
       ...row, updatedAt: ownershipUpdatedAt, marketPointId: ourPoint.id, sourceUrl: null, sourceCheckedAt: null, priceStatus: 'ESTIMATED',
       isSeasonal: false, isHit: false, hitMode: 'AUTO', seasonalStartsAt: null, seasonalEndsAt: null,
       seasonalMode: 'OFF', seasonTemplateId: null, hitOrders: 0, hitSoldUnits: '0.000', hitRank: null, serviceMarkupPercent: 10,
+      serviceMarkupPercentOverride: 10, serviceMarkupNeedsReview: true,
       saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null,
       normalizedPrice: (Math.floor((Number(row.price) * 110 + 50) / 100) * (row.unit === 'GRAM' ? 1000 : 1) / Number(row.priceQty)).toFixed(12),
     })));
