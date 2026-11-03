@@ -42,6 +42,7 @@ function fixture() {
 }
 
 describe('Point owner permissions', () => {
+  afterEach(() => vi.unstubAllEnvs());
   it('combines buyer, fulfillment and assigned-point capabilities without replacing seller/admin roles', () => {
     expect(isStaff({ role: 'USER' })).toBe(false);
     expect(isStaff({ role: 'USER', ownedPoints: [{ marketPointId: 10 }] })).toBe(true);
@@ -91,6 +92,8 @@ describe('Point owner permissions', () => {
   });
   it('assigns multiple points without changing the independent seller role, and invalidates earlier sessions', async () => {
     const { users, db } = fixture();
+    vi.stubEnv('ADMIN_PHONE','+79990000001');
+    db.user.findUnique.mockResolvedValueOnce({id:1,phone:'+79990000001',role:'ADMIN',ownedPoints:[]});
     await users.points(7, [10, 20], 1);
     expect(db.marketPointOwner.createMany).toHaveBeenCalledWith({ data: [{ userId: 7, marketPointId: 10 }, { userId: 7, marketPointId: 20 }] });
     expect(db.session.deleteMany).toHaveBeenCalledWith({ where: { userId: 7 } });

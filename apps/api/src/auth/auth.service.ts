@@ -21,6 +21,7 @@ import { DbService } from '../db/db.service.js';
 import type { Prisma } from '../db/gen/client.js';
 import { guestTokenHash } from '../common/guest.js';
 import { adminPhone } from './admin.config.js';
+import { verifyAdminPassword } from './admin-password.js';
 import { authUser, authUserSelect } from './auth-user.js';
 import { isStaff, ownershipSelect } from './permissions.js';
 import { otpDeliveryMode } from './otp-delivery.js';
@@ -35,7 +36,8 @@ export const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 export const SID = process.env.NODE_ENV === 'production' ? '__Host-sid' : 'sid';
 
 const testPhoneAuthEnabled = () =>
-  process.env.TEST_PHONE_AUTH_ENABLED === 'true' && otpDeliveryMode() !== 'DEMO';
+  process.env.TEST_PHONE_AUTH_ENABLED === 'true' &&
+  otpDeliveryMode() !== 'DEMO';
 
 @Injectable()
 export class AuthService {
@@ -54,20 +56,22 @@ export class AuthService {
     this.secret = secret;
   }
 
-  async method(value: unknown): Promise<{ method: 'OTP' | 'PASSWORD' | 'TEST_PHONE' }> {
+  async method(
+    value: unknown,
+  ): Promise<{ method: 'OTP' | 'PASSWORD' | 'TEST_PHONE' }> {
     const phone = normalizePhone(value);
     if (phone === adminPhone()) return { method: 'PASSWORD' };
-    if (!testPhoneAuthEnabled()) return { method: 'OTP' };
     const existing = await this.db.user.findUnique({
       where: { phone },
       select: { role: true, ...ownershipSelect },
     });
     return {
-      method: existing?.role === 'ADMIN'
-        ? 'PASSWORD'
-        : existing && isStaff(existing)
-          ? 'OTP'
-          : 'TEST_PHONE',
+      method:
+        existing?.role === 'ADMIN'
+          ? 'PASSWORD'
+          : !testPhoneAuthEnabled() || (existing && isStaff(existing))
+            ? 'OTP'
+            : 'TEST_PHONE',
     };
   }
 
@@ -85,11 +89,18 @@ export class AuthService {
       });
       if (existing && isStaff(existing))
         throw new UnauthorizedException('Этот способ входа недоступен');
-      const user = existing ?? await db.user.create({
-        data: { phone, role: 'USER' },
-        select: authUserSelect,
-      });
-      const token = await this.createSession(db, user.id, previousToken, 'TEST_PHONE');
+      const user =
+        existing ??
+        (await db.user.create({
+          data: { phone, role: 'USER' },
+          select: authUserSelect,
+        }));
+      const token = await this.createSession(
+        db,
+        user.id,
+        previousToken,
+        'TEST_PHONE',
+      );
       return { token, user: authUser(user) };
     });
   }
@@ -109,7 +120,9 @@ export class AuthService {
           select: { role: true, ...ownershipSelect },
         });
         if (existing && isStaff(existing))
-          throw new UnauthorizedException('Демонстрационный вход доступен только покупателю');
+          throw new UnauthorizedException(
+            'Демонстрационный вход доступен только покупателю',
+          );
       }
       const now = Date.now();
       const current = await db.otp.findUnique({ where: { phone } });
@@ -122,9 +135,10 @@ export class AuthService {
       const code = String(randomInt(100000, 1000000));
       const data = {
         id: randomUUID(),
-        codeHash: mode === 'DEMO'
-          ? `${DEMO_OTP_PREFIX}${this.codeHash(phone, code)}`
-          : this.codeHash(phone, code),
+        codeHash:
+          mode === 'DEMO'
+            ? `${DEMO_OTP_PREFIX}${this.codeHash(phone, code)}`
+            : this.codeHash(phone, code),
         attempts: 0,
         expiresAt: new Date(now + OTP_TTL),
         createdAt: new Date(now),
@@ -140,7 +154,10 @@ export class AuthService {
     if (mode === 'DEMO') return { ok: true, demoCode: code };
     if (mode === 'DEV') return { ok: true, devCode: code };
     try {
-      await this.sms.send(phone, `Код KorzinaMarket: ${code}\n\n@${smsHost} #${code}`);
+      await this.sms.send(
+        phone,
+        `Код KorzinaMarket: ${code}\n\n@${smsHost} #${code}`,
+      );
     } catch {
       // Unknown provider outcomes are never retried automatically.
       throw new ServiceUnavailableException('Не удалось отправить код');
@@ -200,12 +217,21 @@ export class AuthService {
         // A publicly displayed OTP proves no phone ownership or account link.
         const existing = await db.user.findUnique({ where: { phone }, select });
         if (existing && isStaff(existing))
-          throw new UnauthorizedException('Демонстрационный вход доступен только покупателю');
-        const user = existing ?? await db.user.create({
-          data: { phone, role: 'USER' },
-          select,
-        });
-        const token = await this.createSession(db, user.id, previousToken, 'DEMO_OTP');
+          throw new UnauthorizedException(
+            'Демонстрационный вход доступен только покупателю',
+          );
+        const user =
+          existing ??
+          (await db.user.create({
+            data: { phone, role: 'USER' },
+            select,
+          }));
+        const token = await this.createSession(
+          db,
+          user.id,
+          previousToken,
+          'DEMO_OTP',
+        );
         return { token, user: authUser(user) };
       }
       // Serialize phone attachment for the same account as well as the OTP phone.
@@ -296,9 +322,11 @@ export class AuthService {
 
   async me(token?: string) {
     // Temporary sessions stop authorizing as soon as test mode is disabled.
-    if (!token ||
+    if (
+      !token ||
       (token.startsWith('tp_') && !testPhoneAuthEnabled()) ||
-      (token.startsWith('do_') && otpDeliveryMode() !== 'DEMO'))
+      (token.startsWith('do_') && otpDeliveryMode() !== 'DEMO')
+    )
       return null;
 
     const tokenHash = this.tokenHash(token);
@@ -312,7 +340,7 @@ export class AuthService {
         lastUsedAt: true,
 
         user: {
-          select: authUserSelect,
+          select: { ...authUserSelect, adminPasswordHash: true },
         },
       },
     });
@@ -329,7 +357,11 @@ export class AuthService {
       return null;
     }
 
-    if ((token.startsWith('tp_') || token.startsWith('do_')) && isStaff(session.user)) return null;
+    if (
+      (token.startsWith('tp_') || token.startsWith('do_')) &&
+      isStaff(session.user)
+    )
+      return null;
     const day = 24 * 60 * 60 * 1000;
 
     if (Date.now() - session.lastUsedAt.getTime() > day) {
@@ -346,7 +378,10 @@ export class AuthService {
 
     if (
       session.user.role === 'ADMIN' &&
-      (!adminPhone() || session.user.phone !== adminPhone())
+      (!adminPhone() ||
+        !session.user.phone ||
+        (session.user.phone !== adminPhone() &&
+          !session.user.adminPasswordHash))
     )
       return null;
     return authUser(session.user);
@@ -369,6 +404,33 @@ export class AuthService {
       /* same credential error */
     }
     const configured = adminPhone();
+    if (configured && phone && phone !== configured) {
+      const candidate = await this.db.user.findUnique({
+        where: { phone },
+        select: { id: true, role: true, adminPasswordHash: true },
+      });
+      const valid = await verifyAdminPassword(
+        password,
+        candidate?.adminPasswordHash,
+      );
+      if (!candidate || candidate.role !== 'ADMIN' || !valid)
+        throw new UnauthorizedException('Неверные данные для входа');
+      return this.db.$transaction(async (db) => {
+        await db.$queryRaw`SELECT id FROM "User" WHERE id = ${candidate.id} FOR SHARE`;
+        const current = await db.user.findUnique({
+          where: { id: candidate.id },
+          select: { ...authUserSelect, adminPasswordHash: true },
+        });
+        if (
+          !current ||
+          current.role !== 'ADMIN' ||
+          current.adminPasswordHash !== candidate.adminPasswordHash
+        )
+          throw new UnauthorizedException('Неверные данные для входа');
+        const token = await this.createSession(db, current.id);
+        return { user: authUser(current), token };
+      });
+    }
     const expected = process.env.ADMIN_PASSWORD;
     const passwordValid = this.equal(
       this.tokenHash(password),
@@ -377,21 +439,18 @@ export class AuthService {
     if (!configured || !expected || phone !== configured || !passwordValid)
       throw new UnauthorizedException('Неверные данные для входа');
     return this.db.$transaction(async (db) => {
-      // Serialize admin bootstrap; old admin sessions must not survive a configured phone change.
+      // Serialize primary-account bootstrap without revoking delegated administrators.
       await db.$executeRaw`SELECT pg_advisory_xact_lock(704001)`;
-      await db.session.deleteMany({
-        where: {
-          user: {
-            role: 'ADMIN',
-            OR: [{ phone: null }, { phone: { not: configured } }],
-          },
-        },
-      });
+      // A former primary account has no delegated credential and must not keep
+      // its old access if the configured primary phone changes.
+      const formerPrimary = {
+        role: 'ADMIN' as const,
+        adminPasswordHash: null,
+        OR: [{ phone: null }, { phone: { not: configured } }],
+      };
+      await db.session.deleteMany({ where: { user: formerPrimary } });
       await db.user.updateMany({
-        where: {
-          role: 'ADMIN',
-          OR: [{ phone: null }, { phone: { not: configured } }],
-        },
+        where: formerPrimary,
         data: { role: 'USER' },
       });
       const existing = await db.user.findUnique({
@@ -417,7 +476,8 @@ export class AuthService {
     previousToken?: string,
     mode?: 'TEST_PHONE' | 'DEMO_OTP',
   ) {
-    const prefix = mode === 'TEST_PHONE' ? 'tp_' : mode === 'DEMO_OTP' ? 'do_' : '';
+    const prefix =
+      mode === 'TEST_PHONE' ? 'tp_' : mode === 'DEMO_OTP' ? 'do_' : '';
     const token = `${prefix}${randomBytes(32).toString('hex')}`;
     if (previousToken)
       await db.session.deleteMany({

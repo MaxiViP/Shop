@@ -11,7 +11,13 @@ import {
 import { AdminGuard } from '../auth/admin.guard.js';
 import { AdminUsersService } from './users.service.js';
 import type { AuthRequest } from '../auth/auth.guard.js';
-import { idSchema, roleSchema, pointOwnersSchema, userQuery, type UserQuery } from './schema.js';
+import {
+  idSchema,
+  roleSchema,
+  pointOwnersSchema,
+  userQuery,
+  type UserQuery,
+} from './schema.js';
 @Controller('admin/users')
 @UseGuards(AdminGuard)
 export class AdminUsersCtrl {
@@ -20,20 +26,29 @@ export class AdminUsersCtrl {
   list(@Query({ schema: userQuery }) query: UserQuery) {
     return this.users.list(query);
   }
+  @Get('permissions')
+  permissions(@Req() request: AuthRequest) {
+    return this.users.permissions(request.user.id);
+  }
   @Get(':id')
   get(@Param('id', { schema: idSchema }) id: number) {
     return this.users.get(id);
   }
   @Patch(':id/points')
-  points(@Param('id', { schema: idSchema }) id: number,
-    @Body({ schema: pointOwnersSchema }) body: { pointIds: number[] }, @Req() request: AuthRequest) {
+  points(
+    @Param('id', { schema: idSchema }) id: number,
+    @Body({ schema: pointOwnersSchema }) body: { pointIds: number[] },
+    @Req() request: AuthRequest,
+  ) {
     return this.users.points(id, body.pointIds, request.user.id);
   }
   @Patch(':id/role')
   role(
     @Param('id', { schema: idSchema }) id: number,
-    @Body({ schema: roleSchema }) body: { role: 'USER' | 'SELLER' },
+    @Body({ schema: roleSchema })
+    body: { role: 'USER' | 'SELLER' | 'ADMIN'; password?: string },
+    @Req() request: AuthRequest,
   ) {
-    return this.users.role(id, body.role);
+    return this.users.role(id, body.role, request.user.id, body.password);
   }
 }

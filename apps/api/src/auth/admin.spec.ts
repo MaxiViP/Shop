@@ -55,13 +55,21 @@ describe('Admin security', () => {
       new AdminGuard(auth as unknown as AuthService).canActivate(context()),
     ).resolves.toBe(true);
   });
-  it('rejects stale ADMIN with another phone and unauthenticated access', async () => {
-    for (const user of [null, { role: 'ADMIN', phone: '+79990000002' }]) {
+  it('rejects unauthenticated access', async () => {
+    for (const user of [null]) {
       const auth = { me: vi.fn().mockResolvedValue(user) };
       await expect(
         new AdminGuard(auth as unknown as AuthService).canActivate(context()),
       ).rejects.toBeInstanceOf(ForbiddenException);
     }
+  });
+  it('accepts a delegated ADMIN resolved from a valid session', async () => {
+    const auth = {
+      me: vi.fn().mockResolvedValue({ role: 'ADMIN', phone: '+79990000002' }),
+    };
+    await expect(
+      new AdminGuard(auth as unknown as AuthService).canActivate(context()),
+    ).resolves.toBe(true);
   });
   it('does not treat missing admin config and null phone as matching credentials', async () => {
     vi.stubEnv('ADMIN_PHONE', '');
@@ -74,7 +82,9 @@ describe('Admin security', () => {
   });
   it('rejects invalid credentials with identical error', async () => {
     vi.stubEnv('ADMIN_PASSWORD', randomBytes(32).toString('hex'));
-    const auth = new AuthService({} as DbService);
+    const auth = new AuthService({
+      user: { findUnique: vi.fn().mockResolvedValue(null) },
+    } as unknown as DbService);
     for (const phone of ['bad', '+79990000001', '+79990000002'])
       await expect(
         auth.adminLogin(phone, randomBytes(32).toString('hex')),
