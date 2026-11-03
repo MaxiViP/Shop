@@ -12,7 +12,7 @@ const slug = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug: латинские буквы, цифры и дефисы');
 const sort = z.number().int().min(-1_000_000).max(1_000_000);
 const qty = z.number().int().positive().max(MAX_QTY);
-export const pricePreviewSchema = z.strictObject({ price: z.number().int().positive().max(100_000_000), serviceMarkupPercent: z.number().int().min(0).max(100).optional() });
+export const pricePreviewSchema = z.strictObject({ price: z.number().int().positive().max(100_000_000), serviceMarkupPercentOverride: z.number().int().min(0).max(100).nullable().optional() });
 export const priceStatusSchema = z.enum(['ESTIMATED', 'SOURCE', 'AUDITED']);
 const productFields = z.strictObject({
   saleChangeConfirmed: z.literal(true).optional(),
@@ -20,7 +20,7 @@ const productFields = z.strictObject({
   slug,
   description: z.string().trim().max(10000).nullable(),
   price: z.number().int().positive().max(100_000_000),
-  serviceMarkupPercent: z.number().int().min(0).max(100).optional(),
+  serviceMarkupPercentOverride: z.number().int().min(0).max(100).nullable().optional(),
   priceStatus: priceStatusSchema.optional(),
   settlementMode: z.enum(['UNSET', 'SHARED_MARKUP', 'NO_MARKUP']).optional(),
   basePrice: z.number().int().positive().max(100_000_000).nullable().optional(),

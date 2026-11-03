@@ -53,6 +53,8 @@ function fixture() {
       count: vi.fn(),
       update: vi.fn(),
     },
+    shopSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue({ globalServiceMarkupPercent: 10 }) },
+    $executeRaw: vi.fn().mockResolvedValue(0),
     $queryRaw: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(),
   };
@@ -117,14 +119,14 @@ describe('Admin products', () => {
   });
   it('edits seller price and metadata without persisting or accumulating the service markup', async () => {
     const local = fixture();
-    let current = { id: 1, ...product, price: 10000, settlementMode: 'UNSET', basePrice: null };
+    let current = { id: 1, ...product, price: 10000, serviceMarkupPercent: 10, serviceMarkupPercentOverride: null, serviceMarkupNeedsReview: false, settlementMode: 'UNSET', basePrice: null };
     local.product.findUnique.mockImplementation(() => current);
     local.product.update.mockImplementation(({ data }: { data: Partial<typeof current> }) => {
       current = { ...current, ...data };
       return current;
     });
     const products = new AdminProductsService(local as unknown as DbService, images as unknown as ImagesService);
-    expect(products.pricing(10000)).toMatchObject({ sellerPrice: 10000, serviceMarkup: 1000, customerPrice: 11000 });
+    expect(await products.pricing(10000)).toMatchObject({ sellerPrice: 10000, serviceMarkup: 1000, customerPrice: 11000 });
     for (let i = 0; i < 3; i++) {
       const saved = await products.update(1, { price: current.price });
       expect(saved).toMatchObject({ price: 10000, sellerPrice: 10000, customerPrice: 11000 });
@@ -135,7 +137,7 @@ describe('Admin products', () => {
     expect(await products.update(1, { price: 22000 })).toMatchObject({ price: 22000, customerPrice: 24200 });
   });
   it('updates and archives product without removing history', async () => {
-    db.product.findUnique.mockResolvedValue(product);
+    db.product.findUnique.mockResolvedValue({ ...product, serviceMarkupPercent: 10, serviceMarkupPercentOverride: null, serviceMarkupNeedsReview: false });
     db.product.update.mockResolvedValue({ ...product, active: false });
     expect(await service.update(1, { active: false })).toMatchObject({
       active: false,
@@ -144,13 +146,13 @@ describe('Admin products', () => {
   });
   it.each([{ step: 300 }, { min: 600 }, { portionQty: 550 }, { portionQty: 0 }])(
     'validates a partial update against the current product: %j', async (patch) => {
-      db.product.findUnique.mockResolvedValue(product);
+      db.product.findUnique.mockResolvedValue({ ...product, serviceMarkupPercent: 10, serviceMarkupPercentOverride: null, serviceMarkupNeedsReview: false });
       await expect(service.update(1, patch)).rejects.toBeInstanceOf(BadRequestException);
       expect(db.product.update).not.toHaveBeenCalled();
     },
   );
   it('accepts a compatible multi-field change in one update', async () => {
-    db.product.findUnique.mockResolvedValue(product);
+    db.product.findUnique.mockResolvedValue({ ...product, serviceMarkupPercent: 10, serviceMarkupPercentOverride: null, serviceMarkupNeedsReview: false });
     const patch = { min: 600, step: 300, portionQty: 900, saleChangeConfirmed: true as const };
     db.product.update.mockResolvedValue({ ...product, ...patch });
     await expect(service.update(1, patch)).resolves.toMatchObject({ min: 600, step: 300, portionQty: 900 });
@@ -158,7 +160,7 @@ describe('Admin products', () => {
     expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
   });
   it('requires explicit confirmation before changing the price base or quantity meaning', async () => {
-    db.product.findUnique.mockResolvedValue(product);
+    db.product.findUnique.mockResolvedValue({ ...product, serviceMarkupPercent: 10, serviceMarkupPercentOverride: null, serviceMarkupNeedsReview: false });
     for (const patch of [{ priceQty: 500 }, { unit: 'PIECE' as const, min: 1, step: 1, portionQty: 1 }, { portionQty: 1000 }]) {
       await expect(service.update(1, patch)).rejects.toThrow('Подтвердите изменение условий продажи');
       expect(db.product.update).not.toHaveBeenCalled();
@@ -169,10 +171,10 @@ describe('Admin products', () => {
     expect(db.product.create).not.toHaveBeenCalled();
   });
   it('requires an edited legacy product to have a compatible quantity configuration', async () => {
-    db.product.findUnique.mockResolvedValue({ ...product, step: 300 });
+    db.product.findUnique.mockResolvedValue({ ...product, step: 300, serviceMarkupPercent: 10, serviceMarkupPercentOverride: null, serviceMarkupNeedsReview: false });
     await expect(service.update(1, { name: 'Новое название' })).rejects.toBeInstanceOf(BadRequestException);
     expect(db.product.update).not.toHaveBeenCalled();
-    db.product.update.mockResolvedValue(product);
+    db.product.update.mockResolvedValue({ ...product, serviceMarkupPercent: 10, serviceMarkupPercentOverride: null, serviceMarkupNeedsReview: false });
     await expect(service.update(1, { step: 100, saleChangeConfirmed: true })).resolves.toMatchObject(product);
   });
   it('includes inactive products admin-side', async () => {

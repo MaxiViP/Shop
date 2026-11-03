@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from '../../src/db/gen/client.js';
 import { productSchema } from '../../src/admin/schema.js';
-import { priceBreakdown } from '../../src/product/pricing.js';
+import { assertMarkup, lockMarkup } from '../../src/product/markup.js';
+import { effectivePercent, priceBreakdown } from '../../src/product/pricing.js';
 import { categories, expectedCounts, marketProducts } from './2026-10-06.js';
 import type { MarketDataset, MarketProduct } from './types.js';
 import { pointSchema } from '../../src/market-map/schema.js';
@@ -31,7 +32,7 @@ export function validateMarketProducts(products: readonly MarketProduct[], datas
 }
 
 const productSelect = { id: true, slug: true, name: true, price: true, priceQty: true,
-  priceStatus: true,
+  priceStatus: true, serviceMarkupPercentOverride: true, serviceMarkupPercent: true,
   unit: true, min: true, step: true, portionQty: true, categoryId: true, marketPointId: true,
   sourceUrl: true, sourceCheckedAt: true } satisfies Prisma.ProductSelect;
 
@@ -42,6 +43,9 @@ export async function importMarketProducts(db: PrismaClient, dryRun = true, data
     kind: point.kind, unitNumber: point.unitNumber, floor: 2, mapX: null, mapY: null, isPublished: true, sortOrder: 100 });
   return db.$transaction(async tx => {
     if (dryRun) await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+    else await lockMarkup(tx);
+    const { globalServiceMarkupPercent } = await tx.shopSettings.findUniqueOrThrow({ where: { id: 1 },
+      select: { globalServiceMarkupPercent: true } });
     const points = await tx.marketPoint.findMany({ where: { floor: 2 },
       select: { id: true, slug: true, name: true } });
     const pointIds = new Map(points.map(row => [row.slug, row.id]));
@@ -69,6 +73,7 @@ export async function importMarketProducts(db: PrismaClient, dryRun = true, data
       return { ...row, existingSlug: match?.slug, action: match ? 'keep' as const : 'create' as const };
     });
     const currentProducts = await tx.product.findMany({ where: { slug: { in: dataset.marketProducts.map(row => row.slug) } }, select: productSelect });
+    for (const current of currentProducts) assertMarkup(current);
     const existing = new Map(currentProducts.map(row => [row.slug, row]));
     const collisions = dataset.marketProducts.filter(row => {
       const current = existing.get(row.slug);
@@ -89,7 +94,7 @@ export async function importMarketProducts(db: PrismaClient, dryRun = true, data
         && current.sourceCheckedAt?.toISOString() === row.sourceCheckedAt));
       return { slug: row.slug, marketPoint: row.marketPointSlug, category: row.categorySlug,
         action: !current ? 'create' as const : unchanged ? 'unchanged' as const : 'update' as const,
-        ...priceBreakdown(row.sellerPrice), values, checkedAt: new Date(row.sourceCheckedAt) };
+        ...priceBreakdown(row.sellerPrice, effectivePercent(current?.serviceMarkupPercentOverride ?? null, globalServiceMarkupPercent)), values, checkedAt: new Date(row.sourceCheckedAt) };
     });
     if (!dryRun) {
       for (const [index, row] of pointPlan.entries()) if (row.action === 'create') {
@@ -105,8 +110,10 @@ export async function importMarketProducts(db: PrismaClient, dryRun = true, data
         if (row.action === 'unchanged') continue;
         const values = { ...row.values, marketPointId: pointIds.get(row.marketPoint)!,
           categoryId: categoryIds.get(row.category)!, sourceCheckedAt: row.checkedAt };
-        await tx.product.upsert({ where: { slug: row.slug }, update: values,
-          create: { ...values, slug: row.slug, sort: index + 1 } });
+        const override = existing.get(row.slug)?.serviceMarkupPercentOverride ?? null;
+        const markup = { serviceMarkupPercentOverride: override, serviceMarkupPercent: effectivePercent(override, globalServiceMarkupPercent) };
+        await tx.product.upsert({ where: { slug: row.slug }, update: { ...values, ...markup },
+          create: { ...values, ...markup, serviceMarkupNeedsReview: false, slug: row.slug, sort: index + 1 } });
       }
     }
     return { ok: true as const, dryRun, counts, errors: [],

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { customerPrice, priceBreakdown, SERVICE_MARKUP_PERCENT } from './pricing.js';
+import { customerPrice, priceBreakdown, effectivePercent, SERVICE_MARKUP_PERCENT } from './pricing.js';
 import { customerProduct } from './select.js';
 import { cartQuote } from '../order/cart-quote.js';
 import { lineAmount } from '../order/assembly.js';
@@ -96,4 +96,16 @@ it('applies the administrator markup consistently to public cards and cart total
   expect(cartQuote(new Map([[1, 2]]), [source])).toMatchObject({ subtotal: 25000 });
   expect(priceBreakdown(10000, 0).customerPrice).toBe(10000);
   expect(priceBreakdown(10000, 100).customerPrice).toBe(20000);
+});
+
+
+describe('effective service percentage', () => {
+  it.each([0, 10, 15, 100])('inherits global %i only for a null override', globalPercent => {
+    expect(effectivePercent(null, globalPercent)).toBe(globalPercent);
+    for (const override of [0, 10, 20]) expect(effectivePercent(override, globalPercent)).toBe(override);
+  });
+  it.each([-1, 101, 0.5, NaN, Infinity])('rejects invalid policy %s', percent => {
+    expect(() => effectivePercent(null, percent)).toThrow(BadRequestException);
+    expect(() => effectivePercent(percent, 10)).toThrow(BadRequestException);
+  });
 });
