@@ -104,7 +104,11 @@
                 {{ labels[product.unit] }}
               </td>
               <td class="pr-3"><UBadge color="neutral" variant="soft">{{ priceStatusLabels[product.priceStatus] }}</UBadge></td>
-              <td class="pr-3 whitespace-nowrap">{{ product.serviceMarkupPercent }}% · {{ money(product.serviceMarkup) }}</td>
+              <td class="pr-3 py-2">
+                <span class="block whitespace-nowrap">{{ product.serviceMarkupPercentOverride === null ? 'Общий' : 'Индивидуальный' }}: {{ product.serviceMarkupPercent }}%</span>
+                <span class="block text-muted whitespace-nowrap">{{ money(product.serviceMarkup) }}</span>
+                <UBadge v-if="product.serviceMarkupNeedsReview" class="mt-1" color="warning" variant="soft">Требует проверки</UBadge>
+              </td>
               <td class="pr-3 whitespace-nowrap">{{ money(product.customerPrice) }}</td>
               <td class="pr-3"><UBadge :color="product.settlementMode === 'UNSET' ? 'warning' : product.settlementMode === 'SHARED_MARKUP' ? 'success' : 'neutral'">{{ modeLabel[product.settlementMode] }}</UBadge></td>
               <td class="pr-3 whitespace-nowrap">{{ product.basePrice === null ? '—' : money(product.basePrice) }}</td>

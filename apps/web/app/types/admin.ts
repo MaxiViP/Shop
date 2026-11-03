@@ -18,12 +18,14 @@ export interface AdminCategory {
   _count?: { products: number; children: number };
 }
 export interface ProductPricing {
+  serviceMarkupPercentOverride: number | null;
   sellerPrice: number;
   serviceMarkupPercent: number;
   serviceMarkup: number;
   customerPrice: number;
 }
 export interface AdminProduct extends ProductPricing, Sale {
+  serviceMarkupNeedsReview: boolean;
   priceStatus: ProductPriceStatus;
   id: number;
   name: string;

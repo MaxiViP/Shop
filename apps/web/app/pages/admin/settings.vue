@@ -8,7 +8,8 @@
     </UCard>
     <UAlert v-if="error" color="error" title="Не удалось загрузить настройки" />
     <p v-if="pending">Загрузка…</p>
-    <UCard v-else-if="data">
+    <AdminServiceFeeSettings v-if="!pending && data && !error" :percent="data.globalServiceMarkupPercent" @saved="refresh" />
+    <UCard v-if="!pending && data">
       <template #header
         ><h3 class="font-semibold">Бизнес-настройки</h3></template
       >
@@ -84,6 +85,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: "admin", middleware: "admin" });
 const { data, pending, error, refresh } = await useApi<{
+  globalServiceMarkupPercent: number;
   weightToleranceBps: number;
   customerResponseMinutes: number;
   minDeliverySubtotal: number;
