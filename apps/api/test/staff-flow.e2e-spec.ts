@@ -16,6 +16,7 @@ import { StaffBotService } from '../src/telegram/staff-bot.service.js';
 import { StaffLinkService } from '../src/telegram/staff-link.service.js';
 import { TelegramService } from '../src/telegram/telegram.service.js';
 import { staffConfirmData, staffData } from '../src/telegram/staff-bot.js';
+import { hashAdminPassword } from '../src/auth/admin-password.js';
 
 // Real transactions/concurrency, all existing migrations, isolated loopback schema.
 describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () => {
@@ -44,6 +45,7 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
     staff = new StaffService(db as unknown as DbService, notices as unknown as NotificationService);
   }, 60000);
   beforeEach(async () => {
+    vi.stubEnv('ADMIN_PHONE', '+79990000001');
     notices.dispatchStaffPrice.mockReset().mockImplementation(async () => {});
     vi.stubEnv('TELEGRAM_STAFF_BOT_TOKEN', randomUUID());
     vi.stubEnv('TELEGRAM_STAFF_WEBHOOK_SECRET', randomUUID());
@@ -71,7 +73,10 @@ describe.skipIf(!process.env.DATABASE_URL)('STAFF durable input PostgreSQL', () 
     return { flow, bot };
   }
   async function fixture(role: 'SELLER' | 'ADMIN' = 'SELLER', unit: Unit = 'GRAM') {
-    const user = await db.user.create({ data: { role, name: 'Staff fixture' } });
+    const user = await db.user.create({ data: { role, name: 'Staff fixture',
+      ...(role === 'ADMIN' ? { phone: '+7999' + String(++sequence).padStart(7,'0'),
+        adminPasswordHash: await hashAdminPassword('Fixture-admin-' + randomUUID()) } : {}),
+    } });
     const telegramId = 300000 + user.id;
     const identity = await db.staffTelegramIdentity.create({ data: { userId: user.id, telegramUserId: BigInt(telegramId) } });
     vi.stubEnv('TELEGRAM_ADMIN_CHAT_IDS', String(telegramId));

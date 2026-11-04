@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { ConflictException, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { TelegramAuthCtrl } from './telegram-auth.ctrl.js';
 import type { TelegramAuthService } from './telegram-auth.service.js';
@@ -120,5 +120,12 @@ describe('Telegram callback safe stage diagnostics', () => {
       303,
       'https://shop.example/profile',
     );
+  });
+  it('reports phone conflict through a fixed safe destination without setting a session', async () => {
+    const s = setup();
+    s.telegram.login.mockRejectedValue(new ConflictException('ACCOUNT_LINK_REQUIRED'));
+    await s.run();
+    expect(s.oidc.destination).toHaveBeenCalledWith(true, undefined, true);
+    expect(s.response.cookie).not.toHaveBeenCalled();
   });
 });

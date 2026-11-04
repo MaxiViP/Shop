@@ -396,10 +396,10 @@ export class TelegramOidcService {
     }
   }
 
-  destination(failed = false, returnTo?: string) {
+  destination(failed = false, returnTo?: string, phoneConflict = false) {
     return (
       this.requiredConfig().site +
-      (failed ? '/telegram?error=login' : orderReturnTo(returnTo) ?? '/profile')
+      (failed ? '/telegram?error=' + (phoneConflict ? 'phone-conflict' : 'login') : orderReturnTo(returnTo) ?? '/profile')
     );
   }
 

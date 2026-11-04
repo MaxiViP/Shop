@@ -47,13 +47,24 @@ function fixture() {
     productImage: { delete: vi.fn(), count: vi.fn(), update: vi.fn() },
     orderItem: { count: vi.fn() },
     session: { deleteMany: vi.fn() },
+    staffTelegramLinkCode: { deleteMany: vi.fn() },
     user: {
+      findUnique: vi
+        .fn()
+        .mockResolvedValue({ id: 99, role: 'ADMIN', phone: '+79990000099' }),
       findUniqueOrThrow: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
     },
+    shopSettings: {
+      findUniqueOrThrow: vi
+        .fn()
+        .mockResolvedValue({ globalServiceMarkupPercent: 10 }),
+    },
+    $executeRaw: vi.fn().mockResolvedValue(0),
     $queryRaw: vi.fn().mockResolvedValue([]),
+    adminAudit: { create: vi.fn() },
     $transaction: vi.fn(),
   };
   db.$transaction.mockImplementation(
@@ -117,63 +128,155 @@ describe('Admin products', () => {
   });
   it('edits seller price and metadata without persisting or accumulating the service markup', async () => {
     const local = fixture();
-    let current = { id: 1, ...product, price: 10000, settlementMode: 'UNSET', basePrice: null };
+    let current = {
+      id: 1,
+      ...product,
+      price: 10000,
+      serviceMarkupPercent: 10,
+      serviceMarkupPercentOverride: null,
+      serviceMarkupNeedsReview: false,
+      settlementMode: 'UNSET',
+      basePrice: null,
+    };
     local.product.findUnique.mockImplementation(() => current);
-    local.product.update.mockImplementation(({ data }: { data: Partial<typeof current> }) => {
-      current = { ...current, ...data };
-      return current;
+    local.product.update.mockImplementation(
+      ({ data }: { data: Partial<typeof current> }) => {
+        current = { ...current, ...data };
+        return current;
+      },
+    );
+    const products = new AdminProductsService(
+      local as unknown as DbService,
+      images as unknown as ImagesService,
+    );
+    expect(await products.pricing(10000)).toMatchObject({
+      sellerPrice: 10000,
+      serviceMarkup: 1000,
+      customerPrice: 11000,
     });
-    const products = new AdminProductsService(local as unknown as DbService, images as unknown as ImagesService);
-    expect(products.pricing(10000)).toMatchObject({ sellerPrice: 10000, serviceMarkup: 1000, customerPrice: 11000 });
     for (let i = 0; i < 3; i++) {
       const saved = await products.update(1, { price: current.price });
-      expect(saved).toMatchObject({ price: 10000, sellerPrice: 10000, customerPrice: 11000 });
+      expect(saved).toMatchObject({
+        price: 10000,
+        sellerPrice: 10000,
+        customerPrice: 11000,
+      });
       expect(current.price).toBe(10000);
     }
-    expect(await products.update(1, { sourceUrl: 'https://cezoni.com/collection/all' }))
-      .toMatchObject({ price: 10000, customerPrice: 11000 });
-    expect(await products.update(1, { price: 22000 })).toMatchObject({ price: 22000, customerPrice: 24200 });
+    expect(
+      await products.update(1, {
+        sourceUrl: 'https://cezoni.com/collection/all',
+      }),
+    ).toMatchObject({ price: 10000, customerPrice: 11000 });
+    expect(await products.update(1, { price: 22000 })).toMatchObject({
+      price: 22000,
+      customerPrice: 24200,
+    });
   });
   it('updates and archives product without removing history', async () => {
-    db.product.findUnique.mockResolvedValue(product);
+    db.product.findUnique.mockResolvedValue({
+      ...product,
+      serviceMarkupPercent: 10,
+      serviceMarkupPercentOverride: null,
+      serviceMarkupNeedsReview: false,
+    });
     db.product.update.mockResolvedValue({ ...product, active: false });
     expect(await service.update(1, { active: false })).toMatchObject({
       active: false,
     });
     expect(db.product.delete).not.toHaveBeenCalled();
   });
-  it.each([{ step: 300 }, { min: 600 }, { portionQty: 550 }, { portionQty: 0 }])(
-    'validates a partial update against the current product: %j', async (patch) => {
-      db.product.findUnique.mockResolvedValue(product);
-      await expect(service.update(1, patch)).rejects.toBeInstanceOf(BadRequestException);
+  it.each([
+    { step: 300 },
+    { min: 600 },
+    { portionQty: 550 },
+    { portionQty: 0 },
+  ])(
+    'validates a partial update against the current product: %j',
+    async (patch) => {
+      db.product.findUnique.mockResolvedValue({
+        ...product,
+        serviceMarkupPercent: 10,
+        serviceMarkupPercentOverride: null,
+        serviceMarkupNeedsReview: false,
+      });
+      await expect(service.update(1, patch)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
       expect(db.product.update).not.toHaveBeenCalled();
     },
   );
   it('accepts a compatible multi-field change in one update', async () => {
-    db.product.findUnique.mockResolvedValue(product);
-    const patch = { min: 600, step: 300, portionQty: 900, saleChangeConfirmed: true as const };
+    db.product.findUnique.mockResolvedValue({
+      ...product,
+      serviceMarkupPercent: 10,
+      serviceMarkupPercentOverride: null,
+      serviceMarkupNeedsReview: false,
+    });
+    const patch = {
+      min: 600,
+      step: 300,
+      portionQty: 900,
+      saleChangeConfirmed: true as const,
+    };
     db.product.update.mockResolvedValue({ ...product, ...patch });
-    await expect(service.update(1, patch)).resolves.toMatchObject({ min: 600, step: 300, portionQty: 900 });
-    expect(db.product.update.mock.calls[0]?.[0].data.saleChangeConfirmed).toBeUndefined();
-    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
+    await expect(service.update(1, patch)).resolves.toMatchObject({
+      min: 600,
+      step: 300,
+      portionQty: 900,
+    });
+    expect(
+      db.product.update.mock.calls[0]?.[0].data.saleChangeConfirmed,
+    ).toBeUndefined();
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: 'Serializable',
+    });
   });
   it('requires explicit confirmation before changing the price base or quantity meaning', async () => {
-    db.product.findUnique.mockResolvedValue(product);
-    for (const patch of [{ priceQty: 500 }, { unit: 'PIECE' as const, min: 1, step: 1, portionQty: 1 }, { portionQty: 1000 }]) {
-      await expect(service.update(1, patch)).rejects.toThrow('Подтвердите изменение условий продажи');
+    db.product.findUnique.mockResolvedValue({
+      ...product,
+      serviceMarkupPercent: 10,
+      serviceMarkupPercentOverride: null,
+      serviceMarkupNeedsReview: false,
+    });
+    for (const patch of [
+      { priceQty: 500 },
+      { unit: 'PIECE' as const, min: 1, step: 1, portionQty: 1 },
+      { portionQty: 1000 },
+    ]) {
+      await expect(service.update(1, patch)).rejects.toThrow(
+        'Подтвердите изменение условий продажи',
+      );
       expect(db.product.update).not.toHaveBeenCalled();
     }
   });
   it('rejects an incompatible create before writing', async () => {
-    await expect(service.create({ ...product, portionQty: 501 })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.create({ ...product, portionQty: 501 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(db.product.create).not.toHaveBeenCalled();
   });
   it('requires an edited legacy product to have a compatible quantity configuration', async () => {
-    db.product.findUnique.mockResolvedValue({ ...product, step: 300 });
-    await expect(service.update(1, { name: 'Новое название' })).rejects.toBeInstanceOf(BadRequestException);
+    db.product.findUnique.mockResolvedValue({
+      ...product,
+      step: 300,
+      serviceMarkupPercent: 10,
+      serviceMarkupPercentOverride: null,
+      serviceMarkupNeedsReview: false,
+    });
+    await expect(
+      service.update(1, { name: 'Новое название' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(db.product.update).not.toHaveBeenCalled();
-    db.product.update.mockResolvedValue(product);
-    await expect(service.update(1, { step: 100, saleChangeConfirmed: true })).resolves.toMatchObject(product);
+    db.product.update.mockResolvedValue({
+      ...product,
+      serviceMarkupPercent: 10,
+      serviceMarkupPercentOverride: null,
+      serviceMarkupNeedsReview: false,
+    });
+    await expect(
+      service.update(1, { step: 100, saleChangeConfirmed: true }),
+    ).resolves.toMatchObject(product);
   });
   it('includes inactive products admin-side', async () => {
     db.product.findMany.mockResolvedValue([{ ...product, active: false }]);
@@ -235,6 +338,14 @@ describe('Admin categories', () => {
 describe('Admin users', () => {
   const db = fixture();
   const service = new AdminUsersService(db as unknown as DbService);
+  beforeEach(() => {
+    vi.stubEnv('ADMIN_PHONE', '+79990000099');
+    db.user.findUnique.mockResolvedValue({
+      id: 99,
+      role: 'ADMIN',
+      phone: '+79990000099',
+    });
+  });
   afterEach(() => vi.unstubAllEnvs());
   it('lists only explicit business fields and statistics', async () => {
     db.user.findMany.mockResolvedValue([{ id: 1, role: 'USER' }]);
@@ -253,11 +364,34 @@ describe('Admin users', () => {
       phone: 'fixture',
     });
     db.user.update.mockResolvedValue({ id: 1, role });
-    expect(await service.role(1, role)).toMatchObject({ role });
+    expect(await service.role(1, role, 99)).toMatchObject({ role });
   });
-  it('cannot demote any ADMIN', async () => {
+  it('keeps delegated permissions separate while preserving individual zero pricing', async () => {
+    expect(await service.permissions(99)).toEqual({ primaryAdmin: true });
+    db.user.findUnique.mockResolvedValue({
+      id: 99,
+      role: 'ADMIN',
+      phone: '+79990000098',
+    });
+    expect(await service.permissions(99)).toEqual({ primaryAdmin: false });
+    const products = new AdminProductsService(
+      db as unknown as DbService,
+      {} as ImagesService,
+    );
+    expect(await products.pricing(10000, 0)).toMatchObject({
+      serviceMarkupPercentOverride: 0,
+      serviceMarkupPercent: 0,
+      customerPrice: 10000,
+    });
+  });
+  it('a delegated administrator cannot demote another ADMIN', async () => {
+    db.user.findUnique.mockResolvedValue({
+      id: 99,
+      role: 'ADMIN',
+      phone: '+79990000098',
+    });
     db.user.findUniqueOrThrow.mockResolvedValue({ role: 'ADMIN' });
-    await expect(service.role(1, 'USER')).rejects.toBeInstanceOf(
+    await expect(service.role(1, 'USER', 99)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
   });
@@ -267,7 +401,7 @@ describe('Admin users', () => {
       role: 'USER',
       phone: '+79990000001',
     });
-    await expect(service.role(1, 'SELLER')).rejects.toBeInstanceOf(
+    await expect(service.role(1, 'SELLER', 99)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
   });

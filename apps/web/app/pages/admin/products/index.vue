@@ -44,8 +44,10 @@
         </UFormField>
         <UFormField label="Достоверность цены"><USelect v-model="status" :items="statusOptions" class="w-full" /></UFormField>
         <UFormField label="Торговая точка"><USelect v-model="pointId" :items="pointOptions" class="w-full" /></UFormField>
+        <UFormField label="Сервисный процент"><USelect v-model="feeMode" aria-label="Сервисный процент" :items="feeOptions" class="w-full" /></UFormField>
         <UButton type="submit" :loading="pending">Найти</UButton>
       </form>
+      <AdminServiceFeeBulk v-if="feePermissions?.primaryAdmin" v-model:ids="feeSelection" :filter="feeFilter" :total="data?.total ?? 0" :pending="pending" @applied="feeApplied" />
       <p v-if="pending" role="status">Загрузка…</p>
       <UAlert v-else-if="error" color="error" :title="apiError(error)" />
       <p v-else-if="!data?.items.length">Товары не найдены</p>
@@ -59,7 +61,8 @@
         <table class="w-full text-sm min-w-[1060px]">
           <thead class="bg-elevated text-left">
             <tr>
-              <th class="p-3">Выбор</th>
+              <th class="p-3">Выбор ХИТ</th>
+              <th v-if="feePermissions?.primaryAdmin" class="p-3">Выбор процентов</th>
               <th class="p-3">Фото</th>
               <th>Название</th>
               <th>Категория</th>
@@ -83,6 +86,7 @@
               class="border-t border-default"
             >
               <td class="p-3"><UCheckbox :model-value="hitSelection.includes(product.id)" :disabled="busy || (hitSelection.length >= 100 && !hitSelection.includes(product.id))" :aria-label="`Выбрать ${product.name}`" @update:model-value="selectHit(product.id, $event === true)" /></td>
+              <td v-if="feePermissions?.primaryAdmin" class="p-3"><UCheckbox :model-value="feeSelection.includes(product.id)" :disabled="feeSelection.length >= 1000 && !feeSelection.includes(product.id)" :aria-label="`Выбрать процент для ${product.name}`" @update:model-value="selectFee(product.id, $event === true)" /></td>
               <td class="p-3">
                 <img
                   v-if="product.images[0]"
@@ -104,7 +108,11 @@
                 {{ labels[product.unit] }}
               </td>
               <td class="pr-3"><UBadge color="neutral" variant="soft">{{ priceStatusLabels[product.priceStatus] }}</UBadge></td>
-              <td class="pr-3 whitespace-nowrap">{{ product.serviceMarkupPercent }}% · {{ money(product.serviceMarkup) }}</td>
+              <td class="pr-3 py-2">
+                <span class="block whitespace-nowrap">{{ product.serviceMarkupPercentOverride === null ? 'Общий' : 'Индивидуальный' }}: {{ product.serviceMarkupPercent }}%</span>
+                <span class="block text-muted whitespace-nowrap">{{ money(product.serviceMarkup) }}</span>
+                <UBadge v-if="product.serviceMarkupNeedsReview" class="mt-1" color="warning" variant="soft">Требует проверки</UBadge>
+              </td>
               <td class="pr-3 whitespace-nowrap">{{ money(product.customerPrice) }}</td>
               <td class="pr-3"><UBadge :color="product.settlementMode === 'UNSET' ? 'warning' : product.settlementMode === 'SHARED_MARKUP' ? 'success' : 'neutral'">{{ modeLabel[product.settlementMode] }}</UBadge></td>
               <td class="pr-3 whitespace-nowrap">{{ product.basePrice === null ? '—' : money(product.basePrice) }}</td>
@@ -179,7 +187,10 @@ import type { AdminProduct, AdminCategory, AdminPage } from "~/types/admin";
 import type { MarketPoint } from '~/types/market-map';
 import { priceStatusItems, priceStatusLabels } from '~/utils/price-status';
 import type { HitMode } from '~/types/badges';
+import type { ServiceFeeMode, ServiceFeeFilter } from '~/types/service-fee';
 import { hitModes } from '~/utils/badges';
+const { data: feePermissions } = await useApi<{ primaryAdmin: boolean }>('/admin/users/permissions');
+
 definePageMeta({ middleware: "admin", layout: "admin" });
 const section = ref("products");
 const search = ref("");
@@ -188,6 +199,18 @@ const active = ref("all");
 const mode = ref("all");
 const status = ref('all');
 const pointId = ref(0);
+const feeMode = ref<'all' | ServiceFeeMode>('all');
+const feeOptions = [
+  { label: 'Все товары', value: 'all' as const }, { label: 'Общий процент', value: 'global' as const },
+  { label: 'Индивидуальный процент', value: 'individual' as const }, { label: 'Требуют проверки миграции', value: 'review' as const },
+];
+const feeSelection = ref<number[]>([]);
+function selectFee(id: number, checked: boolean) {
+  feeSelection.value = feeSelection.value.filter(value => value !== id);
+  if (checked && feeSelection.value.length < 1000) feeSelection.value.push(id);
+}
+async function feeApplied() { query.page = 1; await refresh(); }
+
 const statusOptions = [{ label: 'Все статусы цен', value: 'all' }, ...priceStatusItems];
 const { data: marketPoints } = await useApi<MarketPoint[]>('/admin/market-map/points');
 const pointOptions = computed(() => [{ label: 'Все торговые точки', value: 0 },
@@ -206,7 +229,9 @@ const query = reactive({
   settlementMode: undefined as string | undefined,
   priceStatus: undefined as string | undefined,
   marketPoint: undefined as number | undefined,
+  serviceFeeMode: undefined as ServiceFeeMode | undefined,
 });
+const feeFilter = computed<ServiceFeeFilter>(() => { const { page: _page, limit: _limit, ...filter } = query; return filter; });
 const { data, pending, error, refresh } = await useApi<AdminPage<AdminProduct>>(
   "/admin/products",
   { query },
@@ -235,6 +260,7 @@ function apply() {
     settlementMode: mode.value === "all" ? undefined : mode.value,
     priceStatus: status.value === 'all' ? undefined : status.value,
     marketPoint: pointId.value || undefined,
+    serviceFeeMode: feeMode.value === 'all' ? undefined : feeMode.value,
   });
 }
 const labels = { GRAM: "г", PIECE: "шт.", BUNCH: "пуч.", PACK: "уп." };

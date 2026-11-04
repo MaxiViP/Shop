@@ -73,24 +73,26 @@ it('starts a returning customer at explicit confirmation using own current conta
   expect(s.cart.checkoutIn).not.toHaveBeenCalled();
 });
 
-it('can confirm pickup without an address and uses a verified own Telegram phone', async () => {
+it('can confirm pickup without an address and uses an explicitly selected additional phone', async () => {
   const s = setup();
   s.db.order.findFirst.mockResolvedValueOnce({ type: 'PICKUP' });
   s.db.address.findFirst.mockResolvedValueOnce(null);
-  s.db.user.findUniqueOrThrow.mockResolvedValueOnce({ name: 'Покупатель', phone: null,
-    telegramIdentity: { phoneVerified: true, phoneNumber: '8 (999) 000-00-07' } });
+  s.db.user.findUniqueOrThrow.mockResolvedValueOnce({ name: 'Покупатель', phone: '+79990000008',
+    orderPhone: '+79990000007', orderPhones: [{ phone: '+79990000007' }], telegramIdentity: null });
   const result = await s.service.start(identity, revision);
   expect(result.step).toBe('CONFIRM');
   expect(checkoutPayload.parse(result.payload)).toMatchObject({ type: 'PICKUP', customerPhone: '+79990000007' });
   expect(checkoutPayload.parse(result.payload).address).toBeUndefined();
 });
 
-it.each(['missingPhone', 'unverifiedPhone', 'missingName', 'noPreviousOrder', 'noSavedAddress', 'invalidSavedAddress'])(
+it.each(['missingPhone', 'unverifiedPhone', 'legacyTelegramPhone', 'missingName', 'noPreviousOrder', 'noSavedAddress', 'invalidSavedAddress'])(
   'keeps the ordinary flow for %s and never copies old recipient data', async reason => {
     const s = setup();
     if (reason === 'missingPhone') s.db.user.findUniqueOrThrow.mockResolvedValueOnce({ name: 'Покупатель', phone: null, telegramIdentity: null });
     if (reason === 'unverifiedPhone') s.db.user.findUniqueOrThrow.mockResolvedValueOnce({ name: 'Покупатель', phone: null,
       telegramIdentity: { phoneVerified: false, phoneNumber: '+79990000099' } });
+    if (reason === 'legacyTelegramPhone') s.db.user.findUniqueOrThrow.mockResolvedValueOnce({ name: 'Покупатель', phone: null,
+      telegramIdentity: { phoneVerified: true, phoneNumber: '+79990000099' } });
     if (reason === 'missingName') s.db.user.findUniqueOrThrow.mockResolvedValueOnce({ name: null, phone: '+79990000007', telegramIdentity: null });
     if (reason === 'noPreviousOrder') s.db.order.findFirst.mockResolvedValueOnce(null);
     if (reason === 'noSavedAddress') s.db.address.findFirst.mockResolvedValueOnce(null);

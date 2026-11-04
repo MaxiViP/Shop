@@ -38,7 +38,7 @@ export class OwnerCtrl {
   @Post('products/pricing')
   async pricing(@Body({ schema: z.strictObject({ price: z.number().int().positive().max(100_000_000), productId: idSchema.optional() }) }) data: { price: number; productId?: number }, @Req() request: AuthRequest) {
     const product = data.productId ? await this.products.get(data.productId, request.user.id) : null;
-    return this.products.pricing(data.price, product?.serviceMarkupPercent);
+    return this.products.pricing(data.price, product?.serviceMarkupPercentOverride ?? null);
   }
   @Patch('products/:id')
   update(@Param('id', { schema: idSchema }) id: number, @Body({ schema: ownerProductPatch }) data: Partial<OwnerProductInput>, @Req() request: AuthRequest) {

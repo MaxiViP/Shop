@@ -7,6 +7,8 @@ import {
 import { DbService } from '../db/db.service.js';
 import type { Prisma } from '../db/gen/client.js';
 import { adminPhone } from '../auth/admin.config.js';
+import { hashAdminPassword } from '../auth/admin-password.js';
+import { adminPasswordSchema } from './schema.js';
 import type { UserQuery } from './schema.js';
 import { dbError } from './errors.js';
 
@@ -15,8 +17,11 @@ const select = {
   name: true,
   phone: true,
   role: true,
-  ownedPoints: { select: { marketPointId: true, marketPoint: { select: { name: true } } } },
+  ownedPoints: {
+    select: { marketPointId: true, marketPoint: { select: { name: true } } },
+  },
   verifiedAt: true,
+  telegramIdentity: { select: { phoneNumber: true, phoneVerified: true } },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.UserSelect;
@@ -31,6 +36,17 @@ const orderSelect = {
 @Injectable()
 export class AdminUsersService {
   constructor(private readonly db: DbService) {}
+  async permissions(actorId: number) {
+    const actor = await this.db.user.findUnique({
+      where: { id: actorId },
+      select: { role: true, phone: true },
+    });
+    return {
+      primaryAdmin: Boolean(
+        adminPhone() && actor?.role === 'ADMIN' && actor.phone === adminPhone(),
+      ),
+    };
+  }
   private async stats(ids: number[]) {
     return this.db.$queryRaw<
       Array<{
@@ -49,12 +65,23 @@ export class AdminUsersService {
   }
   async list(query: UserQuery) {
     const { page, limit, search, role } = query;
+    const digits = search && /^[+\d\s().-]+$/.test(search) ? search.replace(/\D/g, '') : undefined;
+    const phoneSearch = digits?.length === 11 && digits.startsWith('8')
+      ? '7' + digits.slice(1) : digits;
     const where: Prisma.UserWhereInput = {
-      ...(role === 'POINT_OWNER' ? { ownedPoints: { some: {} } } : role ? { role } : {}),
+      ...(role === 'POINT_OWNER'
+        ? { ownedPoints: { some: {} } }
+        : role
+          ? { role }
+          : {}),
       ...(search
         ? {
             OR: [
-              { phone: { contains: search } },
+              { phone: { contains: phoneSearch || search } },
+              { phone: null, telegramIdentity: { is: {
+                phoneVerified: true,
+                phoneNumber: { contains: phoneSearch || search },
+              } } },
               { name: { contains: search, mode: 'insensitive' } },
             ],
           }
@@ -78,9 +105,7 @@ export class AdminUsersService {
         const value = stats.find((item) => item.userId === user.id);
         return {
           ...user,
-          protected:
-            user.role === 'ADMIN' ||
-            (user.phone !== null && user.phone === adminPhone()),
+          protected: user.phone !== null && user.phone === adminPhone(),
           orders: value?.orders ?? 0,
           completed: value?.completed ?? 0,
           spent: Number(value?.spent ?? 0),
@@ -104,7 +129,8 @@ export class AdminUsersService {
             label: true,
             city: true,
             street: true,
-            house: true, buildingPart: true,
+            house: true,
+            buildingPart: true,
             flat: true,
             entrance: true,
             floor: true,
@@ -133,39 +159,130 @@ export class AdminUsersService {
     };
   }
   async points(id: number, pointIds: number[], actorId: number) {
-    return this.db.$transaction(async db => {
+    return this.db.$transaction(async (db) => {
+      const actor = await db.user.findUnique({
+        where: { id: actorId },
+        select: { role: true, phone: true },
+      });
+      if (
+        !adminPhone() ||
+        actor?.role !== 'ADMIN' ||
+        actor.phone !== adminPhone()
+      )
+        throw new ForbiddenException(
+          'Управление правами доступно только основному администратору',
+        );
       await db.$queryRaw`SELECT id FROM "User" WHERE id = ${id} FOR UPDATE`;
       const user = await db.user.findUnique({ where: { id }, select });
       if (!user) throw new NotFoundException('Пользователь не найден');
-      if (!user.phone && pointIds.length) throw new BadRequestException('Сначала привяжите номер телефона пользователя');
-      const count = await db.marketPoint.count({ where: { id: { in: pointIds }, kind: { notIn: ['ENTRY', 'SERVICE'] } } });
-      if (count !== pointIds.length) throw new BadRequestException('Выберите существующие торговые точки');
+      if (user.phone && user.phone === adminPhone() && actorId !== user.id)
+        throw new ForbiddenException(
+          'Права основного администратора нельзя изменить',
+        );
+      if (!user.phone && pointIds.length)
+        throw new BadRequestException(
+          'Сначала привяжите номер телефона пользователя',
+        );
+      const count = await db.marketPoint.count({
+        where: { id: { in: pointIds }, kind: { notIn: ['ENTRY', 'SERVICE'] } },
+      });
+      if (count !== pointIds.length)
+        throw new BadRequestException('Выберите существующие торговые точки');
       await db.marketPointOwner.deleteMany({ where: { userId: id } });
-      if (pointIds.length) await db.marketPointOwner.createMany({ data: pointIds.map(marketPointId => ({ userId: id, marketPointId })) });
+      if (pointIds.length)
+        await db.marketPointOwner.createMany({
+          data: pointIds.map((marketPointId) => ({
+            userId: id,
+            marketPointId,
+          })),
+        });
       // Discard earlier sessions, including demo/test logins that do not prove phone ownership.
       await db.session.deleteMany({ where: { userId: id } });
-      await db.adminAudit.create({ data: { actorId, action: 'POINT_OWNERS_CHANGED', entity: 'USER', entityId: String(id),
-        oldValue: user.ownedPoints.map(point => point.marketPointId), newValue: pointIds } });
+      await db.adminAudit.create({
+        data: {
+          actorId,
+          action: 'POINT_OWNERS_CHANGED',
+          entity: 'USER',
+          entityId: String(id),
+          oldValue: user.ownedPoints.map((point) => point.marketPointId),
+          newValue: pointIds,
+        },
+      });
       return db.user.findUniqueOrThrow({ where: { id }, select });
     });
   }
-  async role(id: number, role: 'USER' | 'SELLER') {
-    if (role !== 'USER' && role !== 'SELLER') throw new ForbiddenException();
+  async role(
+    id: number,
+    role: 'USER' | 'SELLER' | 'ADMIN',
+    actorId: number,
+    password?: string,
+  ) {
+    if (!['USER', 'SELLER', 'ADMIN'].includes(role))
+      throw new ForbiddenException();
+    if (role === 'ADMIN' && !adminPasswordSchema.safeParse(password).success)
+      throw new BadRequestException(
+        'Задайте отдельный пароль администратора: от 12 до 128 символов',
+      );
+    const passwordHash =
+      role === 'ADMIN' ? await hashAdminPassword(password!) : null;
     try {
       return await this.db.$transaction(
         async (db) => {
+          await db.$executeRaw`SELECT pg_advisory_xact_lock(704001)`;
+          const actor = await db.user.findUnique({
+            where: { id: actorId },
+            select: { role: true, phone: true },
+          });
+          if (
+            !adminPhone() ||
+            actor?.role !== 'ADMIN' ||
+            actor.phone !== adminPhone()
+          )
+            throw new ForbiddenException(
+              'Управление правами доступно только основному администратору',
+            );
           await db.$queryRaw`SELECT id FROM "User" WHERE id = ${id} FOR UPDATE`;
           const user = await db.user.findUniqueOrThrow({
             where: { id },
             select,
           });
-          if (
-            user.role === 'ADMIN' ||
-            (user.phone !== null && user.phone === adminPhone())
-          )
-            throw new ForbiddenException('Роль администратора нельзя изменить');
-          if (user.role !== role) await db.session.deleteMany({ where: { userId: id } });
-          return db.user.update({ where: { id }, data: { role }, select });
+          if (user.phone !== null && user.phone === adminPhone())
+            throw new ForbiddenException(
+              'Основного администратора нельзя изменить',
+            );
+          if (role === 'ADMIN' && !user.phone)
+            throw new BadRequestException(
+              'Сначала привяжите номер телефона пользователя',
+            );
+          if (password !== undefined && role !== 'ADMIN')
+            throw new BadRequestException(
+              'Пароль задаётся только администратору',
+            );
+          if (user.role !== role || role === 'ADMIN') {
+            await db.session.deleteMany({ where: { userId: id } });
+            await db.staffTelegramLinkCode.deleteMany({
+              where: { userId: id },
+            });
+          }
+          if (user.role !== role || role === 'ADMIN')
+            await db.adminAudit.create({
+              data: {
+                actorId,
+                action:
+                  user.role === role
+                    ? 'ADMIN_PASSWORD_RESET'
+                    : 'USER_ROLE_CHANGED',
+                entity: 'USER',
+                entityId: String(id),
+                oldValue: { role: user.role },
+                newValue: { role },
+              },
+            });
+          return db.user.update({
+            where: { id },
+            data: { role, adminPasswordHash: passwordHash },
+            select,
+          });
         },
         { isolationLevel: 'Serializable' },
       );

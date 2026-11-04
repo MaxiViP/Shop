@@ -1,3 +1,4 @@
+import { withAdminActivity } from '../admin/activity-context.js';
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { DbService } from '../db/db.service.js';
 import { CoordinationService } from '../order/coordination.service.js';
@@ -374,6 +375,7 @@ export class CustomerUpdateService {
         await this.show(target, { text: 'Этот аккаунт недоступен в покупательском боте.', keyboard: { inline_keyboard: [] } });
         return;
       }
+      await withAdminActivity(identity.userId, 'TELEGRAM', async () => {
       if (message?.contact) {
         if (message.contact.user_id !== sender.id) {
           if (!identity.phoneVerified || !identity.phoneNumber) await this.requestPhone(chat.id, true);
@@ -416,6 +418,7 @@ export class CustomerUpdateService {
         await this.reply({ chatId: chat.id }, identity, message.text, message.reply_to_message?.message_id);
       else if (message?.text) await this.show(target, { text: 'Команда не найдена. Откройте меню или помощь, чтобы продолжить.',
         keyboard: { inline_keyboard: [[{ text: 'Меню', callback_data: 'menu' }, { text: 'Помощь', callback_data: 'help' }]] } });
+      }, false, 'USER');
     } catch (error) {
       const status = error instanceof HttpException ? error.getStatus() : 500;
       ack = status === 404 ? 'Заказ недоступен' :

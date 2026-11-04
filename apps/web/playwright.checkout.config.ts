@@ -20,6 +20,8 @@ export default defineConfig({
     launchOptions: process.env.CATALOG_BROWSER_PATH ? { executablePath: process.env.CATALOG_BROWSER_PATH } : {},
   },
   projects: [
+    { name: 'mobile-320', use: { viewport: { width: 320, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: 'tablet-768', use: { viewport: { width: 768, height: 1024 } } },
     { name: 'mobile-390', use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
     { name: 'desktop-1280', use: { viewport: { width: 1280, height: 900 } } },
   ],

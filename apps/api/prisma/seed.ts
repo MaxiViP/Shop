@@ -1,3 +1,4 @@
+import { assertMarkup, lockMarkup, productMarkup } from '../src/product/markup.js';
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, Unit } from '../src/db/gen/client.js';
@@ -87,28 +88,20 @@ const products = [
 
 async function main() {
   for (const category of categories) {
-    await db.category.upsert({
-      where: { slug: category.slug },
-      update: category,
-      create: category,
-    });
+    await db.category.upsert({ where: { slug: category.slug }, update: category, create: category });
   }
-
-  for (const { category, ...product } of products) {
-    await db.product.upsert({
-      where: { slug: product.slug },
-      update: {
-        ...product,
-        portionQty: product.min,
-        category: { connect: { slug: category } },
-      },
-      create: {
-        ...product,
-        portionQty: product.min,
-        category: { connect: { slug: category } },
-      },
-    });
-  }
+  await db.$transaction(async tx => {
+    await lockMarkup(tx);
+    const slugs = products.map(product => product.slug);
+    await tx.$queryRaw`SELECT id FROM "Product" WHERE slug = ANY(${slugs}::text[]) ORDER BY id FOR UPDATE`;
+    for (const { category, ...product } of products) {
+      const current = await tx.product.findUnique({ where: { slug: product.slug }, select: { serviceMarkupPercentOverride: true, serviceMarkupPercent: true } });
+      if (current) assertMarkup(current);
+      const markup = await productMarkup(tx, current?.serviceMarkupPercentOverride ?? null);
+      const values = { ...product, ...markup, portionQty: product.min, category: { connect: { slug: category } } };
+      await tx.product.upsert({ where: { slug: product.slug }, update: values, create: values });
+    }
+  });
 }
 
 main().finally(() => db.$disconnect());

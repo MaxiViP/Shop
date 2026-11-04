@@ -15,6 +15,10 @@
           <dd>{{ user.name ?? "—" }}</dd>
           <dt>Телефон</dt>
           <dd>{{ user.phone ?? "—" }}</dd>
+          <template v-if="!user.phone && user.telegramIdentity?.phoneVerified && user.telegramIdentity.phoneNumber">
+            <dt>Номер из Telegram</dt>
+            <dd>{{ user.telegramIdentity.phoneNumber }} · основной номер не подтверждён</dd>
+          </template>
           <dt>Роль</dt>
           <dd>{{ user.role }}</dd>
           <dt>Верифицирован</dt>

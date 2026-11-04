@@ -12,7 +12,7 @@
       >
       <nav aria-label="Админка" class="flex flex-wrap gap-1 w-full border-t border-default pt-3">
         <UButton
-          v-for="item in navigation" :key="item.to" :to="item.to"
+          v-for="item in visibleNavigation" :key="item.to" :to="item.to"
           :icon="item.icon" size="sm"
           :variant="route.path === item.to || (item.to !== '/admin' && route.path.startsWith(`${item.to}/`)) ? 'solid' : 'ghost'">
           {{ item.label }}
@@ -38,12 +38,16 @@ const navigation = [
   { to: '/admin/finance', label: 'Отчёты', icon: 'i-lucide-chart-no-axes-combined' },
   { to: '/admin/payouts', label: 'Выплаты', icon: 'i-lucide-wallet' },
   { to: '/admin/users', label: 'Пользователи', icon: 'i-lucide-users' },
+  { to: '/admin/events', label: 'Центр событий', icon: 'i-lucide-messages-square' },
+  { to: '/admin/activity', label: 'Журнал администраторов', icon: 'i-lucide-history' },
   { to: '/admin/promo-codes', label: 'Промокоды', icon: 'i-lucide-ticket' },
   { to: '/admin/schedule', label: 'Режим работы', icon: 'i-lucide-clock' },
   { to: '/admin/queue', label: 'Очередь и нагрузка', icon: 'i-lucide-gauge' },
   { to: '/admin/settings', label: 'Настройки', icon: 'i-lucide-settings' },
 ];
 const auth = useAuthStore();
+const { data: permissions } = await useApi<{primaryAdmin:boolean}>('/admin/users/permissions');
+const visibleNavigation = computed(() => navigation.filter(item => item.to !== '/admin/activity' || permissions.value?.primaryAdmin));
 const orders = useOrdersAction();
 const api = useApiClient();
 const toast = useToast();

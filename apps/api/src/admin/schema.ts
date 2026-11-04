@@ -12,7 +12,7 @@ const slug = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug: латинские буквы, цифры и дефисы');
 const sort = z.number().int().min(-1_000_000).max(1_000_000);
 const qty = z.number().int().positive().max(MAX_QTY);
-export const pricePreviewSchema = z.strictObject({ price: z.number().int().positive().max(100_000_000), serviceMarkupPercent: z.number().int().min(0).max(100).optional() });
+export const pricePreviewSchema = z.strictObject({ price: z.number().int().positive().max(100_000_000), serviceMarkupPercentOverride: z.number().int().min(0).max(100).nullable().optional() });
 export const priceStatusSchema = z.enum(['ESTIMATED', 'SOURCE', 'AUDITED']);
 const productFields = z.strictObject({
   saleChangeConfirmed: z.literal(true).optional(),
@@ -20,7 +20,7 @@ const productFields = z.strictObject({
   slug,
   description: z.string().trim().max(10000).nullable(),
   price: z.number().int().positive().max(100_000_000),
-  serviceMarkupPercent: z.number().int().min(0).max(100).optional(),
+  serviceMarkupPercentOverride: z.number().int().min(0).max(100).nullable().optional(),
   priceStatus: priceStatusSchema.optional(),
   settlementMode: z.enum(['UNSET', 'SHARED_MARKUP', 'NO_MARKUP']).optional(),
   basePrice: z.number().int().positive().max(100_000_000).nullable().optional(),
@@ -72,7 +72,10 @@ export const ownerProductFields = productFields.pick({
 }).extend({ marketPointId: idSchema });
 export const ownerProductPatch = ownerProductFields.partial();
 export type OwnerProductInput = z.infer<typeof ownerProductFields>;
-export const roleSchema = z.strictObject({ role: z.enum(['USER', 'SELLER']) });
+export const adminPasswordSchema = z.string().min(12).max(128);
+export const roleSchema = z.strictObject({ role: z.enum(['USER', 'SELLER', 'ADMIN']), password: adminPasswordSchema.optional() })
+  .refine(value => value.role === 'ADMIN' ? value.password !== undefined : value.password === undefined,
+    { message: 'Для администратора требуется отдельный пароль' });
 export const imageSchema = z.strictObject({
   alt: z.string().trim().max(300).nullable().optional(),
   sort: sort.optional(),
@@ -84,16 +87,20 @@ export const pageSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().max(160).optional(),
 });
-export const productQuery = pageSchema.extend({
+export const productFilters = z.strictObject({
   category: idSchema.optional(),
   marketPoint: idSchema.optional(),
-  serviceMarkupPercent: z.number().int().min(0).max(100).optional(),
+  serviceMarkupPercent: z.coerce.number().int().min(0).max(100).optional(),
+  serviceFeeMode: z.enum(['global', 'individual', 'review']).optional(),
+  search: z.string().trim().max(160).optional(),
   priceStatus: priceStatusSchema.optional(),
   active: z.enum(['true', 'false']).optional(),
   hitMode: z.enum(['AUTO', 'MANUAL', 'OFF']).optional(),
   seasonTemplateId: idSchema.optional(),
   settlementMode: z.enum(['UNSET', 'SHARED_MARKUP', 'NO_MARKUP']).optional(),
 });
+export const productQuery = pageSchema.extend(productFilters.shape);
+export type ProductFilters = z.infer<typeof productFilters>;
 export const userQuery = pageSchema.extend({
   role: z.enum(['USER', 'SELLER', 'ADMIN', 'POINT_OWNER']).optional(),
 });

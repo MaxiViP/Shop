@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from '../../src/db/gen/client.js';
 import { productSchema } from '../../src/admin/schema.js';
-import { priceBreakdown } from '../../src/product/pricing.js';
+import { assertMarkup, lockMarkup } from '../../src/product/markup.js';
+import { effectivePercent, priceBreakdown } from '../../src/product/pricing.js';
 import {
   packWeight,
   parseCatalog,
@@ -29,6 +30,8 @@ const select = {
   name: true,
   description: true,
   price: true,
+  serviceMarkupPercentOverride: true,
+  serviceMarkupPercent: true,
   priceStatus: true,
   unit: true,
   priceQty: true,
@@ -97,6 +100,9 @@ export async function importCatalog(
   return db.$transaction(
     async (tx) => {
       if (dryRun) await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+      else await lockMarkup(tx);
+      const { globalServiceMarkupPercent } = await tx.shopSettings.findUniqueOrThrow({ where: { id: 1 },
+        select: { globalServiceMarkupPercent: true } });
       const errors: string[] = [];
       const point = await tx.marketPoint.findUnique({
         where: { slug: catalog.marketPointSlug },
@@ -136,6 +142,7 @@ export async function importCatalog(
         };
       });
       const currentProducts = await tx.product.findMany({ select });
+      for (const current of currentProducts) assertMarkup(current);
       const claimed = new Map<number, string>();
       const products = catalog.products.map((row) => {
         const category = categories.find(
@@ -204,7 +211,7 @@ export async function importCatalog(
           priceQty: row.priceQty,
           netWeightGrams: row.netWeightGrams,
           inputSellerPrice: row.sellerPrice,
-          ...priceBreakdown(current?.price ?? row.sellerPrice),
+          ...priceBreakdown(current?.price ?? row.sellerPrice, effectivePercent(current?.serviceMarkupPercentOverride ?? null, globalServiceMarkupPercent)),
           priceStatus: current?.priceStatus ?? row.priceStatus,
           active: current?.active ?? false,
           action: issue
@@ -245,7 +252,8 @@ export async function importCatalog(
             const data = productSchema.parse(
               productValues(row, categoryId, point.id),
             );
-            const created = await tx.product.create({ data });
+            const created = await tx.product.create({ data: { ...data, serviceMarkupPercentOverride: null,
+              serviceMarkupPercent: effectivePercent(null, globalServiceMarkupPercent), serviceMarkupNeedsReview: false } });
             plan.id = created.id;
           } else if (plan.action === 'update') {
             const current = currentProducts.find(

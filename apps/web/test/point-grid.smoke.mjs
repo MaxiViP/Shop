@@ -19,7 +19,7 @@ products[3].images = [];
 Object.assign(products[1], { price: 123456, unit: 'PIECE', priceQty: 1, min: 1, step: 1, portionQty: 1 });
 Object.assign(products[2], { price: 99999999, unit: 'BUNCH', priceQty: 1, min: 1, step: 1, portionQty: 1 });
 Object.assign(products[3], { unit: 'PACK', priceQty: 1, min: 1, step: 1, portionQty: 1 });
-const adminProduct = { ...products[0], price: 10000, sellerPrice: 10000, customerPrice: 12500, serviceMarkupPercent: 25, serviceMarkup: 2500,
+const adminProduct = { ...products[0], price: 10000, sellerPrice: 10000, customerPrice: 12500, serviceMarkupPercent: 25, serviceMarkupPercentOverride: 25, serviceMarkupNeedsReview: false, serviceMarkup: 2500,
   description: 'Наши яблоки', categoryId: 1, marketPointId: 10, active: true, sort: 0, hitMode: 'AUTO', autoHit: false,
   seasonalMode: 'OFF', seasonTemplateId: null, settlementMode: 'UNSET', basePrice: null, images: [], sourceUrl: null, sourceCheckedAt: null };
 let user = null;
@@ -46,9 +46,15 @@ const api = createServer(async (request, response) => {
   else if (['/api/categories/points', '/api/owner/points', '/api/admin/market-map/points'].includes(path)) body = [point];
   else if (path === '/api/products') body = { items: products, total: products.length, nextCursor: null, page: 1, pages: 1, limit: 24,
     ...(url.searchParams.get('category') && url.searchParams.get('q') ? { groupTotals: { current: 0, others: 24 } } : {}) };
+  else if (path === '/api/admin/settings') body = { globalServiceMarkupPercent: 10 };
   else if (path === '/api/admin/users') body = { items: [{ id: 7, name: 'Владелец', phone: '+79990000007', role: 'SELLER', ownedPoints: [], protected: false, orders: 0, completed: 0, spent: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), verifiedAt: null }], page: 1, pages: 1, total: 1 };
   else if (path === '/api/owner/products/1' || path === '/api/admin/products/1') body = adminProduct;
-  else if (path.endsWith('/products/pricing')) body = { sellerPrice: input.price, customerPrice: Math.round(input.price * 1.25), serviceMarkupPercent: 25, serviceMarkup: Math.round(input.price * .25) };
+  else if (path.endsWith('/products/pricing')) {
+    const override = path.includes('/owner/') ? adminProduct.serviceMarkupPercentOverride : input.serviceMarkupPercentOverride;
+    const percent = override ?? 10;
+    const customerPrice = Math.round(input.price * (100 + percent) / 100);
+    body = { sellerPrice: input.price, customerPrice, serviceMarkupPercent: percent, serviceMarkupPercentOverride: override, serviceMarkup: customerPrice - input.price };
+  }
   else if (path === '/api/orders/quote') {
     const items = input.items.map(line => { const product = products.find(p => p.id === line.productId); return { ...line, product, status: 'AVAILABLE', lineTotal: Math.round(product.price * line.qty / product.priceQty) }; });
     body = { items, subtotal: items.reduce((sum, line) => sum + line.lineTotal, 0), valid: true, error: null, token: 'fixture' };
@@ -268,13 +274,13 @@ try {
   await page.goto(web.base + '/staff/products/1', { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Редактировать свой товар' }).waitFor();
   assert.equal(await page.getByText('Внутренний расчёт', { exact: true }).count(), 0);
-  assert.equal(await page.getByLabel('Наценка сервиса, %', { exact: true }).count(), 0);
+  assert.equal(await page.getByLabel('Индивидуальный процент, %', { exact: true }).count(), 0);
   assert.equal(await page.getByText('Отметка ХИТ', { exact: true }).count(), 0);
   await page.locator('form input[maxlength="160"]').fill('Наши яблоки');
   await Promise.all([page.waitForResponse(response => response.url().endsWith('/owner/products/1') && response.request().method() === 'PATCH'), page.getByRole('button', { name: 'Сохранить изменения', exact: true }).click()]);
   const update = mutations.findLast(value => value.path === '/api/owner/products/1');
   assert.equal(update.body.name, 'Наши яблоки');
-  for (const key of ['serviceMarkupPercent', 'hitMode', 'settlementMode', 'basePrice', 'sourceCheckedAt', 'sort']) assert.ok(!Object.hasOwn(update.body, key), key);
+  for (const key of ['serviceMarkupPercent', 'serviceMarkupPercentOverride', 'serviceMarkupNeedsReview', 'hitMode', 'settlementMode', 'basePrice', 'sourceCheckedAt', 'sort']) assert.ok(!Object.hasOwn(update.body, key), key);
   await page.screenshot({ path: join(artifacts, 'owner-editor.png') });
   checks.push('owner editor hides admin fields and submits only permitted own-product data');
   user = { ...user, id: 1, role: 'ADMIN', ownedPoints: [] };
@@ -287,7 +293,7 @@ try {
   await page.goto(web.base + '/admin/products/1', { waitUntil: 'networkidle' });
   await page.locator('input[type="number"][max="100"]').fill('30');
   await Promise.all([page.waitForResponse(response => response.url().endsWith('/admin/products/1') && response.request().method() === 'PATCH'), page.getByRole('button', { name: 'Сохранить изменения', exact: true }).click()]);
-  assert.equal(mutations.findLast(value => value.path === '/api/admin/products/1').body.serviceMarkupPercent, 30);
+  assert.equal(mutations.findLast(value => value.path === '/api/admin/products/1').body.serviceMarkupPercentOverride, 30);
   checks.push('administrator edits the product service markup');
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ artifacts, checks, mutations: mutations.filter(value => value.method === 'PATCH'), errors }, null, 2));

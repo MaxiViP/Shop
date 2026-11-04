@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   Header,
@@ -98,11 +99,13 @@ export class TelegramAuthCtrl {
       stage = 'TELEGRAM_IDENTITY_LOGIN_FAILED';
       const result = await this.telegram.login(proof, request.cookies?.[SID]);
       response.cookie(SID, result.token, sessionCookie);
-    } catch {
+    } catch (error) {
       if (stage) this.logger.warn('Telegram OIDC failed: ' + stage);
       // Callback query parameters never select the return path.
       if (!this.oidc.available)
         return response.status(503).send('TELEGRAM_LOGIN_UNAVAILABLE');
+      if (error instanceof ConflictException)
+        return response.redirect(303, this.oidc.destination(true, undefined, true));
       return response.redirect(303, this.oidc.destination(true));
     }
     return response.redirect(303, this.oidc.destination(false, returnTo));

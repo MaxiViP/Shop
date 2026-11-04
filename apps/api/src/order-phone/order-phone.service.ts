@@ -47,7 +47,7 @@ export class OrderPhoneService {
       phones,
       manualCount: user.orderPhones.length,
       primaryPhone: phones.find((entry) => entry.phone === user.orderPhone)?.phone
-        ?? user.phone ?? telegramPhone ?? null,
+        ?? user.phone ?? null,
     };
   }
 
