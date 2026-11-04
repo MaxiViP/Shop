@@ -1,3 +1,5 @@
+import { ServiceFeeCtrl } from './service-fee.ctrl.js';
+import { ServiceFeeService } from './service-fee.service.js';
 import { OwnerCtrl } from './owner.ctrl.js';
 import { Module } from '@nestjs/common';
 import { ResearchDraftsCtrl } from './research-drafts.ctrl.js';
@@ -36,6 +38,7 @@ import { HitsService } from './hits.service.js';
   controllers: [
     AdminPromoCtrl,
     AdminProductsCtrl,
+    ServiceFeeCtrl,
     OwnerCtrl,
     AdminCategoriesCtrl,
     AdminUsersCtrl,
@@ -55,6 +58,7 @@ import { HitsService } from './hits.service.js';
     ResearchDraftsCtrl,
   ],
   providers: [
+    ServiceFeeService,
     AdminProductsService,
     AdminCategoriesService,
     AdminUsersService,

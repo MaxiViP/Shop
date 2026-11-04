@@ -54,7 +54,7 @@ export class AdminActivityInterceptor implements NestInterceptor {
                     .failure(
                       requestId,
                       user,
-                      /\/(auth|admin\/users)(\/|$)/.test(request.path),
+                      /\/(auth|admin\/(users|products\/service-fee|settings))(\/|$)/.test(request.path),
                     )
                     .catch(() =>
                       this.logger.warn(

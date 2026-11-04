@@ -75,7 +75,10 @@ export const eventFields: Record<string, string> = {
   unitPrice: "Цена за единицу",
   active: "Активен",
   published: "Опубликован",
-  serviceMarkupPercent: "Наценка, %",
+  serviceMarkupPercent: "Эффективный сервисный процент, %",
+  globalServiceMarkupPercent: "Глобальный сервисный процент, %",
+  serviceMarkupPercentOverride: "Режим сервисного процента",
+  serviceMarkupNeedsReview: "Требует проверки процента",
   adminPasswordChanged: "Пароль изменён",
   productId: "Товар",
   categoryId: "Категория",
@@ -157,6 +160,8 @@ const moneyFields = new Set([
   "finalPromoDiscount",
 ]);
 export function eventValue(value: unknown, key: string) {
+  if (key === "serviceMarkupPercentOverride" && value !== undefined)
+    return value === null ? "Общий" : `Индивидуальный (${value}%)`;
   if (value === undefined || value === null) return "—";
   if (typeof value === "boolean") return value ? "Да" : "Нет";
   if (typeof value === "number" && moneyFields.has(key))

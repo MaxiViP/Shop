@@ -65,9 +65,6 @@
               placeholder="199,50"
               class="w-full"
           /></UFormField>
-          <UFormField v-if="!owner" label="Наценка сервиса, %" help="Настраивает только администратор. Применяется к новым заказам.">
-            <UInput v-model.number="form.serviceMarkupPercent" type="number" min="0" max="100" step="1" required class="w-full" />
-          </UFormField>
           <UFormField label="Единица"
             ><USelect v-model="form.unit" :items="units" class="w-full"
           /></UFormField>
@@ -118,12 +115,31 @@
               class="w-full"
           /></UFormField>
         </div>
-        <dl v-if="pricing" class="mt-4 grid grid-cols-2 gap-2 text-sm max-w-md" aria-live="polite">
+        <section v-if="!owner" class="mt-6 rounded-lg border border-primary/30 p-4 space-y-4 min-w-0" aria-labelledby="service-fee-title">
+          <h3 id="service-fee-title" class="font-semibold">Сервисное вознаграждение</h3>
+          <UAlert v-if="feeNeedsReview" color="warning" title="Требует проверки" description="Процент перенесён из старой системы. Проверьте, должен ли товар использовать индивидуальную или общую настройку" />
+          <UAlert v-if="settingsError" color="error" :title="serviceFeeError(settingsError)" />
+          <div class="flex flex-wrap items-center gap-3">
+            <p v-if="globalPercent !== null">Глобальный процент: <strong>{{ globalPercent }}%</strong></p>
+            <p v-else role="status">Общий процент недоступен</p>
+            <UButton size="xs" variant="ghost" :loading="settingsPending" :disabled="busy" @click="refreshServiceFee">Обновить процент</UButton>
+          </div>
+          <UFormField label="Режим сервисного вознаграждения">
+            <USelect aria-label="Режим сервисного вознаграждения" :model-value="feeMode" :items="feeModes" class="w-full sm:max-w-xs" @update:model-value="selectFeeMode" />
+          </UFormField>
+          <UFormField v-if="feeMode === 'individual'" label="Индивидуальный процент, %" :error="feeValidation" help="Целое число от 0 до 100%. Можно указать 0%." required>
+            <UInput v-model="individualPercent" aria-label="Индивидуальный процент, %" type="number" min="0" max="100" step="1" required class="w-full sm:max-w-48" />
+          </UFormField>
+          <UCheckbox v-if="feeNeedsReview && feeMode === 'individual'" v-model="reviewConfirmed" label="Проверено: сохранить индивидуальный процент" />
+          <p class="text-sm text-muted">Процент включён в цену покупателя. Изменение применяется к новым заказам.</p>
+          <p v-if="pricing" role="status">Эффективный процент: <strong>{{ pricing.serviceMarkupPercent }}%</strong></p>
+        </section>
+        <dl v-if="pricing" class="mt-4 grid grid-cols-[minmax(0,1fr)_auto] gap-2 text-sm max-w-md" aria-live="polite">
           <dt>Цена продавца</dt><dd>{{ money(pricing.sellerPrice) }}</dd>
           <dt>Сервис {{ pricing.serviceMarkupPercent }}%</dt><dd>{{ money(pricing.serviceMarkup) }}</dd>
           <dt>Цена покупателя</dt><dd>{{ money(pricing.customerPrice) }}</dd>
         </dl>
-        <p v-else-if="rublesToKopecks(rubles) !== null" class="mt-4 text-sm text-muted" aria-live="polite">{{ pricingError ? 'Не удалось рассчитать цену покупателя.' : 'Цена покупателя рассчитывается…' }}</p>
+        <p v-else-if="rublesToKopecks(rubles) !== null" class="mt-4 text-sm text-muted" aria-live="polite">{{ pricingError || 'Цена покупателя рассчитывается…' }}</p>
         <div v-if="preview" class="mt-4 space-y-1 text-sm text-muted" aria-live="polite">
           <h3 class="font-semibold text-default">Настройки количества</h3>
           <p>Минимум: {{ qtyText(form.unit, form.min) }} · Шаг: {{ qtyText(form.unit, form.step) }} · Быстро добавить: {{ qtyText(form.unit, form.portionQty) }}</p>
@@ -208,6 +224,14 @@
         >
       </div>
     </fieldset>
+    <UModal v-model:open="confirmGlobal" title="Перейти на общий процент?" description="Индивидуальное значение будет очищено при сохранении. Цена товара будет зависеть от текущего и последующих изменений общего процента.">
+      <template #footer>
+        <div class="flex flex-wrap gap-3">
+          <UButton color="neutral" variant="outline" @click="confirmGlobal = false">Отмена</UButton>
+          <UButton @click="useGlobalFee">Использовать общий процент</UButton>
+        </div>
+      </template>
+    </UModal>
   </form>
   <UCard class="mt-6">
     <AdminImages
@@ -229,6 +253,7 @@ import type { AdminProduct, AdminCategory, ProductPricing } from "~/types/admin"
 import type { MarketPoint } from "~/types/market-map";
 import { priceStatusItems } from "~/utils/price-status";
 import type { Unit } from "~/types/product";
+import { servicePercent, serviceFeeError } from '~/utils/service-fee';
 import { MAX_QTY, manualQuantity, quantityErrors } from "~/utils/assembly";
 import { qtyText } from "~/utils/qty";
 import { priceUnit, saleErrors, saleTermsChanged, variableWeight, wholeLabels, type SaleModel } from '~/utils/sale';
@@ -250,7 +275,6 @@ const form = reactive({
   description: source?.description ?? "",
   categoryId: source?.categoryId ?? (undefined as number | undefined),
   marketPointId: source?.marketPointId ?? 0,
-  serviceMarkupPercent: source?.serviceMarkupPercent ?? 10,
   priceStatus: source?.priceStatus ?? 'ESTIMATED',
   sourceUrl: source?.sourceUrl ?? "",
   priceQty: source?.priceQty ?? 1,
@@ -283,7 +307,41 @@ watch(() => [form.saleModel, form.unit, form.priceUnit, form.priceQty, form.min,
   form.portionQty, form.estimatedWeightGrams, rubles.value], () => { saleConfirmed.value = false; });
 const checkedDate = ref(source?.sourceCheckedAt?.slice(0, 10) ?? "");
 const pricing = ref<ProductPricing | null>(source ?? null);
-const pricingError = ref(false);
+const pricingError = ref('');
+const feeModes = [{ label: 'Общий процент', value: 'global' }, { label: 'Индивидуальный процент', value: 'individual' }];
+const feeMode = ref<'global' | 'individual'>(source?.serviceMarkupPercentOverride != null ? 'individual' : 'global');
+const individualPercent = ref(String(source?.serviceMarkupPercentOverride ?? ''));
+const feeOverride = computed(() => feeMode.value === 'global' ? null : servicePercent(String(individualPercent.value)));
+const feeValidation = computed(() => feeMode.value === 'individual' && feeOverride.value === null ? 'Укажите целое число от 0 до 100%' : undefined);
+const originalOverride = ref(source?.serviceMarkupPercentOverride ?? null);
+const feeNeedsReview = ref(source?.serviceMarkupNeedsReview ?? false);
+const reviewConfirmed = ref(false);
+const confirmGlobal = ref(false);
+function selectFeeMode(value: unknown) {
+  if (value === feeMode.value) return;
+  if (value === 'global' && feeMode.value === 'individual') { confirmGlobal.value = true; return; }
+  if (value === 'individual') {
+    individualPercent.value = String(globalPercent.value ?? source?.serviceMarkupPercent ?? '');
+    feeMode.value = 'individual';
+  }
+}
+function useGlobalFee() {
+  feeMode.value = 'global';
+  individualPercent.value = '';
+  confirmGlobal.value = false;
+}
+const settings = !props.owner ? await useApi<{ globalServiceMarkupPercent: number }>('/admin/settings') : null;
+const globalPercent = computed(() => settings?.data.value?.globalServiceMarkupPercent ?? null);
+const settingsError = computed(() => settings?.error.value);
+const settingsPending = computed(() => settings?.pending.value ?? false);
+const pricingRevision = ref(0);
+async function refreshServiceFee() {
+  if (!settings || settings.pending.value) return;
+  await settings.refresh();
+  pricingRevision.value++;
+}
+onMounted(() => { if (!props.owner) window.addEventListener('focus', refreshServiceFee); });
+onBeforeUnmount(() => { if (!props.owner) window.removeEventListener('focus', refreshServiceFee); });
 const { data: marketPoints } = await useApi<MarketPoint[]>(props.owner ? '/owner/points' : '/admin/market-map/points');
 const seasonTemplates = ref<SeasonTemplate[]>([]);
 if (!props.owner) {
@@ -352,27 +410,41 @@ function generateSlug() {
   if (!manualSlug.value) form.slug = productSlug(form.name);
 }
 const api = useApiClient();
-watch(() => [rubles.value, form.serviceMarkupPercent] as const, ([value], _previous, onCleanup) => {
+function acceptPricing(result: ProductPricing) {
+  if (!props.owner && result.serviceMarkupPercentOverride === null && settings?.data.value) {
+    settings.data.value.globalServiceMarkupPercent = result.serviceMarkupPercent;
+  }
+  pricing.value = result;
+}
+watch(() => [rubles.value, feeMode.value, individualPercent.value, globalPercent.value, pricingRevision.value] as const, ([value], _previous, onCleanup) => {
   pricing.value = null;
-  pricingError.value = false;
+  pricingError.value = '';
   const price = rublesToKopecks(value);
-  if (price === null) return;
+  if (price === null || (!props.owner && feeValidation.value)) return;
   let active = true;
   const timer = setTimeout(async () => {
     try {
-      const result = await api<ProductPricing>(`${apiRoot}/pricing`, { method: "POST", body: { price, ...(props.owner ? source ? { productId: source.id } : {} : { serviceMarkupPercent: form.serviceMarkupPercent }) } });
-      if (active) pricing.value = result;
-    } catch {
-      if (active) pricingError.value = true;
+      const result = await api<ProductPricing>(`${apiRoot}/pricing`, { method: "POST", body: {
+        price, ...(props.owner ? source ? { productId: source.id } : {} : { serviceMarkupPercentOverride: feeOverride.value }),
+      } });
+      if (active) acceptPricing(result);
+    } catch (cause) {
+      if (active) pricingError.value = serviceFeeError(cause);
     }
   }, 200);
   onCleanup(() => { active = false; clearTimeout(timer); });
 });
+// Refresh global-mode snapshots on opening, including a changed global setting.
+if (!props.owner && feeMode.value === 'global') pricingRevision.value++;
 const toast = useToast();
 const busy = ref(false);
 const error = ref("");
 async function save() {
   if (busy.value) return;
+  if (!props.owner && feeValidation.value) { error.value = feeValidation.value; return; }
+  if (!props.owner && (globalPercent.value === null || settingsError.value)) {
+    error.value = 'Не удалось загрузить общий процент. Обновите процент перед сохранением.'; return;
+  }
   if (saleChanged.value && !saleConfirmed.value) {
     error.value = 'Подтвердите условия продажи и проверьте цену за новую единицу.'; return;
   }
@@ -415,6 +487,8 @@ async function save() {
         method: source ? "PATCH" : "POST",
         body: props.owner ? ownerBody : {
           ...form,
+          ...(!source || reviewConfirmed.value || feeOverride.value !== originalOverride.value
+            ? { serviceMarkupPercentOverride: feeOverride.value } : {}),
           ...(saleChanged.value ? { saleChangeConfirmed: true } : {}),
           wholeLabel: variableWeight(form) ? form.wholeLabel : null,
           name: form.name.trim(),
@@ -431,6 +505,12 @@ async function save() {
         },
       },
     );
+    if (!props.owner) {
+      originalOverride.value = result.serviceMarkupPercentOverride;
+      feeNeedsReview.value = result.serviceMarkupNeedsReview;
+      reviewConfirmed.value = false;
+      acceptPricing(result);
+    }
     toast.add({
       title: source ? "Изменения сохранены" : "Товар создан",
       color: "success",
@@ -438,7 +518,7 @@ async function save() {
     if (!source) await navigateTo(`${listPath}/${result.id}`);
     else emit("refresh");
   } catch (value) {
-    error.value = apiError(value);
+    error.value = serviceFeeError(value);
   } finally {
     busy.value = false;
   }

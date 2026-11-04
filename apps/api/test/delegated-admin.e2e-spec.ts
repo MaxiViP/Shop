@@ -921,8 +921,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
         )
           .filter((x) => x.isDirectory())
           .sort((a, b) => a.name.localeCompare(b.name));
-        const latest = migrations.at(-1)!;
-        for (const migration of migrations.slice(0, -1))
+        const target = migrations.findIndex(
+          (migration) => migration.name === '20261103120000_event_center',
+        );
+        expect(target).toBeGreaterThanOrEqual(0);
+        const eventMigration = migrations[target]!;
+        for (const migration of migrations.slice(0, target))
           await connection.query(
             await readFile(
               join('prisma/migrations', migration.name, 'migration.sql'),
@@ -941,7 +945,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         );
         await connection.query(
           await readFile(
-            join('prisma/migrations', latest.name, 'migration.sql'),
+            join('prisma/migrations', eventMigration.name, 'migration.sql'),
             'utf8',
           ),
         );
@@ -989,6 +993,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
           },
         });
         expect(JSON.stringify(nested.rows[0])).not.toContain('sensitive-array');
+        for (const migration of migrations.slice(target + 1))
+          await connection.query(
+            await readFile(join('prisma/migrations', migration.name, 'migration.sql'), 'utf8'),
+          );
+        expect((await connection.query('SELECT id,status FROM "AdminChange" ORDER BY id')).rows)
+          .toEqual([{ id: 1, status: 'UNKNOWN' }, { id: 2, status: 'SENT' }]);
       } finally {
         await connection.query(`SET search_path TO "${schema}"`);
         await connection.query(`DROP SCHEMA "${upgrade}" CASCADE`);

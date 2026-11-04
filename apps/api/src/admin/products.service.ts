@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { productWhere } from './product-filter.js';
 import { lockOwner, ownerProductWhere } from '../auth/permissions.js';
 import { DbService } from '../db/db.service.js';
 import type { Prisma, SettlementMode } from '../db/gen/client.js';
@@ -7,6 +8,7 @@ import { dbError } from './errors.js';
 import { ImagesService } from './images.service.js';
 import { quantityErrors, type ProductQuantity } from '../order/assembly.js';
 import { priceBreakdown } from '../product/pricing.js';
+import { assertMarkup, lockMarkup, productMarkup } from '../product/markup.js';
 import { hitActive, type HitProduct } from '../product/badges.js';
 import { saleErrors, saleTermsChanged, type Sale } from '../product/sale.js';
 
@@ -64,25 +66,8 @@ export class AdminProductsService {
       throw new BadRequestException('Категория недоступна');
   }
   async list(query: ProductQuery, ownerId?: number) {
-    const { page, limit, search, category, active, settlementMode, marketPoint, priceStatus, hitMode, seasonTemplateId } = query;
-    const where: Prisma.ProductWhereInput = {
-      ...(ownerId ? ownerProductWhere(ownerId) : {}),
-      ...(search
-        ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { slug: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-      ...(category ? { categoryId: category } : {}),
-      ...(marketPoint ? { marketPointId: marketPoint } : {}),
-      ...(priceStatus ? { priceStatus } : {}),
-      ...(hitMode ? { hitMode } : {}),
-      ...(seasonTemplateId ? { seasonTemplateId } : {}),
-      ...(active ? { active: active === 'true' } : {}),
-      ...(settlementMode ? { settlementMode } : {}),
-    };
+    const { page, limit } = query;
+    const where = productWhere(query, ownerId);
     const [items, total, unsetCount] = await this.db.$transaction([
       this.db.product.findMany({
         where,
@@ -93,7 +78,7 @@ export class AdminProductsService {
       }),
       this.db.product.count({ where }),
       this.db.product.count({ where: { settlementMode: 'UNSET', ...(ownerId ? ownerProductWhere(ownerId) : {}) } }),
-    ]);
+    ], { isolationLevel: 'RepeatableRead' });
     return { items: items.map(adminProduct), total, unsetCount, page, limit, pages: Math.ceil(total / limit) };
   }
   async get(id: number, ownerId?: number) {
@@ -104,8 +89,15 @@ export class AdminProductsService {
     if (!product) throw new NotFoundException('Товар не найден');
     return adminProduct(product);
   }
-  pricing(price: number, percent?: number) { return priceBreakdown(price, percent); }
+  pricing(price: number, override: number | null = null) {
+    return this.db.$transaction(async db => {
+      await lockMarkup(db);
+      const markup = await productMarkup(db, override);
+      return { ...priceBreakdown(price, markup.serviceMarkupPercent), ...markup };
+    });
+  }
   async create(data: ProductInput, actorId?: number, ownerId?: number) {
+    if (ownerId && data.serviceMarkupPercentOverride !== undefined) throw new ForbiddenException();
     const { saleChangeConfirmed: _confirmed, ...fields } = data;
     data = fields;
     validateQuantity(data);
@@ -113,13 +105,17 @@ export class AdminProductsService {
     const values = settlement(data.settlementMode, data.basePrice);
     try {
       return await this.db.$transaction(async (db) => {
+        await lockMarkup(db, actorId);
         if (ownerId) await this.ownerScope(db, ownerId, data);
+        const markup = await productMarkup(db, data.serviceMarkupPercentOverride ?? null);
         const season = await this.season(db, data);
-        const product = await db.product.create({ data: { ...data, ...values, ...season }, include });
+        const product = await db.product.create({ data: { ...data, ...values, ...season, ...markup, serviceMarkupNeedsReview: false }, include });
         if (actorId) await db.adminAudit.create({ data: {
           actorId, action: 'PRODUCT_SETTLEMENT_CREATED', entity: 'PRODUCT',
           entityId: String(product.id), newValue: values,
         } });
+        if (actorId) await db.adminAudit.create({ data: { actorId, action: 'PRODUCT_MARKUP_CREATED',
+          entity: 'PRODUCT', entityId: String(product.id), newValue: { ...markup, serviceMarkupNeedsReview: false } } });
         return adminProduct(product);
       });
     } catch (error) {
@@ -127,14 +123,25 @@ export class AdminProductsService {
     }
   }
   async update(id: number, data: Partial<ProductInput>, actorId?: number, ownerId?: number) {
+    if (ownerId && data.serviceMarkupPercentOverride !== undefined) throw new ForbiddenException();
     const { saleChangeConfirmed, ...fields } = data;
     data = fields;
     try {
       return await this.db.$transaction(
         async (db) => {
+          await lockMarkup(db, actorId);
           if (ownerId) await this.ownerScope(db, ownerId, data);
+          await db.$queryRaw`SELECT id FROM "Product" WHERE id = ${id} FOR UPDATE`;
           const current = await db.product.findUnique({ where: { id, ...(ownerId ? ownerProductWhere(ownerId) : {}) } });
           if (!current) throw new NotFoundException('Товар не найден');
+          if (data.serviceMarkupPercentOverride === undefined) assertMarkup(current);
+          const override = data.serviceMarkupPercentOverride === undefined
+            ? current.serviceMarkupPercentOverride : data.serviceMarkupPercentOverride;
+          const markup = await productMarkup(db, override);
+          const serviceMarkupNeedsReview = data.serviceMarkupPercentOverride === undefined ? current.serviceMarkupNeedsReview : false;
+          const markupBefore = { serviceMarkupPercentOverride: current.serviceMarkupPercentOverride,
+            serviceMarkupPercent: current.serviceMarkupPercent, serviceMarkupNeedsReview: current.serviceMarkupNeedsReview };
+          const markupAfter = { ...markup, serviceMarkupNeedsReview };
           if (saleTermsChanged(current, { ...current, ...data }) && !saleChangeConfirmed)
             throw new BadRequestException('Подтвердите изменение условий продажи и проверьте цену за новую единицу.');
           validateQuantity({ ...current, ...data });
@@ -145,10 +152,12 @@ export class AdminProductsService {
             data.basePrice === undefined ? current.basePrice : data.basePrice);
           const changed = before.settlementMode !== after.settlementMode || before.basePrice !== after.basePrice;
           const product = await db.product.update({ where: { id },
-            data: { ...data, ...after, ...season }, include });
-          if (actorId && data.serviceMarkupPercent !== undefined && data.serviceMarkupPercent !== current.serviceMarkupPercent)
+            data: { ...data, ...after, ...season, ...markupAfter }, include });
+          if (actorId && (markupBefore.serviceMarkupPercentOverride !== markupAfter.serviceMarkupPercentOverride ||
+            markupBefore.serviceMarkupPercent !== markupAfter.serviceMarkupPercent ||
+            markupBefore.serviceMarkupNeedsReview !== markupAfter.serviceMarkupNeedsReview))
             await db.adminAudit.create({ data: { actorId, action: 'PRODUCT_MARKUP_CHANGED', entity: 'PRODUCT', entityId: String(id),
-              oldValue: current.serviceMarkupPercent, newValue: data.serviceMarkupPercent } });
+              oldValue: markupBefore, newValue: markupAfter } });
           if (changed && actorId) await db.adminAudit.create({ data: {
             actorId, action: 'PRODUCT_SETTLEMENT_CHANGED', entity: 'PRODUCT',
             entityId: String(id), oldValue: before, newValue: after,

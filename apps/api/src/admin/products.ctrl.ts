@@ -49,8 +49,8 @@ export class AdminProductsCtrl {
     return this.products.create(body, request.user.id);
   }
   @Post('pricing')
-  pricing(@Body({ schema: pricePreviewSchema }) body: { price: number; serviceMarkupPercent?: number }) {
-    return this.products.pricing(body.price, body.serviceMarkupPercent);
+  pricing(@Body({ schema: pricePreviewSchema }) body: { price: number; serviceMarkupPercentOverride?: number | null }) {
+    return this.products.pricing(body.price, body.serviceMarkupPercentOverride);
   }
   @Patch(':id')
   update(
