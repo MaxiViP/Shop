@@ -19,6 +19,8 @@ export function serviceFeeError(cause: unknown): string {
       return 'Изменять общий сервисный процент может только главный администратор';
   }
   if (serviceFeeConflict(cause)) {
+    const code = (cause as { data?: { code?: unknown } }).data?.code;
+    if (typeof code === 'string' && code.startsWith('SERVICE_FEE_')) return apiError(cause);
     return 'Настройки сейчас обновляются или используются при оформлении заказа. Повторите попытку';
   }
   return apiError(cause);

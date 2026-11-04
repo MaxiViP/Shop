@@ -17,3 +17,10 @@ test('revoked global/bulk permission has an actionable message for every HTTP er
   for (const cause of [{status:403}, {statusCode:403}, {response:{status:403}}])
     assert.match(serviceFeeError(cause), /только главный администратор/);
 });
+
+test('bulk stale and in-progress conflicts retain the specific backend recovery instruction', () => {
+  for (const code of ['SERVICE_FEE_STALE', 'SERVICE_FEE_IN_PROGRESS']) {
+    const message = code === 'SERVICE_FEE_STALE' ? 'Обновите предварительный расчёт' : 'Повторите запрос с тем же requestId';
+    assert.equal(serviceFeeError({statusCode:409,data:{code,message}}),message);
+  }
+});

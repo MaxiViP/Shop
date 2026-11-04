@@ -8,7 +8,7 @@ const require = createRequire(new URL('../../../api/package.json', import.meta.u
 require('reflect-metadata');
 const { Test } = require('@nestjs/testing');
 const { StandardSchemaValidationPipe } = require('@nestjs/common');
-const { PrismaPg } = require('@prisma/adapter-pg');
+const { APP_INTERCEPTOR } = require('@nestjs/core');
 const pg = require('pg');
 const cookieParser = require('cookie-parser');
 const load = file => import(new URL('../../../api/dist/' + file + '.js', import.meta.url));
@@ -48,12 +48,16 @@ export async function serviceFeeApi() {
       await connection.query(await readFile(new URL(entry.name + '/migration.sql', root), 'utf8'));
     }
     const { PrismaClient } = await load('db/gen/client');
-    db = new PrismaClient({ adapter: new PrismaPg({ connectionString: target.href, options: `-c search_path=${schema}` }, { schema }) });
+    const { ActivityPrismaPg } = await load('admin/activity-context');
+    db = new PrismaClient({ adapter: new ActivityPrismaPg({ connectionString: target.href, options: `-c search_path=${schema}` }, { schema }) });
+    process.env.AUTH_SECRET = 'fixture-only-' + randomUUID();
     process.env.NODE_ENV = 'test'; process.env.ADMIN_PHONE = '+79990000887';
     const admin = await db.user.create({ data: { role: 'ADMIN', name: 'Главный администратор', phone: process.env.ADMIN_PHONE } });
     const owner = await db.user.create({ data: { role: 'USER', name: 'Владелец', phone: '+79990000003' } });
     const seller = await db.user.create({ data: { role: 'SELLER', phone: '+79990000004' } });
     const otherAdmin = await db.user.create({ data: { role: 'ADMIN', phone: '+79990000005' } });
+    const buyer = await db.user.create({ data: { role: 'USER', name: 'Fixture buyer', phone: '+79990000123', verifiedAt: new Date() } });
+    await db.telegramIdentity.create({ data: { userId: buyer.id, telegramUserId: 99000001n, phoneNumber: buyer.phone, phoneVerified: true } });
     const point = await db.marketPoint.findFirstOrThrow();
     await db.marketPointOwner.create({ data: { userId: owner.id, marketPointId: point.id } });
     await db.product.update({ where: { id: 1 }, data: { marketPointId: point.id } });
@@ -71,10 +75,20 @@ export async function serviceFeeApi() {
     const { AdminCategoriesService } = await load('admin/categories.service');
     const { AdminUsersCtrl } = await load('admin/users.ctrl');
     const { AdminUsersService } = await load('admin/users.service');
+    const { EventsCtrl } = await load('admin/events.ctrl');
+    const { EventsService } = await load('admin/events.service');
+    const { AdminActivityInterceptor } = await load('admin/activity.interceptor');
+    const { CartCtrl } = await load('cart/cart.ctrl');
+    const { CartService } = await load('cart/cart.service');
+    const { OrderService } = await load('order/order.service');
+    const orders = new OrderService(db, { notifyNewOrder() {}, notifyPaymentReported() {} });
+    const cart = new CartService(db, orders);
     const images = new ImagesService(db);
-    const users = { ADMIN: admin.id, OWNER: owner.id, SELLER: seller.id, OTHER_ADMIN: otherAdmin.id };
+    const users = { BUYER: buyer.id, ADMIN: admin.id, OWNER: owner.id, SELLER: seller.id, OTHER_ADMIN: otherAdmin.id };
     const me = async token => users[token] ? db.user.findUnique({ where: { id: users[token] }, include: { ownedPoints: { select: { marketPointId: true } } } }) : null;
-    const module = await Test.createTestingModule({ controllers: [AdminUsersCtrl, ServiceFeeCtrl, AdminProductsCtrl, SettingsCtrl, PublicSettingsCtrl, OwnerCtrl, AdminCategoriesCtrl], providers: [
+    const module = await Test.createTestingModule({ controllers: [EventsCtrl, CartCtrl, AdminUsersCtrl, ServiceFeeCtrl, AdminProductsCtrl, SettingsCtrl, PublicSettingsCtrl, OwnerCtrl, AdminCategoriesCtrl], providers: [
+      EventsService, { provide: APP_INTERCEPTOR, useClass: AdminActivityInterceptor },
+      { provide: CartService, useValue: cart },
       { provide: AdminUsersService, useValue: new AdminUsersService(db) },
       { provide: ServiceFeeService, useValue: new ServiceFeeService(db) },
       { provide: DbService, useValue: db }, { provide: AdminProductsService, useValue: new AdminProductsService(db, images) },
@@ -93,7 +107,7 @@ export async function serviceFeeApi() {
       if (path.endsWith('/orders/unread')) return response.json({ count: 0, latestOrderId: null });
       if (path === '/api/in-app/events') return response.json({ scope: null, events: [], hasMore: false });
       if (path === '/api/favorites') return response.json({ items: [] });
-      if (path === '/api/cart') return response.json({ revision: '0', items: [], products: [], subtotal: 0, valid: true, error: null });
+      if (path === '/api/cart' && request.cookies[SID] !== 'BUYER') return response.json({ revision: '0', items: [], products: [], subtotal: 0, valid: true, error: null });
       if (path === '/api/order-phones') return response.json({ primaryPhone: null, phones: [] });
       if (['POST','PATCH'].includes(request.method)) response.on('finish', () => requests.push({ path, method: request.method, body: request.body, status: response.statusCode }));
       next();
@@ -101,7 +115,7 @@ export async function serviceFeeApi() {
     app.setGlobalPrefix('api'); app.useGlobalPipes(new StandardSchemaValidationPipe({ transform: true }));
     await app.listen(0, '127.0.0.1');
     const history = async () => ({ orders: await db.order.findMany(), items: await db.orderItem.findMany(), payments: await db.orderPayment.findMany() });
-    return { adminId: admin.id, apiBase: await app.getUrl() + '/api', db, requests, cookieName: SID, history, historical: await history(),
+    return { buyerId: buyer.id, cart, orders, adminId: admin.id, apiBase: await app.getUrl() + '/api', db, requests, cookieName: SID, history, historical: await history(),
       categoryId: (await db.category.findUniqueOrThrow({ where: { slug: 'fee-ui' } })).id,
       async lockProduct() {
         const lock = new pg.Client({ connectionString: target.href }); await lock.connect();

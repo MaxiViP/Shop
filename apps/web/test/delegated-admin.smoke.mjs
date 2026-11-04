@@ -110,7 +110,7 @@ try {
       "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
     headless: true,
   });
-  for (const width of [390, 1280]) {
+  for (const width of [320, 390, 768, 1280]) {
     primary = true;
     users[2].role = "USER";
     const context = await browser.newContext({
@@ -195,7 +195,7 @@ try {
   console.log(
     JSON.stringify({
       passed: true,
-      widths: [390, 1280],
+      widths: [320, 390, 768, 1280],
       primaryGrant: true,
       primaryJournal: true,
       delegatedRestrictions: true,
