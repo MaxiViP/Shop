@@ -1,6 +1,6 @@
 import { QuickShopService } from '../src/cart/quick-shop.service.js';
 import 'dotenv/config';
-import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, createHmac, generateKeyPairSync, randomBytes, randomUUID, sign } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import pg from 'pg';
@@ -16,6 +16,8 @@ import { AuthModule } from '../src/auth/auth.module.js';
 import { AuthService } from '../src/auth/auth.service.js';
 import { TelegramAuthService } from '../src/auth/telegram-auth.service.js';
 import { TelegramOidcService } from '../src/auth/telegram-oidc.service.js';
+import { AdminUsersService } from '../src/admin/users.service.js';
+import { OrderPhoneService } from '../src/order-phone/order-phone.service.js';
 import { OrderService } from '../src/order/order.service.js';
 import { CoordinationService } from '../src/order/coordination.service.js';
 import { ChatImagesService } from '../src/order/chat-images.service.js';
@@ -326,20 +328,22 @@ describe.skipIf(!process.env.DATABASE_URL)(
         vi.stubGlobal('fetch', previousFetch);
       }
     });
-    it('persists verified OIDC metadata without linking User.phone and preserves it across Mini App login', async () => {
+    it('registers a verified OIDC primary phone and preserves it across Mini App login', async () => {
       const telegramId = ++id;
       const first = await telegram.login({
         profile: { id: telegramId, first_name: 'Initial', photo_url: 'https://example.test/first.webp' },
         phone: { number: '+79991234567', verified: true },
         tokenHash: randomUUID(), expiresAt: new Date(Date.now() + 300_000),
       });
-      expect(first.user.phone).toBeNull();
+      expect(first.user.phone).toBe('+79991234567');
+      expect(first.user.verifiedAt).toBeInstanceOf(Date);
       expect(first.user.telegram).toMatchObject({ connected: true, phoneNumber: '+79991234567', phoneVerified: true, photoUrl: 'https://example.test/first.webp' });
       await db.user.update({ where: { id: first.user.id }, data: { name: 'User chosen name' } });
       const again = await telegram.miniApp(raw(telegramId));
       expect(again.user.id).toBe(first.user.id);
       expect(again.user.name).toBe('User chosen name');
-      expect(again.user.phone).toBeNull();
+      expect(again.user.phone).toBe('+79991234567');
+      expect(again.user.verifiedAt).toEqual(first.user.verifiedAt);
       expect(again.user.telegram).toMatchObject({ phoneNumber: '+79991234567', phoneVerified: true, photoUrl: 'https://example.test/first.webp' });
       const me = await request(app.getHttpServer()).get('/api/auth/me')
         .set('Cookie', 'sid=' + again.token).expect(200);
@@ -359,12 +363,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const telegramId = ++id;
       const base = { profile: { id: telegramId }, expiresAt: new Date(Date.now() + 300_000) };
       const first = await telegram.login({ ...base, tokenHash: randomUUID(),
-        phone: { number: '8 (999) 123-45-67', verified: true } });
-      expect(first.user.telegram).toMatchObject({ phoneNumber: '+79991234567', phoneVerified: true });
+        phone: { number: '8 (999) 123-45-68', verified: true } });
+      expect(first.user.telegram).toMatchObject({ phoneNumber: '+79991234568', phoneVerified: true });
       const next = await telegram.login({ ...base, tokenHash: randomUUID(),
         phone: { number: '+79997654321', verified: false } });
-      expect(next.user.telegram).toMatchObject({ phoneNumber: '+79991234567', phoneVerified: true });
-      expect(next.user.phone).toBeNull();
+      expect(next.user.telegram).toMatchObject({ phoneNumber: '+79991234568', phoneVerified: true });
+      expect(next.user.phone).toBe('+79991234568');
+      expect(next.user.verifiedAt).toEqual(first.user.verifiedAt);
       const noPhone = await telegram.login({ ...base, profile: { id: ++id },
         tokenHash: randomUUID(), phone: { number: '+79997654321', verified: false } });
       expect(noPhone.user.telegram).toMatchObject({ phoneNumber: null, phoneVerified: false });
@@ -379,6 +384,130 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(result.token).toBeTruthy();
       expect(result.user.telegram).toMatchObject({ phoneNumber: null, phoneVerified: false });
       expect(result.user.phone).toBeNull();
+    });
+    const oidcProof = (telegramId: number, number: string, verified = true) => ({
+      profile: { id: telegramId }, phone: { number, verified },
+      tokenHash: randomUUID(), expiresAt: new Date(Date.now() + 300_000),
+    });
+    it('recovers a legacy Telegram-only account only after a fresh OIDC proof without moving data or sessions', async () => {
+      const telegramId = ++id;
+      const initial = await telegram.miniApp(raw(telegramId));
+      const userId = initial.user.id;
+      await db.telegramIdentity.update({ where: { userId },
+        data: { phoneNumber: '+79913330001', phoneVerified: true } });
+      const savedOrder = await db.order.create({ data: { userId, type: 'PICKUP',
+        customerName: 'Legacy', customerPhone: '+79913330001', subtotal: 100, total: 100 } });
+      const address = await db.address.create({ data: { userId, label: 'Дом', city: 'Москва', street: 'Тест', house: '1' } });
+      const cart = await db.cart.create({ data: { userId } });
+      const extra = await db.orderPhone.create({ data: { userId, phone: '+79913330002' } });
+      await db.user.update({ where: { id: userId }, data: { orderPhone: extra.phone } });
+      const before = await db.user.count();
+      const mini = await telegram.miniApp(raw(telegramId, { phone_number: '+79913330001', phone_number_verified: true }));
+      expect(mini.user).toMatchObject({ id: userId, phone: null, verifiedAt: null });
+      const recovered = await telegram.login(oidcProof(telegramId, '+79913330001'));
+      expect(recovered.user).toMatchObject({ id: userId, phone: '+79913330001', verifiedAt: expect.any(Date) });
+      expect(await db.user.count()).toBe(before);
+      expect(await db.order.findUnique({ where: { id: savedOrder.id } })).toEqual(savedOrder);
+      expect(await db.address.findUnique({ where: { id: address.id } })).toEqual(address);
+      expect(await db.cart.findUnique({ where: { id: cart.id } })).toEqual(cart);
+      expect(await db.orderPhone.findUnique({ where: { id: extra.id } })).toEqual(extra);
+      expect((await auth.me(initial.token))?.id).toBe(userId);
+      expect((await auth.me(mini.token))?.id).toBe(userId);
+      const phones = new OrderPhoneService(db as unknown as DbService);
+      expect((await phones.list(userId)).primaryPhone).toBe(extra.phone);
+      const again = await telegram.login(oidcProof(telegramId, '+79913330001'));
+      expect(again.user).toEqual(recovered.user);
+      const different = await telegram.login(oidcProof(telegramId, '+79913330003'));
+      expect(different.user.phone).toBe(recovered.user.phone);
+      expect(different.user.verifiedAt).toEqual(recovered.user.verifiedAt);
+    });
+    it('SMS proves and attaches a legacy phone to the same account', async () => {
+      const telegramId = ++id;
+      const initial = await telegram.miniApp(raw(telegramId));
+      await db.telegramIdentity.update({ where: { userId: initial.user.id },
+        data: { phoneNumber: '+79913330004', phoneVerified: true } });
+      await otp('+79913330004');
+      const linked = await auth.login('+79913330004', '123456', undefined, initial.user.id);
+      expect(linked.user).toMatchObject({ id: initial.user.id, phone: '+79913330004', verifiedAt: expect.any(Date) });
+      await otp('+79913330004');
+      expect((await auth.login('+79913330004', '123456')).user.id).toBe(initial.user.id);
+    });
+    it('rejects occupied OIDC phones atomically without merging customer or staff accounts', async () => {
+      for (const role of ['USER', 'SELLER', 'ADMIN'] as const) {
+        const number = '+7991444000' + (role === 'USER' ? '1' : role === 'SELLER' ? '2' : '3');
+        const owner = await db.user.create({ data: { phone: number, role } });
+        const ownerToken = await auth.createSession(db, owner.id);
+        const telegramId = ++id;
+        const proof = oidcProof(telegramId, number);
+        const before = await db.user.count();
+        await expect(telegram.login(proof)).rejects.toThrow('ACCOUNT_LINK_REQUIRED');
+        expect(await db.user.count()).toBe(before);
+        expect(await db.telegramIdentity.findUnique({ where: { telegramUserId: BigInt(telegramId) } })).toBeNull();
+        expect(await db.telegramAuthReplay.findUnique({ where: { tokenHash: proof.tokenHash } })).toBeNull();
+        expect(await db.session.count({ where: { userId: owner.id } })).toBe(1);
+        expect(await db.user.findUnique({ where: { id: owner.id } })).toEqual(owner);
+        expect(await db.session.findUnique({ where: { tokenHash: createHash('sha256').update(ownerToken).digest('hex') } })).not.toBeNull();
+      }
+      const legacy = await telegram.miniApp(raw());
+      const identity = await db.telegramIdentity.findUniqueOrThrow({ where: { userId: legacy.user.id } });
+      await expect(telegram.login(oidcProof(Number(identity.telegramUserId), '+79914440001'), legacy.token)).rejects.toThrow('ACCOUNT_LINK_REQUIRED');
+      expect(await db.user.findUnique({ where: { id: legacy.user.id } })).toMatchObject({ phone: null, verifiedAt: null });
+      expect((await auth.me(legacy.token))?.id).toBe(legacy.user.id);
+      await expect(telegram.login(oidcProof(++id, '+79990000001'))).rejects.toThrow('TELEGRAM_AUTH_INVALID');
+    });
+    it('concurrent OIDC claims on one phone create exactly one user and one identity', async () => {
+      const before = await db.user.count();
+      const results = await Promise.allSettled([
+        telegram.login(oidcProof(++id, '+79915550001')),
+        telegram.login(oidcProof(++id, '+79915550001')),
+      ]);
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.find((result) => result.status === 'rejected')).toMatchObject({ reason: { message: 'ACCOUNT_LINK_REQUIRED' } });
+      expect(await db.user.count()).toBe(before + 1);
+      expect(await db.user.count({ where: { phone: '+79915550001' } })).toBe(1);
+    });
+    it('serializes SMS and OIDC attachments on the same user and preserves the winning phone', async () => {
+      const telegramId = ++id;
+      const initial = await telegram.miniApp(raw(telegramId));
+      await otp('+79915550002');
+      await Promise.allSettled([
+        auth.login('+79915550002', '123456', undefined, initial.user.id),
+        telegram.login(oidcProof(telegramId, '+79915550003')),
+      ]);
+      const user = await db.user.findUniqueOrThrow({ where: { id: initial.user.id } });
+      expect(['+79915550002', '+79915550003']).toContain(user.phone);
+      expect(user.verifiedAt).toBeInstanceOf(Date);
+      const repeated = await telegram.login(oidcProof(telegramId, '+79915550003'));
+      expect(repeated.user.phone).toBe(user.phone);
+    });
+    it('serializes SMS and OIDC claims on one phone across different accounts', async () => {
+      const initial = await telegram.miniApp(raw());
+      await otp('+79915550004');
+      const results = await Promise.allSettled([
+        auth.login('+79915550004', '123456', undefined, initial.user.id),
+        telegram.login(oidcProof(++id, '+79915550004')),
+      ]);
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.find((result) => result.status === 'rejected')).toMatchObject({ reason: { message: 'ACCOUNT_LINK_REQUIRED' } });
+      expect(await db.user.count({ where: { phone: '+79915550004' } })).toBe(1);
+    });
+    it('searches normalized primary and legacy Telegram phones without claiming legacy verification', async () => {
+      const telegramId = ++id;
+      const legacy = await telegram.miniApp(raw(telegramId));
+      await db.telegramIdentity.update({ where: { userId: legacy.user.id },
+        data: { phoneNumber: '+79916660001', phoneVerified: true } });
+      const admin = new AdminUsersService(db as unknown as DbService);
+      const query = { page: 1, limit: 20, search: '8 (991) 666-00-01' };
+      const before = await admin.list(query);
+      expect(before.items).toHaveLength(1);
+      expect(before.items[0]).toMatchObject({ id: legacy.user.id, phone: null, verifiedAt: null,
+        telegramIdentity: { phoneNumber: '+79916660001', phoneVerified: true } });
+      const phones = new OrderPhoneService(db as unknown as DbService);
+      expect((await phones.list(legacy.user.id)).primaryPhone).toBeNull();
+      await telegram.login(oidcProof(telegramId, '+79916660001'));
+      expect((await admin.list(query)).items[0]).toMatchObject({ phone: '+79916660001', verifiedAt: expect.any(Date) });
+      expect((await admin.get(legacy.user.id)).phone).toBe('+79916660001');
+      expect((await phones.list(legacy.user.id)).primaryPhone).toBe('+79916660001');
     });
     it('/auth/me keeps a normal phone account compatible with telegram=null', async () => {
       const user = await db.user.create({ data: { phone: '+79918888888' } });
@@ -704,6 +833,76 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await expect(telegram.miniApp(raw(tg))).rejects.toThrow(
         'TELEGRAM_AUTH_INVALID',
       );
+    });
+    it('fresh OIDC phone proof cannot bypass ADMIN protection or change SELLER privileges', async () => {
+      for (const role of ['ADMIN', 'SELLER'] as const) {
+        const telegramId = ++id;
+        const initial = await telegram.miniApp(raw(telegramId));
+        await db.user.update({ where: { id: initial.user.id }, data: { role } });
+        const proof = oidcProof(telegramId, role === 'ADMIN' ? '+79917770001' : '+79917770002');
+        if (role === 'ADMIN') {
+          await expect(telegram.login(proof)).rejects.toThrow('TELEGRAM_AUTH_INVALID');
+          expect(await db.user.findUnique({ where: { id: initial.user.id } })).toMatchObject({ role, phone: null, verifiedAt: null });
+        } else {
+          const result = await telegram.login(proof);
+          expect(result.user).toMatchObject({ id: initial.user.id, role, phone: proof.phone.number });
+        }
+      }
+    });
+    it('only a fully verified signed OIDC token can register a primary phone through HTTP', async () => {
+      vi.stubEnv('TELEGRAM_OIDC_CLIENT_ID', 'test');
+      vi.stubEnv('TELEGRAM_OIDC_CLIENT_SECRET', randomBytes(32).toString('hex'));
+      vi.stubEnv('TELEGRAM_OIDC_REDIRECT_URI', 'https://shop.example/api/auth/telegram/callback');
+      vi.stubEnv('ORDER_SITE_URL', 'https://shop.example');
+      const pair = generateKeyPairSync('rsa', { modulusLength: 2048 });
+      const jwk = { ...pair.publicKey.export({ format: 'jwk' }), kid: 'phone-key', alg: 'RS256' };
+      const start = await post('telegram/start', {}).expect(201);
+      const url = new URL(String(start.body.url));
+      const cookies: unknown = start.headers['set-cookie'];
+      if (!Array.isArray(cookies)) throw new Error('Missing OIDC flow cookie');
+      const cookie = String(cookies.find((value) => String(value).startsWith('telegram-flow='))).split(';')[0]!;
+      const state = url.searchParams.get('state')!;
+      const now = Math.floor(Date.now() / 1000);
+      const claims = { iss: 'https://oauth.telegram.org', aud: 'test', sub: 'opaque-subject', id: ++id,
+        iat: now, exp: now + 300, nonce: url.searchParams.get('nonce'),
+        phone_number: '79918880001', phone_number_verified: true };
+      let change: Record<string, unknown> = {};
+      let invalidSignature = false;
+      const previousFetch = globalThis.fetch;
+      vi.stubGlobal('fetch', vi.fn(async (target: string) => {
+        if (target.endsWith('/.well-known/jwks.json')) return Response.json({ keys: [jwk] });
+        if (!target.endsWith('/token')) throw new Error('Unexpected external request');
+        const body = [{ alg: 'RS256', kid: jwk.kid }, { ...claims, ...change }]
+          .map((value) => Buffer.from(JSON.stringify(value)).toString('base64url')).join('.');
+        const signature = invalidSignature ? 'a'.repeat(342)
+          : sign('RSA-SHA256', Buffer.from(body), pair.privateKey).toString('base64url');
+        return Response.json({ id_token: body + '.' + signature });
+      }));
+      const callback = () => request(app.getHttpServer())
+        .get('/api/auth/telegram/callback?code=test&state=' + state).set('Cookie', cookie);
+      const before = await db.user.count();
+      try {
+        for (const invalid of [{ iss: 'https://evil.example' }, { aud: 'other' },
+          { nonce: 'wrong' }, { exp: now - 1 }, { iat: now + 60 }, { phone_number_verified: 'true' }]) {
+          change = invalid;
+          const result = await callback().expect(303);
+          expect(result.headers.location).toBe('https://shop.example/telegram?error=login');
+          expect(String(result.headers['set-cookie'])).not.toContain('sid=');
+          expect(await db.user.count()).toBe(before);
+        }
+        change = {};
+        invalidSignature = true;
+        expect((await callback().expect(303)).headers.location).toBe('https://shop.example/telegram?error=login');
+        expect(await db.user.count()).toBe(before);
+        invalidSignature = false;
+        const success = await callback().expect(303);
+        expect(success.headers.location).toBe('https://shop.example/profile');
+        const user = await auth.me(sid(success).slice(4));
+        expect(user).toMatchObject({ phone: '+79918880001', verifiedAt: expect.any(Date), role: 'USER' });
+        expect(await db.user.count()).toBe(before + 1);
+        expect((await callback().expect(303)).headers.location).toBe('https://shop.example/telegram?error=login');
+        expect(await db.user.count()).toBe(before + 1);
+      } finally { vi.stubGlobal('fetch', previousFetch); }
     });
     it('OIDC callback uses same identity/session and consumes state once; failure clears flow cookie', async () => {
       vi.stubEnv('TELEGRAM_OIDC_CLIENT_ID', 'test');

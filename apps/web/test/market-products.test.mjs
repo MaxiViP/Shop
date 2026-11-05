@@ -18,8 +18,10 @@ import { nextCartQty, previousCartQty, previewTotal, validCartQty } from '../app
 import { priceStatusItems } from '../app/utils/price-status.ts';
 import { moscowInput, pickupDate } from '../app/utils/pickup.ts';
 import { useProductGallery } from '../app/composables/useProductGallery.ts';
+import { serviceHelpers } from './fixtures/service-fee.mjs';
 import { imageComposable } from './fixtures/product-image-view.mjs';
 
+const { servicePercent, serviceFeeError } = await serviceHelpers();
 const useProductImage = await imageComposable();
 
 const nodeRequire = createRequire(import.meta.url);
@@ -257,15 +259,16 @@ test('admin edits and resaves seller price, and requests customer price from the
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   }).outputText;
   const admin = { ...product, price: 22000, sellerPrice: 22000, customerPrice: 24200, serviceMarkup: 2200,
-    serviceMarkupPercent: 10, categoryId: 1, marketPointId: 10, sourceUrl: 'https://cezoni.com/collection/all',
+    serviceMarkupPercent: 10, serviceMarkupPercentOverride: 10, serviceMarkupNeedsReview: false, categoryId: 1, marketPointId: 10, sourceUrl: 'https://cezoni.com/collection/all',
     sourceCheckedAt: '2026-10-06T00:00:00.000Z', settlementMode: 'UNSET', basePrice: null, active: true, sort: 1 };
   const requests = [], stops = [];
   t.after(() => stops.forEach(stop => stop()));
-  const context = { ref, reactive, computed, ...money, ...quantity, ...sale, nextCartQty, qtyText, priceStatusItems, moscowInput, pickupDate,
+  const context = { ref, reactive, computed, onMounted() {}, onBeforeUnmount() {}, servicePercent, serviceFeeError, ...money, ...quantity, ...sale, nextCartQty, qtyText, priceStatusItems, moscowInput, pickupDate,
     defineProps: () => ({ product: admin, categories: [{ id: 1, name: 'Макароны и крупы', active: true }] }),
     defineEmits: () => () => {},
     watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
     useApi: async path => {
+      if (path === '/admin/settings') return { data: ref({ globalServiceMarkupPercent: 10 }), error: ref(null), pending: ref(false), refresh: async () => {} };
       if (path === '/admin/seasons') return { data: ref([]) };
       assert.equal(path, '/admin/market-map/points');
       return { data: ref([{ id: 10, slug: 'cezoni-market', name: 'Cezoni Market', kind: 'STORE' }]) };
@@ -273,7 +276,7 @@ test('admin edits and resaves seller price, and requests customer price from the
     useApiClient: () => async (path, options) => {
       requests.push({ path, ...options });
       if (path === '/admin/products/pricing') {
-        assert.deepEqual(options.body, { price: 49500, serviceMarkupPercent: 10 });
+        assert.deepEqual(options.body, { price: 49500, serviceMarkupPercentOverride: 10 });
         return { sellerPrice: 49500, serviceMarkupPercent: 10, serviceMarkup: 4950, customerPrice: 54450 };
       }
       return admin;
@@ -294,6 +297,7 @@ test('admin edits and resaves seller price, and requests customer price from the
   assert.equal(form.pricing.value.customerPrice, 54450);
   assert.equal(requests.at(-1).path, '/admin/products/pricing');
   assert.ok(!Object.hasOwn(requests[0].body, 'customerPrice'));
+  assert.ok(requests.every(request => !Object.hasOwn(request.body, 'serviceMarkupPercent')));
   form.form.saleModel = 'WEIGHT_LOOSE';
   await nextTick();
   assert.equal(form.form.unit, 'PACK', 'Selecting a model must not silently change quantity units');

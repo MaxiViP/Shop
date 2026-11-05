@@ -921,8 +921,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
         )
           .filter((x) => x.isDirectory())
           .sort((a, b) => a.name.localeCompare(b.name));
-        const latest = migrations.at(-1)!;
-        for (const migration of migrations.slice(0, -1))
+        const target = migrations.findIndex(
+          (migration) => migration.name === '20261103120000_event_center',
+        );
+        expect(target).toBeGreaterThanOrEqual(0);
+        const eventMigration = migrations[target]!;
+        for (const migration of migrations.slice(0, target))
           await connection.query(
             await readFile(
               join('prisma/migrations', migration.name, 'migration.sql'),
@@ -935,23 +939,66 @@ describe.skipIf(!process.env.DATABASE_URL)(
           [randomUUID()],
         );
         await connection.query(
+          `INSERT INTO "AdminChange"(id,"requestId","actorId","actorName",source,entity,"entityId",operation,"beforeValue","afterValue",status)
+          VALUES(2,$1,998,'Анна','WEB','Product','25','UPDATE','{"price":300,"description":{"secret":"sensitive-old"}}','{"price":400,"description":{"secret":"sensitive-new"}}','SENT')`,
+          [randomUUID()],
+        );
+        await connection.query(
           await readFile(
-            join('prisma/migrations', latest.name, 'migration.sql'),
+            join('prisma/migrations', eventMigration.name, 'migration.sql'),
             'utf8',
           ),
         );
         const result = await connection.query(
-          'SELECT id,status,"actorName","beforeValue","afterValue" FROM "AdminChange"',
+          'SELECT id,status,"actorName","beforeValue","afterValue" FROM "AdminChange" ORDER BY id',
         );
-        expect(result.rows).toEqual([
-          {
-            id: 1,
-            status: 'UNKNOWN',
-            actorName: 'Администратор #999',
-            beforeValue: { price: 100 },
-            afterValue: { price: 200 },
+        expect(result.rows).toHaveLength(2);
+        expect(result.rows[0]).toEqual({
+          id: 1,
+          status: 'UNKNOWN',
+          actorName: 'Администратор #999',
+          beforeValue: { price: 100 },
+          afterValue: { price: 200 },
+        });
+
+        const nestedObject = {
+          type: 'object',
+          bytes: expect.any(Number),
+          fingerprint: expect.stringMatching(/^[a-f0-9]{32}$/),
+        };
+
+        expect(result.rows[1]).toMatchObject({
+          id: 2,
+          status: 'SENT',
+          actorName: 'Анна',
+          beforeValue: { price: 300, description: nestedObject },
+          afterValue: { price: 400, description: nestedObject },
+        });
+        expect(JSON.stringify(result.rows[1])).not.toContain('sensitive-');
+
+        const nested = await connection.query(
+          "SELECT event_values($1::jsonb, 'HomeSlide') AS value",
+          [JSON.stringify({
+            text: 'Пример',
+            content: [{ secret: 'sensitive-array' }],
+          })],
+        );
+
+        expect(nested.rows[0].value).toMatchObject({
+          text: 'Пример',
+          content: {
+            type: 'array',
+            bytes: expect.any(Number),
+            fingerprint: expect.stringMatching(/^[a-f0-9]{32}$/),
           },
-        ]);
+        });
+        expect(JSON.stringify(nested.rows[0])).not.toContain('sensitive-array');
+        for (const migration of migrations.slice(target + 1))
+          await connection.query(
+            await readFile(join('prisma/migrations', migration.name, 'migration.sql'), 'utf8'),
+          );
+        expect((await connection.query('SELECT id,status FROM "AdminChange" ORDER BY id')).rows)
+          .toEqual([{ id: 1, status: 'UNKNOWN' }, { id: 2, status: 'SENT' }]);
       } finally {
         await connection.query(`SET search_path TO "${schema}"`);
         await connection.query(`DROP SCHEMA "${upgrade}" CASCADE`);

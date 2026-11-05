@@ -219,7 +219,7 @@ try {
       process.env.CATALOG_BROWSER_PATH ??
       "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
   });
-  for (const width of [390, 1280]) {
+  for (const width of [320, 390, 768, 1280]) {
     await expect.poll(() => streams.size).toBe(0);
     events = structuredClone(initialEvents);
     version = 10;

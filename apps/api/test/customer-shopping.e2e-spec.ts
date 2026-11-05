@@ -213,13 +213,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await connection?.end();
     }, 30000);
     async function fixture(unit: Unit = 'GRAM') {
-      const user = await db.user.create({ data: { name: 'Покупатель' } });
+      let user = await db.user.create({ data: { name: 'Покупатель' } });
+      const primaryPhone = '+79' + String(user.id).padStart(9, '0');
+      user = await db.user.update({
+        where: { id: user.id },
+        data: { phone: primaryPhone, verifiedAt: new Date() },
+      });
       const telegramId = 800000 + user.id;
       const identity = await db.telegramIdentity.create({
         data: {
           userId: user.id,
           telegramUserId: BigInt(telegramId),
-          phoneNumber: '+79990000003',
+          phoneNumber: primaryPhone,
           phoneVerified: true,
           customerBotStartedAt: new Date(),
         },
@@ -277,8 +282,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
         s.id,
         type === 'PICKUP' ? 'pickup' : 'delivery',
       );
-      // The verified own Telegram phone is a valid checkout default; another recipient is edited explicitly.
-      expect(checkoutPayload.parse(s.payload).customerPhone).toBe(f.identity.phoneNumber);
+      // The confirmed unified primary phone is the checkout default; another recipient is edited explicitly.
+      expect(checkoutPayload.parse(s.payload).customerPhone).toBe(f.user.phone);
       expect(s.step).toBe(type === 'DELIVERY' ? 'ADDRESS' : 'TIME');
       if (type === 'DELIVERY') {
         await db.address.create({
@@ -441,7 +446,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         const minus = adjust(-f.product.step);
         await handler.handle(cb(f.telegramId, minus)); expect((await cart.get(f.user.id)).items[0]?.qty).toBe(f.product.min);
         const open = gallery()[0]![0]!;
-        if (!('callback_data' in open)) throw new Error('Open callback missing');
+        if (!open.callback_data) throw new Error('Open callback missing');
         await handler.handle(cb(f.telegramId, open.callback_data));
         expect(JSON.stringify(latest())).toContain('← К товарам');
         await handler.handle(cb(f.telegramId, shoppingData('l', f.category.id, 0))); gallery();
@@ -711,7 +716,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect((await staff.get(o.id)).status).toBe('NEW');
         expect(
           (await db.user.findUniqueOrThrow({ where: { id: f.user.id } })).phone,
-        ).toBeNull();
+        ).toBe(f.user.phone);
       },
     );
     it('concurrent duplicate final confirmation creates exactly one order and notice', async () => {
@@ -1696,7 +1701,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(row.type).toBe('PICKUP');
       expect(
         (await db.user.findUniqueOrThrow({ where: { id: f.user.id } })).phone,
-      ).toBeNull();
+      ).toBe(f.user.phone);
     });
     it('CHAT and CHECKOUT deliberately replace one another without reviving delayed prompts', async () => {
       const f = await fixture(),

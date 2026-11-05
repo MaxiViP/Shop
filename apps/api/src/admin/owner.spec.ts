@@ -9,12 +9,14 @@ import { staffActor, recordStaffAudit } from '../staff/audit.js';
 
 const input = { name: 'Яблоки', slug: 'apples', description: null, price: 10000, priceQty: 1000,
   unit: 'GRAM' as const, min: 500, step: 100, portionQty: 500, categoryId: 1, marketPointId: 10, active: true };
-const own = { id: 1, ...input, serviceMarkupPercent: 25, sort: 0, settlementMode: 'UNSET' as const,
+const own = { id: 1, ...input, serviceMarkupPercent: 25, serviceMarkupPercentOverride: 25, serviceMarkupNeedsReview: false, sort: 0, settlementMode: 'UNSET' as const,
   basePrice: null, seasonalMode: 'OFF' as const, seasonTemplateId: null, isSeasonal: false, isHit: false, hitMode: 'AUTO' as const };
 function fixture() {
   const grants = new Set([10]);
   const product = { ...own };
   const db = {
+    shopSettings: { findUniqueOrThrow: vi.fn().mockResolvedValue({ globalServiceMarkupPercent: 10 }) },
+    $executeRaw: vi.fn().mockResolvedValue(0),
     $queryRaw: vi.fn().mockResolvedValue([{ role: 'USER' }]),
     $transaction: vi.fn(),
     marketPointOwner: {
@@ -49,7 +51,7 @@ describe('Point owner permissions', () => {
     expect(isStaff({ role: 'SELLER', ownedPoints: [{ marketPointId: 10 }] })).toBe(true);
     expect(staffActor({ id: 7, role: 'USER', ownedPoints: [{ marketPointId: 10 }] })).toEqual({ userId: 7, role: 'SELLER' });
   });
-  it.each(['hitMode', 'isHit', 'seasonalMode', 'sort', 'settlementMode', 'basePrice', 'serviceMarkupPercent', 'priceStatus', 'ownerId'])(
+  it.each(['hitMode', 'isHit', 'seasonalMode', 'sort', 'settlementMode', 'basePrice', 'serviceMarkupPercent', 'serviceMarkupPercentOverride', 'serviceMarkupNeedsReview', 'priceStatus', 'ownerId'])(
     'rejects an owner-supplied %s instead of silently trusting it', key => {
       expect(ownerProductPatch.safeParse({ [key]: 1 }).success).toBe(false);
       expect(ownerProductFields.safeParse({ ...input, [key]: 1 }).success).toBe(false);

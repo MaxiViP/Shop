@@ -56,7 +56,12 @@
                 #{{ user.id }}<br >{{ user.name ?? "Без имени" }}
               </button>
             </td>
-            <td class="pr-3">{{ user.phone ?? "—" }}</td>
+            <td class="pr-3">
+              {{ user.phone ?? (user.telegramIdentity?.phoneVerified ? user.telegramIdentity.phoneNumber : null) ?? "—" }}
+              <p v-if="!user.phone && user.telegramIdentity?.phoneVerified && user.telegramIdentity.phoneNumber" class="text-xs text-muted">
+                Номер из Telegram · основной номер не подтверждён
+              </p>
+            </td>
             <td class="pr-3">
               <UBadge :color="user.role === 'ADMIN' ? 'primary' : 'neutral'">{{
                 roles[user.role]

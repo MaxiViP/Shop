@@ -27,8 +27,17 @@ ALTER TABLE "AdminChange" ADD CONSTRAINT "AdminChange_category_check"
 -- A positive allowlist keeps credentials, addresses, phones, message bodies,
 -- provider responses and large internal payloads out of both feed and Telegram.
 CREATE FUNCTION event_values(value JSONB, entity TEXT) RETURNS JSONB LANGUAGE sql IMMUTABLE AS $$
-  SELECT coalesce(jsonb_object_agg(key, CASE WHEN jsonb_typeof(val)='string'
-    THEN to_jsonb(left(val #>> '{}',240)) ELSE val END),'{}'::jsonb)
+  SELECT coalesce(jsonb_object_agg(key,
+    CASE
+      WHEN jsonb_typeof(val)='string'
+        THEN to_jsonb(left(val #>> '{}',240))
+      WHEN jsonb_typeof(val) IN ('object','array')
+        THEN jsonb_build_object(
+          'type', jsonb_typeof(val),
+          'bytes', octet_length(val::text),
+          'fingerprint', md5(val::text))
+      ELSE val
+    END),'{}'::jsonb)
   FROM jsonb_each(CASE WHEN jsonb_typeof(value)='object' THEN value ELSE '{}'::jsonb END) AS fields(key,val)
   WHERE key = ANY(CASE WHEN entity='User' THEN ARRAY['role','adminPasswordChanged']
     WHEN entity='MarketPointOwner' THEN ARRAY['userId','marketPointId']
@@ -173,4 +182,9 @@ CREATE TRIGGER admin_change_delivery AFTER UPDATE ON "AdminChange" FOR EACH ROW 
 -- Remove excess legacy payloads too; preserve their event IDs and delivery states.
 UPDATE "AdminChange" e SET "beforeValue"=nullif(event_values(e."beforeValue",e.entity),'{}'),
   "afterValue"=nullif(event_values(e."afterValue",e.entity),'{}'),
-  "actorName"=coalesce((SELECT nullif(u.name,'') FROM "User" u WHERE u.id=e."actorId"),'Администратор #' || e."actorId"::text);
+  "actorName"=CASE
+    WHEN e."actorName" ~ '^[+0-9() .-]{7,32}$'
+      OR trim(e."actorName") = ''
+    THEN 'Администратор #' || coalesce(e."actorId"::text,'неизвестен')
+    ELSE e."actorName"
+  END;

@@ -100,7 +100,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Manual hits and market presets / iso
   });
 
   it('adds AUTO to existing products without changing previous values or template links', async () => {
-    expect(legacyAfterMigration).toEqual({ ...legacyBefore, hitMode: 'AUTO', serviceMarkupPercent: 10, saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null, normalizedPrice: Math.floor((Number(legacyBefore.price) * 110 + 50) / 100) });
+    expect(legacyAfterMigration).toEqual({ ...legacyBefore, hitMode: 'AUTO', serviceMarkupPercent: 10, serviceMarkupPercentOverride: 10, serviceMarkupNeedsReview: true, saleModel: null, priceUnit: null, wholeLabel: null, estimatedWeightGrams: null, normalizedPrice: Math.floor((Number(legacyBefore.price) * 110 + 50) / 100) });
     expect((await db.product.findUniqueOrThrow({ where: { id: legacyId } })).seasonTemplateId).toBe(legacyTemplateId);
   });
   it.each(['missing', 'USER', 'SELLER'])('protects both badge mutations and preset filling from %s', async role => {

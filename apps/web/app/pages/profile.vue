@@ -127,8 +127,12 @@ if (!auth.user) {
   await navigateTo("/");
 }
 
-const { data: orderPhoneData } = await useApi<OrderPhoneSnapshot>("/order-phones", {
+const { data: orderPhoneData, refresh: refreshOrderPhones } = await useApi<OrderPhoneSnapshot>("/order-phones", {
   immediate: auth.user?.role === "USER",
+});
+
+watch(() => auth.user?.phone, () => {
+  if (auth.user?.role === "USER") void refreshOrderPhones();
 });
 
 function updateOrderPhones(value: OrderPhoneSnapshot) {

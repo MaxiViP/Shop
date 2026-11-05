@@ -2,8 +2,7 @@ import type { User } from "../types/user";
 
 export function effectiveOrderPhone(user: User | null) {
   if (!user) return "";
-  return user.phone?.trim() ||
-    (user.telegram?.phoneVerified ? user.telegram.phoneNumber?.trim() || "" : "");
+  return user.phone?.trim() || "";
 }
 
 export function recipientDefaults(user: User | null, guestName = "", primaryPhone = "") {

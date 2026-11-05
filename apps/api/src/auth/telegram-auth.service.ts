@@ -47,7 +47,7 @@ export class TelegramAuthService {
   async login(proof: TelegramProof, previousToken?: string, miniAppSwitch = false) {
     const current = await this.auth.me(previousToken);
     let verifiedPhone: string | undefined;
-    if (proof.phone?.verified) {
+    if (!miniAppSwitch && proof.phone?.verified === true) {
       try {
         verifiedPhone = phone(proof.phone.number);
       } catch (error) {
@@ -82,10 +82,38 @@ export class TelegramAuthService {
           const telegramUserId = BigInt(profile.id);
           const identity = await db.telegramIdentity.findUnique({
             where: { telegramUserId },
-            include: { user: { select } },
+            select: { userId: true },
           });
           if (current && current.id !== identity?.userId && !miniAppSwitch)
             throw new ConflictException('ACCOUNT_LINK_REQUIRED');
+          // Use the same phone/account locks as SMS. Never resolve an identity
+          // through its claimed phone: an occupied number requires explicit recovery.
+          if (verifiedPhone) {
+            await db.$executeRaw`SELECT pg_advisory_xact_lock(704002, hashtext(${verifiedPhone}))`;
+            if (verifiedPhone === adminPhone())
+              throw new UnauthorizedException('TELEGRAM_AUTH_INVALID');
+            const owner = await db.user.findUnique({
+              where: { phone: verifiedPhone }, select: { id: true },
+            });
+            if (owner && owner.id !== identity?.userId)
+              throw new ConflictException('ACCOUNT_LINK_REQUIRED');
+          }
+          if (identity) {
+            await db.$executeRaw`SELECT pg_advisory_xact_lock(704004, ${identity.userId}::integer)`;
+            await db.$queryRaw`SELECT id FROM "User" WHERE id = ${identity.userId} FOR UPDATE`;
+            const user = await db.user.findUniqueOrThrow({
+              where: { id: identity.userId }, select,
+            });
+            if (user.role === 'ADMIN' || (user.phone && user.phone === adminPhone()))
+              throw new UnauthorizedException('TELEGRAM_AUTH_INVALID');
+            // A fresh OIDC proof can recover legacy Telegram-only accounts.
+            // Saved phoneVerified metadata alone is never sufficient evidence.
+            if (verifiedPhone && (!user.phone || (user.phone === verifiedPhone && !user.verifiedAt)))
+              await db.user.update({
+                where: { id: user.id },
+                data: { phone: verifiedPhone, verifiedAt: new Date() },
+              });
+          }
           const data = {
             username: profile.username ?? null,
             firstName: profile.first_name ?? null,
@@ -108,7 +136,8 @@ export class TelegramAuthService {
                   ...data,
                   user: {
                     create: {
-                      phone: null,
+                      phone: verifiedPhone ?? null,
+                      verifiedAt: verifiedPhone ? new Date() : null,
                       role: 'USER',
                       name:
                         [profile.first_name, profile.last_name]
@@ -135,13 +164,14 @@ export class TelegramAuthService {
       } catch (error) {
         // Retry once and re-read identity after a concurrent unique insert.
         if (
-          attempt === 0 &&
           typeof error === 'object' &&
           error !== null &&
           'code' in error &&
           error.code === 'P2002'
-        )
-          continue;
+        ) {
+          if (attempt === 0) continue;
+          throw new ConflictException('ACCOUNT_LINK_REQUIRED');
+        }
         throw error;
       }
     }

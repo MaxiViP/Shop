@@ -38,7 +38,10 @@ const fields: Record<string, string> = {
   active: 'Активен',
   role: 'Роль',
   status: 'Статус',
-  serviceMarkupPercent: 'Наценка, %',
+  serviceMarkupPercent: 'Эффективный сервисный процент, %',
+  globalServiceMarkupPercent: 'Глобальный сервисный процент, %',
+  serviceMarkupPercentOverride: 'Режим сервисного процента',
+  serviceMarkupNeedsReview: 'Требует проверки процента',
   quantity: 'Количество',
   qty: 'Количество',
   actualQty: 'Собрано',
@@ -49,7 +52,9 @@ const fields: Record<string, string> = {
   text: 'Текст',
   adminPasswordChanged: 'Пароль изменён',
 };
-const brief = (value: unknown) => {
+const brief = (value: unknown, key: string) => {
+  if (key === 'serviceMarkupPercentOverride')
+    return value === null ? 'Общий' : `Индивидуальный (${value}%)`;
   const text =
     typeof value === 'string' ? value : (JSON.stringify(value) ?? '—');
   return text.length > 100 ? text.slice(0, 97) + '…' : text;
@@ -79,7 +84,7 @@ export function activityText(events: AdminChange[]): string {
             ? before[key]
             : undefined;
         lines.push(
-          `${fields[key] ?? key}: ${old === undefined ? '' : brief(old) + ' → '}${brief(value)}`,
+          `${fields[key] ?? key}: ${old === undefined ? '' : brief(old, key) + ' → '}${brief(value, key)}`,
         );
       }
     }

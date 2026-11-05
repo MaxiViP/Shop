@@ -18,7 +18,8 @@ export const telegramProfile = z.object({
 export type TelegramProfile = z.infer<typeof telegramProfile>;
 export type TelegramProof = {
   profile: TelegramProfile;
-  // OIDC-only consented phone metadata; never used for phone authentication.
+  // Only TelegramOidcService may populate this after complete ID Token verification.
+  // Mini App initData and Bot API contacts do not prove phone ownership.
   phone?: { number: string; verified: boolean };
   tokenHash: string;
   expiresAt: Date;

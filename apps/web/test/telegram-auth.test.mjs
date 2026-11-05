@@ -240,3 +240,11 @@ test("ordinary OIDC error page keeps a safe fallback", async () => {
   assert.equal(instance.showFallback.value, true);
   assert.deepEqual(instance.navigation, []);
 });
+
+test("OIDC conflict remains readable with an existing session and never navigates automatically", async () => {
+  const instance = miniAppPage({ query: { error: "phone-conflict" }, session: user });
+  await instance.mount();
+  assert.equal(instance.message.value, apiError({ message: "ACCOUNT_LINK_REQUIRED" }));
+  assert.equal(instance.showFallback.value, true);
+  assert.deepEqual(instance.navigation, []);
+});

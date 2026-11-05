@@ -381,7 +381,7 @@ test("self recipient defaults use verified account data and never trust an unver
   assert.deepEqual(recipientDefaults({ name: "Аккаунт", phone: "+79990000002", telegram }),
     { name: "Аккаунт", phone: "+79990000002" });
   assert.deepEqual(recipientDefaults({ name: null, phone: null, telegram }),
-    { name: "Тест Покупатель", phone: "+79990000001" });
+    { name: "Тест Покупатель", phone: "" });
   assert.deepEqual(recipientDefaults({ name: null, phone: null,
     telegram: { ...telegram, phoneVerified: false } }),
     { name: "Тест Покупатель", phone: "" });
@@ -464,6 +464,25 @@ test("saved primary phone prefills self, selecting another saved phone stays ord
   assert.equal(f.user.phone, "+79990000000");
   assert.deepEqual(recipientDefaults(f.user, "", "+79990000009"),
     { name: "User", phone: "+79990000009" });
+});
+
+test("refreshing phones after verification preserves an explicit recipient number", async t => {
+  const f = await fixture(t, true, true);
+  f.self.phone = "+79998887766";
+  f.onPhoneInput();
+  f.phoneData.value = { phones: [{ phone: "+79990000010", source: "ACCOUNT" }], primaryPhone: "+79990000010" };
+  await nextTick();
+  assert.equal(f.self.phone, "+79998887766");
+  assert.equal(f.selectedPhone.value, "manual");
+});
+
+test("refreshed saved order preference takes precedence over a new account default", async t => {
+  const f = await fixture(t, true, true);
+  f.phoneData.value = { phones: [{ phone: "+79990000010", source: "ACCOUNT" },
+    { phone: "+79990000009", source: "MANUAL" }], primaryPhone: "+79990000009" };
+  await nextTick();
+  assert.equal(f.self.phone, "+79990000009");
+  assert.equal(f.selectedPhone.value, "+79990000009");
 });
 
 test("invalid guest checkout preserves cart, shows phone format error, focuses first visible field and restarts shake", async t => {

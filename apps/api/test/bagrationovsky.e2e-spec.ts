@@ -180,7 +180,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       ).toEqual(before);
       expect(await db.product.count()).toBe(1);
       // Existing backend policy still behaves as before; staging never calls it for reference quotes.
-      expect(admin.pricing(50000)).toMatchObject({
+      expect(await admin.pricing(50000)).toMatchObject({
         sellerPrice: 50000,
         customerPrice: 55000,
         serviceMarkupPercent: 10,
