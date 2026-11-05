@@ -51,10 +51,18 @@ onMounted(async () => {
         .then(result => {
           if (disposed || version !== sequence) return;
           const address = result.geoObjects.get(0);
-          if (!address) throw new Error('Адрес не найден. Выберите дом или введите адрес вручную.');
-          choose(address);
+          if (!address) {
+            error.value = 'Поблизости не найден дом. Нажмите непосредственно на здание или воспользуйтесь поиском.';
+            return;
+          }
+          try {
+            choose(address);
+          } catch {
+            error.value = 'Яндекс не вернул точный адрес дома. Найдите адрес через поиск или введите его вручную.';
+          }
         }).catch(() => {
-          if (!disposed && version === sequence) error.value = 'Не удалось определить дом. Выберите другой дом или заполните адрес вручную.';
+          if (!disposed && version === sequence)
+            error.value = 'Сервис определения адресов недоступен. Проверьте, подключён ли API Геокодера к ключу Яндекс Карт, или введите адрес вручную.';
         }).finally(() => { if (!disposed && version === sequence) pending.value = false; });
     });
     const search = map.controls.get('searchControl');
@@ -65,9 +73,15 @@ onMounted(async () => {
       pending.value = true;
       error.value = '';
       void Promise.resolve(search.getResult(index)).then(result => {
-        if (!disposed && version === sequence) choose(result);
+        if (disposed || version !== sequence) return;
+        try {
+          choose(result);
+        } catch {
+          error.value = 'Выберите в поиске конкретный дом с номером или введите адрес вручную.';
+        }
       }).catch(() => {
-        if (!disposed && version === sequence) error.value = 'Выберите конкретный дом или заполните адрес вручную.';
+        if (!disposed && version === sequence)
+          error.value = 'Поиск адресов Яндекса недоступен. Проверьте доступ к API Геокодера или введите адрес вручную.';
       }).finally(() => { if (!disposed && version === sequence) pending.value = false; });
     });
   } catch {
