@@ -78,6 +78,12 @@ watch(() => delivery.selected, address => {
 
 // Preserve details while navigating /delivery → /catalog → /cart, without another tariff request.
 watch(() => [form.flat, form.entrance, form.floor, form.intercom, form.comment], () => {
+  const selected = delivery.selected;
+  if (!selected) return;
+  // Do not restore the previous house while the user edits a different address.
+  const selectedKey = JSON.stringify([selected.city.trim(), selected.street.trim(),
+    selected.house.trim(), (selected.buildingPart ?? '').trim()]);
+  if (selectedKey !== formKey()) return;
   delivery.updateDetails({
     flat: form.flat.trim(), entrance: form.entrance.trim(), floor: form.floor.trim(),
     intercom: form.intercom.trim(), comment: form.comment.trim(),
