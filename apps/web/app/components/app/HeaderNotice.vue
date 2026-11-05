@@ -58,17 +58,28 @@ onBeforeUnmount(reset);
   pointer-events: none;
   z-index: 1;
 }
-/* In the mobile dock the previous toast covered the active product +/- control.
-   Keep its feedback, but display it near the header, away from the touch target. */
+/* Mobile feedback remains attached to the basket and points at it.
+   Compact panel leaves more room for the product +/- controls above the dock. */
 .header-notice--floating {
-  position: fixed;
-  top: calc(var(--header-height) + max(0.5rem, var(--safe-top)) + 0.5rem);
-  right: max(0.75rem, var(--safe-right));
-  bottom: auto;
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 0.5rem);
   width: min(
     16rem,
-    calc(100vw - max(0.75rem, var(--safe-left)) - max(0.75rem, var(--safe-right)))
+    calc(100vw - max(0.75rem, env(safe-area-inset-left, 0px)) - max(0.75rem, env(safe-area-inset-right, 0px)))
   );
+}
+.header-notice--floating .header-notice__panel {
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.625rem;
+}
+.header-notice--floating .header-notice__text {
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+.header-notice--floating .header-notice__progress {
+  height: 2px;
+  margin-top: 0.25rem;
 }
 .header-notice__panel {
   position: relative;
@@ -92,7 +103,12 @@ onBeforeUnmount(reset);
   border-left: 1px solid var(--ui-border);
 }
 .header-notice--floating .header-notice__panel::after {
-  display: none;
+  top: auto;
+  bottom: -0.3125rem;
+  right: 1.75rem;
+  border: 0;
+  border-right: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
 }
 .header-notice__text {
   font-size: 0.8125rem;
