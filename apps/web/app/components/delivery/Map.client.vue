@@ -10,6 +10,7 @@
 <script setup lang="ts">
 import { loadDeliveryMap, type DeliveryMap, type MapAddress, type MapMarker } from '~/utils/yandex-map';
 import type { DeliveryAddress } from '~/types/delivery-estimate';
+import { splitYandexHouse } from '~/utils/yandex-house';
 const props = defineProps<{ address?: DeliveryAddress | null }>();
 const emit = defineEmits<{ picked: [address: DeliveryAddress] }>();
 const config = useRuntimeConfig();
@@ -24,12 +25,13 @@ let sequence = 0;
 function choose(result: MapAddress) {
   const city = result.getLocalities()[0] ?? result.getAdministrativeAreas()[0];
   const street = result.getThoroughfare();
-  const house = result.getPremiseNumber();
-  if (!city || !street || !house) throw new Error('Выберите конкретный дом или заполните адрес вручную.');
+  const number = result.getPremiseNumber();
+  if (!city || !street || !number) throw new Error('Выберите конкретный дом или заполните адрес вручную.');
+  const { house, buildingPart } = splitYandexHouse(number);
   const [lat, lng] = result.geometry.getCoordinates();
   marker?.geometry.setCoordinates([lat, lng]);
   void map?.setCenter([lat, lng], 16);
-  emit('picked', { city, street, house, lat, lng });
+  emit('picked', { city, street, house, buildingPart, lat, lng });
 }
 
 onMounted(async () => {
@@ -51,10 +53,18 @@ onMounted(async () => {
         .then(result => {
           if (disposed || version !== sequence) return;
           const address = result.geoObjects.get(0);
-          if (!address) throw new Error('Адрес не найден. Выберите дом или введите адрес вручную.');
-          choose(address);
+          if (!address) {
+            error.value = 'Поблизости не найден дом. Нажмите непосредственно на здание или воспользуйтесь поиском.';
+            return;
+          }
+          try {
+            choose(address);
+          } catch {
+            error.value = 'Яндекс не вернул точный адрес дома. Найдите адрес через поиск или введите его вручную.';
+          }
         }).catch(() => {
-          if (!disposed && version === sequence) error.value = 'Не удалось определить дом. Выберите другой дом или заполните адрес вручную.';
+          if (!disposed && version === sequence)
+            error.value = 'Сервис определения адресов недоступен. Проверьте, подключён ли API Геокодера к ключу Яндекс Карт, или введите адрес вручную.';
         }).finally(() => { if (!disposed && version === sequence) pending.value = false; });
     });
     const search = map.controls.get('searchControl');
@@ -65,9 +75,15 @@ onMounted(async () => {
       pending.value = true;
       error.value = '';
       void Promise.resolve(search.getResult(index)).then(result => {
-        if (!disposed && version === sequence) choose(result);
+        if (disposed || version !== sequence) return;
+        try {
+          choose(result);
+        } catch {
+          error.value = 'Выберите в поиске конкретный дом с номером или введите адрес вручную.';
+        }
       }).catch(() => {
-        if (!disposed && version === sequence) error.value = 'Выберите конкретный дом или заполните адрес вручную.';
+        if (!disposed && version === sequence)
+          error.value = 'Поиск адресов Яндекса недоступен. Проверьте доступ к API Геокодера или введите адрес вручную.';
       }).finally(() => { if (!disposed && version === sequence) pending.value = false; });
     });
   } catch {

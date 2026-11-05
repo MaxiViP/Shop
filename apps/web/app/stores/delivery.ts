@@ -71,6 +71,14 @@ export const useDeliveryStore = defineStore('delivery', () => {
     void refresh();
   }
 
+  // Apartment/access details don't affect carrier estimation; keep the quote intact.
+  function updateDetails(details: Pick<DeliveryAddress, 'flat' | 'entrance' | 'floor' | 'intercom' | 'comment'>) {
+    if (!selected.value) return;
+    if (Object.entries(details).every(([key, value]) =>
+      selected.value?.[key as keyof DeliveryAddress] === value)) return;
+    selected.value = { ...selected.value, ...details };
+  }
+
   async function loadAddresses(preferDefault = false) {
     if (owner === null) return;
     const version = ++addressRevision;
@@ -111,5 +119,5 @@ export const useDeliveryStore = defineStore('delivery', () => {
   }
 
   return { selected, addresses, quote, pending, error, addressError, now, stale,
-    select, refresh, loadAddresses, initialize, stop };
+    select, updateDetails, refresh, loadAddresses, initialize, stop };
 });

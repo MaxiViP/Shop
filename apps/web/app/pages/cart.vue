@@ -225,6 +225,25 @@
             Изменить адрес для этого заказа
           </UButton>
 
+          <div v-if="mapsKey" class="address__map-action">
+            <UButton
+              type="button"
+              size="lg"
+              variant="soft"
+              icon="i-lucide-map-pin"
+              :aria-expanded="mapOpen"
+              @click="mapOpen = !mapOpen"
+            >
+              {{ mapOpen ? 'Скрыть карту' : 'Выбрать адрес на карте' }}
+            </UButton>
+            <p class="section__hint">Нажмите на нужный дом на карте или найдите его через поиск.</p>
+          </div>
+          <LazyDeliveryMap
+            v-if="mapsKey && mapOpen"
+            :address="deliveryMatches ? delivery.selected : null"
+            @picked="pickDeliveryAddress"
+          />
+
           <div v-if="showAddressForm" class="address">
             <div class="form__row">
               <UFormField class="form__field" label="Город" :error="errors.city" data-checkout-field="city" :class="fieldClass('city')">
@@ -408,6 +427,8 @@ const { data: queueOffer, refresh: refreshQueueOffer } = await useApi<QueueOffer
 const auth = useAuthStore();
 const cart = useCartStore();
 const delivery = useDeliveryStore();
+const mapsKey = useRuntimeConfig().public.yandexMapsKey;
+const mapOpen = ref(false);
 const actions = useCartActions();
 const {
   ready,
@@ -630,6 +651,16 @@ function applyAddress(address: DeliveryAddress) {
   target.floor = address.floor ?? '';
   target.intercom = address.intercom ?? '';
   target.comment = address.comment ?? '';
+}
+
+function pickDeliveryAddress(address: DeliveryAddress) {
+  if (recipientMode.value === 'self') selectedAddressId.value = null;
+  applyAddress(address);
+  delivery.select(address, false);
+  errors.city = '';
+  errors.street = '';
+  errors.house = '';
+  mapOpen.value = false;
 }
 
 function manualAddress() {
