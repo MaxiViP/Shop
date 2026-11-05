@@ -304,6 +304,14 @@ useJsonLd(() => [productSchema(product.value!), breadcrumbSchema(breadcrumbs.val
 
 .product__total { white-space: nowrap; }
 
+/* Reserve breathing room under the purchase controls on phones.
+   The compact basket notice stays anchored above the floating basket. */
+@media (width < 48rem) {
+  .product__buy {
+    padding-bottom: 3rem;
+  }
+}
+
 @media (min-width: 48rem) {
   .product {
     grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
