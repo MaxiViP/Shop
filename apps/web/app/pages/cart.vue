@@ -134,7 +134,7 @@
           </div>
 
           <div class="form__row">
-            <UFormField class="form__field" label="Имя" :error="errors.name" data-checkout-field="name" :class="fieldClass('name')">
+            <UFormField class="form__field" label="Имя" :error="errors.name || undefined" data-checkout-field="name" :class="fieldClass('name')">
               <AppTextInput
                 v-model="recipient.name"
                 autocomplete="name"
@@ -144,7 +144,7 @@
               />
             </UFormField>
 
-            <UFormField class="form__field" label="Телефон" :error="errors.phone" data-checkout-field="phone" :class="fieldClass('phone')">
+            <UFormField class="form__field" label="Телефон" :error="errors.phone || undefined" data-checkout-field="phone" :class="fieldClass('phone')">
               <AppTextInput
                 v-model="recipient.phone"
                 format="phone"
@@ -225,13 +225,19 @@
             Изменить адрес для этого заказа
           </UButton>
 
+          <UButton
+            v-if="mapsKey" type="button" variant="soft" icon="i-lucide-map-pin"
+            @click="mapOpen = !mapOpen"
+          >{{ mapOpen ? 'Скрыть карту' : 'Выбрать на карте' }}</UButton>
+          <LazyDeliveryMap v-if="mapOpen && mapsKey" :address="mapAddress" @picked="pickAddress" />
+
           <div v-if="showAddressForm" class="address">
             <div class="form__row">
-              <UFormField class="form__field" label="Город" :error="errors.city" data-checkout-field="city" :class="fieldClass('city')">
+              <UFormField class="form__field" label="Город" :error="errors.city || undefined" data-checkout-field="city" :class="fieldClass('city')">
                 <AppTextInput v-model="recipient.city" placeholder="Название города" :aria-invalid="Boolean(errors.city)" />
               </UFormField>
 
-              <UFormField class="form__field" label="Улица" :error="errors.street" data-checkout-field="street" :class="fieldClass('street')">
+              <UFormField class="form__field" label="Улица" :error="errors.street || undefined" data-checkout-field="street" :class="fieldClass('street')">
                 <AppTextInput
                   v-model="recipient.street"
                   placeholder="Название улицы"
@@ -241,7 +247,7 @@
             </div>
 
             <div class="form__grid">
-              <UFormField class="form__field" label="Дом" :error="errors.house" data-checkout-field="house" :class="fieldClass('house')">
+              <UFormField class="form__field" label="Дом" :error="errors.house || undefined" data-checkout-field="house" :class="fieldClass('house')">
                 <UInput v-model="recipient.house" placeholder="Дом" :aria-invalid="Boolean(errors.house)" />
               </UFormField>
               <UFormField label="Корпус / строение">
@@ -288,7 +294,7 @@
           </div>
           <UFormField
             v-if="form.pickupTiming === 'scheduled'" label="Подготовить к (Москва)"
-            :error="errors.deliveryAt" class="form__field" data-checkout-field="deliveryAt"
+            :error="errors.deliveryAt || undefined" class="form__field" data-checkout-field="deliveryAt"
             :class="fieldClass('deliveryAt')" required>
             <select v-model="form.pickupAt" class="queue-offer__select" :aria-invalid="Boolean(errors.deliveryAt)">
               <option value="">Выберите доступное время</option>
@@ -408,6 +414,8 @@ const { data: queueOffer, refresh: refreshQueueOffer } = await useApi<QueueOffer
 const auth = useAuthStore();
 const cart = useCartStore();
 const delivery = useDeliveryStore();
+const mapsKey = useRuntimeConfig().public.yandexMapsKey;
+const mapOpen = ref(false);
 const actions = useCartActions();
 const {
   ready,
@@ -654,6 +662,16 @@ const deliveryMatches = computed(() => {
     && selected.street.trim() === target.street.trim() && selected.house.trim() === target.house.trim()
     && (selected.buildingPart ?? '').trim() === target.buildingPart.trim();
 });
+const mapAddress = computed<DeliveryAddress>(() => ({
+  city: recipient.value.city, street: recipient.value.street, house: recipient.value.house,
+  buildingPart: recipient.value.buildingPart,
+  ...(deliveryMatches.value ? { lat: delivery.selected?.lat, lng: delivery.selected?.lng } : {}),
+}));
+function pickAddress(address: DeliveryAddress) {
+  const selected = { ...recipient.value, ...address, buildingPart: address.buildingPart ?? '' };
+  delivery.select(selected, false);
+  applyAddress(selected);
+}
 let estimateTimer: ReturnType<typeof setTimeout> | undefined;
 watch(() => [form.type, recipientMode.value, recipient.value.city, recipient.value.street,
   recipient.value.house, recipient.value.buildingPart], () => {

@@ -1,7 +1,8 @@
-type Coordinates = [number, number];
+export type Coordinates = [number, number];
 interface MapEvent { get(name: string): unknown }
 export interface MapAddress {
   geometry: { getCoordinates(): Coordinates };
+  properties: { get(name: string): unknown };
   getLocalities(): string[];
   getAdministrativeAreas(): string[];
   getThoroughfare(): string;
@@ -9,11 +10,12 @@ export interface MapAddress {
 }
 interface SearchControl {
   events: { add(name: string, handler: (event: MapEvent) => void): void };
+  getResultsArray(): MapAddress[];
   getResult(index: number): PromiseLike<MapAddress>;
 }
 export interface DeliveryMap {
   events: { add(name: string, handler: (event: MapEvent) => void): void };
-  geoObjects: { add(object: MapMarker): void };
+  geoObjects: { add(object: MapMarker): void; remove(object: MapMarker): void };
   controls: { get(name: string): SearchControl };
   setCenter(coordinates: Coordinates, zoom?: number): PromiseLike<void>;
   destroy(): void;
@@ -23,9 +25,14 @@ export interface YandexMaps {
   ready(success: () => void, error: () => void): void;
   Map: new (element: HTMLElement, state: {
     center: Coordinates; zoom: number; controls: string[];
-  }, options: { searchControlProvider: string }) => DeliveryMap;
+  }, options: {
+    searchControlProvider: string;
+    searchControlNoPlacemark: boolean;
+    searchControlNoCentering: boolean;
+    searchControlUseMapBounds: boolean;
+  }) => DeliveryMap;
   Placemark: new (coordinates: Coordinates, properties: object, options: object) => MapMarker;
-  geocode(request: Coordinates, options: { results: number; kind: string }): PromiseLike<{
+  geocode(request: Coordinates | string, options: { results: number; kind?: string }): PromiseLike<{
     geoObjects: { get(index: number): MapAddress | undefined };
   }>;
 }

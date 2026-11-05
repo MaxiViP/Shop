@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { appendFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 
 const web = fileURLToPath(new URL('../', import.meta.url));
 const output = new URL('../../../work/delivery-estimate/', import.meta.url);
@@ -16,6 +16,9 @@ const addresses = [
   { id: 2, label: 'Работа', city: 'Москва', street: 'Тверская', house: '11', flat: null, isDefault: false },
 ];
 const estimateRequests = [];
+const product = { id: 1, name: 'Тестовые яблоки', slug: 'test-apples', unit: 'GRAM', priceUnit: 'GRAM',
+  saleModel: 'WEIGHT_LOOSE', priceStatus: 'SOURCE', price: 10000, priceQty: 1000,
+  min: 500, step: 100, portionQty: 500, images: [], category: { name: 'Тестовые фрукты', slug: 'test-fruit' } };
 let failEstimates = false;
 const server = createServer(async (request, response) => {
   response.setHeader('Access-Control-Allow-Origin', 'http://127.0.0.1:3119');
@@ -43,6 +46,8 @@ const server = createServer(async (request, response) => {
   if (path === '/home/slides') data = { slides: [], serverNow: new Date().toISOString(), validUntil: new Date(Date.now() + 60_000).toISOString() };
   if (path === '/shop/settings') data = { minDeliverySubtotal: 0, deliveryEnabled: true, pickupEnabled: true, freeDeliveryEnabled: false, freeDeliveryThreshold: null };
   if (path === '/cart') data = { items: [], products: [], subtotal: 0, goodsTotal: 0, revision: '1', valid: true, error: null, token: 'test', delivery: { eligible: false, price: null } };
+  if (path === '/orders/quote') data = { items: [{ productId: 1, qty: 500, product, lineTotal: 5000, status: 'AVAILABLE' }],
+    subtotal: 5000, goodsTotal: 5000, valid: true, error: null, token: 'test', delivery: { eligible: false, price: null } };
   if (path === '/order-phones') data = { phones: [], primaryPhone: '+79990000001' };
   if (path.endsWith('/summary')) data = { count: 0, unreadMessages: 0 };
   if (path === '/orders/queue/offer') data = { slots: [], preorderRequired: false };
@@ -76,30 +81,64 @@ try {
   browser = await chromium.launch({ headless: true, executablePath: process.env.CATALOG_BROWSER_PATH
     ?? (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : undefined) });
   const errors = [];
-  for (const width of [390, 1280]) {
+  for (const width of [320, 390, 1280]) {
     console.log('Guest viewport: ' + width);
     const context = await browser.newContext({ viewport: { width, height: 900 } });
     const page = await context.newPage();
     page.on('pageerror', error => errors.push(error.message));
     await page.route('https://api-maps.yandex.ru/**', route => route.fulfill({
       contentType: 'application/javascript', body: `
+      window.deliveryMaps = [];
+      window.geocodeCalls = [];
+      const makeAddress = (query = 'Москва, Барклая, д. 10') => {
+        const street = query.includes('Тверская') ? 'Тверская' : query.includes('Пионерская') ? 'Пионерская' : 'Барклая';
+        const house = /д\\.\\s*(\\d+)/.exec(query)?.[1] ?? '';
+        return {
+          geometry: { getCoordinates: () => [55.75 + Number(house) / 10000, 37.6] },
+          properties: { get: () => 'exact' }, getLocalities: () => ['Москва'],
+          getAdministrativeAreas: () => [], getThoroughfare: () => street, getPremiseNumber: () => house
+        };
+      };
       window.ymaps = {
         ready: ok => ok(),
         Map: class {
           events = { add: (name, fn) => { this.click = fn; } };
-          geoObjects = { add() {} };
-          controls = { get: () => ({ events: { add() {} } }) };
+          geoObjects = { add: marker => { this.element.dataset.marker = JSON.stringify(marker.coordinates); },
+            remove: () => { delete this.element.dataset.marker; } };
+          searchEvents = {};
+          results = [];
+          controls = { get: () => ({
+            events: { add: (name, fn) => { this.searchEvents[name] = fn; } },
+            getResultsArray: () => this.results, getResult: async index => this.results[index]
+          }) };
           constructor(element) {
-            const button = document.createElement('button'); button.textContent = 'Тестовый дом на карте';
-            button.onclick = () => this.click({ get: () => [55.75, 37.6] }); element.append(button);
+            this.element = element;
+            window.deliveryMaps.push(this);
+            const form = document.createElement('form');
+            const input = document.createElement('input'); input.setAttribute('aria-label', 'Поиск по карте');
+            const find = document.createElement('button'); find.type = 'submit'; find.textContent = 'Найти на карте';
+            const search = () => {
+              this.searchEvents.submit?.();
+              this.results = [makeAddress(input.value)];
+              this.searchEvents.resultselect?.({ get: () => 0 });
+            };
+            input.onkeydown = event => { if (event.key === 'Enter') search(); };
+            form.onsubmit = event => { event.preventDefault(); search(); };
+            form.append(input, find);
+            const button = document.createElement('button'); button.type = 'button'; button.textContent = 'Тестовый дом на карте';
+            button.onclick = () => this.click({ get: () => [55.751, 37.6] }); element.append(form, button);
           }
-          setCenter() { return Promise.resolve(); } destroy() {}
+          setCenter(coordinates, zoom) { this.element.dataset.center = JSON.stringify({ coordinates, zoom }); return Promise.resolve(); }
+          destroy() { this.element.replaceChildren(); }
         },
-        Placemark: class { geometry = { setCoordinates() {} }; },
-        geocode: () => Promise.resolve({ geoObjects: { get: () => ({
-          geometry: { getCoordinates: () => [55.75, 37.6] }, getLocalities: () => ['Москва'],
-          getAdministrativeAreas: () => [], getThoroughfare: () => 'Барклая', getPremiseNumber: () => '10'
-        }) } })
+        Placemark: class {
+          constructor(coordinates) { this.coordinates = coordinates; }
+          geometry = { setCoordinates: coordinates => { this.coordinates = coordinates; } };
+        },
+        geocode: (query, options) => {
+          window.geocodeCalls.push({ query, options });
+          return Promise.resolve({ geoObjects: { get: () => makeAddress(typeof query === 'string' ? query : undefined) } });
+        }
       };`,
     }));
     await page.goto('http://127.0.0.1:3119/delivery');
@@ -113,6 +152,21 @@ try {
     await calculator.getByText('Доставка ≈ 650,01 ₽', { exact: true }).waitFor();
     assert.match(await page.locator('.delivery-bar__button').innerText(), /650,01/);
     await calculator.getByRole('button', { name: 'Выбрать на карте' }).click();
+    const canvas = calculator.locator('.delivery-map__canvas');
+    await expect(canvas).toHaveAttribute('data-marker', JSON.stringify([55.751, 37.6]));
+    await calculator.getByLabel('Дом', { exact: true }).fill('11');
+    await expect(canvas).toHaveAttribute('data-marker', JSON.stringify([55.7511, 37.6]));
+    await expect(calculator.getByLabel('Дом', { exact: true })).toHaveValue('11');
+    const search = calculator.getByRole('textbox', { name: 'Поиск по карте' });
+    await search.fill('Пионерская');
+    await search.press('Enter');
+    await expect(calculator.locator('.delivery-map [role="status"]')).toContainText('Уточните номер дома');
+    await expect(calculator.locator('.delivery-map__error')).toHaveCount(0);
+    await expect(calculator.getByLabel('Дом', { exact: true })).toHaveValue('11');
+    await search.fill('Москва, Тверская, д. 11');
+    await calculator.getByRole('button', { name: 'Найти на карте' }).click();
+    await expect(calculator.getByLabel('Улица', { exact: true })).toHaveValue('Тверская');
+    await calculator.getByText('Доставка ≈ 700,01 ₽', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Тестовый дом на карте' }).click();
     await calculator.getByText('Доставка ≈ 650,01 ₽', { exact: true }).waitFor();
     await page.screenshot({ path: fileURLToPath(new URL(`guest-${width}.png`, output)), fullPage: true });
@@ -124,6 +178,40 @@ try {
     await calculator.getByRole('link', { name: 'Выбрать продукты' }).click();
     await page.waitForURL('**/catalog');
     assert.match(await page.locator('.delivery-bar__button').innerText(), /650,01/);
+    await page.evaluate(product => localStorage.setItem('cart', JSON.stringify({ version: 1, items: [{ product, qty: 500 }] })), product);
+    await page.goto('http://127.0.0.1:3119/cart');
+    const checkout = page.locator('.checkout');
+    await checkout.getByRole('button', { name: 'Выбрать на карте' }).click();
+    const checkoutCanvas = checkout.locator('.delivery-map__canvas');
+    const checkoutSearch = checkout.getByRole('textbox', { name: 'Поиск по карте' });
+    await expect(checkoutSearch).toBeVisible();
+    await expect(checkout.locator('[aria-invalid="true"]')).toHaveCount(0);
+    await checkoutSearch.fill('Пионерская');
+    await checkoutSearch.press('Enter');
+    await expect(checkout.locator('.delivery-map [role="status"]')).toContainText('Уточните номер дома');
+    await expect(checkout.locator('[aria-invalid="true"]')).toHaveCount(0);
+    await checkoutSearch.fill('Москва, Тверская, д. 11');
+    await checkout.getByRole('button', { name: 'Найти на карте' }).click();
+    await expect(checkout.locator('[data-checkout-field="street"] input')).toHaveValue('Тверская');
+    await expect(checkout.locator('[data-checkout-field="house"] input')).toHaveValue('11');
+    await expect(checkout.locator('[aria-invalid="true"]')).toHaveCount(0);
+    await checkout.locator('[data-checkout-field="house"] input').fill('12');
+    await expect(checkoutCanvas).toHaveAttribute('data-marker', JSON.stringify([55.7512, 37.6]));
+    await checkout.getByLabel('Квартира', { exact: true }).fill('25');
+    await checkout.getByRole('button', { name: 'Тестовый дом на карте' }).click();
+    await expect(checkout.getByLabel('Квартира', { exact: true })).toHaveValue('25');
+    await checkout.getByRole('button', { name: 'Другому человеку' }).click();
+    await expect(checkoutCanvas).not.toHaveAttribute('data-marker');
+    await checkout.getByRole('button', { name: 'Для себя', exact: true }).click();
+    await expect(checkoutCanvas).toHaveAttribute('data-marker', JSON.stringify([55.751, 37.6]));
+    await checkout.getByRole('button', { name: 'Скрыть карту' }).click();
+    await checkout.getByRole('button', { name: 'Выбрать на карте' }).click();
+    await expect(checkoutCanvas).toHaveAttribute('data-marker', JSON.stringify([55.751, 37.6]));
+    await page.screenshot({ path: fileURLToPath(new URL('checkout-map-' + width + '.png', output)), fullPage: true });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Checkout has no horizontal overflow');
+    await checkout.locator('.summary__submit').getByRole('button', { name: 'Оформить заказ', exact: true }).click();
+    await expect(checkout.locator('[data-checkout-field="name"] input')).toHaveAttribute('aria-invalid', 'true');
+    await expect(checkout.locator('[data-checkout-field="name"] [data-slot="error"]')).toBeVisible();
     await context.close();
     estimateRequests.length = 0;
   }
@@ -160,8 +248,17 @@ try {
   await page.waitForURL('http://127.0.0.1:3119/');
   await page.locator('.delivery-bar__address').getByText('Укажите адрес доставки', { exact: true }).waitFor();
   assert.deepEqual(errors, [], 'No browser exceptions');
-  console.log('PASS: guest desktop/mobile, map selection, modal, navigation, automatic saved address, persistent selection, error/retry and logout.');
+  console.log('PASS: 320/390/1280px, manual map sync, street/house search, Enter isolation, recipient switching, map reopening, modal, saved addresses, error/retry and logout.');
   console.log('Screenshots: ' + fileURLToPath(output));
+} catch (error) {
+  for (const [contextIndex, context] of (browser?.contexts() ?? []).entries()) {
+    for (const [pageIndex, page] of context.pages().entries()) {
+      const name = `failure-${contextIndex}-${pageIndex}`;
+      await page.screenshot({ path: fileURLToPath(new URL(name + '.png', output)), fullPage: true }).catch(() => {});
+      await writeFile(new URL(name + '.html', output), await page.content().catch(() => 'Page unavailable'));
+    }
+  }
+  throw error;
 } finally {
   await browser?.close();
   child.kill();

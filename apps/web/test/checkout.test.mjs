@@ -71,6 +71,7 @@ async function fixture(t, authenticated = false, preserveDefault = false, select
     watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
     useCartStore: () => cart,
     useDeliveryStore: () => delivery,
+    useRuntimeConfig: () => ({ public: { yandexMapsKey: 'test-key' } }),
     useCartActions: () => ({
       put: async (p, qty) => cart.put(p, qty),
       remove: async id => { cart.remove(id); return true; },
@@ -122,7 +123,7 @@ async function fixture(t, authenticated = false, preserveDefault = false, select
     checkoutErrors, checkoutFieldOrder,
   };
   const setup = new AsyncFunction(...Object.keys(context),
-    executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, errors, shakeFields, selectAddress, selectedAddressId, selectedPhone, choosePhone, onPhoneInput, availablePhones, phoneData, deliveryQuote, deliveryNote, removeItem, undoRemoval, lastRemoved };");
+    executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, errors, shakeFields, selectAddress, selectedAddressId, selectedPhone, choosePhone, onPhoneInput, availablePhones, phoneData, deliveryQuote, deliveryNote, removeItem, undoRemoval, lastRemoved, mapAddress, pickAddress };");
   const result = await setup(...Object.values(context));
   Object.assign(result.recipient.value, { name: "Recipient", ...(preserveDefault ? {} : { phone: "+79990000000" }) });
   if (!authenticated && !selectedDelivery) Object.assign(result.recipient.value, { city: "City", street: "Street", house: "10", comment: "Call" });
@@ -184,6 +185,26 @@ test('a guest address chosen before shopping prefills checkout without submittin
   assert.equal(f.state.requests[0].body.address.buildingPart, 'стр. 1');
   assert.equal('deliveryPrice' in f.state.requests[0].body, false);
   assert.equal('estimatedPrice' in f.state.requests[0].body, false);
+});
+
+test('map selection fills checkout, preserves courier details and discards stale coordinates on manual edits', async t => {
+  const f = await fixture(t, true);
+  const picked = { city: 'Москва', street: 'Барклая', house: '10', lat: 55.742, lng: 37.501 };
+  f.pickAddress(picked);
+  await nextTick();
+  assert.equal(f.selectedAddressId.value, null);
+  assert.equal(f.recipient.value.street, 'Барклая');
+  assert.equal(f.recipient.value.flat, '2');
+  assert.equal(f.recipient.value.comment, 'Call');
+  assert.equal(f.mapAddress.value.lat, picked.lat);
+  f.recipient.value.house = '11';
+  assert.equal(f.mapAddress.value.house, '11');
+  assert.equal(f.mapAddress.value.lat, undefined);
+  assert.equal(f.address.street, 'Street', 'The saved address remains unchanged');
+  f.recipientMode.value = 'other';
+  await nextTick();
+  assert.equal(f.mapAddress.value.street, '');
+  assert.equal(f.mapAddress.value.lat, undefined);
 });
 
 test('changing the global selected address updates checkout and preserves saved apartment details', async t => {

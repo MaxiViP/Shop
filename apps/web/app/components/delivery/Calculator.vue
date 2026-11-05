@@ -23,7 +23,7 @@
         <UButton v-if="mapsKey" type="button" variant="soft" icon="i-lucide-map-pin" @click="mapOpen = !mapOpen">{{ mapOpen ? 'Скрыть карту' : 'Выбрать на карте' }}</UButton>
       </div>
     </form>
-    <LazyDeliveryMap v-if="mapOpen && mapsKey" :address="delivery.selected" @picked="pick" />
+    <LazyDeliveryMap v-if="mapOpen && mapsKey" :address="mapAddress" @picked="pick" />
     <div class="calculator__result">
       <p v-if="delivery.selected" class="calculator__destination">{{ formatAddress(delivery.selected, false) }}</p>
       <DeliveryEstimate :free="free" />
@@ -44,24 +44,27 @@ const mapOpen = ref(false);
 const form = reactive({ city: 'Москва', street: '', house: '', buildingPart: '' });
 const valid = computed(() => !!(form.city.trim() && form.street.trim() && form.house.trim()));
 const free = computed(() => cart.quoteReady && cart.quote?.valid && cart.quote.delivery?.eligible === true);
-let coordinates: { lat?: number; lng?: number } = {};
-let coordinateAddress = '';
 const formKey = () => JSON.stringify([form.city.trim(), form.street.trim(), form.house.trim(), form.buildingPart.trim()]);
+const selectedMatches = computed(() => {
+  const current = delivery.selected;
+  return !!current && JSON.stringify([current.city.trim(), current.street.trim(), current.house.trim(),
+    current.buildingPart?.trim() ?? '']) === formKey();
+});
+const mapAddress = computed<DeliveryAddress>(() => ({
+  ...form, ...(selectedMatches.value ? { lat: delivery.selected?.lat, lng: delivery.selected?.lng } : {}),
+}));
 watch(() => delivery.selected, address => {
   form.city = address?.city ?? 'Москва';
   form.street = address?.street ?? '';
   form.house = address?.house ?? '';
   form.buildingPart = address?.buildingPart ?? '';
-  coordinates = address?.lat != null && address.lng != null ? { lat: address.lat, lng: address.lng } : {};
-  coordinateAddress = formKey();
 }, { immediate: true });
 function calculate() {
   if (!valid.value) return;
   const current = delivery.selected;
-  const unchanged = current && JSON.stringify([current.city.trim(), current.street.trim(), current.house.trim(),
-    current.buildingPart?.trim() ?? '']) === formKey();
-  delivery.select(unchanged ? current : { city: form.city.trim(), street: form.street.trim(), house: form.house.trim(),
-    buildingPart: form.buildingPart.trim(), ...(coordinateAddress === formKey() ? coordinates : {}) });
+  delivery.select(selectedMatches.value && current ? current : {
+    city: form.city.trim(), street: form.street.trim(), house: form.house.trim(), buildingPart: form.buildingPart.trim(),
+  });
   if (delivery.error) void delivery.refresh(true);
 }
 function pick(address: DeliveryAddress) { delivery.select(address); }
