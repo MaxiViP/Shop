@@ -187,9 +187,9 @@ test('a guest address chosen before shopping prefills checkout without submittin
   assert.equal('estimatedPrice' in f.state.requests[0].body, false);
 });
 
-test('tapping a house on the checkout map fills the fields and triggers estimate without trusting a price', async t => {
+test('tapping a house on the checkout map fills house and corpus separately without trusting a price', async t => {
   const f = await fixture(t, true);
-  const chosen = { city: 'Москва', street: 'Барклая', house: '10', lat: 55.7, lng: 37.5 };
+  const chosen = { city: 'Москва', street: 'Барклая', house: '53', buildingPart: 'к1', lat: 55.7, lng: 37.5 };
   const previousPhone = f.self.phone;
   f.mapOpen.value = true;
   f.pickDeliveryAddress(chosen);
@@ -198,19 +198,44 @@ test('tapping a house on the checkout map fills the fields and triggers estimate
   assert.equal(f.selectedAddressId.value, null);
   assert.equal(f.self.city, 'Москва');
   assert.equal(f.self.street, 'Барклая');
-  assert.equal(f.self.house, '10');
+  assert.equal(f.self.house, '53');
+  assert.equal(f.self.buildingPart, 'к1');
   assert.equal(f.self.flat, '', 'A new house must not inherit a saved apartment');
   assert.equal(f.self.phone, previousPhone);
   assert.deepEqual(f.delivery.selected, chosen);
   await f.submit();
   const request = f.state.requests[0].body;
   assert.deepEqual(request.address, {
-    city: 'Москва', street: 'Барклая', house: '10', buildingPart: undefined,
+    city: 'Москва', street: 'Барклая', house: '53', buildingPart: 'к1',
     flat: undefined, entrance: undefined, floor: undefined, intercom: undefined, comment: undefined,
   });
   assert.equal('deliveryPrice' in request, false);
   assert.equal('lat' in request.address, false);
   assert.equal('lng' in request.address, false);
+});
+
+test('delivery details entered after choosing the house prefill checkout and are forwarded only as recipient data', async t => {
+  const chosen = {
+    city: 'Москва', street: 'Большая Филёвская', house: '53', buildingPart: 'к1',
+    lat: 55.7, lng: 37.5, flat: '25', entrance: '2', floor: '7', intercom: '25К',
+    comment: 'Позвонить заранее',
+  };
+  const f = await fixture(t, false, false, chosen);
+  assert.equal(f.self.house, '53');
+  assert.equal(f.self.buildingPart, 'к1');
+  assert.equal(f.self.flat, '25');
+  assert.equal(f.self.entrance, '2');
+  assert.equal(f.self.floor, '7');
+  assert.equal(f.self.intercom, '25К');
+  await f.submit();
+  const submitted = f.state.requests[0].body;
+  assert.deepEqual(submitted.address, {
+    city: 'Москва', street: 'Большая Филёвская', house: '53', buildingPart: 'к1',
+    flat: '25', entrance: '2', floor: '7', intercom: '25К', comment: 'Позвонить заранее',
+  });
+  assert.equal('deliveryPrice' in submitted, false);
+  assert.equal('lat' in submitted.address, false);
+  assert.equal('lng' in submitted.address, false);
 });
 
 test('changing the global selected address updates checkout and preserves saved apartment details', async t => {
