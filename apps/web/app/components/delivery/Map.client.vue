@@ -10,6 +10,7 @@
 <script setup lang="ts">
 import { loadDeliveryMap, type DeliveryMap, type MapAddress, type MapMarker } from '~/utils/yandex-map';
 import type { DeliveryAddress } from '~/types/delivery-estimate';
+import { splitYandexHouse } from '~/utils/yandex-house';
 const props = defineProps<{ address?: DeliveryAddress | null }>();
 const emit = defineEmits<{ picked: [address: DeliveryAddress] }>();
 const config = useRuntimeConfig();
@@ -24,12 +25,13 @@ let sequence = 0;
 function choose(result: MapAddress) {
   const city = result.getLocalities()[0] ?? result.getAdministrativeAreas()[0];
   const street = result.getThoroughfare();
-  const house = result.getPremiseNumber();
-  if (!city || !street || !house) throw new Error('Выберите конкретный дом или заполните адрес вручную.');
+  const number = result.getPremiseNumber();
+  if (!city || !street || !number) throw new Error('Выберите конкретный дом или заполните адрес вручную.');
+  const { house, buildingPart } = splitYandexHouse(number);
   const [lat, lng] = result.geometry.getCoordinates();
   marker?.geometry.setCoordinates([lat, lng]);
   void map?.setCenter([lat, lng], 16);
-  emit('picked', { city, street, house, lat, lng });
+  emit('picked', { city, street, house, buildingPart, lat, lng });
 }
 
 onMounted(async () => {
