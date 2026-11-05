@@ -127,9 +127,10 @@ function pick(address: DeliveryAddress) {
 .calculator__details { display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid var(--ui-border); border-radius: 1rem; }
 .calculator__details-title { font-size: 1.1rem; font-weight: 600; }
 .calculator__details-note { color: var(--ui-text-muted); font-size: 0.875rem; line-height: 1.5; }
-.calculator__details-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.calculator__details-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
 .calculator__details-fields > * { min-width: 0; }
 .calculator__result { display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid var(--ui-border); border-radius: 1rem; background: var(--ui-bg-elevated); }
 .calculator__destination { font-size: 0.875rem; overflow-wrap: anywhere; }
+@media (min-width: 36rem) { .calculator__details-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 48rem) { .calculator__fields { grid-template-columns: 1fr 2fr 0.75fr 1fr; } }
 </style>
