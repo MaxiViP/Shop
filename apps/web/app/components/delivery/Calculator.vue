@@ -30,13 +30,13 @@
         <p class="calculator__details-note">Квартиру, подъезд и домофон Яндекс Карты не определяют. Укажите их здесь — мы перенесём данные в оформление заказа.</p>
       </div>
       <div class="calculator__details-fields">
-        <UFormField label="Квартира / офис"><UInput v-model="form.flat" class="w-full" maxlength="30" placeholder="Например, 25" /></UFormField>
-        <UFormField label="Подъезд"><UInput v-model="form.entrance" class="w-full" maxlength="30" placeholder="Например, 2" /></UFormField>
-        <UFormField label="Этаж"><UInput v-model="form.floor" class="w-full" maxlength="30" placeholder="Например, 7" /></UFormField>
-        <UFormField label="Домофон"><UInput v-model="form.intercom" class="w-full" maxlength="100" placeholder="Код или номер" /></UFormField>
+        <UFormField label="Квартира / офис"><UInput v-model="form.flat" class="w-full" maxlength="20" placeholder="Например, 25" /></UFormField>
+        <UFormField label="Подъезд"><UInput v-model="form.entrance" class="w-full" maxlength="20" placeholder="Например, 2" /></UFormField>
+        <UFormField label="Этаж"><UInput v-model="form.floor" class="w-full" maxlength="20" placeholder="Например, 7" /></UFormField>
+        <UFormField label="Домофон"><UInput v-model="form.intercom" class="w-full" maxlength="30" placeholder="Код или номер" /></UFormField>
       </div>
       <UFormField label="Комментарий для курьера">
-        <UTextarea v-model="form.comment" class="w-full" maxlength="500" :rows="2" placeholder="Например, позвонить перед доставкой" />
+        <UTextarea v-model="form.comment" class="w-full" maxlength="300" :rows="2" placeholder="Например, позвонить перед доставкой" />
       </UFormField>
     </div>
     <div class="calculator__result">
