@@ -163,7 +163,16 @@ test("one cart notice moves with the one cart control without resetting its prog
   assert.equal((header.match(/role="status"/g) ?? []).length, 1);
   assert.equal((panel.match(/role="status"/g) ?? []).length, 0);
   assert.match(header, /<AppHeaderNotice target="favorites" \/>/);
-  assert.match(panel, /\.header-notice--floating\s*\{[^}]*safe-area-inset-left[^}]*safe-area-inset-right/);
-  assert.match(panel, /\.header-notice--floating\s*\{[^}]*top: auto;[^}]*right: 0;[^}]*bottom: calc\(100% \+ 0\.75rem\)/);
+  const floating = panel.match(/\.header-notice--floating\s*\{([^}]*)\}/)?.[1];
+  assert.ok(floating, 'Floating cart notice has its own responsive CSS block');
+  assert.match(floating, /position:\s*fixed/);
+  assert.match(floating, /top:\s*calc\(var\(--header-height\)[^;]*var\(--safe-top\)/);
+  assert.match(floating, /right:\s*max\(0\.75rem, var\(--safe-right\)\)/);
+  assert.match(floating, /safe-left/);
+  assert.match(floating, /safe-right/);
+  assert.match(floating, /bottom:\s*auto/);
+  assert.doesNotMatch(floating, /bottom:\s*calc\(100%/);
+  assert.match(panel, /\.header-notice--floating \.header-notice__panel::after\s*\{[^}]*display:\s*none/);
+  assert.match(panel, /\.header-notice\s*\{[^}]*pointer-events:\s*none/);
   assert.match(panel, /Date\.now\(\) - active\.shownAt/);
 });
