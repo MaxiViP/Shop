@@ -58,14 +58,28 @@ onBeforeUnmount(reset);
   pointer-events: none;
   z-index: 1;
 }
+/* Mobile feedback remains attached to the basket and points at it.
+   Compact panel leaves more room for the product +/- controls above the dock. */
 .header-notice--floating {
   top: auto;
   right: 0;
-  bottom: calc(100% + 0.75rem);
+  bottom: calc(100% + 0.5rem);
   width: min(
     16rem,
     calc(100vw - max(0.75rem, env(safe-area-inset-left, 0px)) - max(0.75rem, env(safe-area-inset-right, 0px)))
   );
+}
+.header-notice--floating .header-notice__panel {
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.625rem;
+}
+.header-notice--floating .header-notice__text {
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+.header-notice--floating .header-notice__progress {
+  height: 2px;
+  margin-top: 0.25rem;
 }
 .header-notice__panel {
   position: relative;

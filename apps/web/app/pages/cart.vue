@@ -225,11 +225,24 @@
             Изменить адрес для этого заказа
           </UButton>
 
-          <UButton
-            v-if="mapsKey" type="button" variant="soft" icon="i-lucide-map-pin"
-            @click="mapOpen = !mapOpen"
-          >{{ mapOpen ? 'Скрыть карту' : 'Выбрать на карте' }}</UButton>
-          <LazyDeliveryMap v-if="mapOpen && mapsKey" :address="mapAddress" @picked="pickAddress" />
+          <div v-if="mapsKey" class="address__map-action">
+            <UButton
+              type="button"
+              size="lg"
+              variant="soft"
+              icon="i-lucide-map-pin"
+              :aria-expanded="mapOpen"
+              @click="mapOpen = !mapOpen"
+            >
+              {{ mapOpen ? 'Скрыть карту' : 'Выбрать адрес на карте' }}
+            </UButton>
+            <p class="section__hint">Нажмите на нужный дом на карте или найдите его через поиск.</p>
+          </div>
+          <LazyDeliveryMap
+            v-if="mapsKey && mapOpen"
+            :address="mapAddress"
+            @picked="pickDeliveryAddress"
+          />
 
           <div v-if="showAddressForm" class="address">
             <div class="form__row">
@@ -640,6 +653,16 @@ function applyAddress(address: DeliveryAddress) {
   target.comment = address.comment ?? '';
 }
 
+function pickDeliveryAddress(address: DeliveryAddress) {
+  if (recipientMode.value === 'self') selectedAddressId.value = null;
+  applyAddress(address);
+  delivery.select(address, false);
+  errors.city = '';
+  errors.street = '';
+  errors.house = '';
+  mapOpen.value = false;
+}
+
 function manualAddress() {
   selectedAddressId.value = null;
   delivery.select(null);
@@ -667,11 +690,6 @@ const mapAddress = computed<DeliveryAddress>(() => ({
   buildingPart: recipient.value.buildingPart,
   ...(deliveryMatches.value ? { lat: delivery.selected?.lat, lng: delivery.selected?.lng } : {}),
 }));
-function pickAddress(address: DeliveryAddress) {
-  const selected = { ...recipient.value, ...address, buildingPart: address.buildingPart ?? '' };
-  delivery.select(selected, false);
-  applyAddress(selected);
-}
 let estimateTimer: ReturnType<typeof setTimeout> | undefined;
 watch(() => [form.type, recipientMode.value, recipient.value.city, recipient.value.street,
   recipient.value.house, recipient.value.buildingPart], () => {

@@ -90,13 +90,13 @@ try {
       contentType: 'application/javascript', body: `
       window.deliveryMaps = [];
       window.geocodeCalls = [];
-      const makeAddress = (query = 'Москва, Барклая, д. 10') => {
+      const makeAddress = (query = 'Москва, Барклая, д. 10к2') => {
         const street = query.includes('Тверская') ? 'Тверская' : query.includes('Пионерская') ? 'Пионерская' : 'Барклая';
         const house = /д\\.\\s*(\\d+)/.exec(query)?.[1] ?? '';
         return {
           geometry: { getCoordinates: () => [55.75 + Number(house) / 10000, 37.6] },
           properties: { get: () => 'exact' }, getLocalities: () => ['Москва'],
-          getAdministrativeAreas: () => [], getThoroughfare: () => street, getPremiseNumber: () => house
+          getAdministrativeAreas: () => [], getThoroughfare: () => street, getPremiseNumber: () => house + (query.includes('к2') ? 'к2' : '')
         };
       };
       window.ymaps = {
@@ -167,7 +167,15 @@ try {
     await calculator.getByRole('button', { name: 'Найти на карте' }).click();
     await expect(calculator.getByLabel('Улица', { exact: true })).toHaveValue('Тверская');
     await calculator.getByText('Доставка ≈ 700,01 ₽', { exact: true }).waitFor();
+    await calculator.getByRole('button', { name: 'Выбрать на карте' }).click();
     await page.getByRole('button', { name: 'Тестовый дом на карте' }).click();
+    await expect(calculator.getByLabel('Дом', { exact: true })).toHaveValue('10');
+    await expect(calculator.getByLabel('Корпус / строение')).toHaveValue('к2');
+    await calculator.getByLabel('Квартира / офис').fill('25');
+    await calculator.getByLabel('Подъезд').fill('2');
+    await calculator.getByLabel('Этаж').fill('7');
+    await calculator.getByLabel('Домофон').fill('25К');
+    await calculator.getByText(/кв\. 25/).waitFor();
     await calculator.getByText('Доставка ≈ 650,01 ₽', { exact: true }).waitFor();
     await page.screenshot({ path: fileURLToPath(new URL(`guest-${width}.png`, output)), fullPage: true });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'No horizontal overflow');
@@ -181,7 +189,7 @@ try {
     await page.evaluate(product => localStorage.setItem('cart', JSON.stringify({ version: 1, items: [{ product, qty: 500 }] })), product);
     await page.goto('http://127.0.0.1:3119/cart');
     const checkout = page.locator('.checkout');
-    await checkout.getByRole('button', { name: 'Выбрать на карте' }).click();
+    await checkout.getByRole('button', { name: 'Выбрать адрес на карте' }).click();
     const checkoutCanvas = checkout.locator('.delivery-map__canvas');
     const checkoutSearch = checkout.getByRole('textbox', { name: 'Поиск по карте' });
     await expect(checkoutSearch).toBeVisible();
@@ -195,17 +203,20 @@ try {
     await expect(checkout.locator('[data-checkout-field="street"] input')).toHaveValue('Тверская');
     await expect(checkout.locator('[data-checkout-field="house"] input')).toHaveValue('11');
     await expect(checkout.locator('[aria-invalid="true"]')).toHaveCount(0);
+    await checkout.getByRole('button', { name: 'Выбрать адрес на карте' }).click();
     await checkout.locator('[data-checkout-field="house"] input').fill('12');
     await expect(checkoutCanvas).toHaveAttribute('data-marker', JSON.stringify([55.7512, 37.6]));
     await checkout.getByLabel('Квартира', { exact: true }).fill('25');
     await checkout.getByRole('button', { name: 'Тестовый дом на карте' }).click();
-    await expect(checkout.getByLabel('Квартира', { exact: true })).toHaveValue('25');
+    await expect(checkout.getByLabel('Квартира', { exact: true })).toHaveValue('');
+    await checkout.getByLabel('Квартира', { exact: true }).fill('25');
+    await checkout.getByRole('button', { name: 'Выбрать адрес на карте' }).click();
     await checkout.getByRole('button', { name: 'Другому человеку' }).click();
     await expect(checkoutCanvas).not.toHaveAttribute('data-marker');
     await checkout.getByRole('button', { name: 'Для себя', exact: true }).click();
     await expect(checkoutCanvas).toHaveAttribute('data-marker', JSON.stringify([55.751, 37.6]));
     await checkout.getByRole('button', { name: 'Скрыть карту' }).click();
-    await checkout.getByRole('button', { name: 'Выбрать на карте' }).click();
+    await checkout.getByRole('button', { name: 'Выбрать адрес на карте' }).click();
     await expect(checkoutCanvas).toHaveAttribute('data-marker', JSON.stringify([55.751, 37.6]));
     await page.screenshot({ path: fileURLToPath(new URL('checkout-map-' + width + '.png', output)), fullPage: true });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Checkout has no horizontal overflow');

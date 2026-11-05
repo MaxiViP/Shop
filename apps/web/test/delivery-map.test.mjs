@@ -5,6 +5,7 @@ import ts from 'typescript';
 import { computed, reactive, ref, watch, nextTick } from 'vue';
 import { deliveryAddressKey } from '../app/utils/delivery-estimate.ts';
 import { formatAddress } from '../app/utils/address.ts';
+import { splitYandexHouse } from '../app/utils/yandex-house.ts';
 
 async function script(file) {
   const source = await readFile(new URL('../app/components/delivery/' + file, import.meta.url), 'utf8');
@@ -50,7 +51,7 @@ async function fixture(t, saved = null) {
   const context = { ref, watch: (...args) => { const stop = watch(...args); stops.push(stop); },
     defineProps: () => props, defineEmits: () => (name, value) => picked.push({ name, value }),
     useRuntimeConfig: () => ({ public: { yandexMapsKey: 'fixture', yandexSuggestKey: '' } }),
-    loadDeliveryMap: async () => api, deliveryAddressKey, formatAddress,
+    loadDeliveryMap: async () => api, deliveryAddressKey, formatAddress, splitYandexHouse,
     onMounted: callback => { mount = callback; }, onBeforeUnmount: callback => unmount.push(callback),
   };
   const state = new Function(...Object.keys(context), mapScript + '\nelement.value = {}; return { pending, error, hint };')(...Object.values(context));
@@ -112,11 +113,11 @@ test('a street search moves the map and asks for a house without blocking furthe
   assert.equal(f.centers.at(-1).zoom, 14);
   assert.equal(f.markers.length, 0);
   assert.equal(f.picked.length, 0);
-  f.choose(result());
+  f.choose(result({ getPremiseNumber: () => '10к2' }));
   await settle();
   assert.equal(f.hint.value, '');
   assert.equal(f.picked.length, 1);
-  assert.deepEqual(f.picked[0], { name: 'picked', value: { city: 'Москва', street: 'Барклая', house: '10', lat: 55.742, lng: 37.501 } });
+  assert.deepEqual(f.picked[0], { name: 'picked', value: { city: 'Москва', street: 'Барклая', house: '10', buildingPart: 'к2', lat: 55.742, lng: 37.501 } });
 });
 
 test('an unresolved or synchronously failing search stops loading and can be retried', async t => {
@@ -191,7 +192,9 @@ test('map clicks resolve a house; errors and unmount cancel pending work', async
 
 test('calculator passes live fields to the map and discards coordinates as soon as a house changes', async t => {
   const saved = { ...address, id: 1, lat: 55.7, lng: 37.5 };
-  const delivery = reactive({ selected: saved, select(value) { this.selected = value; }, error: '' });
+  const delivery = reactive({ selected: saved, select(value) { this.selected = value; }, error: '',
+    updateDetails(details) { this.selected = { ...this.selected, ...details }; },
+  });
   const stops = [];
   t.after(() => stops.forEach(stop => stop()));
   const context = { ref, computed, reactive, watch: (...args) => { const stop = watch(...args); stops.push(stop); },
@@ -200,11 +203,15 @@ test('calculator passes live fields to the map and discards coordinates as soon 
   const f = new Function(...Object.keys(context), calculatorScript + '\nreturn { form, mapAddress, calculate };')(...Object.values(context));
   assert.equal(f.mapAddress.value.lat, 55.7);
   f.form.house = '11';
+  f.form.flat = '26';
+  await nextTick();
+  assert.equal(f.form.house, '11', 'Courier details must not restore the old house');
   assert.equal(f.mapAddress.value.house, '11');
   assert.equal(f.mapAddress.value.lat, undefined);
   f.calculate();
   await nextTick();
   assert.equal(delivery.selected.house, '11');
+  assert.equal(delivery.selected.flat, '26');
   assert.equal(delivery.selected.lat, undefined);
   delivery.select({ ...saved, lat: 55.8 });
   await nextTick();

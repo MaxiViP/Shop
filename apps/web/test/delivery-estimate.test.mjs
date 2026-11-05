@@ -90,3 +90,24 @@ test('only address fields and paired coordinates go to the estimate endpoint', (
     { city: 'Москва', street: 'Барклая', house: '10', buildingPart: undefined, lat: 55.7, lng: 37.5 });
   assert.equal('lat' in estimateAddress({ ...address, lat: 55.7 }), false);
 });
+
+test('changing apartment or access details retains the tariff and avoids new API requests', async () => {
+  const requests = [];
+  const delivery = store(async (path, options) => {
+    requests.push({ path, options });
+    return quote();
+  });
+  delivery.select({ ...address, lat: 55.7, lng: 37.5 });
+  await settle();
+  const firstQuote = delivery.quote;
+  delivery.updateDetails({ flat: '25', entrance: '2', floor: '7', intercom: '25К', comment: 'Позвонить' });
+  await settle();
+  assert.equal(delivery.selected.flat, '25');
+  assert.equal(delivery.selected.intercom, '25К');
+  assert.strictEqual(delivery.quote, firstQuote);
+  assert.equal(requests.length, 1);
+  assert.deepEqual(requests[0].options.body, {
+    city: 'Москва', street: 'Барклая', house: '10', buildingPart: undefined, lat: 55.7, lng: 37.5,
+  });
+  delivery.stop();
+});

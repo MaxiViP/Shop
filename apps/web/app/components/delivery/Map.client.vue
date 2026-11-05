@@ -12,6 +12,7 @@
 import { loadDeliveryMap, type Coordinates, type DeliveryMap, type MapAddress, type MapMarker, type YandexMaps } from '~/utils/yandex-map';
 import { deliveryAddressKey } from '~/utils/delivery-estimate';
 import { formatAddress } from '~/utils/address';
+import { splitYandexHouse } from '~/utils/yandex-house';
 import type { DeliveryAddress } from '~/types/delivery-estimate';
 
 const props = defineProps<{ address?: DeliveryAddress | null }>();
@@ -71,10 +72,10 @@ async function locate(request: () => PromiseLike<MapAddress | undefined>, manual
     if (!result) throw new Error('Адрес не найден');
     const city = result.getLocalities()[0] ?? result.getAdministrativeAreas()[0];
     const street = result.getThoroughfare();
-    const house = result.getPremiseNumber();
+    const number = result.getPremiseNumber();
     const coordinates = result.geometry.getCoordinates();
     if (!coordinates.every(Number.isFinite)) throw new Error('Координаты не найдены');
-    if (!city || !street || !house) {
+    if (!city || !street || !number) {
       if (manual) throw new Error('Дом не найден');
       void Promise.resolve(map?.setCenter(coordinates, street ? 14 : 11)).catch(() => {});
       hint.value = 'Место показано на карте. Уточните номер дома в поиске или заполните адрес вручную.';
@@ -86,7 +87,7 @@ async function locate(request: () => PromiseLike<MapAddress | undefined>, manual
     show(coordinates);
     if (!manual) {
       const [lat, lng] = coordinates;
-      emit('picked', { city, street, house, lat, lng });
+      emit('picked', { city, street, ...splitYandexHouse(number), lat, lng });
     }
   } catch {
     if (!disposed && version === sequence)
