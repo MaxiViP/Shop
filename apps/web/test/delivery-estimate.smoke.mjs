@@ -98,7 +98,7 @@ try {
         Placemark: class { geometry = { setCoordinates() {} }; },
         geocode: () => Promise.resolve({ geoObjects: { get: () => ({
           geometry: { getCoordinates: () => [55.75, 37.6] }, getLocalities: () => ['Москва'],
-          getAdministrativeAreas: () => [], getThoroughfare: () => 'Барклая', getPremiseNumber: () => '10'
+          getAdministrativeAreas: () => [], getThoroughfare: () => 'Барклая', getPremiseNumber: () => '10к2'
         }) } })
       };`,
     }));
@@ -114,7 +114,15 @@ try {
     assert.match(await page.locator('.delivery-bar__button').innerText(), /650,01/);
     await calculator.getByRole('button', { name: 'Выбрать на карте' }).click();
     await page.getByRole('button', { name: 'Тестовый дом на карте' }).click();
+    await calculator.getByLabel('Дом', { exact: true }).waitFor();
+    assert.equal(await calculator.getByLabel('Дом', { exact: true }).inputValue(), '10');
+    assert.equal(await calculator.getByLabel('Корпус / строение').inputValue(), 'к2');
+    await calculator.getByLabel('Квартира / офис').fill('25');
+    await calculator.getByLabel('Подъезд').fill('2');
+    await calculator.getByLabel('Этаж').fill('7');
+    await calculator.getByLabel('Домофон').fill('25К');
     await calculator.getByText('Доставка ≈ 650,01 ₽', { exact: true }).waitFor();
+    await calculator.getByText(/кв\. 25/).waitFor();
     await page.screenshot({ path: fileURLToPath(new URL(`guest-${width}.png`, output)), fullPage: true });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'No horizontal overflow');
     await page.locator('.delivery-bar__button').click();
