@@ -8,10 +8,22 @@ import { StaffDeliveryCtrl } from './staff-delivery.ctrl.js';
 import { YandexService } from './yandex.service.js';
 import { YandexCallbackCtrl } from './yandex-callback.ctrl.js';
 import { YandexSyncService } from './yandex-sync.service.js';
+import { EstimateCtrl } from './estimate.ctrl.js';
+import { EstimateService } from './estimate.service.js';
 
 @Module({
   imports: [AuthModule, DbModule, StaffModule],
-  controllers: [DeliveryCtrl, StaffDeliveryCtrl, YandexCallbackCtrl],
-  providers: [DeliveryService, YandexService, YandexSyncService],
+  controllers: [
+    DeliveryCtrl,
+    StaffDeliveryCtrl,
+    YandexCallbackCtrl,
+    EstimateCtrl,
+  ],
+  providers: [
+    DeliveryService,
+    YandexService,
+    YandexSyncService,
+    EstimateService,
+  ],
 })
 export class DeliveryModule {}

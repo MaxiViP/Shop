@@ -99,7 +99,7 @@ useJsonLd(breadcrumbSchema(breadcrumbs));
 </script>
 
 <style scoped>
-.market-map { min-width: 0; padding-block: var(--page-start) var(--page-end); }
+.market-map { min-width: 0; max-width: 90rem; padding-block: var(--page-start) var(--page-end); }
 .market-map__intro { display: grid; gap: .65rem; margin-bottom: 1.25rem; }
 .market-map__eyebrow { color: var(--ui-primary); font-size: .875rem; font-weight: 600; }
 .market-map__title { font-size: var(--page-title); line-height: 1.15; font-weight: 700; }
@@ -125,5 +125,5 @@ useJsonLd(breadcrumbSchema(breadcrumbs));
 .market-map__benefits li { display: flex; align-items: center; gap: .5rem; }
 .market-map__benefits :deep(svg) { color: var(--ui-primary); }
 @media (min-width: 40rem) { .market-map__filters { grid-template-columns: minmax(0, 1fr) minmax(12rem, .4fr); } .market-map__list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 64rem) { .market-map__layout { grid-template-columns: minmax(0, 2fr) minmax(17rem, 1fr); } .market-map__list { display: grid; grid-template-columns: minmax(0, 1fr); max-height: 48rem; overflow-y: auto; padding: .25rem; scrollbar-gutter: stable; } }
+@media (min-width: 64rem) { .market-map__layout { grid-template-columns: minmax(0, 3fr) minmax(16rem, 1fr); align-items: start; } .market-map__directory { position: sticky; top: 1rem; } .market-map__list { grid-template-columns: minmax(0, 1fr); max-height: min(75dvh, 64rem); overflow-y: auto; padding: .25rem; scrollbar-gutter: stable; } }
 </style>

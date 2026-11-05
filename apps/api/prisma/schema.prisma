@@ -238,16 +238,17 @@ model ProductImage {
 }
 
 model User {
-  canceledOrders OrderCancellation[] @relation("CanceledBy")
-  restoredOrders OrderCancellation[] @relation("RestoredBy")
-  extras         OrderExtra[]
-  id             Int                 @id @default(autoincrement())
-  phone          String?             @unique
-  orderPhone     String?
-  name           String?
-  verifiedAt     DateTime?
-  role           UserRole            @default(USER)
-  ownedPoints    MarketPointOwner[]
+  canceledOrders    OrderCancellation[] @relation("CanceledBy")
+  restoredOrders    OrderCancellation[] @relation("RestoredBy")
+  extras            OrderExtra[]
+  id                Int                 @id @default(autoincrement())
+  phone             String?             @unique
+  orderPhone        String?
+  name              String?
+  verifiedAt        DateTime?
+  role              UserRole            @default(USER)
+  adminPasswordHash String?             @db.VarChar(256)
+  ownedPoints       MarketPointOwner[]
 
   orders                Order[]
   addresses             Address[]
@@ -755,6 +756,45 @@ model AdminAudit {
 
   @@index([entity, entityId, createdAt])
   @@index([actorId, createdAt])
+}
+
+model AdminChange {
+  id            Int                      @id @default(autoincrement())
+  requestId     String                   @db.Uuid
+  actorId       Int?
+  actorName     String
+  source        String                   @db.VarChar(16)
+  entity        String                   @db.VarChar(48)
+  entityId      String                   @db.VarChar(160)
+  operation     String                   @db.VarChar(16)
+  beforeValue   Json?
+  afterValue    Json?
+  status        String                   @default("PENDING") @db.VarChar(16)
+  claimToken    String?                  @db.Uuid
+  leaseUntil    DateTime?
+  nextAttemptAt DateTime                 @default(now())
+  attempts      Int                      @default(0)
+  sentAt        DateTime?
+  createdAt     DateTime                 @default(now())
+  actorRole     String                   @default("ADMIN") @db.VarChar(16)
+  category      String                   @default("ADMINISTRATORS") @db.VarChar(24)
+  title         String                   @default("Изменение администратора") @db.VarChar(160)
+  ownerOnly     Boolean                  @default(false)
+  notifyOwner   Boolean                  @default(true)
+  orderId       Int?
+  productId     Int?
+  txId          BigInt                   @default(dbgenerated("(pg_current_xact_id())::text::bigint"))
+  dedupeKey     String?                  @unique @db.VarChar(32)
+  search        Unsupported("tsvector")? @default(dbgenerated())
+
+  @@index([status, nextAttemptAt, id])
+  @@index([requestId, id])
+  @@index([txId])
+  @@index([ownerOnly, category, id])
+  @@index([orderId, id])
+  @@index([actorId, id])
+  @@index([createdAt])
+  @@index([search], type: Gin, map: "AdminChange_search_idx")
 }
 
 enum PaymentStatus {

@@ -31,7 +31,7 @@ function setup(role: 'SELLER' | 'ADMIN' | 'USER' = 'SELLER') {
     issues: [] as { orderItemId: number; replacementItemId: number | null }[],
     extras: [] as { id: number; title: string; status: string; version: number }[],
   };
-  const findIdentity = vi.fn(async () => ({ id: 3, userId: 7, user: { role } }));
+  const findIdentity = vi.fn(async () => ({ id: 3, userId: 7, user: { role, phone: '+79990000007', adminPasswordHash: role === 'ADMIN' ? 'fixture-delegated-hash' : null } }));
   const updateIdentity = vi.fn(async () => ({}));
   const findMany = vi.fn(async () => [{ id: 6, status: 'NEW', customerName: 'Покупатель', type: 'PICKUP', total: 10000, finalTotal: null, createdAt: order.createdAt,
     issues: [] as { orderItemId: number; status: string; orderItem: { productName: string };
@@ -72,7 +72,18 @@ function setup(role: 'SELLER' | 'ADMIN' | 'USER' = 'SELLER') {
   return { handler, order, staff, telegram, links, flows, findIdentity, updateIdentity, findMany, count };
 }
 
+beforeEach(() => vi.stubEnv('ADMIN_PHONE', '+79990000001'));
+afterEach(() => vi.unstubAllEnvs());
 describe('STAFF Telegram authorization and legacy callbacks', () => {
+  it('revokes the former primary bot account after the configured phone changes', async () => {
+    const s=setup('ADMIN');
+    s.findIdentity.mockResolvedValue({id:3,userId:7,user:{role:'ADMIN',phone:'+79990000001',adminPasswordHash:null}});
+    await s.handler.handle(callback());
+    expect(s.staff.confirm).toHaveBeenCalledOnce();
+    vi.stubEnv('ADMIN_PHONE','+79990000002');
+    await s.handler.handle(callback('order:6:assembly'));
+    expect(s.staff.startAssembly).not.toHaveBeenCalled();
+  });
   it.each(['group', 'supergroup', 'channel'])('ignores %s messages and rejects callbacks', async type => {
     const s = setup();
     await s.handler.handle(message('/orders', type));
@@ -81,14 +92,18 @@ describe('STAFF Telegram authorization and legacy callbacks', () => {
     expect(s.staff.confirm).not.toHaveBeenCalled();
     expect(s.telegram.answerCallbackQuery).toHaveBeenCalledWith('cb', 'Нет доступа');
   });
-  it('rejects chat/from mismatch and allowlist failure before identity lookup', async () => {
+  it('rejects chat/from mismatch before identity lookup', async () => {
     const s = setup();
     const wrong = callback();
     wrong.callback_query.message.chat.id = 999;
     await s.handler.handle(wrong);
-    s.telegram.canManagePrivate.mockReturnValue(false);
-    await s.handler.handle(message('/orders'));
     expect(s.findIdentity).not.toHaveBeenCalled();
+  });
+  it('allows a linked administrator outside the legacy notification list', async () => {
+    const s = setup('ADMIN');
+    s.telegram.canManagePrivate.mockReturnValue(false);
+    await s.handler.handle(callback());
+    expect(s.staff.confirm).toHaveBeenCalledWith(6, { userId: 7, role: 'ADMIN' });
   });
   it.each(['SELLER', 'ADMIN'] as const)('accepts linked %s and preserves legacy confirm/assembly', async role => {
     const s = setup(role);
@@ -452,13 +467,11 @@ describe('STAFF recovery command authorization and business error UX', () => {
     expect(s.flows.resume).not.toHaveBeenCalled();
     expect(s.findIdentity).not.toHaveBeenCalled();
   });
-  it('rejects /resume on chat mismatch, allowlist denial, or linked USER', async () => {
+  it('rejects /resume on chat mismatch or linked USER', async () => {
     const s = setup();
     const wrong = message('/resume');
     wrong.message.chat.id = 999;
     await s.handler.handle(wrong);
-    s.telegram.canManagePrivate.mockReturnValue(false);
-    await s.handler.handle(message('/resume'));
     expect(s.flows.resume).not.toHaveBeenCalled();
     const customer = setup('USER');
     await customer.handler.handle(message('/resume'));

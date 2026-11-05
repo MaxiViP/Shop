@@ -60,6 +60,8 @@ export default defineNuxtConfig({
       telegramCustomerBotUrl: "",
       pickupName: "ТЦ «Багратионовский»",
       pickupAddress: "ул. Барклая, 10, Москва",
+      yandexMapsKey: "",
+      yandexSuggestKey: "",
     },
   },
 

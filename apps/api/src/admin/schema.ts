@@ -72,7 +72,10 @@ export const ownerProductFields = productFields.pick({
 }).extend({ marketPointId: idSchema });
 export const ownerProductPatch = ownerProductFields.partial();
 export type OwnerProductInput = z.infer<typeof ownerProductFields>;
-export const roleSchema = z.strictObject({ role: z.enum(['USER', 'SELLER']) });
+export const adminPasswordSchema = z.string().min(12).max(128);
+export const roleSchema = z.strictObject({ role: z.enum(['USER', 'SELLER', 'ADMIN']), password: adminPasswordSchema.optional() })
+  .refine(value => value.role === 'ADMIN' ? value.password !== undefined : value.password === undefined,
+    { message: 'Для администратора требуется отдельный пароль' });
 export const imageSchema = z.strictObject({
   alt: z.string().trim().max(300).nullable().optional(),
   sort: sort.optional(),

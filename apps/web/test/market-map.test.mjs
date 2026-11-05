@@ -142,7 +142,7 @@ test('the original floor asset is present, scalable and self-contained', async (
   assert.match(svg, /viewBox="0 0 1200 1460"/);
   assert.ok(svg.includes('Схема второго этажа'));
   assert.ok(!/<script|<foreignObject|<image|https?:\/\//.test(svg.replace('http://www.w3.org/2000/svg', '')));
-  const blocks = [...svg.matchAll(/<rect x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)"/g)]
+  const blocks = [...svg.matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)]
     .map(match => ({ x: +match[1], y: +match[2], width: +match[3], height: +match[4] }));
   assert.ok(blocks.length > 50, 'floor plan has trading blocks and aisles');
   const contains = (x, y) => blocks.some(block => x >= block.x && x <= block.x + block.width

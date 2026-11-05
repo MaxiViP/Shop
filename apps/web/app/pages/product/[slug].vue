@@ -27,19 +27,48 @@
       <ProductOrigin :point="product.marketPoint" :price-status="product.priceStatus" class="mt-3" />
 
       <div class="product__buy">
-        <UAlert v-if="cartQty && !cartSelectionValid" color="warning" title="Условия продажи изменились. Выберите количество заново и нажмите «Обновить количество в корзине»." />
-        <ProductQty v-model="qty" :product="product" />
+        <UAlert v-if="cartQty && !cartSelectionValid" color="warning" title="Условия продажи изменились. Обновите количество в кнопке или удалите товар через «−»." />
 
-        <div class="product__purchase">
-          <span v-if="cartQty" class="product__cart-qty">
-            В корзине: {{ qtyText(cartItem?.quantityUnit ?? cartItem?.product.unit ?? product.unit, cartQty) }}
+        <UButton
+          v-if="!cartQty"
+          size="lg"
+          class="product__btn"
+          :aria-label="action.ariaLabel"
+          :disabled="busy || increased === null"
+          @click="add"
+        >
+          <span class="product__btn-label">
+            {{ action.label }}<span v-if="total !== null" class="product__btn-price"> · ≈ {{ money(total) }}</span>
           </span>
-
-          <UButton size="lg" class="product__btn" :disabled="!cart.restored || cart.serverBusy || !validCartQty(qty, product)" @click="add">
-            <span class="product__btn-label">
-              {{ cartQty ? 'Обновить количество в корзине' : quickAddState({ ...product, portionQty: qty }, 0).label }}<span v-if="total !== null" class="product__btn-price"> · ≈ {{ money(total) }}</span>
-            </span>
+        </UButton>
+        <div v-else class="product__control" role="group" :aria-label="product.name + ': управление корзиной'" :aria-busy="busy">
+          <UButton
+            icon="i-lucide-minus"
+            variant="ghost"
+            color="neutral"
+            class="product__portion"
+            :aria-label="decreased === 0 ? 'Удалить из корзины: ' + product.name : 'Уменьшить на ' + portion + ': ' + product.name"
+            :disabled="busy || decreased === null"
+            @click="subtract"
+          />
+          <div v-if="cartSelectionValid" class="product__summary" role="status" aria-live="polite" aria-atomic="true">
+            <span class="sr-only">В корзине: </span>
+            <span>{{ qtyText(product.unit, cartQty, product) }}</span>
+            <span class="product__total">{{ total !== null ? '≈ ' + money(total) : 'Цена уточняется' }}</span>
+          </div>
+          <UButton v-else variant="ghost" color="neutral" class="product__summary" :disabled="busy || !validCartQty(qty, product)" @click="add">
+            <span>Обновить: {{ qtyText(product.unit, qty, product) }}</span>
+            <span v-if="total !== null" class="product__total">≈ {{ money(total) }}</span>
           </UButton>
+          <UButton
+            icon="i-lucide-plus"
+            variant="ghost"
+            color="neutral"
+            class="product__portion"
+            :aria-label="action.ariaLabel"
+            :disabled="busy || !cartSelectionValid || increased === null"
+            @click="add"
+          />
         </div>
       </div>
     </section>
@@ -60,7 +89,7 @@ import type { Product } from "~/types/product";
 import { useCartStore } from "~/stores/cart";
 import { money } from "~/utils/money";
 import { qtyText } from "~/utils/qty";
-import { previewTotal, validCartQty } from "~/utils/cart";
+import { nextCartQty, previousCartQty, previewTotal, validCartQty } from "~/utils/cart";
 import { compatibleQuantityUnit, saleExplanation } from '~/utils/sale';
 import { quickAddState } from '~/utils/quick-add';
 
@@ -70,13 +99,8 @@ const slug = String(route.params.slug);
 const cart = useCartStore();
 const actions = useCartActions();
 const notice = useHeaderNotice();
-
-async function add() {
-  if (!cart.restored || !product.value || !validCartQty(qty.value, product.value)) return;
-
-  const updated = await actions.put(product.value, qty.value);
-  notice.show({ target: 'cart', text: updated ? 'Количество в корзине сохранено' : 'Проверьте количество и лимит позиций в корзине' });
-}
+const pending = ref(false);
+const busy = computed(() => !cart.restored || cart.serverBusy || pending.value);
 
 const { data: product, error } = await useApi<Product>(`/products/${slug}`);
 
@@ -92,21 +116,45 @@ const cartSelectionValid = computed(() => !cartItem.value || (
   validCartQty(cartItem.value.qty, product.value!) &&
   compatibleQuantityUnit(cartItem.value.quantityUnit ?? cartItem.value.product.unit, product.value!)
 ));
-const qty = ref(product.value.portionQty);
-watch(() => [cart.restored, cartItem.value?.qty, cartItem.value?.quantityUnit, cartItem.value?.product.unit], () => {
-  const current = cartItem.value?.qty;
-  if (current) qty.value = cartSelectionValid.value ? current : product.value!.min;
-}, { immediate: true });
-
-const total = computed(() => {
-  if (!product.value) return 0;
-
-  return previewTotal(product.value, qty.value);
-});
-
 const cartQty = computed(() =>
   product.value ? cart.qty(product.value.id) : 0,
 );
+const qty = computed(() => cartQty.value
+  ? cartSelectionValid.value ? cartQty.value : product.value!.min
+  : product.value!.portionQty);
+const increased = computed(() => nextCartQty(cartQty.value || undefined, product.value!));
+const decreased = computed(() => cartSelectionValid.value ? previousCartQty(cartQty.value, product.value!) : 0);
+const action = computed(() => quickAddState(product.value!, cartQty.value));
+const portion = computed(() => qtyText(product.value!.unit, product.value!.step, product.value!));
+const total = computed(() =>
+  (cartQty.value && cartSelectionValid.value ? cart.quoteLine(product.value!.id)?.lineTotal : null) ?? previewTotal(product.value!, qty.value),
+);
+
+async function add() {
+  if (busy.value || !product.value) return;
+  pending.value = true;
+  try {
+    const changed = cartSelectionValid.value
+      ? await actions.add(product.value)
+      : await actions.put(product.value, qty.value);
+    notice.show({ target: 'cart', text: changed ? 'Количество в корзине сохранено' : 'Проверьте количество и лимит позиций в корзине' });
+  } finally {
+    pending.value = false;
+  }
+}
+
+async function subtract() {
+  if (busy.value || !product.value) return;
+  pending.value = true;
+  try {
+    const changed = cartSelectionValid.value
+      ? await actions.subtract(product.value)
+      : await actions.remove(product.value.id);
+    notice.show({ target: 'cart', text: changed ? cartQty.value ? 'Количество уменьшено' : 'Удалено из корзины' : 'Проверьте количество в корзине' });
+  } finally {
+    pending.value = false;
+  }
+}
 
 const breadcrumbs = computed(() => [
   { label: "Главная", to: "/" },
@@ -203,7 +251,7 @@ useJsonLd(() => [productSchema(product.value!), breadcrumbSchema(breadcrumbs.val
 .product__btn {
   width: 100%;
   min-width: 0;
-  min-height: var(--touch-target);
+  min-height: 3.25rem;
   justify-content: center;
   text-align: center;
   white-space: normal;
@@ -217,17 +265,44 @@ useJsonLd(() => [productSchema(product.value!), breadcrumbSchema(breadcrumbs.val
   white-space: nowrap;
 }
 
-.product__purchase {
+.product__control {
   display: grid;
   min-width: 0;
-  gap: 0.5rem;
+  min-height: 3.25rem;
+  grid-template-columns: 3.25rem minmax(0, 1fr) 3.25rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 45%, var(--ui-border));
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--ui-primary) 22%, var(--ui-bg));
+  color: var(--ui-text-highlighted);
 }
 
-.product__cart-qty {
-  color: var(--ui-text-muted);
+.product__portion {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+}
+
+.product__portion:first-child { border-right: 1px solid var(--ui-border); }
+.product__portion:last-child { border-left: 1px solid var(--ui-border); }
+
+.product__summary {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem 0.75rem;
+  padding: 0.5rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
   overflow-wrap: anywhere;
 }
+
+.product__total { white-space: nowrap; }
 
 @media (min-width: 48rem) {
   .product {
@@ -237,15 +312,6 @@ useJsonLd(() => [productSchema(product.value!), breadcrumbSchema(breadcrumbs.val
 
   .product__description {
     grid-column: 1 / -1;
-  }
-
-  .product__btn {
-    width: auto;
-    justify-self: start;
-  }
-
-  .product__purchase {
-    gap: 0.75rem;
   }
 }
 @media (min-width: 80rem) {

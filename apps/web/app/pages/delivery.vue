@@ -2,6 +2,7 @@
   <UContainer class="delivery">
     <AppBreadcrumbs :items="breadcrumbs" />
     <h1 class="delivery__title">Доставка продуктов с рынка по Москве</h1>
+    <DeliveryCalculator class="delivery__calculator" />
     <p class="delivery__text">{{ site.about }}</p>
     <h2 class="delivery__subtitle">Где доставка особенно быстрая?</h2>
     <p class="delivery__text">{{ site.delivery.priorityText }}</p>
@@ -28,6 +29,7 @@ useJsonLd(breadcrumbSchema(breadcrumbs));
 <style scoped>
 .delivery { min-width: 0; padding-block: var(--page-start) var(--page-end); }
 .delivery__title { font-size: var(--page-title); font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
+.delivery__calculator { margin-block: 1.5rem 2.5rem; }
 .delivery__subtitle { margin-top: 1.5rem; font-size: var(--section-title); font-weight: 600; }
 .delivery__text { max-width: 70ch; margin-top: 1rem; line-height: 1.65; color: var(--ui-text-muted); }
 .delivery__action { margin-top: 1.5rem; min-height: 44px; }

@@ -5,8 +5,11 @@ import ts from "typescript";
 import { computed, nextTick, ref, watch } from "vue";
 import { createPinia } from "pinia";
 import { useCartStore } from "../app/stores/cart.ts";
-import { decodeCart, previewTotal, validCartQty } from "../app/utils/cart.ts";
+import { useCartActions } from "../app/composables/useCartActions.ts";
+import { decodeCart, nextCartQty, previousCartQty, previewTotal, validCartQty } from "../app/utils/cart.ts";
 import { compatibleQuantityUnit } from '../app/utils/sale.ts';
+import { quickAddState } from '../app/utils/quick-add.ts';
+import { qtyText } from '../app/utils/qty.ts';
 
 const product = {
   id: 1, name: "Apples", slug: "apples", price: 350000, priceQty: 1000,
@@ -56,8 +59,7 @@ function restoration(cart, initial) {
 }
 
 async function detail(t, cart, selected = product) {
-  const stops = [];
-  t.after(() => stops.forEach(stop => stop()));
+  t.after(() => cart.$dispose());
   const script = pageSource.match(/<script setup lang="ts">([\s\S]*?)<\/script>/)?.[1];
   assert.ok(script);
   const executable = withoutImports(script);
@@ -65,20 +67,18 @@ async function detail(t, cart, selected = product) {
   const context = {
     useRoute: () => ({ params: { slug: product.slug } }),
     useCartStore: () => cart,
-    useCartActions: () => ({ put: async (p, qty) => cart.put(p, qty) }),
+    useCartActions,
     useHeaderNotice: () => ({ show: notice => notices.push(notice) }),
     useApi: async path => {
       assert.equal(path, "/products/apples");
       return { data: ref(selected), error: ref(null) };
     },
-    ref, computed,
-    watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
-    previewTotal, validCartQty, compatibleQuantityUnit,
+    ref, computed, nextCartQty, previousCartQty,
+    previewTotal, validCartQty, compatibleQuantityUnit, quickAddState, qtyText,
     usePageSeo() {}, useJsonLd() {},
   };
-  const setup = new AsyncFunction(...Object.keys(context), executable + "\nreturn { add, qty, total, cartQty, cartSelectionValid };");
+  const setup = new AsyncFunction(...Object.keys(context), executable + "\nreturn { add, subtract, qty, total, cartQty, cartSelectionValid, busy, increased, decreased };");
   const state = await setup(...Object.values(context));
-  assert.match(pageSource, /:disabled="!cart\.restored \|\| cart\.serverBusy \|\| !validCartQty\(qty, product\)" @click="add"/);
   return { ...state, notices };
 }
 
@@ -123,20 +123,104 @@ test("fresh product route waits for restore, then click adds immediately and per
   assert.equal(page.notices.at(-1).target, "cart");
 });
 
-test("product detail sets the desired quantity on one existing cart row", async t => {
+test("product detail immediately changes the saved cart by its sale step and removes the last portion", async t => {
   const cart = useCartStore(createPinia());
   const storage = restoration(cart, JSON.stringify({ version: 1, items: [{ product, qty: 500 }] }));
   storage.finish();
   const page = await detail(t, cart);
   assert.equal(page.qty.value, 500);
-  page.qty.value = 800;
-  assert.equal(page.total.value, 280000);
+  await page.add();
+  assert.equal(cart.qty(product.id), 600);
+  await page.add();
   await page.add();
   assert.equal(cart.count, 1);
   assert.equal(cart.qty(product.id), 800);
+  assert.equal(page.total.value, 280000);
   assert.equal(cart.key, '[[1,800,"GRAM"]]');
   await nextTick();
   assert.equal(JSON.parse(storage.saved).items[0].qty, 800);
+  for (const qty of [700, 600, 500, 0]) {
+    await page.subtract();
+    assert.equal(cart.qty(product.id), qty);
+  }
+  assert.equal(page.qty.value, product.portionQty);
+  assert.equal(cart.count, 0);
+  await nextTick();
+  assert.deepEqual(JSON.parse(storage.saved).items, []);
+  await page.add();
+  assert.equal(cart.qty(product.id), product.portionQty);
+});
+
+test('product detail follows cart changes from other controls without a stale local quantity', async t => {
+  const cart = useCartStore(createPinia());
+  cart.restore([{ product, qty: 700 }]);
+  const page = await detail(t, cart);
+  assert.equal(page.qty.value, 700);
+  cart.put(product, 900);
+  assert.equal(page.qty.value, 900);
+  assert.equal(page.total.value, 315000);
+  cart.remove(product.id);
+  assert.equal(page.cartQty.value, 0);
+  assert.equal(page.qty.value, product.portionQty);
+});
+
+test('minus can remove an incompatible saved quantity without converting grams to pieces', async t => {
+  const cart = useCartStore(createPinia());
+  cart.restore([{ product, qty: 500, quantityUnit: 'GRAM' }]);
+  const page = await detail(t, cart, { ...product, unit: 'PIECE', priceQty: 1, min: 1, step: 1, portionQty: 1 });
+  assert.equal(page.cartSelectionValid.value, false);
+  assert.equal(page.decreased.value, 0);
+  await page.subtract();
+  assert.equal(cart.qty(product.id), 0);
+  assert.equal(cart.count, 0);
+});
+
+test('server changes use acknowledged totals and block duplicate clicks while the request is pending', async t => {
+  const cart = useCartStore(createPinia());
+  const snapshot = (revision, qty, total) => ({ revision, items: [{ productId: product.id, product, qty,
+    status: 'AVAILABLE', lineTotal: total }], products: [product], subtotal: total, valid: true, error: null, token: revision });
+  const gate = Promise.withResolvers();
+  let requests = 0;
+  cart.bindServer({
+    get: async () => snapshot('0', 500, 175000),
+    change: async body => {
+      requests++;
+      assert.equal(body.kind, 'add');
+      assert.equal(body.qty, 100);
+      assert.equal(body.revision, '0');
+      await gate.promise;
+      return snapshot('1', 600, 210001);
+    },
+  });
+  cart.beginServer(1);
+  cart.applyServer(snapshot('0', 500, 175000), 1);
+  const page = await detail(t, cart);
+  const change = page.add();
+  assert.equal(page.busy.value, true);
+  await page.add();
+  await page.subtract();
+  assert.equal(requests, 1);
+  assert.equal(cart.qty(product.id), 500);
+  gate.resolve();
+  await change;
+  assert.equal(page.busy.value, false);
+  assert.equal(page.qty.value, 600);
+  assert.equal(page.total.value, 210001);
+});
+
+test('failed server change leaves the acknowledged quantity intact and allows retry', async t => {
+  const cart = useCartStore(createPinia());
+  const snapshot = { revision: '0', items: [{ productId: product.id, product, qty: 500, status: 'AVAILABLE', lineTotal: 175000 }],
+    products: [product], subtotal: 175000, valid: true, error: null, token: '0' };
+  cart.bindServer({ get: async () => snapshot, change: async () => { throw new Error('Offline'); } });
+  cart.beginServer(1);
+  cart.applyServer(snapshot, 1);
+  const page = await detail(t, cart);
+  await page.add();
+  assert.equal(page.qty.value, 500);
+  assert.equal(page.total.value, 175000);
+  assert.equal(page.busy.value, false);
+  assert.match(page.notices.at(-1).text, /Проверьте/);
 });
 
 

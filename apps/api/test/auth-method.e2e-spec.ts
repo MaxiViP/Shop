@@ -40,13 +40,18 @@ describe('Auth method HTTP', () => {
     vi.unstubAllEnvs();
   });
 
-  it('ordinary phone returns only OTP without DB lookup', async () => {
+  it('ordinary phone returns only OTP after checking the delegated role', async () => {
     await request(app.getHttpServer())
       .post('/api/auth/method')
       .send({ phone: '+79990000002' })
       .expect(201)
       .expect({ method: 'OTP' });
-    expect(findUser).not.toHaveBeenCalled();
+    expect(findUser).toHaveBeenCalledWith(expect.objectContaining({ where: { phone: '+79990000002' } }));
+  });
+  it('a delegated ADMIN receives PASSWORD when test phone mode is disabled', async () => {
+    findUser.mockResolvedValueOnce({ role: 'ADMIN' });
+    await request(app.getHttpServer()).post('/api/auth/method')
+      .send({ phone: '+79990000002' }).expect(201).expect({ method: 'PASSWORD' });
   });
   it('enabled test mode selects TEST_PHONE but keeps admin PASSWORD', async () => {
     vi.stubEnv('TEST_PHONE_AUTH_ENABLED', 'true');

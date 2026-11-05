@@ -14,12 +14,7 @@ export class AdminGuard implements CanActivate {
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<AuthRequest>();
     const user = await this.auth.me(request.cookies?.[SID]);
-    if (
-      !user ||
-      !adminPhone() ||
-      user.role !== 'ADMIN' ||
-      user.phone !== adminPhone()
-    ) {
+    if (!user || !adminPhone() || user.role !== 'ADMIN' || !user.phone) {
       throw new ForbiddenException();
     }
     if (

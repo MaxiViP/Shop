@@ -210,6 +210,8 @@ NUXT_PUBLIC_API_BASE=https://korzinamarket.ru/api
 NUXT_PUBLIC_SITE_URL=https://korzinamarket.ru
 NUXT_PUBLIC_PICKUP_NAME="ТЦ «Багратионовский»"
 NUXT_PUBLIC_PICKUP_ADDRESS="ул. Барклая, 10, Москва"
+NUXT_PUBLIC_YANDEX_MAPS_KEY=
+NUXT_PUBLIC_YANDEX_SUGGEST_KEY=
 ```
 
 Pickup-переменные уже поддерживаются текущим Nuxt runtimeConfig. `NITRO_HOST` и

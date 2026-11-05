@@ -5,6 +5,7 @@
       <div id="floating-cart-anchor" class="floating-cart-anchor" />
     </div>
     <AppHeader />
+    <DeliveryBar />
 
     <main
       class="layout__main"
@@ -16,7 +17,27 @@
 
 <script setup lang="ts">
 import { showBottomSearch } from "~/utils/search";
+import { useDeliveryStore } from '~/stores/delivery';
+import { useAuthStore } from '~/stores/auth';
 useCartQuote();
+const delivery = useDeliveryStore();
+const auth = useAuthStore();
+let stopDelivery = () => {};
+onMounted(() => {
+  const stop = watch(() => auth.user?.id ?? null, id => { void delivery.initialize(id); }, { immediate: true });
+  const refresh = () => { if (!document.hidden) void delivery.refresh(); };
+  const timer = setInterval(refresh, 30_000);
+  window.addEventListener('focus', refresh);
+  document.addEventListener('visibilitychange', refresh);
+  stopDelivery = () => {
+    stop();
+    clearInterval(timer);
+    window.removeEventListener('focus', refresh);
+    document.removeEventListener('visibilitychange', refresh);
+    delivery.stop();
+  };
+});
+onBeforeUnmount(() => stopDelivery());
 const route = useRoute();
 const bottomSearch = computed(() => showBottomSearch(route.path));
 </script>

@@ -186,11 +186,50 @@ export class YandexService {
 
   async calculate(input: YandexOrderInput): Promise<YandexQuote> {
     this.config();
+    return this.calculateOffer(this.offerBody(input));
+  }
 
+  async estimate(address: {
+    fullname: string;
+    lat?: number;
+    lng?: number;
+  }): Promise<YandexQuote> {
+    const config = this.config();
+    return this.calculateOffer({
+      items: [
+        {
+          quantity: 1,
+          pickup_point: 1,
+          dropoff_point: 2,
+          weight: 5,
+          size: { length: 0.4, width: 0.3, height: 0.3 },
+        },
+      ],
+      route_points: [
+        {
+          id: 1,
+          fullname: config.sourceAddress,
+          ...(config.sourceCoordinates
+            ? { coordinates: config.sourceCoordinates }
+            : {}),
+        },
+        {
+          id: 2,
+          fullname: address.fullname,
+          ...(address.lat !== undefined && address.lng !== undefined
+            ? { coordinates: [address.lng, address.lat] }
+            : {}),
+        },
+      ],
+      requirements: { taxi_classes: ['express'] },
+    });
+  }
+
+  private async calculateOffer(body: object): Promise<YandexQuote> {
     const response = offersSchema.parse(
       await this.request('/offers/calculate', {
         method: 'POST',
-        body: this.offerBody(input),
+        body,
       }),
     );
     const offer = response.offers.find((item) => item.taxi_class === 'express');

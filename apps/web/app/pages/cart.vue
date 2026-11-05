@@ -330,9 +330,13 @@
           <span>{{ form.type === "PICKUP" ? "Самовывоз" : "Доставка" }}</span>
 
           <span>{{
-            form.type === "PICKUP" ? "Бесплатно" : deliveryCost(deliveryQuote?.price ?? null)
+            form.type === "PICKUP" ? "Бесплатно" : deliveryQuote?.price != null
+              ? deliveryCost(deliveryQuote.price)
+              : deliveryMatches && delivery.quote ? '≈ ' + money(delivery.quote.price) : deliveryCost(null)
           }}</span>
         </div>
+
+        <DeliveryEstimate v-if="form.type === 'DELIVERY' && deliveryMatches" :free="deliveryQuote?.eligible" />
 
         <div v-if="cart.total !== null" class="summary__total">
           <span>{{ form.type === 'PICKUP' || deliveryQuote?.eligible ? 'Предварительный итог' : 'Предварительно за товары' }}</span>
@@ -382,6 +386,8 @@ import type { Address } from "~/types/address";
 import type { OrderCreated, OrderType, QueueOffer } from "~/types/order";
 import { useAuthStore } from "~/stores/auth";
 import { useCartStore } from "~/stores/cart";
+import { useDeliveryStore } from '~/stores/delivery';
+import type { DeliveryAddress } from '~/types/delivery-estimate';
 import { money } from "~/utils/money";
 import { deliveryCost, orderDeliveryMessage } from '~/utils/delivery';
 import { preorderLabel } from '~/utils/preorder';
@@ -401,6 +407,7 @@ const { data: queueOffer, refresh: refreshQueueOffer } = await useApi<QueueOffer
 
 const auth = useAuthStore();
 const cart = useCartStore();
+const delivery = useDeliveryStore();
 const actions = useCartActions();
 const {
   ready,
@@ -431,10 +438,7 @@ useOrderPolling(async () => { await Promise.all([refreshQuote(), refreshSettings
 const api = useApiClient();
 const { name, rememberOnSuccess } = useCheckoutName();
 
-const { data: addressData, refresh: refreshAddresses } = await useApi<Address[]>("/addresses", {
-  default: () => [],
-  immediate: auth.loggedIn,
-});
+const refreshAddresses = () => delivery.loadAddresses();
 
 const { data: phoneData, refresh: refreshPhones } = await useApi<OrderPhoneSnapshot>("/order-phones", {
   immediate: auth.user?.role === "USER",
@@ -457,7 +461,7 @@ function onPhoneInput() {
   selectedPhone.value = "manual";
 }
 
-const addresses = computed(() => addressData.value ?? []);
+const addresses = computed(() => delivery.addresses);
 
 const selectedAddressId = ref<number | null>(null);
 
@@ -600,38 +604,33 @@ const showAddressForm = computed(
     selectedAddressId.value === null,
 );
 
-watch(
-  addresses,
-  (value) => {
-    if (!value.length) return;
-
-    const address = value.find((item) => item.isDefault) ?? value[0];
-
-    if (!address) return;
-
-    selectAddress(address);
-  },
-  {
-    immediate: true,
-  },
-);
+watch(() => delivery.selected, address => {
+  if (!address) return;
+  applyAddress(address);
+}, { immediate: true });
 
 function selectAddress(address: Address) {
-  selectedAddressId.value = address.id;
+  delivery.select(address);
+  applyAddress(address);
+}
 
-  self.city = address.city;
-  self.street = address.street;
-  self.house = address.house;
-  self.buildingPart = address.buildingPart ?? "";
-  self.flat = address.flat ?? "";
-  self.entrance = address.entrance ?? "";
-  self.floor = address.floor ?? "";
-  self.intercom = address.intercom ?? "";
-  self.comment = address.comment ?? "";
+function applyAddress(address: DeliveryAddress) {
+  if (recipientMode.value === 'self') selectedAddressId.value = address.id ?? null;
+  const target = recipient.value;
+  target.city = address.city;
+  target.street = address.street;
+  target.house = address.house;
+  target.buildingPart = address.buildingPart ?? '';
+  target.flat = address.flat ?? '';
+  target.entrance = address.entrance ?? '';
+  target.floor = address.floor ?? '';
+  target.intercom = address.intercom ?? '';
+  target.comment = address.comment ?? '';
 }
 
 function manualAddress() {
   selectedAddressId.value = null;
+  delivery.select(null);
 
   self.city = "Москва";
   self.street = "";
@@ -643,6 +642,25 @@ function manualAddress() {
   self.intercom = "";
   self.comment = "";
 }
+
+const deliveryMatches = computed(() => {
+  const selected = delivery.selected;
+  const target = recipient.value;
+  return !!selected && selected.city.trim() === target.city.trim()
+    && selected.street.trim() === target.street.trim() && selected.house.trim() === target.house.trim()
+    && (selected.buildingPart ?? '').trim() === target.buildingPart.trim();
+});
+let estimateTimer: ReturnType<typeof setTimeout> | undefined;
+watch(() => [form.type, recipientMode.value, recipient.value.city, recipient.value.street,
+  recipient.value.house, recipient.value.buildingPart], () => {
+  clearTimeout(estimateTimer);
+  const address = recipient.value;
+  if (form.type !== 'DELIVERY' || deliveryMatches.value || !address.city.trim() || !address.street.trim() || !address.house.trim()) return;
+  estimateTimer = setTimeout(() => {
+    delivery.select({ ...recipient.value, label: recipientMode.value === 'other' ? 'Другой получатель' : undefined }, false);
+  }, 700);
+}, { immediate: true });
+onBeforeUnmount(() => clearTimeout(estimateTimer));
 
 const shakeFields = ref<CheckoutField[]>([]);
 let shakeTimer: ReturnType<typeof setTimeout> | undefined;

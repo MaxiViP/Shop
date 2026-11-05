@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { Injectable, type OnModuleDestroy } from '@nestjs/common';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { ActivityPrismaPg } from '../admin/activity-context.js';
 import { PrismaClient } from './gen/client.js';
 
 @Injectable()
@@ -11,7 +11,7 @@ export class DbService extends PrismaClient implements OnModuleDestroy {
     if (!url) throw new Error('DATABASE_URL is not set');
 
     super({
-      adapter: new PrismaPg({ connectionString: url }),
+      adapter: new ActivityPrismaPg({ connectionString: url }),
     });
   }
 

@@ -19,8 +19,10 @@ import { serialUpdate } from './updates.js';
 import { pageInfo } from './page.js';
 import type { TelegramScreen } from './rich.js';
 import { staffCommand } from './staff-commands.js';
+import { adminPhone } from '../auth/admin.config.js';
+import { withAdminActivity } from '../admin/activity-context.js';
 
-type Identity = { id: number; userId: number; user: { role: 'USER' | 'SELLER' | 'ADMIN'; ownedPoints?: { marketPointId: number }[] } };
+type Identity = { id: number; userId: number; user: { role: 'USER' | 'SELLER' | 'ADMIN'; phone?: string | null; adminPasswordHash?: string | null; ownedPoints?: { marketPointId: number }[] } };
 
 @Injectable()
 export class StaffBotService {
@@ -43,7 +45,7 @@ export class StaffBotService {
     }
     const callback = parsed.data.callback_query, message = parsed.data.message;
     const from = callback?.from ?? message?.from, chat = callback?.message.chat ?? message?.chat;
-    if (!chat || !from || chat.type !== 'private' || chat.id !== from.id || !this.telegram.canManagePrivate(from.id, chat.id)) {
+    if (!chat || !from || chat.type !== 'private' || chat.id !== from.id) {
       if (callback) await this.telegram.answerCallbackQuery(callback.id, 'Нет доступа');
       return;
     }
@@ -55,8 +57,7 @@ export class StaffBotService {
     if (!message && !callback) return;
     const from = callback?.from ?? message?.from;
     const chat = callback?.message.chat ?? message?.chat;
-    if (!from || !chat || chat.type !== 'private' || chat.id !== from.id ||
-      !this.telegram.canManagePrivate(from.id, chat.id)) {
+    if (!from || !chat || chat.type !== 'private' || chat.id !== from.id) {
       if (callback) await this.telegram.answerCallbackQuery(callback.id, 'Нет доступа');
       return;
     }
@@ -76,8 +77,12 @@ export class StaffBotService {
           'Для работы получите одноразовый код в кабинете сотрудника и отправьте /link КОД.');
         return;
       }
-      if (message) await this.message(message, identity);
-      else if (callback) answer = await this.callback(callback, identity);
+      const run = async () => {
+        if (message) await this.message(message, identity);
+        else if (callback) answer = await this.callback(callback, identity);
+      };
+      await withAdminActivity(identity.userId, 'TELEGRAM', run,
+        identity.user.role === 'ADMIN' && identity.user.phone !== adminPhone(), identity.user.role);
     } catch (error) {
       if (error instanceof HttpException && [400, 403, 404, 409].includes(error.getStatus())) {
         answer = error.getStatus() === 403 ? 'Нет доступа' :
@@ -98,8 +103,10 @@ export class StaffBotService {
   private async identity(telegramUserId: number): Promise<Identity | null> {
     const identity = await this.db.staffTelegramIdentity.findUnique({
       where: { telegramUserId: BigInt(telegramUserId) },
-      select: { id: true, userId: true, user: { select: { role: true, ...ownershipSelect } } },
+      select: { id: true, userId: true, user: { select: { role: true, phone: true, adminPasswordHash: true, ...ownershipSelect } } },
     });
+    if (identity?.user.role === 'ADMIN' && (!adminPhone() || !identity.user.phone ||
+      (identity.user.phone !== adminPhone() && !identity.user.adminPasswordHash))) return null;
     return identity && isStaff(identity.user) ? identity : null;
   }
 

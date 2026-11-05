@@ -163,6 +163,40 @@ describe('YandexService', () => {
     });
   });
 
+  it('estimates a standard parcel without customer contacts or booking a courier', async () => {
+    configured();
+    vi.stubEnv('YANDEX_DELIVERY_SOURCE_LONGITUDE', '37.5');
+    vi.stubEnv('YANDEX_DELIVERY_SOURCE_LATITUDE', '55.7');
+    const fetchMock = vi.fn().mockResolvedValue(json(offer('650.01')));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await new YandexService().estimate({
+      fullname: 'Москва, Барклая, 10',
+      lat: 55.75,
+      lng: 37.6,
+    });
+    expect(result.price).toBe(65_001);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/offers/calculate');
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body: unknown = JSON.parse(String(request.body));
+    expect(body).toEqual({
+      items: [
+        {
+          quantity: 1,
+          pickup_point: 1,
+          dropoff_point: 2,
+          weight: 5,
+          size: { length: 0.4, width: 0.3, height: 0.3 },
+        },
+      ],
+      route_points: [
+        { id: 1, fullname: 'Москва, рынок, 1', coordinates: [37.5, 55.7] },
+        { id: 2, fullname: 'Москва, Барклая, 10', coordinates: [37.6, 55.75] },
+      ],
+      requirements: { taxi_classes: ['express'] },
+    });
+  });
+
   it.each(['0', '-1', 'NaN', '1e2', '999999999999.00'])(
     'rejects invalid provider delivery cost %s',
     async (value) => {

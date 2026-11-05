@@ -29,7 +29,7 @@ const product = { id: 1, name: "Fixture", slug: "fixture", unit: "GRAM", price: 
 
 // Execute the actual page setup with Vue refs and local API fixtures.
 // No template mounting, component framework, browser, or real requests.
-async function fixture(t, authenticated = false, preserveDefault = false) {
+async function fixture(t, authenticated = false, preserveDefault = false, selectedDelivery = null) {
   const cart = useCartStore(createPinia());
   const pending = ref(false);
   const quoteError = ref("");
@@ -45,7 +45,12 @@ async function fixture(t, authenticated = false, preserveDefault = false) {
   const state = { token: "confirmed", refreshFail: false, requests: [], sessionCalls: 0, navigation: [],
     remembered: false, post: async () => authenticated
       ? { order: { publicId: "created-order" }, cart: emptySnapshot() }
-      : { publicId: "created-order" }, addressOptions: null };
+      : { publicId: "created-order" } };
+  const delivery = reactive({
+    selected: selectedDelivery ?? (authenticated ? address : null),
+    addresses: authenticated ? [address] : [], quote: null, pending: false, error: '',
+    select(value) { this.selected = value; }, async loadAddresses() {},
+  });
   const quote = () => ({ valid: true, token: state.token, subtotal: 5000, error: null,
     items: [{ productId: 1, product, qty: cart.qty(1), lineTotal: 5000, status: "AVAILABLE" }] });
   cart.restore([{ product, qty: 500 }]);
@@ -65,6 +70,7 @@ async function fixture(t, authenticated = false, preserveDefault = false) {
     onBeforeUnmount: callback => t.after(callback),
     watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
     useCartStore: () => cart,
+    useDeliveryStore: () => delivery,
     useCartActions: () => ({
       put: async (p, qty) => cart.put(p, qty),
       remove: async id => { cart.remove(id); return true; },
@@ -82,9 +88,7 @@ async function fixture(t, authenticated = false, preserveDefault = false) {
             primaryPhone: "+79990000009" }
           : null), refresh: async () => {} };
       }
-      assert.equal(path, "/addresses");
-      state.addressOptions = options;
-      return { data: ref(authenticated ? [address] : []), refresh: async () => {} };
+      assert.fail('Unexpected page API request: ' + path);
     },
     useCartQuote: () => ({
       ready: computed(() => cart.quoteReady && !pending.value), pending, error: quoteError,
@@ -121,8 +125,8 @@ async function fixture(t, authenticated = false, preserveDefault = false) {
     executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, errors, shakeFields, selectAddress, selectedAddressId, selectedPhone, choosePhone, onPhoneInput, availablePhones, phoneData, deliveryQuote, deliveryNote, removeItem, undoRemoval, lastRemoved };");
   const result = await setup(...Object.values(context));
   Object.assign(result.recipient.value, { name: "Recipient", ...(preserveDefault ? {} : { phone: "+79990000000" }) });
-  if (!authenticated) Object.assign(result.recipient.value, { city: "City", street: "Street", house: "10", comment: "Call" });
-  return { ...result, cart, pending, state, settings, settingsError, queueOffer, address, user };
+  if (!authenticated && !selectedDelivery) Object.assign(result.recipient.value, { city: "City", street: "Street", house: "10", comment: "Call" });
+  return { ...result, cart, delivery, pending, state, settings, settingsError, queueOffer, address, user };
 }
 
 test('checkout messages use server delivery costs and discard stale free-delivery quotes', async t => {
@@ -169,6 +173,30 @@ test("direct /checkout middleware redirects to /cart without browser globals or 
   assert.doesNotMatch(script, /navigateTo\(["']\/checkout|route\.query/);
 });
 
+test('a guest address chosen before shopping prefills checkout without submitting the estimate as a trusted price', async t => {
+  const chosen = { city: 'Москва', street: 'Барклая', house: '10', buildingPart: 'стр. 1', lat: 55.7, lng: 37.5 };
+  const f = await fixture(t, false, false, chosen);
+  f.delivery.quote = { price: 65_001 };
+  assert.equal(f.self.street, 'Барклая');
+  assert.equal(f.self.buildingPart, 'стр. 1');
+  await f.submit();
+  assert.equal(f.state.requests[0].body.address.street, 'Барклая');
+  assert.equal(f.state.requests[0].body.address.buildingPart, 'стр. 1');
+  assert.equal('deliveryPrice' in f.state.requests[0].body, false);
+  assert.equal('estimatedPrice' in f.state.requests[0].body, false);
+});
+
+test('changing the global selected address updates checkout and preserves saved apartment details', async t => {
+  const f = await fixture(t, true);
+  f.delivery.select({ ...f.address, id: 3, street: 'Новая', flat: '45' });
+  await nextTick();
+  assert.equal(f.selectedAddressId.value, 3);
+  assert.equal(f.self.street, 'Новая');
+  assert.equal(f.self.flat, '45');
+  await f.submit();
+  assert.equal(f.state.requests[0].body.address.flat, '45');
+});
+
 test("empty, stale, pending and invalid quotes cannot submit even with displayed server amounts", async t => {
   const f = await fixture(t);
   assert.equal(f.canSubmit.value, true);
@@ -193,7 +221,7 @@ test("empty, stale, pending and invalid quotes cannot submit even with displayed
 for (const authenticated of [false, true]) {
   test(`${authenticated ? "user" : "guest"} order keeps recipient/address/comment/token and clears only on success`, async t => {
     const f = await fixture(t, authenticated);
-    assert.equal(f.state.addressOptions.immediate, authenticated);
+    assert.equal(f.delivery.addresses.length, authenticated ? 1 : 0);
     if (authenticated) assert.equal(f.selectedAddressId.value, f.address.id);
     let accept;
     f.state.post = () => new Promise(resolve => { accept = resolve; });

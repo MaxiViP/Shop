@@ -222,7 +222,7 @@ function handleKey(event: KeyboardEvent, handle: ResizeHandle) {
 .map__scale { min-width: 3.25rem; text-align: center; font-size: .8125rem; }
 .map__hint, .map__warning { padding: 0 .75rem .75rem; color: var(--ui-text-muted); font-size: .8125rem; line-height: 1.5; }
 .map__warning { color: var(--ui-error); }
-.map__viewport { aspect-ratio: 1200 / 1460; max-height: min(65dvh, 48rem); width: 100%; overflow: auto; background: #10191e; scrollbar-gutter: stable; }
+.map__viewport { aspect-ratio: 1200 / 1460; width: 100%; overflow: auto; background: #10191e; }
 .map__viewport--placing { cursor: crosshair; }
 .map__viewport:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: -2px; }
 .map__drawing { display: block; max-width: none; height: auto; margin-inline: auto; aspect-ratio: 1200 / 1460; }

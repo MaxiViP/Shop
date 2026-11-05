@@ -105,6 +105,7 @@
 
 <script setup lang="ts">
 import { formatAddress } from "~/utils/address";
+import { useDeliveryStore } from '~/stores/delivery';
 import type { Address } from "~/types/address";
 import type { OrderPhoneSnapshot } from "~/types/order-phone";
 import { useAuthStore } from "~/stores/auth";
@@ -134,12 +135,18 @@ function updateOrderPhones(value: OrderPhoneSnapshot) {
   orderPhoneData.value = value;
 }
 
-const { data: addresses, refresh: refreshAddresses } = await useApi<Address[]>(
+const delivery = useDeliveryStore();
+const { data: addresses, refresh: fetchAddresses } = await useApi<Address[]>(
   "/addresses",
   {
     default: () => [],
   },
 );
+
+async function refreshAddresses() {
+  await fetchAddresses();
+  await delivery.loadAddresses();
+}
 
 function create() {
   selected.value = null;
@@ -167,6 +174,8 @@ async function setDefault(address: Address) {
     });
 
     await refreshAddresses();
+
+    delivery.select(addresses.value.find(item => item.id === address.id) ?? null);
 
     toast.add({
       title: "Основной адрес изменён",

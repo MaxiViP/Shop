@@ -15,12 +15,14 @@ import { OrderPhoneModule } from './order-phone/order-phone.module.js';
 import { ProductModule } from './product/product.module.js';
 import { StaffModule } from './staff/staff.module.js';
 import { MarketMapModule } from './market-map/market-map.module.js';
+import { AdminActivityModule } from './admin/activity.module.js';
 
 @Module({
   imports: [
     DbModule,
     PromoModule,
     AdminModule,
+    AdminActivityModule,
     MarketMapModule,
     StaffModule,
     AddressModule,

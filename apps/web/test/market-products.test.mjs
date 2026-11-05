@@ -27,7 +27,7 @@ const source = file => readFile(new URL(`../app/${file}`, import.meta.url), 'utf
 const product = { id: 1, name: 'Рис Casa Rinaldi Карнароли 500 г', slug: 'cezoni-market-casa-rinaldi-carnaroli-500g',
   price: 24200, priceStatus: 'SOURCE', priceQty: 1, unit: 'PACK', step: 1, min: 1, portionQty: 1, images: [], description: null,
   category: { name: 'Макароны и крупы', slug: 'pasta-grains' }, marketPoint: { name: 'Cezoni Market', slug: 'cezoni-market' } };
-const cart = { restored: true, serverBusy: false, quoteReady: true, items: [], qty: () => 0, displayLineTotal: () => null };
+const cart = { restored: true, serverBusy: false, quoteReady: true, items: [], qty: () => 0, displayLineTotal: () => null, quoteLine: () => undefined };
 
 const modules = {
   '~/utils/product-illustration': { productIllustration },

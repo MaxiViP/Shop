@@ -1,5 +1,5 @@
-import { randomBytes } from 'node:crypto';
-import { request as httpRequest, type Server } from 'node:http';
+import { randomBytes, randomInt } from 'node:crypto';
+import { request as httpRequest, Server } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bodyLimit, uploadLimit, createGateway, host, port } from '../src/server.js';
 
@@ -12,11 +12,31 @@ let server: Server;
 let origin: string;
 async function start(options: Parameters<typeof createGateway>[0] = { tokens, fetcher: upstream }) {
   server = createGateway(options);
-  await new Promise<void>(resolve => server.listen(0, host, resolve));
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('TEST_LISTENER');
-  expect(address.address).toBe('127.0.0.1');
-  origin = 'http://127.0.0.1:' + address.port;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(attempt ? randomInt(49152, 65536) : 0, host, () => {
+          server.off('error', reject); resolve();
+        });
+      });
+    } catch (error) {
+      // Windows may reserve a candidate port (EACCES) without an active listener.
+      if (error instanceof Error && 'code' in error &&
+          (error.code === 'EADDRINUSE' || error.code === 'EACCES') && attempt < 9) continue;
+      throw error;
+    }
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('TEST_LISTENER');
+    expect(address.address).toBe('127.0.0.1');
+    // Node 24 Fetch blocks selected ports up to 10080, including OS-assigned ports.
+    if (address.port > 10080) {
+      origin = 'http://127.0.0.1:' + address.port;
+      return;
+    }
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+  throw new Error('TEST_FETCH_PORT: no allowed loopback port after 10 attempts');
 }
 const send = (path = '/v1/customer/sendMessage', body = '{"chat_id":123,"text":"fixture"}', headers = { 'Content-Type': 'application/json' }) =>
   fetch(origin + path, { method: 'POST', headers, body });
@@ -110,10 +130,30 @@ it.each(['ninth', 'unreferenced', 'missing', 'duplicate-reference', 'bad-second-
 });
 afterEach(async () => {
   vi.restoreAllMocks();
-  if (server) {
+  if (server?.listening) {
     server.closeAllConnections();
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
+});
+
+it('reselects an OS-assigned port rejected by Fetch before sending a request', async () => {
+  const address = vi.spyOn(Server.prototype, 'address');
+  address.mockReturnValueOnce({ address: host, family: 'IPv4', port: 10080 });
+  await start();
+  expect(address.mock.calls.length).toBeGreaterThanOrEqual(2);
+  expect(Number(new URL(origin).port)).toBeGreaterThan(10080);
+  expect((await send()).status).toBe(200);
+  expect(upstream).toHaveBeenCalledTimes(1);
+});
+
+it.each(['EADDRINUSE', 'EACCES'])('reselects an unavailable test listener port after %s', async code => {
+  vi.spyOn(Server.prototype, 'listen').mockImplementationOnce(function (this: Server) {
+    queueMicrotask(() => this.emit('error', Object.assign(new Error('TEST_BIND'), { code })));
+    return this;
+  });
+  await start();
+  expect((await send()).status).toBe(200);
+  expect(upstream).toHaveBeenCalledTimes(1);
 });
 
 it('health is generic even without tokens and never contacts Telegram', async () => {

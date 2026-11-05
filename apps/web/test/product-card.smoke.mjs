@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import { startWeb } from './browser.mjs';
 
 const artifacts = await mkdtemp(join(tmpdir(), 'korzina-product-card-'));
@@ -77,7 +77,7 @@ try {
   browser = await chromium.launch({
     executablePath: process.env.CATALOG_BROWSER_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true,
   });
-  for (const width of [390, 1280]) {
+  for (const width of [320, 390, 1280]) {
     const context = await browser.newContext({ viewport: { width, height: 844 }, deviceScaleFactor: 2,
       isMobile: width < 600, hasTouch: width < 600 });
     await context.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
@@ -153,6 +153,57 @@ try {
     await detailFavorite.click();
     assert.equal(await detailFavorite.getAttribute('aria-pressed'), 'true');
     report.checks.push({ width, name: 'product navigation and standalone favorite button' });
+
+    const summary = page.locator('.product__summary');
+    const minus = page.locator('.product__portion').first();
+    const plus = page.locator('.product__portion').last();
+    await expect(summary).toContainText('2 упаковки');
+    await minus.click();
+    await expect(summary).toContainText('1 упаковка');
+    await minus.click();
+    await expect(page.locator('.product__btn')).toContainText('Добавить 1 упаковку');
+    await expect(page.locator('.product__control')).toHaveCount(0);
+    await page.locator('.product__btn').click();
+    await expect(summary).toContainText('1 упаковка');
+    await plus.click();
+    await expect(summary).toContainText('2 упаковки');
+    report.checks.push({ width, name: 'detail pack controls immediately add, subtract, remove and re-add in one bar' });
+
+    await page.goto(web.base + '/product/fixture-2', { waitUntil: 'domcontentloaded' });
+    await expect(summary).toContainText('600 г');
+    await expect(summary).toContainText('119,99 ₽');
+    await minus.click();
+    await expect(summary).toContainText('500 г');
+    await plus.focus();
+    await page.keyboard.press('Space');
+    await expect(summary).toContainText('600 г');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(summary).toContainText('600 г');
+    await expect(summary).toContainText('119,99 ₽');
+    assert.equal(await page.locator('.product__buy .qty').count(), 0);
+    const geometry = await page.locator('.product__control').evaluate(control => {
+      const box = control.getBoundingClientRect();
+      const buy = control.closest('.product__buy').getBoundingClientRect();
+      const buttons = [...control.querySelectorAll('button')].map(button => button.getBoundingClientRect());
+      return { width: box.width, available: buy.width, buttons: buttons.map(button => ({ width: button.width, height: button.height })),
+        overflow: document.documentElement.scrollWidth > innerWidth };
+    });
+    assert.ok(Math.abs(geometry.width - geometry.available) < 1, JSON.stringify(geometry));
+    assert.ok(geometry.buttons.every(button => button.width >= 44 && button.height >= 44), JSON.stringify(geometry));
+    assert.equal(geometry.overflow, false);
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.waitForFunction(dark => document.documentElement.classList.contains('dark') === dark, theme === 'dark');
+      await page.locator('.product__control').evaluate(control => control.scrollIntoView({ block: 'center' }));
+      await page.locator('.product__control').screenshot({ animations: 'disabled', path: join(artifacts, `product-quantity-${width}-${theme}.png`) });
+    }
+    await minus.click();
+    await expect(summary).toContainText('500 г');
+    await minus.click();
+    await expect(page.locator('.product__btn')).toContainText('Добавить 500 г');
+    await page.locator('.product__btn').click();
+    await expect(summary).toContainText('500 г');
+    report.checks.push({ width, name: 'detail weight, price, sale step, keyboard, reload, removal and full-width touch targets' });
     await context.close();
 
     // Real pending lifecycle against the local fixture, with the response held.
@@ -188,7 +239,7 @@ try {
     }
   }
   assert.deepEqual(report.errors, []);
-  console.log('PASS: ProductCard SSR, immediate interactions, keyboard, pending, prices, quantities and reload at 390/1280.');
+  console.log('PASS: ProductCard and detail SSR, immediate interactions, keyboard, pending, prices, quantities and reload at 320/390/1280.');
 } finally {
   await writeFile(join(artifacts, 'report.json'), JSON.stringify(report, null, 2));
   console.log('Artifacts: ' + artifacts);
