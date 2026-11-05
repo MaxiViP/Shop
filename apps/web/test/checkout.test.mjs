@@ -71,6 +71,7 @@ async function fixture(t, authenticated = false, preserveDefault = false, select
     watch: (...args) => { const stop = watch(...args); stops.push(stop); return stop; },
     useCartStore: () => cart,
     useDeliveryStore: () => delivery,
+    useRuntimeConfig: () => ({ public: { yandexMapsKey: 'synthetic-test-key' } }),
     useCartActions: () => ({
       put: async (p, qty) => cart.put(p, qty),
       remove: async id => { cart.remove(id); return true; },
@@ -122,7 +123,7 @@ async function fixture(t, authenticated = false, preserveDefault = false, select
     checkoutErrors, checkoutFieldOrder,
   };
   const setup = new AsyncFunction(...Object.keys(context),
-    executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, errors, shakeFields, selectAddress, selectedAddressId, selectedPhone, choosePhone, onPhoneInput, availablePhones, phoneData, deliveryQuote, deliveryNote, removeItem, undoRemoval, lastRemoved };");
+    executable + "\nreturn { form, recipientMode, recipient, self, other, canSubmit, submit, error, errors, shakeFields, selectAddress, selectedAddressId, selectedPhone, choosePhone, onPhoneInput, availablePhones, phoneData, deliveryQuote, deliveryNote, removeItem, undoRemoval, lastRemoved, pickDeliveryAddress, mapOpen };");
   const result = await setup(...Object.values(context));
   Object.assign(result.recipient.value, { name: "Recipient", ...(preserveDefault ? {} : { phone: "+79990000000" }) });
   if (!authenticated && !selectedDelivery) Object.assign(result.recipient.value, { city: "City", street: "Street", house: "10", comment: "Call" });
@@ -184,6 +185,32 @@ test('a guest address chosen before shopping prefills checkout without submittin
   assert.equal(f.state.requests[0].body.address.buildingPart, 'стр. 1');
   assert.equal('deliveryPrice' in f.state.requests[0].body, false);
   assert.equal('estimatedPrice' in f.state.requests[0].body, false);
+});
+
+test('tapping a house on the checkout map fills the fields and triggers estimate without trusting a price', async t => {
+  const f = await fixture(t, true);
+  const chosen = { city: 'Москва', street: 'Барклая', house: '10', lat: 55.7, lng: 37.5 };
+  const previousPhone = f.self.phone;
+  f.mapOpen.value = true;
+  f.pickDeliveryAddress(chosen);
+  await nextTick();
+  assert.equal(f.mapOpen.value, false);
+  assert.equal(f.selectedAddressId.value, null);
+  assert.equal(f.self.city, 'Москва');
+  assert.equal(f.self.street, 'Барклая');
+  assert.equal(f.self.house, '10');
+  assert.equal(f.self.flat, '', 'A new house must not inherit a saved apartment');
+  assert.equal(f.self.phone, previousPhone);
+  assert.deepEqual(f.delivery.selected, chosen);
+  await f.submit();
+  const request = f.state.requests[0].body;
+  assert.deepEqual(request.address, {
+    city: 'Москва', street: 'Барклая', house: '10', buildingPart: undefined,
+    flat: undefined, entrance: undefined, floor: undefined, intercom: undefined, comment: undefined,
+  });
+  assert.equal('deliveryPrice' in request, false);
+  assert.equal('lat' in request.address, false);
+  assert.equal('lng' in request.address, false);
 });
 
 test('changing the global selected address updates checkout and preserves saved apartment details', async t => {
